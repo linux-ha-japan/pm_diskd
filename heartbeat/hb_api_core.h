@@ -23,6 +23,7 @@
 #ifndef _HB_API_CORE_H
 #	define _HB_API_CORE_H 1
 #include <sys/types.h>
+#include <glib.h>
 #include <clplumbing/longclock.h>
 #include <ha_msg.h>
 
