@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.1 1999/09/23 15:31:24 alanr Exp $
+#	$Id: Makefile,v 1.2 1999/09/29 03:50:43 alanr Exp $
 #
 #	Makefile for making High-Availability Linux documents
 #
@@ -33,6 +33,7 @@ DOCFILES =			\
 	GettingStarted.html	\
 	Requirements.html	\
 	README			\
+	authkeys		\
 	ha.cf			\
 	haresources
 
