@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.268 2003/07/01 10:12:26 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.269 2003/07/03 21:49:33 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1231,6 +1231,7 @@ master_control_process(IPC_Channel* fifoproc)
 
 	if (UseOurOwnPoll) {
 		g_main_set_poll_func(cl_glibpoll);
+		ipc_set_pollfunc(cl_poll);
 	}
 	mainloop = g_main_new(TRUE);
 	g_main_run(mainloop);
@@ -4123,6 +4124,9 @@ get_localnodeinfo(void)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.269  2003/07/03 21:49:33  alan
+ * Added code to allow us to use our own poll substitute for everything...
+ *
  * Revision 1.268  2003/07/01 10:12:26  horms
  * Use defines for node types rather than arbitary strings
  *
