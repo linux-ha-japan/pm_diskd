@@ -43,38 +43,63 @@ class ResourceAudit(ClusterAudit):
     def name(self):
         return "ResourceAudit"
 
-    def _doaudit(self):
-         '''Check to see if all resources are running in exactly one place
-         in the cluster.
-         '''
-         Fatal = 0
-         result = []
+    def _doauditRsc(self, resource):
+        ResourceNodes = []
+        for node in self.CM.Env["nodes"]:
+            if self.CM.ShouldBeStatus[node] == self.CM["up"]:
+                if resource.IsRunningOn(node):
+                    ResourceNodes.append(node)
+	return ResourceNodes
 
-         Groups = self.CM.ResourceGroups()
-         for group in Groups:
-             for resource in group:
-                ResourceNodes = []
-                Upcount=0
-                for node in self.CM.Env["nodes"]:
-                    if self.CM.ShouldBeStatus[node] == self.CM["up"]:
-                        Upcount=Upcount+1
-                        if resource.IsRunningOn(node):
-                            ResourceNodes.append(node)
-                if len(ResourceNodes) == 0 and Upcount > 0:
-                    result.append("Resource " + repr(resource)
-                    +	" not served anywhere.")
-                if len(ResourceNodes) > 1:
-                    result.append("Resource " + repr(resource)
-                    +	" served too many times: "
-                    +	repr(ResourceNodes))
-                    self.CM.log("Resource " + repr(resource)
-                    +	" served too many times: "
-                    +	repr(ResourceNodes))
-                    Fatal = 1
-         if (Fatal):
+    def _doaudit(self):
+        '''Check to see if all resources are running in exactly one place
+        in the cluster.
+	We also verify that the members of a resource group are all
+	running on the same node in the cluster,
+	and we monitor that they are all running "properly".
+        '''
+        Fatal = 0
+        result = []
+
+        Groups = self.CM.ResourceGroups()
+        for group in Groups:
+            GrpServedBy = None
+
+            for resource in group:
+
+               ResourceNodes = self._doauditRsc(resource)
+
+               if len(ResourceNodes) == 0 and self.CM.upcount() > 0:
+                   result.append("Resource " + repr(resource)
+                   +	" not served anywhere.")
+               elif len(ResourceNodes) > 1:
+                   result.append("Resource " + repr(resource)
+                   +	" served too many times: "
+                   +	repr(ResourceNodes))
+                   self.CM.log("Resource " + repr(resource)
+                   +	" served too many times: "
+                   +	repr(ResourceNodes))
+                   Fatal = 1
+               elif GrpServedBy == None:
+                   GrpServedBy = ResourceNodes
+               elif GrpServedBy != ResourceNodes:
+                   result.append("Resource group" + repr(resource)
+                   +	" served by different nodes: "
+                   +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
+                   self.CM.log("Resource " + repr(resource)
+                   +	" served too many times: "
+                   +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
+                   Fatal = 1
+
+               if not Fatal and len(ResourceNodes) == 1:
+                   if not resource.IsWorkingCorrectly(ResourceNodes[0]):
+                     result.append("Resource " + repr(resource)
+                     +	" not operating properly.")
+
+        if (Fatal):
              result.insert(0, "FATAL")  # Kludgy.
 
-         return result
+        return result
 
 
     def __call__(self):

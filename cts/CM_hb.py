@@ -170,7 +170,7 @@ class HeartbeatCM(ClusterManager):
         cases.
         '''
 
-        if (type == "IPaddr") :
+        if type == "IPaddr":
             return HBipResource(self, type, instance)
 
         return HBResource(self, type, instance)
@@ -226,20 +226,19 @@ class HBResource(Resource):
         
     def IsWorkingCorrectly(self, nodename):
         "We default to returning TRUE for this one..."
+        self.CM.log("Faking out: " + self.Instance)
         return 1
 
 class HBipResource(HBResource):
     '''
     We are a specialized IP address resource which knows how to test
     to see if our resource type is actually being served.
-    In an ideal world, I suppose we'd move this code into the IPaddr
-    script as a "monitor" action, and then use that - but from
-    the current machine, since we want to see if ARPs are working.
+    We are cheat and run the IPaddr resource script on
+    the current machine, because it's a more interesting case.
     '''
 
     def IsWorkingCorrectly(self, nodename):
-        "We're not written yet, since we default to returning TRUE..."
-        return 1
+        return self._ResourceOperation("monitor", "OK", "localhost")
 
 #
 #   A little test code...
