@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.4 1999/09/27 04:14:42 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.5 1999/09/29 03:22:09 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -232,6 +232,7 @@ void	cleanexit(int rc);
 void	debug_sig(int sig);
 void	signal_all(int sig);
 void	parent_debug_sig(int sig);
+void	reread_config_sig(int sig);
 int	islegaldirective(const char *directive);
 int	parse_config(const char * cfgfile);
 int	parse_ha_resources(const char * cfgfile);
@@ -248,7 +249,7 @@ int	set_udpport(const char * value);
 int	set_facility(const char * value);
 int	set_logfile(const char * value);
 int	set_dbgfile(const char * value);
-int   	set_auth(const char * value);
+int   	parse_authfile(void);
 void	init_watchdog(void);
 void	tickle_watchdog(void);
 void	usage(void);
@@ -319,11 +320,9 @@ init_config(const char * cfgfile)
 		ha_error("Heartbeat not started: configuration error.");
 		return(HA_FAIL);
 	}
-	if (config->log_facility < 0 && *(config->logfile) == 0) {
-		strcpy(config->logfile, DEFAULTLOG);
-		strcpy(config->dbgfile, DEFAULTDEBUG);
-		ha_log(LOG_INFO, "Neither logfile nor logfacility found.");
-		ha_log(LOG_INFO, "Defaulting to " DEFAULTLOG);
+	if (parse_authfile() != HA_OK) {
+		ha_error("Authentication configuration error.");
+		return(HA_FAIL);
 	}
 	if (config->log_facility >= 0) {
 		openlog(cmdname, LOG_CONS | LOG_PID, config->log_facility);
@@ -361,6 +360,12 @@ init_config(const char * cfgfile)
 		,	config->deadtime_interval, config->heartbeat_interval);
 		ha_error(msg);
 		++errcount;
+	}
+	if (config->log_facility < 0 && *(config->logfile) == 0) {
+		strcpy(config->logfile, DEFAULTLOG);
+		strcpy(config->dbgfile, DEFAULTDEBUG);
+		ha_log(LOG_INFO, "Neither logfile nor logfacility found.");
+		ha_log(LOG_INFO, "Defaulting to " DEFAULTLOG);
 	}
 	return(errcount ? HA_FAIL : HA_OK);
 }
@@ -408,7 +413,6 @@ init_procinfo()
 #define	KEY_FACILITY	"facility"
 #define	KEY_LOGFILE	"logfile"
 #define	KEY_DBGFILE	"debugfile"
-#define KEY_AUTH	"auth"
 
 struct directive {
 	const char * name;
@@ -424,7 +428,6 @@ struct directive {
 ,	{KEY_FACILITY,  set_facility}
 ,	{KEY_LOGFILE,   set_logfile}
 ,	{KEY_DBGFILE,   set_dbgfile}
-,	{KEY_AUTH, 	set_auth}
 };
 
 extern const struct hb_media_fns	ip_media_fns;
@@ -453,12 +456,16 @@ parse_config(const char * cfgfile)
 	int		optionlength;
 	char		msg[MAXLINE];
 	int		errcount = 0;
+	struct stat	sbuf;
 
 	if ((f = fopen(cfgfile, "r")) == NULL) {
 		sprintf(msg, "Cannot open config file [%s]", cfgfile);
 		ha_error(msg);
 		return(HA_FAIL);
 	}
+
+	fstat(fileno(f), &sbuf);
+	config->cfg_time = sbuf.st_mtime;
 
 	/* It's ugly, but effective  */
 
@@ -478,15 +485,14 @@ parse_config(const char * cfgfile)
 		if (*bp == EOS) {
 			continue;
 		}
-		/* Now we expect a directive name*/
+		/* Now we expect a directive name */
 
 		dirlength = strcspn(bp, WHITESPACE);
 		strncpy(directive, bp, dirlength);
 		directive[dirlength] = EOS;
 		if (!islegaldirective(directive)) {
-			sprintf(msg, "Illegal directive [%s] in %s"
+			ha_log(LOG_ERR, "Illegal directive [%s] in %s"
 			,	directive, cfgfile);
-			ha_error(msg);
 			++errcount;
 			continue;
 		}
@@ -514,7 +520,7 @@ parse_config(const char * cfgfile)
 			strncpy(option, bp, optionlength);
 			option[optionlength] = EOS;
 			bp += optionlength;
-			if (!add_option(directive, option)) {
+			if (add_option(directive, option) != HA_OK) {
 				errcount++;
 			}
 
@@ -593,10 +599,11 @@ dump_config(void)
 int
 parse_ha_resources(const char * cfgfile)
 {
-	char	buf[MAXLINE];
-	char	msg[MAXLINE];
-	int	rc = HA_OK;
-	FILE *	f;
+	char		buf[MAXLINE];
+	char		msg[MAXLINE];
+	struct stat	sbuf;
+	int		rc = HA_OK;
+	FILE *		f;
 
 	if ((f = fopen(cfgfile, "r")) == NULL) {
 		sprintf(msg, "Cannot open config file [%s]", cfgfile);
@@ -604,6 +611,9 @@ parse_ha_resources(const char * cfgfile)
 		return(HA_FAIL);
 	}
 
+	fstat(fileno(f), &sbuf);
+	config->rsc_time = sbuf.st_mtime;
+	
 	while (fgets(buf, MAXLINE-1, f) != NULL) {
 		char *	bp = buf;
 		char *	endp;
@@ -682,8 +692,7 @@ add_option(const char *	option, const char * value)
 			}
 		}
 	}
-	sprintf(msg, "Illegal configuration directive [%s]", option);
-	ha_error(msg);
+	ha_log(LOG_ERR, "Illegal configuration directive [%s]", option);
 	return(HA_FAIL);
 }
 
@@ -729,22 +738,22 @@ set_hopfudge(const char * value)
 
 /*
  *  Set authentication method and key.
- *  Open and parse the keyfile if needed
+ *  Open and parse the keyfile.
  */
 
 int
-set_auth(const char * value)
+parse_authfile(void)
 {
-	FILE *	f;
-	char	buf[MAXLINE];
-	char	method[MAXLINE];
-	char	key[MAXLINE];
-	int	i;
-	int	src;
-	int	rc = HA_OK;
-	int	authnum;
-	struct stat keyfilestat;
-	authnum = atoi(value);
+	FILE *		f;
+	char		buf[MAXLINE];
+	char		method[MAXLINE];
+	char		key[MAXLINE];
+	int		i;
+	int		src;
+	int		rc = HA_OK;
+	int		authnum = -1;
+	struct stat	keyfilestat;
+	int		j;
 
 	if ((f = fopen(KEYFILE, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot open keyfile [%s].  Stop."
@@ -756,17 +765,45 @@ set_auth(const char * value)
 	||	keyfilestat.st_mode & (S_IROTH | S_IRGRP)) {
 		ha_log(LOG_ERR, "Bad permissions on keyfile"
 		" [%s], 600 recommended.", KEYFILE);
+		fclose(f);
 		return(HA_FAIL);
+	}
+	config->auth_time = keyfilestat.st_mtime;
+
+	/* Allow for us to reread the file without restarting... */
+	config->authmethod = NULL;
+	for (j=0; j < MAXAUTH; ++j) {
+		if (config->auth_config[j].key != NULL) {
+			free(config->auth_config[j].key);
+			config->auth_config[j].key=NULL;
+		}
+		if (config->auth_config[j].auth != NULL) {
+			config->auth_config[j].auth = NULL;
+		}
 	}
 
 	while(fgets(buf, MAXLINE, f) != NULL) {
+		char *	bp = buf;
 		struct auth_type *	at;
-		if (*buf == COMMENTCHAR) {
+		
+		bp += strspn(bp, WHITESPACE);
+
+		if (*buf == COMMENTCHAR || *buf == EOS) {
+			continue;
+		}
+		if (*buf == 'a') {
+			if ((src=sscanf(bp, "auth %d", &authnum)) != 1) {
+				ha_log(LOG_ERR
+				,	"Invalid auth line [%s] in " KEYFILE
+				,	 buf);
+				rc = HA_FAIL;
+			}
 			continue;
 		}
 
+
 		key[0] = EOS;
-		if ((src=sscanf(buf, "%d%s%s", &i, method, key)) >= 2) {
+		if ((src=sscanf(bp, "%d%s%s", &i, method, key)) >= 2) {
 
 			char *	cpkey;
 			if (ANYDEBUG) {
@@ -805,6 +842,7 @@ set_auth(const char * value)
 			cpkey =	malloc(strlen(key)+1);
 			if (cpkey == NULL) {
 				ha_log(LOG_ERR, "Out of memory for authkey");
+				fclose(f);
 				return(HA_FAIL);
 			}
 			strcpy(cpkey, key);
@@ -823,9 +861,15 @@ set_auth(const char * value)
 
 	fclose(f);
 	if (!config->authmethod) {
-		ha_log(LOG_ERR
-		,	"Key number [%s] not found in keyfile [%s]"
-		" - cannot start", value, KEYFILE);
+		if (authnum < 0) {
+			ha_log(LOG_ERR
+			,	"Missing auth directive in keyfile [%s]"
+			,	KEYFILE);
+		}else{
+			ha_log(LOG_ERR
+			,	"Auth Key [%d] not found in keyfile [%s]"
+			,	authnum, KEYFILE);
+		}
 		rc = HA_FAIL;
 	}
 	return(rc);
@@ -1375,6 +1419,9 @@ master_status_process(void)
 			continue;
 		}
 
+		/* Reread authentication? */
+		check_auth_change(config);
+
 		if (!isauthentic(msg)) {
 			ha_log(LOG_DEBUG
 			,       "master_status_process: node [%s]"
@@ -1449,6 +1496,18 @@ master_status_process(void)
 		}else{
 			notify_world(msg, thisnode->status);
 		}
+	}
+}
+void check_auth_change(struct sys_config *conf)
+{
+	if (conf->rereadauth) {
+		if (parse_authfile() != HA_OK) {
+			/* OOPS.  Sayonara. */
+			ha_log(LOG_ERR
+			,	"Authentication reparsing error, exiting.");
+			signal_all(SIGTERM);
+		}
+		conf->rereadauth = 0;
 	}
 }
 
@@ -1583,6 +1642,25 @@ parent_debug_sig(int sig)
 {
 	debug_sig(sig);
 	signal_all(sig);
+}
+
+void
+reread_config_sig(int sig)
+{
+	int	j;
+
+	signal(sig, reread_config_sig);
+
+	/* If we're the control process, tell our children */
+	if (curproc->type == PROC_CONTROL) {
+		ha_log(LOG_INFO, "Rereading authentication file.");
+		for (j=0; j < procinfo->nprocs; ++j) {
+			if (procinfo->info+j != curproc) {
+				kill(procinfo->info[j].pid, sig);
+			}
+		}
+	}
+	config->rereadauth = 1;
 }
 
 /* Ding!  Activated once per second in the status process */
@@ -2051,6 +2129,7 @@ make_daemon(void)
 #endif
 	(void)signal(SIGUSR1, debug_sig);
 	(void)signal(SIGUSR2, debug_sig);
+	(void)signal(SIGHUP, reread_config_sig);
 
 	(void)signal(SIGTERM, signal_all);
 	umask(022);
@@ -2350,6 +2429,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.5  1999/09/29 03:22:09  alanr
+ * Added the ability to reread auth config file on SIGHUP
+ *
  * Revision 1.4  1999/09/27 04:14:42  alanr
  * We now allow multiple strings, and the code for logging seems to also be working...  Thanks Guyscd ..
  *

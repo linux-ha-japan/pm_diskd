@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.4 1999/09/27 04:14:54 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.5 1999/09/29 03:22:23 alanr Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -144,7 +144,7 @@ struct node_info {
 
 struct auth_info {
 	struct auth_type *	auth;
-	const char *		key;
+	char *			key;
 };
 
 struct auth_type {
@@ -158,6 +158,9 @@ struct auth_type {
 #define MAXAUTH	16
 
 struct sys_config {
+	time_t	cfg_time;		/* Timestamp of config file */
+	time_t	auth_time;		/* Timestamp of authorization file */
+	time_t	rsc_time;		/* Timestamp of haresources file */
 	int	format_vers;		/* Version of this info */
 	int	nodecount;		/* Number of nodes in cluster */
 	int	heartbeat_interval;	/* Seconds between heartbeats */
@@ -166,10 +169,11 @@ struct sys_config {
 	int     log_facility;		/* syslog facility, if any */
 	char    logfile[PATH_MAX];	/* path to log file, if any */
 	char	dbgfile[PATH_MAX];	/* path to debug file, if any */
-	struct node_info	nodes[MAXNODE];
+	int	rereadauth;		/* 1 if we need to reread auth file */
 	int	authnum;
-	struct auth_info auth_config[MAXAUTH];
-	struct auth_info *authmethod;
+	struct auth_info* authmethod;	/* auth_config[authnum] */
+	struct node_info  nodes[MAXNODE];
+	struct auth_info  auth_config[MAXAUTH];
 };
 
 
@@ -255,6 +259,7 @@ extern int		send_local_status(void);
 extern int		set_local_status(const char * status);
 extern int		send_cluster_msg(struct ha_msg*msg);
 extern void		cleanexit(int exitcode);
+extern void		check_auth_change(struct sys_config *);
 extern void		(*localdie)(void);
 extern int		should_ring_copy_msg(struct ha_msg* m);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);

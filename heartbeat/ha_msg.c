@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.3 1999/09/26 21:59:58 alanr Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.4 1999/09/29 03:22:05 alanr Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -446,6 +446,7 @@ add_msg_auth(struct ha_msg * m)
 	char *	bp = msgbody;
 	int	j;
 
+	check_auth_change(config);
 	msgbody[0] = EOS;
 	for (j=0; j < m->nfields; ++j) {
 		strcat(bp, m->names[j]);
@@ -529,7 +530,7 @@ isauthentic(const struct ha_msg * m)
 	}
 	if (strcmp(authstring, authtoken) == 0) {
 		if (DEBUGAUTH) {
-			ha_log(LOG_INFO, "Packet authenticated");
+			ha_log(LOG_DEBUG, "Packet authenticated");
 		}
 		return(1);
 	}
@@ -618,6 +619,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.4  1999/09/29 03:22:05  alanr
+ * Added the ability to reread auth config file on SIGHUP
+ *
  * Revision 1.3  1999/09/26 21:59:58  alanr
  * Allow multiple auth strings in auth file... (I hope?)
  *
