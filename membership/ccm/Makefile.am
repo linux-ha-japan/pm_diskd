@@ -97,6 +97,9 @@ install-exec-local:
 	test -p $(DESTDIR)$(ccmresfifo) || mkfifo -m 600 $(DESTDIR)$(ccmresfifo)
 	-chgrp $(apigid) $(DESTDIR)/$(ccmreqfifo)
 	-chgrp $(apigid) $(DESTDIR)/$(ccmresfifo)
+	-chown $(ccmuid) $(DESTDIR)/$(ccmreqfifo)
+	-chown $(ccmuid) $(DESTDIR)/$(ccmresfifo)
+
 
 uninstall-local:
 	-test -p $(DESTDIR)$(ccmreqfifo) && rm $(DESTDIR)$(ccmreqfifo)
