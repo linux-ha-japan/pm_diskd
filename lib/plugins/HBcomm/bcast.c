@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.19 2002/07/16 16:18:15 msoffen Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.20 2002/07/16 17:10:32 msoffen Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -736,11 +736,12 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 	
 	if (return_val == 0 ) {
 		if (ifr.ifr_broadaddr.sa_family == AF_INET) {
-			struct sockaddr_in
-				*sin_ptr = (struct sockaddr_in *)
-				&ifr.ifr_broadaddr;
+			struct sockaddr_in sin_ptr;
 			
-			memcpy(broadaddr, &sin_ptr->sin_addr,
+			memcpy(&sin_ptr, &ifr.ifr_broadaddr,
+				sizeof(sin_ptr));
+			
+			memcpy(broadaddr, &sin_ptr.sin_addr,
 				sizeof(*broadaddr));
 			
 			/* leave return_val set to 0 to return success! */
@@ -765,6 +766,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.20  2002/07/16 17:10:32  msoffen
+ * Changed so that Lars shouldn't have the issue with the struct copy.
+ *
  * Revision 1.19  2002/07/16 16:18:15  msoffen
  * -Re-added in LArs's comments.
  *
