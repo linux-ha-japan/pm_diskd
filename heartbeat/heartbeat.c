@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.51 2000/06/12 06:11:09 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.52 2000/06/12 06:47:35 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -34,8 +34,8 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.51 2000/06/12 06:11:
  *	"Node" lines tell us about the cluster configuration.
  *	We had better find our uname -n nodename here, or we won't start up.
  *
- *	We ought to complain if we find extra nodes in the stream that aren't in
- *	the master configuration file.
+ *	We complain if we find extra nodes in the stream that aren't
+ *	in the master configuration file.
  *
  *	keepalive lines specify the keepalive interval
  *	deadtime lines specify how long we wait before declaring
@@ -113,88 +113,100 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.51 2000/06/12 06:11:
  *			copying to tty write pipes (incrementing hop count and
  *				filtering out "ring wraparounds")
  *
- ****** Wish List: *************************************************************************************
+ ****** Wish List: ************************************************************
  *	[not necessarily in priority order]
  *
  *	Heartbeat API:
- *		This is currently being worked.  It would allow application programs to attach to
- *		heartbeat and get status notices from it, and allow them to send and receive messages
- *		to/from the cluster as well.  This would allow us to move all the resource
+ *		This is currently being worked.  It would allow application
+ *		programs to attach to heartbeat and get status notices from it,
+ *		and allow them to send and receive messages to/from the
+ *		cluster as well.  This would allow us to move all the resource
  *		management stuff to a cluster manager, where it belongs ;-)
  *
  *	Fuzzy heartbeat timing
- *		Right now, the code works in such a way that it systematically gets everyone
- *		heartbeating on the same time intervals, so that they happen at precisely the same time.
- *		This isn't too good for non-switched ethernet (CSMA/CD) environments, where it generates
- *		gobs of collisions, packet losses and retransmissions.  It's especially bad if everyone's
- *		clocks are in sync, which of course, every good system administrator strives to do ;-)
+ *		Right now, the code works in such a way that it systematically
+ *		gets everyone heartbeating on the same time intervals, so that
+ *		they happen at precisely the same time. This isn't too good
+ *		for non-switched ethernet (CSMA/CD) environments, where it
+ *		generates gobs of collisions, packet losses and
+ *		retransmissions.  It's especially bad if all the clocks are
+ *		in sync, which of course, every good system administrator
+ *		strives to do ;-) This is due to Alan Cox who pointed out
+ *		section 3.3 "Timers" in RFC 1058, which it states:
  *
- *		This is due to Alan Cox who pointed out section 3.3 "Timers" in RFC 1058,
- *		in which it states:
+ *       	  "It is undesirable for the update messages to become
+ *		   synchronized, since it can lead to unnecessary collisions
+ *		   on broadcast networks."
  *
- *       	  "It is undesirable for the update messages to become synchronized,
- *        	   since it can lead to unnecessary collisions on broadcast networks."
- *
- *		In particular, on Linux, if you set your all the clocks in your cluster
- *		via NTP (as you should), and heartbeat every second, then all the
- *		machines in the world will all try and heartbeat at precisely the same
- *		time, because alarm(2) wakes up on even second boundaries, which
- *		combined with the use of NTP (recommended), will systematically cause
- *		LOTS of unnecessary collisions.
+ *		In particular, on Linux, if you set your all the clocks in
+ *		your cluster via NTP (as you should), and heartbeat every
+ *		second, then all the machines in the world will all try and
+ *		heartbeat at precisely the same time, because alarm(2) wakes
+ *		up on even second boundaries, which combined with the use of
+ *		NTP (recommended), will systematically cause LOTS of
+ *		unnecessary collisions.
  *
  *		Martin Lichtin suggests:
  *          	Could you skew the heartbeats, based on the interface IP#?
  *		Probably want to use select(2) to wake up more precisely.
  *
  *		AlanR replied:
- *		I've thought about using setitimer(2), which would probably be slightly
- *		more compatible with the way the code is currently written.
+ *		I've thought about using setitimer(2), which would probably
+ *		be slightly more compatible with the way the code is currently
+ *		 written.
  *
- *		I thought that perhaps I could set each machine to a different interval
- *		in a +- 0.25 second range.  For example, one machine might heartbeat at
- *		0.75 second interval, and another at a 1.25 second interval.  The
- *		tendency would be then for the timers to wander across second
- *		boundaries, and even if they started out in sync, they would be unlikely
- *		to stay in sync.
+ *		I thought that perhaps I could set each machine to a different 
+ *		interval in a +- 0.25 second range.  For example, one machine
+ *		might heartbeat at 0.75 second interval, and another at a 1.25
+ *		second interval.  The tendency would be then for the timers to
+ *		wander across second boundaries, and even if they started out
+ *		in sync, they would be unlikely to stay in sync.
  *		[but in retrospect, I'm not 100% sure about this]
  *
- *		This would keep me from having to generate a random number for every
- *		single heartbeat as the RFC suggests.
+ *		This would keep me from having to generate a random number for
+ *		every single heartbeat as the RFC suggests.
  *
- *		Of course, there are only 100 ticks/second, so if the clocks get closely
- *		synchronized, you can only have 100 different times to heartbeat.  I
- *		suppose if you have something like 50-100 nodes, you ought to use a
- *		switch, and not a hub, and this would likely eliminate the problems.
+ *		Of course, there are only 100 ticks/second, so if the clocks
+ *		get closely synchronized, you can only have 100 different
+ *		times to heartbeat.  I suppose if you have something like
+ *		50-100 nodes, you ought to use a switch, and not a hub, and
+ *		this would likely eliminate the problems.
  *
  *	Ping heartbeating:
- *		A hub, switch, or router can act as a cluster quorum device if it we're willing
- *		to ping it (and it's willing to answer).  It would be handy to just give it the same API
- *		treatment as any other cluster "node".
+ *		A hub, switch, or router can act as a cluster quorum device
+ *		if it we're willing to ping it (and it's willing to answer).
+ *		It would be handy to just give it the same API treatment as
+ *		any other cluster "node".
  *
  *	Multicast heartbeats
- *		We really need to add UDP/IP multicast to our suite of heartbeat types.  Fundamentally,
- *		cluster communications are perhaps best thought of as multicast in nature.  Broadcast
- *		(like we do now) is basically a degenerate multicast case.  One of the pieces of code
- *		listed on the linux-ha web site does multicast heartbeats.  Perhaps we could just borrow
+ *		We really need to add UDP/IP multicast to our suite of
+ *		heartbeat types.  Fundamentally, cluster communications are
+ *		perhaps best thought of as multicast in nature.  Broadcast
+ *		(like we do now) is basically a degenerate multicast case.
+ *		One of the pieces of code listed on the linux-ha web site
+ *		does multicast heartbeats.  Perhaps we could just borrow
  *		the correct parts from them.
  *
  *	Unicast heartbeats
- *		Some applications of heartbeat have certain machines which are not really full members of
- *		the cluster, but which would like to participate in the heartbeat API.  Although they
- *		could theoretically use multicast, there are practical barriers to doing so.  This is NOT
- *		intended to replace multicast/broadcast heartbeats for the entire cluster, but to allow
- *		one or two machines to join the cluster in a unicast mode.
+ *		Some applications of heartbeat have certain machines which are
+ *		not really full members of the cluster, but which would like
+ *		to participate in the heartbeat API.  Although they
+ *		could theoretically use multicast, there are practical barriers
+ *		to doing so.  This is NOT intended to replace
+ *		multicast/broadcast heartbeats for the entire cluster, but
+ *		to allow one or two machines to join the cluster in a unicast
+ *		mode.
  *
  *	Nearest Neighbor heartbeating (? maybe?)
- *		This is a candidate to replace the current policy of full-ring heartbeats
- *		In this policy, each machine only heartbeats to it's nearest
- *		neighbors.  The nearest neighbors only forward on status CHANGES
- *		to their neighbors.  This means that the total ring traffic
- *		in the non-error case is reduced to the same as a 3-node
- *		cluster.  This is a huge improvement.  It probably means that
- *		19200 would be fast enough for almost any size network.
- *		Non-heartbeat admin traffic would need to be forwarded to all members of the
- *		ring as it was before.
+ *		This is a candidate to replace the current policy of full-ring
+ *		heartbeats In this policy, each machine only heartbeats to it's
+ *		nearest neighbors.  The nearest neighbors only forward on
+ *		status CHANGES to their neighbors.  This means that the total
+ *		ring traffic in the non-error case is reduced to the same as
+ *		a 3-node cluster.  This is a huge improvement.  It probably
+ *		means that 19200 would be fast enough for almost any size
+ *		network. Non-heartbeat admin traffic would need to be
+ *		forwarded to all members of the ring as it was before.
  *
  *	IrDA heartbeats
  *		This is a near-exact replacement for ethernet with lower
@@ -202,14 +214,17 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.51 2000/06/12 06:11:
  *		The role of an ethernet hub is replaced by a mirror, which
  *		is less likely to fail.  But if it does, it might mean
  *		seven years of bad luck :-)
- *		The idea would be to make a bracket with the IrDA transceivers on them all
- *		facing the same way, then mount the bracket with the transceivers all facing
- *		the mirror.  Then each of the transceivers would be able to "see" each other.
  *
- *		I do kind of wonder if the kernel's IrDA stacks would be up to so much contention
- *		as it seems unlikely that they'd ever been tested in such a stressful environment.
- *		But, it seems really cool to me, and it only takes one port per machine rather
- *		than two like does for serial rings.
+ *		The idea would be to make a bracket with the IrDA transceivers
+ *		on them all facing the same way, then mount the bracket with
+ *		the transceivers all facing the mirror.  Then each of the
+ *		transceivers would be able to "see" each other.
+ *
+ *		I do kind of wonder if the kernel's IrDA stacks would be up
+ *		to so much contention as it seems unlikely that they'd ever
+ *		been tested in such a stressful environment.  But, it seems
+ *		really cool to me, and it only takes one port per machine
+ *		rather than two like we need for serial rings.
  *
  */
 
@@ -990,7 +1005,8 @@ send_to_all_media(char * smsg, int len)
 /*
  *	This code has gotten out of hand.
  *	It was simple, but now has grown various functions that shouldn't
- *	be here in the main body of the code.  We're trying to migrate some of them out over time.
+ *	be here in the main body of the code.  We're trying to migrate some of
+ *	them out over time.
  */
 
 /* The master status process */
@@ -1024,7 +1040,7 @@ master_status_process(void)
 		 * Don't think we need this code at this point in time.
 		 */
 			static int	resources_timer = 0;
-					/* Used to avoid multiple resource requests */
+					/* Used to avoid multiple rsrc rqsts */
 			static int 	send_starting_now = 1;
 #endif
 			send_status_now = 0;
@@ -1170,7 +1186,8 @@ master_status_process(void)
 			process_resources(msg, thisnode);
 		}
 
-		if (strcasecmp(type, T_STARTING) == 0 || strcasecmp(type, T_RESOURCES) == 0) {
+		if (strcasecmp(type, T_STARTING) == 0
+		||	strcasecmp(type, T_RESOURCES) == 0) {
 			continue;
 		}
 
@@ -1357,6 +1374,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			/* Does it matter? */
 			if ((i_hold_resources & FOREIGN_RSC) == 0) {
 				/* OOPS!  It matters! */
+				/* We could always just fudge this */
 				i_hold_resources |= FOREIGN_RSC;
 				ha_log(LOG_WARNING
 				,	"Fudging i_hold_resources!");
@@ -2678,7 +2696,8 @@ signal_all(int sig)
 				(*localdie)();
 			}
 			if (curproc && curproc->type == PROC_CONTROL) {
-				ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
+				ha_log(LOG_INFO
+				,	"Heartbeat shutdown in progress.");
 				giveup_resources();
 				ha_log(LOG_INFO, "Heartbeat shutdown complete.");
 				unlink(PIDFILE);
@@ -2907,7 +2926,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		t->last_iface = iface;
 		return(IsToUs ? KEEPIT : DROPIT);
 	}else if (seq == t->last_seq) {
-		if(iface && t->last_iface && strcmp(iface, t->last_iface) == 0) { 
+		if(iface && t->last_iface && strcmp(iface, t->last_iface) == 0){ 
 			return (DUPLICATE);
 		}
 		/* Same as last-seen packet -- very common case */
@@ -3102,8 +3121,8 @@ check_rexmit_reqs(void)
 		for (seqidx = 0; seqidx < t->nmissing; ++seqidx) {
 			if (t->seqmissing[seqidx] != NOSEQUENCE) {
 				/*
-				 * The code for asking for these by groups here is
-				 * complicated.  This code is not.
+				 * The code for asking for these by groups here
+				 * is complicated.  This code is not.
 				 */
 				request_msg_rexmit(hip, t->seqmissing[seqidx]
 				,	t->seqmissing[seqidx]);
@@ -3217,7 +3236,8 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			firstslot = msgslot -1;
 			foundit=1;
 			if (ANYDEBUG) {
-				ha_log(LOG_INFO, "Retransmitting pkt %d", thisseq);
+				ha_log(LOG_INFO, "Retransmitting pkt %d"
+				,	thisseq);
 			}
 			if (DEBUGPKT) {
 				ha_log_message(hist->msgq[msgslot]);
@@ -3326,6 +3346,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.52  2000/06/12 06:47:35  alan
+ * Changed a little formatting to make things read nicer on an 80-column screen.
+ *
  * Revision 1.51  2000/06/12 06:11:09  alan
  * Changed resource takeover order to left-to-right
  * Added new version of nice_failback.  Hopefully it works wonderfully!
