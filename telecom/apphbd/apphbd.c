@@ -708,6 +708,7 @@ init_start(const char * watchdogdev)
 	wconn = ipc_wait_conn_constructor(IPC_ANYTYPE, wconnattrs);
 
 	if (wconn == NULL) {
+		cl_log(LOG_CRIT, "Unable to create wcon of type %s", IPC_ANYTYPE);
 		cl_log(LOG_CRIT, "UhOh! Failed to create wconn!");
 		exit(1);
 	}
