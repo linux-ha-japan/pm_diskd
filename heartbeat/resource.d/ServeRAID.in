@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.12 2003/04/16 13:41:00 alan Exp $
+# $Id: ServeRAID.in,v 1.13 2003/04/18 16:39:08 alan Exp $
 # 
 # ServeRAID
 #
@@ -61,6 +61,7 @@ unset LANGUAGE; export LANGUAGE
 
 srsuccess=0
 
+PERL="perl"
 SCSI="scsi "
 
 usage() {
@@ -84,10 +85,10 @@ usage() {
 	version of the ServeRAID manager does not have the "configure for
 	clustering" option.
 
-	You will need at least version 5.10 (~July 2002 release) of the ipssend
+	You will need at least version 6 (~April 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.12 2003/04/16 13:41:00 alan Exp $
+	$Id: ServeRAID.in,v 1.13 2003/04/18 16:39:08 alan Exp $
 	!
   exit 1
 }
@@ -124,12 +125,13 @@ parseinst() {
     echo "Invalid ServeRAID instance: $*" >&2
     return 1
   fi
+  PerlScript='next unless /^Host/; $_ .= <>.<>; print "$1 " if /SERVERAID/ and /Proces/ and /scsi(\d+)/'
   # Get the list of host ids of the ServeRAID host adapters
-  hostlist=`perl -ne 'next unless /^Host/; $_ .= <>.<>; print "$1 " if /SERVERAID/ and /Proces/ and /scsi(\d+)/' <$proc_scsi`
+  hostlist=`$PERL -ne "${PerlScript}" <$proc_scsi`
   # Figure the host id of the desired ServeRAID adapter
   hostid=`echo $hostlist | cut -d' ' -f$1`
   if
-    [ ! -f $ServeRAIDSCSI/$hostid ]
+    [ ! -f "$ServeRAIDSCSI/$hostid" ]
   then
     echo "No such ServeRAID adapter: $1" >&2
     hostid=error
@@ -178,14 +180,18 @@ run() {
   fi
 }
 
+SRLogicalDriveConfig() {
+  $IPS getconfig $sr_adapter ld
+}
+
 MergeGroupToSCSI_ID() {
 
   PerlScript="while (<>) {
 	/logical drive number *([0-9]+)/i && (\$ld=\$1);
-	/part of merge group *: *$sr_mergegroup/i && print \$ld - 1, \"\n\";
+	/part of merge group *: *$sr_mergegroup *$/i && print \$ld - 1, \"\n\";
   }"
 
-  ID=`$IPS getconfig $sr_adapter ld | perl -e "$PerlScript"`
+  ID=`SRLogicalDriveConfig | $PERL -e "$PerlScript"`
   case $ID in
     [0-9]*)	echo "$ID"; return 0;;
     *)		return 1;;
@@ -196,10 +202,10 @@ MergeGroupRaidLevel() {
 
   PerlScript="while (<>) {
 	/RAID level *: *([0-9]+[A-Z]*)/i && (\$ld=\$1);
-	/part of merge group *: *$sr_mergegroup/i && print \$ld, \"\n\";
+	/part of merge group *: *$sr_mergegroup *$/i && print \$ld, \"\n\";
   }"
 
-  Level=`$IPS getconfig $sr_adapter ld | perl -e "$PerlScript"`
+  Level=`SRLogicalDriveConfig | $PERL -e "$PerlScript"`
   case $Level in
     ?*)	echo "$Level"; return 0;;
     *)		return 1;;
@@ -291,7 +297,7 @@ ServeRAID_status() {
   # The output we're looking for
   #	Part of merge group            : 2   
   #
-  $IPS getconfig $sr_adapter ld \
+  SRLogicalDriveConfig 		\
   |	grep -i "part of merge group[ 	]*: *$sr_mergegroup *$" >/dev/null
 }
 
