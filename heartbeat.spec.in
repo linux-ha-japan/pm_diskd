@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.38 2002/10/09 14:26:33 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.39 2002/10/10 14:36:51 msoffen Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -512,6 +512,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %doc doc/rsync.html 
 %doc doc/rsync.txt
 %doc doc/ha.cf 
+%doc doc/startstop
 %doc doc/haresources
 
 

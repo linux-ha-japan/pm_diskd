@@ -2,9 +2,9 @@
 #
 #       High-Availability Pre-Startup/Shutdown Script
 #
-# apache (aka IBMhttpd)
-#
 # Description:  Runs on Startup or shutdown of heartbeat (not resource based).
+#		Also runs before start, after start or before stop, 
+#		and after stop.
 #
 # Author:       Matthew Soffen
 #
@@ -25,10 +25,18 @@ exec_prefix=@exec_prefix@
 case "$1" in
 'start')
         ;;
+'pre-start')
+        ;;
+'post-start')
+        ;;
 'stop')
         ;;
+'pre-stop')
+        ;;
+'post-stop')
+        ;;
 *)
-        echo "Usage: $0 { start | stop }"
+        echo "Usage: $0 { start | pre-start | post-start | stop | pre-stop | post-stop }"
         ;;
 esac
 exit 0
