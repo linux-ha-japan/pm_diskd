@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.49 2001/10/03 05:28:01 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.50 2001/10/03 21:28:35 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -341,6 +341,12 @@ parse_config(const char * cfgfile, char *nodename)
 		if (*bp == EOS) {
 			continue;
 		}
+		
+		/* strip '\n' and '\r' */
+		if ((cp = strpbrk(bp, CRLF)) != NULL) {
+			*cp = EOS;
+		}
+
 		/* Now we expect a directive name */
 
 		dirlength = strcspn(bp, WHITESPACE);
@@ -1219,6 +1225,10 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.50  2001/10/03 21:28:35  alan
+ * Put in Andreas Piesk's fix to the funny question mark at the end of the line
+ * on ps output when you have a multicast comm link.
+ *
  * Revision 1.49  2001/10/03 05:28:01  alan
  * Fixed a kind of big oops regarding parsing directives...
  *

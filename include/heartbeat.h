@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.3 2001/10/03 05:22:19 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.4 2001/10/03 21:28:36 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -128,6 +128,7 @@ enum deadreason {
 #define	WHITESPACE	" \t\n\r\f"
 #define	DELIMS		", \t\n\r\f"
 #define	COMMENTCHAR	'#'
+#define	CRLF		"\r\n"
 #define	STATUS		"STATUS"
 #define	INITSTATUS	"init"		/* Status of a node we've never heard from */
 #define	UPSTATUS	"up"		/* Listening (we might not be xmitting) */
