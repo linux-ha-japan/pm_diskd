@@ -148,7 +148,7 @@ void *	st_new(void);
 
 #define	EXPECT(p,t)	{						\
 			if (MSLookFor(ms, p, t) < 0)			\
-				return(errno == ETIME			\
+				return(errno == ETIMEDOUT		\
 			?	S_TIMEOUT : S_OOPS);			\
 			}
 
@@ -213,7 +213,7 @@ MSLogin(struct APCMS * ms)
 	,	sizeof(IDinfo)) < 0) {
 		syslog(LOG_ERR, _("No initial response from " DEVICE "."));
 		MSkillcomm(ms);
-		return(errno == ETIME ? S_TIMEOUT : S_OOPS);
+		return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
 	idptr += strspn(idptr, WHITESPACE);
 	/*
@@ -243,7 +243,7 @@ MSLogin(struct APCMS * ms)
 
 		default:
 			MSkillcomm(ms);
-			return(errno == ETIME ? S_TIMEOUT : S_OOPS);
+			return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
 
 	return(S_OK);
@@ -269,7 +269,7 @@ MSLogout(struct APCMS* ms)
 	close(ms->rdfd);
 	ms->wrfd = ms->rdfd = -1;
 	MSkillcomm(ms);
-	return(rc >= 0 ? S_OK : (errno == ETIME ? S_TIMEOUT : S_OOPS));
+	return(rc >= 0 ? S_OK : (errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS));
 }
 static void
 MSkillcomm(struct APCMS* ms)
@@ -319,13 +319,13 @@ MSReset(struct APCMS* ms, char * outlets, const char * rebootid)
 			goto retry;
 
 		default: 
-			return(errno == ETIME ? S_RESETFAIL : S_OOPS);
+			return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
 	syslog(LOG_INFO, _("Host %s being rebooted."), rebootid);
 
 	/* Expect ">" */
 	if (MSLookFor(ms, Prompt, 10) < 0) {
-		return(errno == ETIME ? S_RESETFAIL : S_OOPS);
+		return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
 
 	/* All Right!  Power is back on.  Life is Good! */
@@ -388,7 +388,7 @@ MS_onoff(struct APCMS* ms, char *outlets, const char * unitid, int req)
 			goto retry;
 
 		default: 
-			return(errno == ETIME ? S_RESETFAIL : S_OOPS);
+			return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
 	
 	EXPECT(Prompt, 10);

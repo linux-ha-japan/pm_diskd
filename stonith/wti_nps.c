@@ -147,7 +147,7 @@ void *	st_new(void);
 
 #define	EXPECT(p,t)	{						\
 			if (NPSLookFor(nps, p, t) < 0)			\
-				return(errno == ETIME			\
+				return(errno == ETIMEDOUT		\
 			?	S_TIMEOUT : S_OOPS);			\
 			}
 
@@ -212,7 +212,7 @@ NPSLogin(struct WTINPS * nps)
 	,	sizeof(IDinfo)) < 0) {
 		syslog(LOG_ERR, _("No initial response from " DEVICE "."));
 		NPSkillcomm(nps);
-		return(errno == ETIME ? S_TIMEOUT : S_OOPS);
+		return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
 	idptr += strspn(idptr, WHITESPACE);
 	/*
@@ -236,7 +236,7 @@ NPSLogin(struct WTINPS * nps)
 
 		default:
 			NPSkillcomm(nps);
-			return(errno == ETIME ? S_TIMEOUT : S_OOPS);
+			return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
 
 	return(S_OK);
@@ -262,7 +262,7 @@ NPSLogout(struct WTINPS* nps)
 	close(nps->rdfd);
 	nps->wrfd = nps->rdfd = -1;
 	NPSkillcomm(nps);
-	return(rc >= 0 ? S_OK : (errno == ETIME ? S_TIMEOUT : S_OOPS));
+	return(rc >= 0 ? S_OK : (errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS));
 }
 static void
 NPSkillcomm(struct WTINPS* nps)
@@ -304,13 +304,13 @@ NPSReset(struct WTINPS* nps, char * outlets, const char * rebootid)
 			goto retry;
 
 		default: 
-			return(errno == ETIME ? S_RESETFAIL : S_OOPS);
+			return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
 	syslog(LOG_INFO, _("Host %s being rebooted."), rebootid);
 
 	/* Expect "NPS>" */
 	if (NPSLookFor(nps, Prompt, 10) < 0) {
-		return(errno == ETIME ? S_RESETFAIL : S_OOPS);
+		return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
 
 	/* All Right!  Power is back on.  Life is Good! */
