@@ -64,6 +64,8 @@ struct process_info {
 	unsigned long		nbytes_alloc;	/* # bytes currently allocated 
 						 */
 	unsigned long		mallocbytes;	/* total # bytes malloc()ed  */
+	unsigned long		arena;		/* Most recent mallinfo */
+						/* arena value */
 	time_t			lastmsg;
 };
 

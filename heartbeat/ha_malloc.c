@@ -1,9 +1,13 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.10 2002/10/21 10:17:18 horms Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.11 2002/10/30 17:15:42 alan Exp $";
 #include <portability.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#ifdef HAVE_MALLOC_H
+#	include <malloc.h>
+#endif
 #include <heartbeat.h>
 #include <hb_proc.h>
 
@@ -134,6 +138,10 @@ ha_malloc(size_t size)
 	}
 
 	if (ret && curproc) {
+#ifdef HAVE_MALLINFO
+		struct mallinfo	i = mallinfo();
+		curproc->arena = i.arena;
+#endif
 		curproc->numalloc++;
 	}
 	return(ret);

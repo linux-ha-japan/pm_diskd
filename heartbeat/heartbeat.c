@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.228 2002/10/22 17:41:58 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.229 2002/10/30 17:15:42 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -273,7 +273,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.228 2002/10/22 17:41
 
 #define OPTARGS		"dkMrRsvlC:"
 
-#define	ONEDAY	(24*60*60)
+#define	ONEDAY	(24*60*60)	/* Seconds in a day */
 #define	PRI_SENDSTATUS	G_PRIORITY_HIGH
 #define	PRI_DUMPSTATS	G_PRIORITY_LOW
 #define	PRI_AUDITCLIENT	G_PRIORITY_LOW
@@ -371,7 +371,8 @@ void	send_to_all_media(char * smsg, int len);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
 				const char *iface);
 int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
-void	cause_shutdown_restart(struct node_info* node);
+void	cause_shutdown_restart(void);
+gboolean CauseShutdownRestart(gpointer p);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
 void	init_xmit_hist (struct msg_xmit_hist * hist);
@@ -959,7 +960,17 @@ hb_del_ipcmsg(IPC_Message* m)
 {
 	int	refcnt = GPOINTER_TO_INT(m->msg_private);
 
+	if (DEBUGPKTCONT) {
+		cl_log(LOG_DEBUG
+		,	"Message 0x%lx: refcnt %d"
+		,	(unsigned long)m, refcnt);
+
+	}
 	if (refcnt <= 1) {
+		if (DEBUGPKTCONT) {
+			cl_log(LOG_DEBUG, "Message 0x%lx freed."
+			,	(unsigned long)m);
+		}
 		memset(m->msg_body, 0, m->msg_len);
 		ha_free(m->msg_body);
 		memset(m, 0, sizeof(*m));
@@ -990,6 +1001,10 @@ hb_new_ipcmsg(void * data, int len, IPC_Channel* ch, int refcnt)
 	hdr->msg_done = hb_del_ipcmsg;
 	hdr->msg_private = GINT_TO_POINTER(refcnt);
 
+	if (DEBUGPKTCONT) {
+		cl_log(LOG_DEBUG, "Message allocated: 0x%lx: refcnt %d"
+		,	(unsigned long)hdr, refcnt);
+	}
 	return hdr;
 }
 
@@ -1109,6 +1124,7 @@ master_status_process(void)
 	GFDSource*		ClusterMsgGFD;
 	GFDSource*		APIRegistrationGFD;
 	GMainLoop*		mainloop;
+	long			memstatsinterval;
 
 	hb_init_watchdog();
 
@@ -1197,13 +1213,14 @@ master_status_process(void)
 	}
 
 	/* Things to do on a periodic basis... */
-
-		/* Send out local status periodically... */
+	
+		/* Send local status at the "right time" */
 	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
 	,	hb_send_local_status, NULL, NULL);
 
 		/* Dump out memory stats periodically... */
-	Gmain_timeout_add_full(PRI_DUMPSTATS, ONEDAY*1000
+	memstatsinterval = (debug ? 10*60*1000 : ONEDAY*1000);
+	Gmain_timeout_add_full(PRI_DUMPSTATS, memstatsinterval
 	,	hb_dump_all_proc_stats, NULL, NULL);
 
 		/* Audit clients for liveness periodically */
@@ -2094,6 +2111,7 @@ core_proc_name(enum process_type t)
 	}
 	return ct;
 }
+
 void
 hb_dump_proc_stats(volatile struct process_info * proc)
 {
@@ -2122,6 +2140,10 @@ hb_dump_proc_stats(volatile struct process_info * proc)
 
 	ha_log(LOG_INFO, "RealMalloc stats: %lu total malloc bytes."
 	" pid [%d/%s]", proc->mallocbytes, (int) proc->pid, ct);
+
+#ifdef HAVE_MALLINFO
+	ha_log(LOG_INFO, "Current arena value: %lu", proc->arena);
+#endif
 }
 
 
@@ -2552,7 +2574,7 @@ mark_node_dead(struct node_info *hip)
 			}
 #if 0
 			/* Or should we do this... ? */
-			cause_shutdown_restart(thisnode);
+			cause_shutdown_restart();
 #endif
 		
 		
@@ -2567,8 +2589,15 @@ mark_node_dead(struct node_info *hip)
 }
 
 
+gboolean
+CauseShutdownRestart(gpointer p)
+{
+	cause_shutdown_restart();
+	return FALSE;
+}
+
 void
-cause_shutdown_restart(struct node_info *t)
+cause_shutdown_restart()
 {
 	/* Give up our resources, and restart ourselves */
 	/* This is cleaner than lots of other options. */
@@ -3254,7 +3283,9 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 				"returning after partition"
 				,	thisnode->nodename);
 				if (DoManageResources) {
-					cause_shutdown_restart(thisnode);
+					send_local_status(NULL);
+					Gmain_timeout_add(2000
+					,	CauseShutdownRestart, NULL);
 				}
 				ishealedpartition=1;
 			}
@@ -3878,6 +3909,13 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.229  2002/10/30 17:15:42  alan
+ * Changed shutdown_restart to occur after a little delay when a cluster parition is discovered.
+ * Added a little debugging code turned on at the highest levels of debug.
+ * Added code to dump the current malloc arena when memory stats come out.
+ * Changed it so memory stats come every 10 minutes if debugging is enabled when
+ * heartbeat is started.
+ *
  * Revision 1.228  2002/10/22 17:41:58  alan
  * Added some documentation about deadtime, etc.
  * Switched one of the sets of FIFOs to IPC channels.
