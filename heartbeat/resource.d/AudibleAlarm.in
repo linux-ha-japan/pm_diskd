@@ -37,7 +37,7 @@ audiablealarm_start () {
 		# to flash (requires fdutils package).
 		# /usr/bin/floppycontrol --pollstate > /dev/null
 	done&
-	if ! echo $$ >  $PIDFILE; then
+	if ! echo $! >  $PIDFILE; then
 		ha_log "info: $0: Could not write to pid file \"$PIDFILE\", bailing"
 		kill $!
 		exit 1
@@ -69,7 +69,7 @@ case "$lastarg" in
 	    if [ "$us" = "$arg" ]; then
 	      # We should not start because we are on a host
 	      # listed in our argument list.
-
+              exit 0
 	    fi
 	  done
 	audiablealarm_start
@@ -90,11 +90,10 @@ case "$lastarg" in
 	;;
 
   *)
-	echo "Usage: $0 {start|stop|restart|status}"
-	echo "       $0 [node1 node2 ... ] {start|stop|restart|status}"
-	echo "       $0 The node list is an optional space delimited"
-	echo "       $0 list of hosts that should never sound the alarm."
-	echo "$Id: AudibleAlarm.in,v 1.5 2002/07/27 06:14:58 horms Exp $";
+	echo "Usage: [node1 node2 ... ] {start|stop|restart|status}"
+	echo "  The node list is an optional space delimited"
+	echo "  list of hosts that should never sound the alarm."
+	echo "$Id: AudibleAlarm.in,v 1.6 2002/08/01 06:41:55 horms Exp $";
 	exit 1
 esac
 
