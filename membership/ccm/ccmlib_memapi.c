@@ -42,6 +42,13 @@ typedef struct mbr_private_s {
 					    for all nodes */
 	void 			*cookie; /* the last known 
 					    membership event cookie */
+	gboolean		special; /* publish non primary membership. 
+					  * This is a kludge to accomodate 
+					  * special behaviour not provided 
+					  * but desired from the 0.2 API. 
+					  * By default this behaviour is 
+					  * turned off.
+					  */
 } mbr_private_t;
 
 
@@ -106,6 +113,8 @@ init_llm(mbr_private_t *mem, struct IPC_MESSAGE *msg)
 
 	numnodes = CLLM_GET_NODECOUNT(mem->llm);
 	mem->cookie = NULL;
+
+
 	return;
 }
 
@@ -122,7 +131,6 @@ init_bornon(mbr_private_t *private,
 	born = (ccm_born_t *)msg->msg_body;
 
 	n = born->n;
-	//fprintf(stderr, "n=%d, msg->msg_len=%ld\n",n,msg->msg_len);
 	assert(msg->msg_len == sizeof(ccm_born_t)
 			+n*sizeof(struct born_s));
 	bornon = born->born;
@@ -406,6 +414,7 @@ mem_handle_event(class_t *class)
 	oc_memb_event_t oc_type;
 	void   *cookie;
 	int ret;
+	int quorum;
 
 	if(!class_valid(class)) return FALSE;
 
@@ -446,8 +455,13 @@ mem_handle_event(class_t *class)
 			/* if no quorum, delete the bornon dates for lost 
 			 * nodes, add  bornon dates for the new nodes and 
 			 * return
+			 *
+			 * however if special behaviour is being asked
+			 * for report the membership even when this node
+			 * has no quorum.
 			 */
-			if (!mem_quorum(private, mbr_track)){
+			quorum = mem_quorum(private, mbr_track);
+			if (!private->special && !quorum){
 				update_bornons(private, mbr_track);
 				private->client_report = FALSE;
 				g_free(mbr_track);
@@ -472,7 +486,21 @@ mem_handle_event(class_t *class)
 					cookie_get_data(cookie);
 				size = OC_EV_GET_SIZE(mbr_track);
 			} else {
-				oc_type = OC_EV_MS_NEW_MEMBERSHIP;
+				oc_type = quorum?
+					OC_EV_MS_NEW_MEMBERSHIP:
+					OC_EV_MS_INVALID; 
+				/* NOTE: OC_EV_MS_INVALID overloaded to
+				 * mean that the membership has no quorum.
+				 * This is returned only when special behaviour
+				 * is asked for. In normal behaviour case 
+				 * (as per 0.2 version of the api),
+				 * OC_EV_MS_INVALID is never returned.
+				 * I agree this is a kludge!!
+				 */
+				if(!private->special) {
+				  assert(oc_type == OC_EV_MS_NEW_MEMBERSHIP);
+				}
+
 				update_bornons(private, mbr_track);
 				cookie_unref(private->cookie);
 				cookie = cookie_construct(mem_callback_done, 
@@ -575,7 +603,6 @@ mem_unregister(class_t *class)
 
 	g_free(private->llm);
 	g_free(private);
-	g_free(class);
 }
 
 
@@ -593,6 +620,26 @@ mem_set_callback(class_t *class, oc_ev_callback_t f)
 	private->callback = f;
 
 	return ret_f;
+}
+
+
+/* this function is a kludge, to accomodate special behaviour not
+ * supported by 0.2 version of the API 
+ */
+static void
+mem_set_special(class_t *class, int type)
+{
+	mbr_private_t 	*private;
+
+	if(!class_valid(class)) return;
+
+	private = (mbr_private_t *)class->private;
+	
+	private->special = 1; /* turn on the special behaviour not supported
+				 	by 0.2 version of the API */
+
+
+	return;
 }
 
 static gboolean
@@ -637,11 +684,13 @@ oc_ev_memb_class(oc_ev_callback_t  *fn)
 	memclass->activate = mem_activate;
 	memclass->unregister = mem_unregister;
 	memclass->is_my_nodeid = mem_is_my_nodeid;
+	memclass->special = mem_set_special;
 
 	memclass->private = (void *)private;
 	private->callback = fn;
 	private->magiccookie = 0xabcdef;
 	private->client_report = FALSE;
+	private->special = 0; /* no special behaviour */
 
 	attrs = g_hash_table_new(g_str_hash,g_str_equal);
 	g_hash_table_insert(attrs, path, ccmfifo);

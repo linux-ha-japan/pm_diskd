@@ -32,6 +32,7 @@
 
 #ifdef __CCM_LIBRARY__
 #include <ocf/oc_event.h>
+void oc_ev_special(const oc_ev_t *, oc_ev_class_t , int );
 #endif
 
 #include <portability.h>
@@ -92,7 +93,8 @@ typedef struct class_s {
 	int		 (*activate) (struct class_s *);
 	void		 (*unregister) (struct class_s *);
 	gboolean	 (*is_my_nodeid) (struct class_s *, const oc_node_t *);
-	void		     *private;
+	void	 	 (*special) (struct class_s *, int);
+	void		  *private;
 } class_t;
 class_t *oc_ev_memb_class(oc_ev_callback_t  *);
 #endif

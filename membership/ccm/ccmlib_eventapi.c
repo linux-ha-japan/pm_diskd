@@ -252,6 +252,35 @@ oc_ev_unregister(oc_ev_t *tok)
 }
 
 
+/* a to configure any special parameters for 
+ * any of the classes. This function is not 
+ * part of the 0.2 event API. Is been added
+ * to support setup of any special behaviour.
+ */
+void
+oc_ev_special(const oc_ev_t *tok, 
+		oc_ev_class_t class_type, 
+		int type)
+{
+	class_t *class;
+	const __oc_ev_t *token =  (__oc_ev_t *)
+		g_hash_table_lookup(tokenhash, tok);
+
+	if(token == NULL) return;
+	if(token_invalid(token)) return;
+
+	/* if structure for the class already exists 
+ 	 *  just update the callback. Else allocate
+	 *  a structure and update the callback
+	 */
+	if((class = g_hash_table_lookup(token->oc_eventclass, 
+				(void *)class_type)) == NULL){
+		return;
+	}
+	class->special(class, type);
+	return;
+}
+
 int 
 oc_ev_set_callback(const oc_ev_t *tok,
 		oc_ev_class_t class_type,

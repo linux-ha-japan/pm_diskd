@@ -22,6 +22,7 @@
 #include <portability.h>
 #include <ccm.h>
 #include <stdlib.h>
+#include <ccm.h>
 #ifdef HAVE_MALLINFO
 #include <malloc.h>
 #endif

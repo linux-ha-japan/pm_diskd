@@ -32,6 +32,8 @@
 
 oc_ev_t *ev_token;
 
+extern void oc_ev_special(const oc_ev_t *, oc_ev_class_t , int );
+
 
 static void 
 my_ms_events(oc_ed_t event, void *cookie, 
@@ -45,7 +47,8 @@ my_ms_events(oc_ed_t event, void *cookie,
 			event==OC_EV_MS_NEW_MEMBERSHIP?"NEW MEMBERSHIP":
 		        event==OC_EV_MS_NOT_PRIMARY?"NOT PRIMARY":
 			event==OC_EV_MS_PRIMARY_RESTORED?"PRIMARY RESTORED":
-			      "EVICTED");
+			event==OC_EV_MS_PRIMARY_RESTORED?"EVICTED":
+			      "NO QUORUM MEMBERSHIP");
 
 	if(OC_EV_MS_EVICTED == event) {
 		oc_ev_callback_done(cookie);
@@ -109,6 +112,7 @@ main(int argc, char *argv[])
 	oc_ev_register(&ev_token);
 
 	oc_ev_set_callback(ev_token, OC_EV_MEMB_CLASS, my_ms_events, NULL);
+	oc_ev_special(ev_token, OC_EV_MEMB_CLASS, 0/*don't care*/);
 
 	ret = oc_ev_activate(ev_token, &my_ev_fd);
 	if(ret){
