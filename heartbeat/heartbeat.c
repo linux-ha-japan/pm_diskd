@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.136 2001/10/01 22:00:54 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.137 2001/10/02 04:22:45 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1507,7 +1507,6 @@ process_clustermsg(FILE * f)
 	/* Is this a status update (i.e., "heartbeat") message? */
 	if (strcasecmp(type, T_STATUS) == 0
 	||	strcasecmp(type, T_NS_STATUS) == 0) {
-		clock_t		heartbeat_interval;
 		const char *	status;
 
 		status = ha_msg_value(msg, F_STATUS);
@@ -1523,14 +1522,20 @@ process_clustermsg(FILE * f)
 		&&	seqno < thisnode->status_seqno) {
 			goto psm_done;
 		}
-		heartbeat_interval = messagetime
-		-	thisnode->local_lastupdate;
-		if (heartbeat_interval > config->warntime_interval) {
-			ha_log(LOG_WARNING
-			,	"Late heartbeat: Node %s:"
-			" interval %ld ms"
-			,	thisnode->nodename
-			,	(heartbeat_interval * 1000) / CLK_TCK);
+
+		/* Have we seen an update from here before? */
+
+		if (thisnode->local_lastupdate) {
+			clock_t		heartbeat_interval;
+			heartbeat_interval = messagetime
+			-	thisnode->local_lastupdate;
+			if (heartbeat_interval > config->warntime_interval) {
+				ha_log(LOG_WARNING
+				,	"Late heartbeat: Node %s:"
+				" interval %ld ms"
+				,	thisnode->nodename
+				,	(heartbeat_interval*1000) / CLK_TCK);
+			}
 		}
 
 		thisnode->rmt_lastupdate = msgtime;
@@ -4227,6 +4232,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.137  2001/10/02 04:22:45  alan
+ * Fixed a minor bug regarding reporting how late a heartbeat is when there is no previous
+ * heartbeat to compare it to.  In that circumstance, it shouldn't report at all.
+ * Now, that's what it does too ;-)
+ *
  * Revision 1.136  2001/10/01 22:00:54  alan
  * Improved Andreas Piesk's patch for no-stonith after shutdown.
  * Probably fixed a bug about not detecting status changes after a restart.
