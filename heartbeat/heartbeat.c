@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.110 2001/05/26 17:38:01 mmoerz Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.111 2001/05/27 04:58:32 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -453,7 +453,7 @@ init_procinfo()
 
 	/*
 	 * Casting this address into a long stinks, but there's no other
-	 * way because of the way the API is designed.
+	 * way because of the way the shared memory API is designed.
 	 */
 	if (((long)(shm = shmat(ipcid, NULL, 0))) == -1L) {
 		ha_perror("Cannot shmat for process status");
@@ -461,7 +461,7 @@ init_procinfo()
 		return;
 	}
 	if (shm) {
-		procinfo = (struct pstat_shm*) shm;
+		procinfo = shm;
 		memset(shm, 0, PAGE_SIZE);
 	}
 
@@ -3988,6 +3988,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.111  2001/05/27 04:58:32  alan
+ * Made some warnings go away.
+ *
  * Revision 1.110  2001/05/26 17:38:01  mmoerz
  * *.cvsignore: added automake generated files that were formerly located in
  * 	     config/
