@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.17 2002/01/17 21:44:15 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.18 2002/02/15 06:56:22 horms Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -435,7 +435,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 @libdir@/libhbclient.*
 @libdir@/libpils.*
 @sysconfdir@/ha.d/resource.d/
-@sysconfdir@/init.d/heartbeat
+@INITDIR@/heartbeat
 @sysconfdir@/logrotate.d/heartbeat
 @localstatedir@/adm/fillup-templates/rc.config.heartbeat
 %dir @localstatedir@/lib/@HEARTBEATPKG@
@@ -470,7 +470,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %defattr(-,root,root)
 @sbindir@/ldirectord
 @sysconfdir@/logrotate.d/ldirectord
-@sysconfdir@/init.d/ldirectord
+@INITDIR@/ldirectord
 @sysconfdir@/ha.d/resource.d/ldirectord
 @mandir@/man8/ldirectord.8*
 %doc ldirectord/ldirectord.cf
@@ -519,48 +519,7 @@ else
   fi
 fi
 #
-#  Multi-distribution kludge for init scripts...
-#
-if
-  [ ! -d etc/init.d ]
-then
-  if
-    [ -d sbin/init.d  -a ! -L sbin/init.d ]
-  then
-    ln -s ../sbin/init.d etc/init.d
-  elif
-    [ -d etc/rc.d/init.d ]
-  then
-    ln -s rc.d/init.d etc/init.d
-  else
-    # I give up!
-    echo "Warning: making directory @sysconfdir@/init.d"
-    mkdir -p etc/init.d
-  fi
-fi
-###########################################################
-%pre ldirectord
-###########################################################
-#
-#  Multi-distribution kludge for init scripts...
-#
-if
-  [ ! -d etc/init.d ]
-then
-  if
-    [ -d sbin/init.d  -a ! -L sbin/init.d ]
-  then
-    ln -s ../sbin/init.d etc/init.d
-  elif
-    [ -d etc/rc.d/init.d ]
-  then
-    ln -s rc.d/init.d etc/init.d
-  else
-    # I give up!
-    echo "Warning: making directory @sysconfdir@/init.d"
-    mkdir -p etc/init.d
-  fi
-fi
+
 ###########################################################
 %post
 ###########################################################
