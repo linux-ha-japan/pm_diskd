@@ -13,6 +13,8 @@ exec_prefix=@exec_prefix@
 : ${HA_RESOURCEDIR=$HA_DIR/resource.d}
 : ${HA_DOCDIR=@datadir@/doc/heartbeat}
 : ${HA_LOGTAG=heartbeat}
+: ${HA_VARRUN=@localstatedir@/run/}
+: ${HA_VARLOCK=@localstatedir@/lock/subsys/}
 
 export HA_DIR HA_RCDIR HA_FIFO HA_BIN 
 export HA_DEBUGLOG HA_LOGFILE HA_LOGFACILITY
@@ -100,4 +102,46 @@ ha_parameter() {
     esac
   fi
   Echo $VALUE
+}
+
+BSD_Status() {
+  local base=${1##*/}
+  local pid
+
+  ret_status=`/bin/ps -ao pid,command | grep $base | sed 's/ .*//'`
+
+  if 
+    [ "$ret_status" != "" ]
+  then
+    echo "${base} is running..."
+  return 0
+  fi
+
+  if 
+    [ -f $HA_VARRUN/${base}.pid ] 
+  then
+    echo "${base} dead but pid file exists"
+    return 1
+  fi
+
+  if 
+    [ -f /var/run/${base}.pid ] 
+  then
+    echo "${base} dead but pid file exists"
+    return 1
+  fi
+
+  if 
+    [ -f $HA_VARLOCK/var/lock/subsys/${base}.pid ] 
+  then
+    echo "${base} dead but lock file exists"
+    return 2
+  fi
+
+  if 
+    [ -f /var/spool/lock/${base} ] 
+  then
+    echo "${base} dead but lock file exists"
+    return 2
+  fi
 }
