@@ -72,7 +72,8 @@ ccm_SOURCES	= ccm.c \
 		  ccmmain.c \
 		  ccmclient.c
 
-ccm_LDADD	= $(top_builddir)/heartbeat/libhbclient.la  \
+ccm_LDADD	= $(top_builddir)/lib/clplumbing/libplumb.la	\
+		$(top_builddir)/heartbeat/libhbclient.la  	\
 		$(top_builddir)/lib/clplumbing/libplumb.la	\
 		$(gliblib) 
 

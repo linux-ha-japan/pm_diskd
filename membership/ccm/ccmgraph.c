@@ -328,7 +328,7 @@ get_max_clique(vertex_t **vertex,  int maxnode, int *loc)
 		k = find_best_candidate(vertex, j-num+1, j+1, indxtab, 
 					maxnode); 
 		if (vyesorno == 'y') {
-			ha_log(LOG_DEBUG
+			cl_log(LOG_DEBUG
 			,	"k=%d is the best candidate for removal",k);
 		}
 
