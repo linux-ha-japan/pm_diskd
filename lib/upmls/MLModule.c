@@ -435,7 +435,6 @@ RegisterAPlugin(MLModule* modinfo
  *
  * MLModuleTypeList()	- returns list of modules of a given type
  * 
- *
  * PluginPlugin functions:
  *
  *
