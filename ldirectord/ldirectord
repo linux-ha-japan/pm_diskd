@@ -1,7 +1,8 @@
 #!/usr/bin/perl
+#
 # Linux Director Daemon - run "perldoc ldirectord" for details
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.22 2000/12/13 17:37:31 jacob Exp $
+# $Id: ldirectord,v 1.23 2000/12/13 18:40:55 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -146,13 +147,16 @@ may be used to send a request over a transparent proxy.
 
 B<checktype = >I<negotiate>|I<connect>|I<N>|I<off>
 
-Type of check to perform. Negotiate means to send request and expect
-receive strings. Connect means raw tcp/ip connection, here the request
-and receive string can be omitted. If checktype is a number then negotiate
-and connect is combined so that after each N connect attempts one
-negotiate attempt is performed. This is useful to check often if a
-service answers and in much longer intervalls a negotiating check
-is done. Default is I<connect>.
+Type of check to perform. Negotiate sends a request and matches a receive
+string. Connect only attemts to make a TCP/IP connection, thus the the
+request and receive strings may be omitted.  Type of check to perform.
+Negotiate means to send request and expect receive strings. Connect means
+raw tcp/ip connection, here the request and receive string can be omitted.
+If checktype is a number then negotiate and connect is combined so that
+after each N connect attempts one negotiate attempt is performed. This is
+useful to check often if a service answers and in much longer intervalls a
+negotiating check is done.  Off means no checking will take place and no
+real or fallback servers will be activated. Default is I<negotiate>.
 
 B<service = http>|B<https>|B<ftp>|B<none>
 
@@ -497,7 +501,7 @@ sub read_config
 				}
 			} else {
 			        $vsrv{fwm} = $5;
-				$vsrv{checktype} = "off";
+				$vsrv{checktype} = "negotiate";
 			        $vsrv{protocol} = "fwm";
 				$vsrv{service} = "none";
 				$vsrv{port} = "0";
@@ -534,6 +538,10 @@ sub read_config
 				} elsif ($rcmd =~ /^request\s*=\s*\"(.*)\"/) {
 					$1 =~ /(.+)/ or config_error($line, "no request string specified");
 					$vsrv{request} = $1;
+					unless($vsrv{request}=~/^\//){
+						$vsrv{request} = "/" . $vsrv{request};
+					}
+
 				} elsif ($rcmd =~ /^receive\s*=\s*\"(.*)\"/) {
 					$1 =~ /(.+)/ or config_error($line, "invalid receive string");
 					$vsrv{receive} = $1;
@@ -694,6 +702,8 @@ sub add_real_server
 
 	my $ref;
 	my $realsrv=0;
+	my $request;
+	my $receive;
 
 	$flags =~ /(\w+)(.*)/ && ($1 eq "gate" || $1 eq "masq" || $1 eq "ipip")
 	    or config_error($line, "forward method must be gate, masq or ipip");
@@ -701,12 +711,22 @@ sub add_real_server
 	if ($2 =~ /\s+(\d+)(\s+(.*))?/) {
 		my $weight = $1;
 		if ($3 =~ /\"(.*)\",\s*\"(.*)\"/) {
-			push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight, "request"=>$1, "receive"=>$2});
+			$request = $1;
+			$receive = $2;
+			unless($request=~/^\//){
+				$request = "/" . $request;
+			}
+			push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight, "request"=>$request, "receive"=>$receive});
 		} else {
 			push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight});
 		}
 	} elsif ($2 =~ /\s+\"(.*)\",\s*\"(.*)\"/) {
-		push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "request"=>$1, "receive"=>$2});
+		$request = $1;
+		$receive = $2;
+		unless($request=~/^\//){
+			$request = "/" . $request;
+		}
+		push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "request"=>$request, "receive"=>$receive});
 	} else {
 		push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd});
 	}
@@ -950,7 +970,7 @@ sub ld_main
 			foreach $r (@$real) {
 				unless(grep(/^$$v{protocol}:$$r{server}:$$r{port}$/, @real_checked)){
 					if ($$v{checktype} eq "negotiate" || $$r{num_connects}>=$$v{num_connects}) {
-						print "DEBUG2: Checking negotiate: real server=$$r{server}:$$r{port} (virtual: " .  &get_virtual($v) . ")\n" if ($DEBUG>=2);
+						&ld_debug(2, "Checking negotiate: real server=$$r{server}:$$r{port} (virtual: " .  &get_virtual($v) . ")");
 						if ($$v{service} eq "http") {
 							$$r{num_connects} = 0 if (check_http($v, $r));
 							# my $req = new HTTP::Request(GET=>"$$r{url}");
@@ -962,17 +982,20 @@ sub ld_main
 						} else {
 							$$r{num_connects} = 0 if (check_none($v, $r));
 						}
-					} elsif ($$v{checktype} eq "connect") {
-						print "DEBUG2: Checking connect: server=$$r{server}\n" if ($DEBUG >=2);
+					} elsif ($$v{checktype} eq "connect" and $$v{protocol} ne "udp") {
+						&ld_debug(2, "Checking connect: server=$$r{server}");
 						check_connect($v, $r);
+					} elsif ($$v{checktype} eq "off") {
+						&ld_debug(2, "Checking off: No real or fallback servers to be added\n");
 					} elsif ($$v{checktype} eq "combined") {
-						print "DEBUG2: Checking combined-connect: server=$$r{server}\n" if ($DEBUG >=2);
+						&ld_debug(2, "Checking combined-connect: server=$$r{server}");
 						if (check_connect($v, $r)) {
 							$$r{num_connects}++;
 						} else {
 							$$r{num_connects} = 999999;
 						}
 					}
+						
 					push(@real_checked, "$$v{protocol}:$$r{server}:$$r{port}");
 				}
 			}
@@ -984,32 +1007,32 @@ sub ld_main
 }
 
 
-sub http_received
-# callbackfunction for Parallel::UserAgent
-{
-	my ($content, $respone, $proto) = @_;
-	my $req = $$respone{_request};
-	my $url = $$req{_uri};
-	if ($url =~ /(http\w?):\/\/([^\/:]+)(.*)/) {
-		my ($p, $s, $u) = ($1, $2, $3);
-		$url = "$p://$s:80$u" if ($p eq "http" && $u =~ /^\//);
-		$url = "$p://$s:443$u" if ($p eq "https" && $u =~ /^\//);
-	}
-	foreach $v (@VIRTUAL) {
-		my $real = $$v{real};
-		foreach $r (@$real) {
-			if ($url eq $$r{url}) {
-				my $receive_string = $$r{receive};
-				if (!($receive_string =~ /.+/) || $content =~ /$receive_string/) {
-					service_set($v, $r, "up");
-				} else {
-					service_set($v, $r, "down");
-				}
-			}
-		}
-	}
-	return C_ENDCON;
-}
+# sub http_received
+# # callbackfunction for Parallel::UserAgent
+# {
+# 	my ($content, $respone, $proto) = @_;
+# 	my $req = $$respone{_request};
+# 	my $url = $$req{_uri};
+# 	if ($url =~ /(http\w?):\/\/([^\/:]+)(.*)/) {
+# 		my ($p, $s, $u) = ($1, $2, $3);
+# 		$url = "$p://$s:80$u" if ($p eq "http" && $u =~ /^\//);
+# 		$url = "$p://$s:443$u" if ($p eq "https" && $u =~ /^\//);
+# 	}
+# 	foreach $v (@VIRTUAL) {
+# 		my $real = $$v{real};
+# 		foreach $r (@$real) {
+# 			if ($url eq $$r{url}) {
+# 				my $receive_string = $$r{receive};
+# 				if (!($receive_string =~ /.+/) || $content =~ /$receive_string/) {
+# 					service_set($v, $r, "up");
+# 				} else {
+# 					service_set($v, $r, "down");
+# 				}
+# 			}
+# 		}
+# 	}
+# 	return C_ENDCON;
+# }
 
 
 sub check_http
@@ -1062,24 +1085,24 @@ sub check_connect
 	eval {
 		local $SIG{'__DIE__'} = "DEFAULT";
 		local $SIG{'ALRM'} = sub { die "Timeout Alarm" };
-		print "DEBUG4: Timeout is $$v{connecttimeout}\n" if ($DEBUG>= 4);
-		alarm $$v{connecttimeout};
-		$result = open_socket( $$r{server}, $port, $$v{protocol} );
+		&ld_debug(4, "Timeout is $$v{checktimeout}");
+		alarm $$v{checktimeout};
+		my $result = open_socket( $$r{server}, $port, $$v{protocol} );
 		if ($result == 0) {
 			# Failure to open the socket
-			die("Couldn't open socket");
+			die("Couldn't open socket to $$r{server}:$port");
 		} else {
-			print "DEBUG3: Connected to $1 (port $port)\n" if ($DEBUG>=3);
+			&ld_debug(3, "Connected to $1 (port $port)");
 		}
 	};
 	alarm 0; # Cancel the alarm
-	if ($EVAL_ERROR) {
-		service_set($v, $r, "down");
-		print "DEBUG3: Deactivating service $$r{server}:$$r{port} because $EVAL_ERROR\n" if ($DEBUG>=3);
+	if ($@) {
+		&service_set($v, $r, "down");
+		&ld_debug(3, "Deactivating service $$r{server}:$$r{port}: $@");
 		return 0;
 	} else {
-		service_set($v, $r, "up");
-		print "DEBUG3: Activating service $$r{server}:$$r{port}\n" if ($DEBUG>=3);
+		&service_set($v, $r, "up");
+		&ld_debug(3, "Activating service $$r{server}:$$r{port}");
 		return 1;
 	}
 }
@@ -1172,11 +1195,11 @@ sub service_set()
 			if ($state=~/up/i) {
 				$$r{status}=0;
 				_service_up($v, $r);
-				$DEBUG >=2 && print "DEBUG2: Enabling server=$$r{server}\n";
+				&ld_debug(2, "Enabling server=$$r{server}");
 			} elsif ($state=~/down/i) {
 				$$r{status}=1;
 				_service_down($v, $r);
-				$DEBUG >=2 && print "DEBUG2: Disabling server=$$r{server}\n";
+				&ld_debug(2, "Disabling server=$$r{server}");
 			}
 		}
 	}
@@ -1241,7 +1264,7 @@ sub fallback_on
 	my ($virtual) = (@_);
 
 	my $fallback=&fallback_find($virtual);
-	if (defined $fallback && $$virtual{status}==0) {
+	if (defined $fallback and $$virtual{status}==0) {
 		# turn on fallback service
 		&system_wrapper("$IPVSADM -a $$virtual{proto} " . &get_virtual($virtual) . " -R $fallback");
 		&ld_log("Starting fallback server for: " . &get_virtual($virtual) . " ($fallback)");
@@ -1259,7 +1282,7 @@ sub fallback_off
 	my ($virtual) = (@_);
 
 	my $fallback=&fallback_find($virtual);
-	if ($$v{status}==1 && defined $fallback) {
+	if (defined $fallback and $$virtual{status}==1) {
 		# turn off fallback service
 		&system_wrapper("$IPVSADM -d $$virtual{proto} " . &get_virtual($virtual) . " -R $fallback");
 		&ld_log("Turning off fallback server for: " . &get_virtual($virtual) . " ($fallback)");
@@ -1321,7 +1344,7 @@ sub check_cfgfile
 # File is opened and closed again as a primative means to
 # make log rotation work
 # pre: message: Message to write
-# post: message and simetsamp is written to log file
+# post: message and timetsamp is written to log file
 # return: 0 on success
 #         1 on error
 
@@ -1331,9 +1354,7 @@ sub ld_log
 
         my $now = localtime()."|$CFGNAME";
 
-        if ($DEBUG >=2) {
-		print "DEBUG$DEBUG: $message\n" || return(1);
-	}
+	&ld_debug(2, $message);
 
         open(LOGFILE, ">>$LDIRLOG") || return(1);
 	chomp $message;
@@ -1341,6 +1362,24 @@ sub ld_log
         close(LOGFILE) || return(1);;
 
 	return(0);
+}
+
+
+# ld_debug
+# Log a message to a STDOUT.
+# pre: priority: priority of message
+#      message: Message to write
+# post: message is written to STDOUT if $DEBUG >= priority
+# return: none
+
+sub ld_debug 
+{
+	my ($priority, $message) = (@_);
+
+	if ( $DEBUG >= $priority ){
+	  chomp $message;
+	  print STDERR "DEBUG${priority}: $message\n";
+	}
 }
 
 
@@ -1376,20 +1415,16 @@ sub ld_rm_file
 	my ($status);
 
 	if(-d "$filename"){ 
-	        if ($DEBUG >=2) {
-			&ld_log("ld_rm_file: $filename is a directory, skipping");
-		}
+		&ld_debug(2, "ld_rm_file: $filename is a directory, skipping");
 		return(-1); 
 	}
 	if(! -e "$filename"){ 
-	        if ($DEBUG >=2) {
-			&ld_log("ld_rm_file: $filename doesn't exist, skipping");
-		}
+		&ld_debug(2, "ld_rm_file: $filename doesn't exist, skipping");
 		return(-1); 
 	}
 	$status = unlink($filename);
-	if($tatus!=1 && $DEBUG >=2){
-		&ld_log("ld_rm_file: Error deleting: $filename: $!");
+	if($status!=1){
+		&ld_debug(2, "ld_rm_file: Error deleting: $filename: $!");
 	}
 	return(($status==1)?0:-1)
 }

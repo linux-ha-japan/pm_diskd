@@ -26,6 +26,7 @@ virtual=192.168.6.240:80
         receive="Test Page"
         scheduler=rr
         #persistent=600
+	#netmask=255.255.255.255
         protocol=tcp
 
 # Sample configuration for a fwmark based service For an explination of
@@ -35,10 +36,12 @@ virtual=192.168.6.240:80
 #        real=192.168.6.3:80 gate
 #        real=192.168.6.6:80 gate
 #        service=http
+#        checkport=80
 #        request="index.html"
 #        receive="Test Page"
 #        scheduler=rr
 #        #persistent=600
+#        #netmask=255.255.255.255
 #        protocol=fwm
 #        checktype=connect
 
@@ -67,6 +70,7 @@ virtual=192.168.6.240:80
 #	 request="welcome.msg"
 #	 receive="test"
 #        persistent=600
+#        #netmask=255.255.255.255
 #        protocol=tcp
 
 #Sample configuration for an unsuported protocol
@@ -81,5 +85,6 @@ virtual=192.168.6.240:80
 #        request="welcome.msg"
 #        receive="test"         
 #        persistent=600
+#        #netmask=255.255.255.255
 #        protocol=tcp
 
