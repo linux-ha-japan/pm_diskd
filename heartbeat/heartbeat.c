@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.57 2000/06/13 20:19:24 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.58 2000/06/13 20:34:10 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1803,7 +1803,13 @@ restart_heartbeat(void)
 	}
 
 	ha_log(LOG_INFO, "Performing heartbeat restart exec.");
-	execl(HALIB "/heartbeat", "heartbeat", "-R", NULL);
+
+	if (nice_failback) {
+		execl(HALIB "/heartbeat", "heartbeat", "-R"
+		,	"-C", rsc_msg[i_hold_resources], NULL);
+	}else{
+		execl(HALIB "/heartbeat", "heartbeat", "-R", NULL);
+	}
 	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat -R");
 	ha_log(LOG_ERR, "Shutting down...");
 	kill(curpid, SIGTERM);
@@ -2651,6 +2657,10 @@ main(int argc, const char ** argv)
 		 * We need to allow for the possibility that the user might
 		 * have changed nice_failback options in the config file
 		 */
+		if (CurrentStatus) {
+			ha_log(LOG_INFO, "restart: i_old_resources = %s"
+			,	rsc_msg[i_hold_resources]);
+		}
 
 		if (nice_failback) {
 			/* nice_failback is currently ON */
@@ -2659,6 +2669,7 @@ main(int argc, const char ** argv)
 				/* From !nice_failback to nice_failback */
 				i_hold_resources = LOCAL_RSC;
 				send_resources_held(rsc_msg[LOCAL_RSC],1);
+				ha_log(LOG_INFO, "restart: assuming LOCAL_RSC");
 			}else{
 				/* From nice_failback to nice_failback */
 				/* Cool. Nothing to do. */;
@@ -2673,7 +2684,12 @@ main(int argc, const char ** argv)
 				/* From nice_failback to not nice_failback */
 				if ((i_hold_resources & LOCAL_RSC)) {
 					/* We expect to have those */
+					ha_log(LOG_INFO, "restart: acquiring"
+					" local resources.");
 					req_our_resources();
+				}else{
+					ha_log(LOG_INFO, "restart: "
+					" local resources already acquired.");
 				}
 			}
 		}
@@ -3417,6 +3433,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.58  2000/06/13 20:34:10  alan
+ * Hopefully put the finishing touches on the restart/nice_failback code.
+ *
  * Revision 1.57  2000/06/13 20:19:24  alan
  * Added code to make restarting (-R) work with nice_failback. But, not enough, yet...
  *
