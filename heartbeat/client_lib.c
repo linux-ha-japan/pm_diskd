@@ -107,6 +107,8 @@ typedef struct llc_private {
 	struct MsgQueue *	lastQdmsg;	/* End of msg Queue */
 	int			SignedOn;	/* 1 if we're signed on */
 	int			iscasual;	/* 1 if casual client */
+	long			deadtime_ms;	/* heartbeat's deadtime */
+	long			keepalive_ms;	/* heartbeat's keepalive time*/
 	struct stringlist*	nextnode;	/* Next node for walknode */
 	struct stringlist*	nextif;		/* Next interface for walkif */
 }llc_private_t;
@@ -246,6 +248,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	FILE*		RegFIFO;
 	struct stat	sbuf;
 	llc_private_t* pi;
+	const char	*deadtime_str, *keepalive_str;
 
 	/*
 	 * A little explanation about our FIFOs...
@@ -417,7 +420,19 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 			ZAPMSG(reply);
 			return HA_FAIL;
 		}
-
+		if ((deadtime_str = ha_msg_value(reply, F_DEADTIME)) == NULL) {
+			ha_api_log(LOG_ERR, "hb_api_signon: Can't get deadtime ");
+			ZAPMSG(reply);
+			return HA_FAIL;
+		}
+		sscanf(deadtime_str, "%lx", &(pi->deadtime_ms));
+		if ((keepalive_str = ha_msg_value(reply, F_KEEPALIVE)) == NULL) {
+			ha_api_log(LOG_ERR, "hb_api_signon: Can't get "
+					"keepalive time ");
+			ZAPMSG(reply);
+			return HA_FAIL;
+		}
+		sscanf(keepalive_str, "%lx", &(pi->keepalive_ms));
 	}else{
 		rc = HA_FAIL;
 	}
@@ -806,6 +821,42 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 
 	return ret;
 }
+
+/*
+ * Return heartbeat's keepalive time
+ */
+static const long
+get_keepalive(ll_cluster_t* lcl)
+{
+	llc_private_t* pi;
+
+	if (!ISOURS(lcl)) {
+		ha_api_log(LOG_ERR, "get_keepalive: bad cinfo");
+		return HA_FAIL;
+	}
+	pi = (llc_private_t*)lcl->ll_cluster_private;
+
+	return (pi->keepalive_ms);
+
+}
+
+/*
+ * Return heartbeat's dead time
+ */
+static const long
+get_deadtime(ll_cluster_t* lcl)
+{
+	llc_private_t* pi;
+
+	if (!ISOURS(lcl)) {
+		ha_api_log(LOG_ERR, "get_deadtime: bad cinfo");
+		return HA_FAIL;
+	}
+	pi = (llc_private_t*)lcl->ll_cluster_private;
+
+	return (pi->deadtime_ms);
+}
+
 /*
  * Return the status of the given interface for the given machine.
  */
@@ -1648,6 +1699,8 @@ static struct llc_ops heartbeat_ops = {
 	rcvmsg,			/* rcvmsg */
 	read_msg_w_callbacks,	/* readmsg */
 	setfmode,		/* setfmode */
+	get_deadtime,		/* deadtime */
+	get_keepalive,		/* keepalive */
 	APIError,		/* errormsg */
 };
 

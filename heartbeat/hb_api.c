@@ -667,6 +667,8 @@ api_process_registration(struct ha_msg * msg)
 	const char *	pid;
 	struct ha_msg *	resp;
 	client_proc_t*	client;
+	char		deadtime[64];
+	char		keepalive[64];
 
 	if (msg == NULL
 	||	(msgtype = ha_msg_value(msg, F_TYPE)) == NULL
@@ -723,6 +725,17 @@ api_process_registration(struct ha_msg * msg)
 	if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
 		ha_log(LOG_ERR
 		,	"api_process_registration: cannot add field/4");
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+
+	snprintf(deadtime, sizeof(deadtime), "%lx", config->deadtime_ms);
+	snprintf(keepalive, sizeof(keepalive), "%lx", config->heartbeat_ms);
+
+	/* Add deadtime and keepalive time to the response */
+	if ((ha_msg_add(resp, F_DEADTIME, deadtime) != HA_OK) 
+	    || 	(ha_msg_add(resp, F_KEEPALIVE, keepalive) != HA_OK)) {
+		ha_log(LOG_ERR, "api_process_registration: cannot add field/4");
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
