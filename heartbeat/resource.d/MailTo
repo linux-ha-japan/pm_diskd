@@ -1,0 +1,85 @@
+#!/bin/sh
+#
+# Resource script for MailTo
+#
+# Author: Alan Robertson <alanr@unix.sh>
+#
+# Description: sends email to a sysadmin whenever a takeover occurs.
+#
+#	Note: This command requires an argument, unlike normal init scripts.
+#
+#	This can be given in the haresources file as:
+#
+#	You can also give a mail subject line
+#		MailTo::alanr@unix.sh::BigImportantWebServer
+#
+#	This will then be put into the message subject and body.
+#
+# License: GPL
+
+ARGS="$0 $*"
+
+# Source function library.
+. /etc/ha.d/shellfuncs
+
+us=`uname -n`
+
+MailProgram() {
+	mail -s $1 $*
+}
+
+SubjectLine() {
+  case $1 in
+    ??*)	echo $1;;
+    *)		echo "Resource Group";;
+  esac
+}
+
+
+MailToStart() {
+
+	Subject="`SubjectLine $2` Takeover in progress on $us"
+
+	MailProgram "$Subject" $1 <<!EOF
+	$Subject
+	
+	Command line was:
+	$ARGS
+	!EOF
+}
+
+MailToStop () {
+	Subject="`SubjectLine $2` Shutdown in progress on $us"
+
+	MailProgram "$Subject" $1 <<!EOF
+	$Subject
+	
+	Command line was:
+	$ARGS
+	!EOF
+}
+
+
+# See how we were called.
+cmd=$1
+shift
+
+case "$cmd" in
+  start)
+	MailToStart "$@"
+	;;
+  stop)
+	MailToStop "$@"
+	;;
+
+	#	Not quite sure what to do with this one...
+  status)
+	echo "stopped"
+	;;
+
+  *)
+	echo "Usage: $0 {start|stop|status}"
+	exit 1
+esac
+
+exit 0
