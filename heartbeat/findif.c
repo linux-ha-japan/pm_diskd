@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.13 2001/08/10 17:35:37 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.14 2001/09/27 17:02:34 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -207,7 +207,7 @@ SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 		cp = buf;
 
 		sp = buf + strlen(buf);
-		while (sp!=buf && isspace(*(sp-1))) --sp;
+		while (sp!=buf && isspace((int)*(sp-1))) --sp;
 		*sp = '\0';
 
 		buf[strlen(buf)] = EOS;
@@ -298,7 +298,7 @@ GetAddress (char *inputaddress, char **address, char **netmaskbits
 			**bcast_arg = EOS;
 			++*bcast_arg;
 			/* Did they specify the interface to use? */
-			if (!isdigit(**bcast_arg)) {
+			if (!isdigit((int)**bcast_arg)) {
 				*if_specified = *bcast_arg;
 				if ((*bcast_arg=strchr(*bcast_arg,DELIM))
 				!=	NULL){
@@ -347,8 +347,8 @@ main(int argc, char ** argv) {
 	char *	address = NULL;
 	char *	bcast_arg = NULL;
 	char *	netmaskbits = NULL;
-	struct in_addr	in = { 0 };
-	struct in_addr	addr_out = { 0 };
+	struct in_addr	in;
+	struct in_addr	addr_out;
 	long	netmask = BAD_NETMASK;
 	char	best_if[MAXSTR];
 	char *	if_specified = NULL;
@@ -357,10 +357,14 @@ main(int argc, char ** argv) {
 	(void)_findif_c;
 	cmdname=argv[0];
 
+
+	memset(&addr_out, 0, sizeof(addr_out));
+	memset(&in, 0, sizeof(in));
+
 	if (argc < 2) {
 		usage();
 		return(1);
-      }
+	}
 
 	GetAddress (argv[1], &address, &netmaskbits, &bcast_arg, &if_specified);
 
@@ -513,6 +517,10 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.14  2001/09/27 17:02:34  alan
+ * Shortened alarm time in write in serial.c
+ * Put in a handful of Solaris warning-elimination patches.
+ *
  * Revision 1.13  2001/08/10 17:35:37  alan
  * Removed some files for comm plugins
  * Moved the rest of the software over to use the new plugin system for comm

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.4 2001/09/07 16:18:17 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.5 2001/09/27 17:02:34 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -410,7 +410,7 @@ serial_write (struct hb_media*mp, struct ha_msg*m)
 	if (DEBUGPKTCONT) {
 		LOG(PIL_DEBUG, str);
 	}
-	alarm(2);
+	alarm(1);
 	wrc = write(ourtty, str, size);
 	alarm(0);
 	if (DEBUGPKTCONT) {
@@ -568,6 +568,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.5  2001/09/27 17:02:34  alan
+ * Shortened alarm time in write in serial.c
+ * Put in a handful of Solaris warning-elimination patches.
+ *
  * Revision 1.4  2001/09/07 16:18:17  alan
  * Updated ping.c to conform to the new plugin loading system.
  * Changed log messages in bcast, mcast, ping and serial to use the
