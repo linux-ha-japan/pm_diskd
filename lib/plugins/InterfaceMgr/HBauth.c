@@ -12,7 +12,7 @@
 /* We are a interface manager... */
 #define ENABLE_PLUGIN_MANAGER_PRIVATE
 
-#include <upmls/MLPlugin.h>
+#include <pils/interface.h>
 #include <stdio.h>
  
 PIL_PLUGIN_BOILERPLATE("1.0", AuthDebugFlag, ClosePlugin)
