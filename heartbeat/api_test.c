@@ -3,6 +3,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
@@ -46,6 +47,7 @@ typedef struct llc_private {
 	struct stringlist*		nextif;
 }llc_private_t;
 
+static void		ClearLog(void);
 static struct ha_msg*	hb_api_boilerplate(const char * apitype);
 static int		hb_api_signon(const char * clientid);
 static int		hb_api_signoff(void);
@@ -85,12 +87,13 @@ static int init_ifwalk (ll_cluster_t* ci, const char * host);
 static const char *	get_nodestatus(ll_cluster_t*, const char *host);
 static const char *	get_ifstatus(ll_cluster_t*, const char *host
 ,	const char * intf);
-static int get_inputfd(ll_cluster_t*);
-static int msgready(ll_cluster_t*);
-static int setfmode(ll_cluster_t*, int mode);
-static int sendclustermsg(ll_cluster_t*, struct ha_msg* msg);
-static int sendnodemsg(ll_cluster_t*, struct ha_msg* msg
+static int		get_inputfd(ll_cluster_t*);
+static int		msgready(ll_cluster_t*);
+static int		setfmode(ll_cluster_t*, int mode);
+static int		sendclustermsg(ll_cluster_t*, struct ha_msg* msg);
+static int		sendnodemsg(ll_cluster_t*, struct ha_msg* msg
 ,			const char * nodename);
+static const char *	APIError(ll_cluster_t*);
 
 volatile struct process_info *	curproc = NULL;
 static char		OurPid[16];
@@ -101,39 +104,40 @@ static int		SignedOnAlready = 0;
 static char 		OurNode[SYS_NMLN];
 static char		ReplyFIFOName[API_FIFO_LEN];
 
+#define	ZAPMSG(m)	{ha_msg_del(m); (m) = NULL;}
 
 static struct ha_msg*
 hb_api_boilerplate(const char * apitype)
 {
 	struct ha_msg*	msg;
 	if ((msg = ha_msg_new(4)) == NULL) {
-		fprintf(stderr, "boilerplate: out of memory/1\n");
+		ha_log(LOG_ERR, "boilerplate: out of memory");
 		return msg;
 	}
 	if (ha_msg_add(msg, F_TYPE, T_APIREQ) != HA_OK) {
-		fprintf(stderr, "boilerplate: cannot add field\n");
-		ha_msg_del(msg); msg=NULL;
+		ha_log(LOG_ERR, "boilerplate: cannot add F_TYPE field");
+		ZAPMSG(msg);
 		return msg;
 	}
 	if (ha_msg_add(msg, F_APIREQ, apitype) != HA_OK) {
-		fprintf(stderr, "boilerplate: cannot add field\n");
-		ha_msg_del(msg); msg=NULL;
+		ha_log(LOG_ERR, "boilerplate: cannot add F_APIREQ field");
+		ZAPMSG(msg);
 		return msg;
 	}
 	if (ha_msg_add(msg, F_TO, OurNode) != HA_OK) {
-		fprintf(stderr, "boilerplate: cannot add field\n");
-		ha_msg_del(msg); msg=NULL;
+		ha_log(LOG_ERR, "boilerplate: cannot add F_TO field");
+		ZAPMSG(msg);
 		return msg;
 	}
 	if (ha_msg_add(msg, F_PID, OurPid) != HA_OK) {
-		fprintf(stderr, "boilerplate: cannot add field\n");
-		ha_msg_del(msg); msg=NULL;
+		ha_log(LOG_ERR, "boilerplate: cannot add F_PID field");
+		ZAPMSG(msg);
 		return msg;
 	}
 	
 	if (ha_msg_add(msg, F_FROMID, OurClientID) != HA_OK) {
-		fprintf(stderr, "boilerplate: cannot add field\n");
-		ha_msg_del(msg); msg=NULL;
+		ha_log(LOG_ERR, "boilerplate: cannot add F_FROMID field");
+		ZAPMSG(msg);
 		return msg;
 	}
 	return(msg);
@@ -153,7 +157,8 @@ hb_api_signon(const char * clientid)
 		return HA_OK;
 	}
 	snprintf(OurPid, sizeof(OurPid), "%d", getpid());
-	snprintf(ReplyFIFOName, sizeof(ReplyFIFOName), "%s/%d", API_FIFO_DIR, getpid());
+	snprintf(ReplyFIFOName, sizeof(ReplyFIFOName), "%s/%d", API_FIFO_DIR
+	,	getpid());
 	if (clientid != NULL) {
 		OurClientID = clientid;
 	}else{
@@ -161,43 +166,49 @@ hb_api_signon(const char * clientid)
 	}
 
 	if (uname(&un) < 0) {
-		perror("uname failure");
+		ha_perror("uname failure");
 		return HA_FAIL;
 	}
 	strncpy(OurNode, un.nodename, sizeof(OurNode));
 
 	if ((request = hb_api_boilerplate(API_SIGNON)) == NULL) {
-		fprintf(stderr, "api_process_request: cannot create msg\n");
-		ha_msg_del(request); request=NULL;
 		return HA_FAIL;
 	}
 	
 	mkfifo(ReplyFIFOName, 0600);
 
 	/* We open it this way to keep the open from hanging... */
-	fd =open(ReplyFIFOName, O_RDWR);
+	if ((fd = open(ReplyFIFOName, O_RDWR)) < 0) {
+		ha_log(LOG_ERR, "hb_api_signon: Can't open reply fifo %s"
+		,	ReplyFIFOName);
+		return HA_FAIL;
+	}
 
 	if ((ReplyFIFO = fdopen(fd, "r")) == NULL) {
-		fprintf(stderr, "can't open reply fifo %s\n", ReplyFIFOName);
-		ha_msg_del(request); request=NULL;
+		ha_log(LOG_ERR, "hb_api_signon: Can't fdopen reply fifo %s"
+		,	ReplyFIFOName);
+		ZAPMSG(request);
 		return HA_FAIL;
 	}
 	setvbuf(ReplyFIFO, ReplyFdBuf, _IOLBF, sizeof(ReplyFdBuf));
 
 	if ((MsgFIFO = fopen(FIFONAME, "w")) == NULL) {
-		ha_msg_del(request); request=NULL;
-		perror("can't open " FIFONAME);
+		ZAPMSG(request);
+		ha_perror("Can't fopen " FIFONAME);
 		return HA_FAIL;
 	}
 
 	/* Send message */
-	msg2stream(request, MsgFIFO);
-	ha_msg_del(request); request=NULL;
+	if (msg2stream(request, MsgFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_perror("can't send message to MsgFIFO");
+		return HA_FAIL;
+	}
+		
+	ZAPMSG(request);
 
 	/* Read reply... */
 	if ((reply=read_api_msg()) == NULL) {
-		ha_msg_del(request); request=NULL;
-		perror("can't read reply");
 		return HA_FAIL;
 	}
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
@@ -207,7 +218,7 @@ hb_api_signon(const char * clientid)
 	}else{
 		rc = HA_FAIL;
 	}
-	ha_msg_del(reply); reply=NULL;
+	ZAPMSG(reply);
 
 	return rc;
 }
@@ -218,17 +229,22 @@ hb_api_signoff()
 	struct ha_msg*	request;
 
 	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_SIGNOFF)) == NULL) {
-		fprintf(stderr, "api_process_request: can't create msg\n");
+		ha_log(LOG_ERR, "hb_api_signoff: can't create msg");
 		return HA_FAIL;
 	}
 	
 	/* Send message */
-	msg2stream(request, MsgFIFO);
-	ha_msg_del(request); request=NULL;
+	if (msg2stream(request, MsgFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_perror("can't send message to MsgFIFO");
+		return HA_FAIL;
+	}
+	ZAPMSG(request);
 	OurClientID = NULL;
 	(void)fclose(MsgFIFO);
 	(void)fclose(ReplyFIFO);
@@ -248,29 +264,33 @@ hb_api_setfilter(unsigned fmask)
 	char		filtermask[32];
 
 	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_SETFILTER)) == NULL) {
-		fprintf(stderr, "api_process_request: can't create msg\n");
+		ha_log(LOG_ERR, "hb_api_setfilter: can't create msg");
 		return HA_FAIL;
 	}
 
 	snprintf(filtermask, sizeof(filtermask), "%x", fmask);
 	if (ha_msg_add(request, F_FILTERMASK, filtermask) != HA_OK) {
-		fprintf(stderr, "api_process_request: cannot add field/2\n");
-		ha_msg_del(request); request=NULL;
+		ha_log(LOG_ERR, "hb_api_setfilter: cannot add field/2");
+		ZAPMSG(request);
 		return HA_FAIL;
 	}
 	
 	/* Send message */
-	msg2stream(request, MsgFIFO);
-	ha_msg_del(request); request=NULL;
+	if (msg2stream(request, MsgFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_perror("can't send message to MsgFIFO");
+		return HA_FAIL;
+	}
+	ZAPMSG(request);
 
 	/* Read reply... */
 	if ((reply=read_api_msg()) == NULL) {
-		ha_msg_del(request); request=NULL;
-		perror("can't read reply");
+		ZAPMSG(request);
 		return HA_FAIL;
 	}
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
@@ -279,12 +299,12 @@ hb_api_setfilter(unsigned fmask)
 	}else{
 		rc = HA_FAIL;
 	}
-	ha_msg_del(reply); reply=NULL;
+	ZAPMSG(reply);
 
 	return rc;
 }
 int
-hb_api_setsignal(ll_cluster_t* lct, int nsig)
+hb_api_setsignal(ll_cluster_t* lcl, int nsig)
 {
 	struct ha_msg*	request;
 	struct ha_msg*	reply;
@@ -292,30 +312,35 @@ hb_api_setsignal(ll_cluster_t* lct, int nsig)
 	const char *	result;
 	char		csignal[32];
 
+	ClearLog();
 	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_SETSIGNAL)) == NULL) {
-		fprintf(stderr, "api_process_request: can't create msg\n");
+		ha_log(LOG_ERR, "hb_api_setsignal: can't create msg");
 		return HA_FAIL;
 	}
 
 	snprintf(csignal, sizeof(csignal), "%d", nsig);
 	if (ha_msg_add(request, F_SIGNAL, csignal) != HA_OK) {
-		fprintf(stderr, "api_process_request: cannot add field/2\n");
-		ha_msg_del(request); request=NULL;
+		ha_log(LOG_ERR, "hb_api_setsignal: cannot add field/2");
+		ZAPMSG(request);
 		return HA_FAIL;
 	}
 	
 	/* Send message */
-	msg2stream(request, MsgFIFO);
-	ha_msg_del(request); request=NULL;
+	if (msg2stream(request, MsgFIFO) != HA_OK) {
+		ha_perror("can't send message to MsgFIFO");
+		ZAPMSG(request);
+		return HA_FAIL;
+	}
+	ZAPMSG(request);
 
 	/* Read reply... */
 	if ((reply=read_api_msg()) == NULL) {
-		ha_msg_del(request); request=NULL;
-		perror("can't read reply");
+		ZAPMSG(request);
 		return HA_FAIL;
 	}
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
@@ -324,7 +349,7 @@ hb_api_setsignal(ll_cluster_t* lct, int nsig)
 	}else{
 		rc = HA_FAIL;
 	}
-	ha_msg_del(reply); reply=NULL;
+	ZAPMSG(reply);
 
 	return rc;
 }
@@ -338,17 +363,22 @@ get_nodelist(void)
 	struct stringlist*	sl;
 
 	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_NODELIST)) == NULL) {
-		fprintf(stderr, "api_process_request: can't create msg\n");
+		ha_log(LOG_ERR, "get_nodelist: can't create msg");
 		return HA_FAIL;
 	}
 
 	/* Send message */
-	msg2stream(request, MsgFIFO);
-	ha_msg_del(request); request=NULL;
+	if (msg2stream(request, MsgFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_perror("can't send message to MsgFIFO");
+		return HA_FAIL;
+	}
+	ZAPMSG(request);
 
 	while ((reply=read_api_msg()) != NULL
 	&& 	(result = ha_msg_value(reply, F_APIRESULT)) != NULL
@@ -356,14 +386,14 @@ get_nodelist(void)
 	&&	(sl = new_stringlist(ha_msg_value(reply, F_NODENAME))) != NULL){
 		sl->next = nodelist;
 		nodelist = sl->next;
-		ha_msg_del(reply); reply=NULL;
+		ZAPMSG(reply);
 		if (strcmp(result, API_OK) == 0) {
 			return(HA_OK);
 		}
 	}
 	if (reply != NULL) {
 		zap_nodelist();
-		ha_msg_del(reply); reply=NULL;
+		ZAPMSG(reply);
 	}
 
 	return HA_FAIL;
@@ -377,22 +407,27 @@ get_iflist(const char *host)
 	struct stringlist*	sl;
 
 	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_IFLIST)) == NULL) {
-		fprintf(stderr, "api_process_request: can't create msg\n");
+		ha_log(LOG_ERR, "get_iflist: can't create msg");
 		return HA_FAIL;
 	}
 	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
-		fprintf(stderr, "api_process_request: cannot add field\n");
-		ha_msg_del(request); request=NULL;
+		ha_log(LOG_ERR, "get_iflist: cannot add field");
+		ZAPMSG(request);
 		return HA_FAIL;
 	}
 
 	/* Send message */
-	msg2stream(request, MsgFIFO);
-	ha_msg_del(request); request=NULL;
+	if (msg2stream(request, MsgFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_perror("Can't send message to MsgFIFO");
+		return HA_FAIL;
+	}
+	ZAPMSG(request);
 
 	while ((reply=read_api_msg()) != NULL
 	&& 	(result = ha_msg_value(reply, F_APIRESULT)) != NULL
@@ -400,14 +435,14 @@ get_iflist(const char *host)
 	&&	(sl = new_stringlist(ha_msg_value(reply, F_IFNAME))) != NULL){
 		sl->next = iflist;
 		iflist = sl->next;
-		ha_msg_del(reply); reply=NULL;
+		ZAPMSG(reply);
 		if (strcmp(result, API_OK) == 0) {
 			return(HA_OK);
 		}
 	}
 	if (reply != NULL) {
 		zap_iflist();
-		ha_msg_del(reply); reply=NULL;
+		ZAPMSG(reply);
 	}
 
 	return HA_FAIL;
@@ -422,30 +457,34 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 	static char		statbuf[128];
 	const char *		ret;
 
+	ClearLog();
 	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
 		return NULL;
 	}
 
 	if ((request = hb_api_boilerplate(API_NODESTATUS)) == NULL) {
-		fprintf(stderr, "api_process_request: can't create msg\n");
 		return NULL;
 	}
 	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
-		fprintf(stderr, "api_process_request: cannot add field\n");
-		ha_msg_del(request); request=NULL;
+		ha_log(LOG_ERR, "get_nodestatus: cannot add field");
+		ZAPMSG(request);
 		return NULL;
 	}
 
 	/* Send message */
-	msg2stream(request, MsgFIFO);
-	ha_msg_del(request); request=NULL;
-	/* Read reply... */
-	if ((reply=read_api_msg()) == NULL) {
-		ha_msg_del(request); request=NULL;
-		perror("can't read reply");
+	if (msg2stream(request, MsgFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_perror("Can't send message to MsgFIFO");
 		return NULL;
 	}
-ha_log_message(reply);
+	ZAPMSG(request);
+
+	/* Read reply... */
+	if ((reply=read_api_msg()) == NULL) {
+		ZAPMSG(request);
+		return NULL;
+	}
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	strcmp(result, API_OK) == 0
 	&&	(status = ha_msg_value(reply, F_STATUS)) != NULL) {
@@ -454,7 +493,7 @@ ha_log_message(reply);
 	}else{
 		ret = NULL;
 	}
-	ha_msg_del(reply); reply=NULL;
+	ZAPMSG(reply);
 
 	return ret;
 }
@@ -468,32 +507,37 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 	static char		statbuf[128];
 	const char *		ret;
 
+	ClearLog();
 	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
 		return NULL;
 	}
 
 	if ((request = hb_api_boilerplate(API_IFSTATUS)) == NULL) {
-		fprintf(stderr, "api_process_request: can't create msg\n");
 		return NULL;
 	}
 	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
-		fprintf(stderr, "api_process_request: cannot add field\n");
-		ha_msg_del(request); request=NULL;
+		ha_log(LOG_ERR, "get_ifstatus: cannot add field");
+		ZAPMSG(request);
 		return NULL;
 	}
 	if (ha_msg_add(request, F_IFNAME, ifname) != HA_OK) {
-		fprintf(stderr, "api_process_request: cannot add field\n");
-		ha_msg_del(request); request=NULL;
+		ha_log(LOG_ERR, "get_ifstatus: cannot add field");
+		ZAPMSG(request);
 		return NULL;
 	}
 
 	/* Send message */
-	msg2stream(request, MsgFIFO);
-	ha_msg_del(request); request=NULL;
+	if (msg2stream(request, MsgFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_perror("Can't send message to MsgFIFO");
+		return NULL;
+	}
+	ZAPMSG(request);
+
 	/* Read reply... */
 	if ((reply=read_api_msg()) == NULL) {
-		ha_msg_del(request); request=NULL;
-		perror("can't read reply");
+		ZAPMSG(request);
 		return NULL;
 	}
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
@@ -504,7 +548,7 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 	}else{
 		ret = NULL;
 	}
-	ha_msg_del(reply); reply=NULL;
+	ZAPMSG(reply);
 
 	return ret;
 }
@@ -684,6 +728,8 @@ read_api_msg(void)
 		struct ha_msg*	msg;
 		const char *	type;
 		if ((msg=msgfromstream(ReplyFIFO)) == NULL) {
+			ha_perror("read_api_msg: "
+			"Cannot read reply from ReplyFIFO");
 			return NULL;
 		}
 		if ((type=ha_msg_value(msg, F_TYPE)) != NULL
@@ -715,6 +761,7 @@ set_msg_callback (ll_cluster_t* ci, const char * msgtype
 ,			llc_msg_callback_t* callback, void * p)
 {
 
+	ClearLog();
 	return(add_gen_callback(msgtype,
 	(llc_private_t*)ci->ll_cluster_private, callback, p));
 }
@@ -742,6 +789,11 @@ static int
 init_nodewalk (ll_cluster_t* ci)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return HA_FAIL;
+	}
 	zap_nodelist();
 	pi->nextnode = nodelist;
 
@@ -754,6 +806,11 @@ nextnode (ll_cluster_t* ci)
 	llc_private_t*	pi = ci->ll_cluster_private;
 	const char *	ret;
 
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return NULL;
+	}
 	if (pi->nextnode == NULL) {
 		return(NULL);
 	}
@@ -766,6 +823,11 @@ static int
 end_nodewalk(ll_cluster_t* ci)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return HA_FAIL;
+	}
 	pi->nextnode = NULL;
 	zap_nodelist();
 	return(HA_OK);
@@ -775,6 +837,11 @@ static int
 init_ifwalk (ll_cluster_t* ci, const char * host)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return HA_FAIL;
+	}
 	zap_iflist();
 	pi->nextif = iflist;
 	return(get_iflist(host));
@@ -784,7 +851,13 @@ nextif (ll_cluster_t* ci)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
 	const char *	ret;
+	ClearLog();
 
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return HA_FAIL;
+	}
 	if (pi->nextif == NULL) {
 		return(NULL);
 	}
@@ -797,6 +870,11 @@ static int
 end_ifwalk(ll_cluster_t* ci)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return HA_FAIL;
+	}
 	pi->nextif = NULL;
 	zap_iflist();
 	return(HA_OK);
@@ -805,6 +883,11 @@ end_ifwalk(ll_cluster_t* ci)
 static int
 get_inputfd(ll_cluster_t*ci )
 {
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return -1;
+	}
 	return(fileno(ReplyFIFO));
 }
 static int
@@ -814,7 +897,11 @@ msgready(ll_cluster_t*ci )
 	struct timeval	tv;
 	int		rc;
 
-
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return 0;
+	}
 	FD_ZERO(&fds);
 	FD_SET(get_inputfd(ci), &fds);
 	tv.tv_sec = 0;
@@ -825,10 +912,15 @@ msgready(ll_cluster_t*ci )
 	return (rc > 0);
 }
 static int
-setfmode(ll_cluster_t* lct, int mode)
+setfmode(ll_cluster_t* lcl, int mode)
 {
 	unsigned	filtermask;
 
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return 0;
+	}
 	switch(mode) {
 
 		case LLC_FILTER_DEFAULT:
@@ -850,16 +942,26 @@ setfmode(ll_cluster_t* lct, int mode)
 	
 }
 static int
-sendclustermsg(ll_cluster_t* lct, struct ha_msg* msg)
+sendclustermsg(ll_cluster_t* lcl, struct ha_msg* msg)
 {
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return HA_FAIL;
+	}
 	return(msg2stream(msg, MsgFIFO));
 }
 static int
-sendnodemsg(ll_cluster_t* lct, struct ha_msg* msg
+sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 ,			const char * nodename)
 {
+	ClearLog();
+	if (!SignedOnAlready) {
+		ha_log(LOG_ERR, "not signed on");
+		return HA_FAIL;
+	}
 	if (ha_msg_mod(msg, F_TO, nodename) != HA_OK) {
-		fprintf(stderr, "sendnodemsg: cannot mod field\n");
+		ha_log(LOG_ERR, "sendnodemsg: cannot set F_TO field");
 		return(HA_FAIL);
 	}
 	return(msg2stream(msg, MsgFIFO));
@@ -886,6 +988,7 @@ struct llc_ops heartbeat_ops = {
 	NULL,			/* rcvmsg */
 	NULL,			/* readmsg */
 	setfmode,		/* setfmode */
+	APIError,		/* errormsg */
 };
 
 void gotsig(int nsig);
@@ -916,10 +1019,14 @@ main(int argc, char ** argv)
 	hb_api_setfilter(fmask);
 	fprintf(stderr, "Setting message signal\n");
 	hb_api_setsignal(NULL, 0);
+	fprintf(stderr, "Getting list of nodes\n");
 	get_nodelist();
+	fprintf(stderr, "Getting list of interfaces\n");
 	get_iflist("kathyamy");
-	fprintf(stderr, "Node status: %s\n", get_nodestatus(NULL, "kathyamy"));
-	fprintf(stderr, "IF status: %s\n", get_ifstatus(NULL, "kathyamy", "eth0"));
+	fprintf(stderr, "Node status: %s\n"
+	,	get_nodestatus(NULL, "kathyamy"));
+	fprintf(stderr, "IF status: %s\n"
+	,	get_ifstatus(NULL, "kathyamy", "eth0"));
 
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, gotsig);
@@ -928,7 +1035,7 @@ main(int argc, char ** argv)
 	for(; !quitnow && (reply=read_hb_msg()) != NULL;) {
 		fprintf(stderr, "Got another message...\n");
 		ha_log_message(reply);
-		ha_msg_del(reply); reply=NULL;
+		ZAPMSG(reply);
 	}
 	if (!quitnow) {
 		perror("msgfromstream returned NULL");
@@ -948,6 +1055,21 @@ ha_free(void * ptr)
 {
 	free(ptr);
 }
+
+static char	APILogBuf[MAXLINE];
+void
+ClearLog(void)
+{
+	APILogBuf[0] = EOS;
+}
+
+
+static const char *
+APIError(ll_cluster_t* lcl)
+{
+	return(APILogBuf);
+}
+
 void
 ha_log(int priority, const char * fmt, ...)
 {
@@ -958,8 +1080,16 @@ ha_log(int priority, const char * fmt, ...)
         vsnprintf(buf, MAXLINE, fmt, ap);
         va_end(ap);
  
-	fprintf(stderr, "%s\n", buf);
+	if (APILogBuf[0] != EOS && APILogBuf[strlen(APILogBuf)-1] != '\n') {
+
+		/* Strncat checks for overflow */
+		strncat(APILogBuf, "\n", sizeof(APILogBuf));
+	}
+			
+	strncat(APILogBuf, buf, sizeof(APILogBuf));
 }
+
+
 
 void
 ha_error(const char * msg)
@@ -967,4 +1097,28 @@ ha_error(const char * msg)
  
 	ha_log(0, msg);
  
+}
+
+void
+ha_perror(const char * fmt, ...)
+{
+	const char *	err;
+	char	errornumber[16];
+	extern int	sys_nerr;
+
+	va_list ap;
+	char buf[MAXLINE];
+
+	if (errno < 0 || errno >= sys_nerr) {
+		sprintf(errornumber, "error %d\n", errno);
+		err = errornumber;
+	}else{
+		err = sys_errlist[errno];
+	}
+	va_start(ap, fmt);
+	vsnprintf(buf, MAXLINE, fmt, ap);
+	va_end(ap);
+
+	ha_log(LOG_ERR, "%s: %s", buf, err);
+
 }

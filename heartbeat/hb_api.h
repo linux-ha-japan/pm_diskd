@@ -194,4 +194,6 @@ struct llc_ops {
 #	define	LLC_FILTER_RAW		3
 
 	int (*setfmode)(ll_cluster_t*, int mode);
+
+	const char * (*errmsg)(ll_cluster_t*);
 };
