@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.60 2002/03/25 23:54:52 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.61 2002/03/28 02:42:58 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -676,6 +676,10 @@ add_option(const char *	option, const char * value)
 	int	j;
 	struct hb_media_fns*	funs = NULL;
 
+	if (ANYDEBUG)  {
+		ha_log(LOG_DEBUG, "add_option(%s,%s)", option, value);
+	}
+
 	for (j=0; j < DIMOF(Directives); ++j) {
 		if (strcmp(option, Directives[j].name) == 0) {
 			int rc;
@@ -715,6 +719,8 @@ add_option(const char *	option, const char * value)
 			mp->vf = funs;
 			mp->name = strdup(value);
 			++nummedia;
+			PILIncrIFRefCount(PluginLoadingSystem
+			,	HB_COMM_TYPE_S, option, +1);
 			return(HA_OK);
 		}
 		g_assert(sysmedia[nummedia-1]->type);
@@ -1323,6 +1329,13 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.61  2002/03/28 02:42:58  alan
+ * Fixed a bug where having an error on a media directive which was not on the
+ * first occurance on the line made us unload the module prematurely, and then
+ * we weren't able to proceed because we had mistakenly unloaded the module,
+ * but thought it was still loaded.  Instant core dump.
+ * Thanks to Sean Reifschneider for pointing this out.
+ *
  * Revision 1.60  2002/03/25 23:54:52  alan
  * Put in fixes to two bugs noted by Gamid Isayev of netzilla networks.
  * One of the two fixes is also due to him.
