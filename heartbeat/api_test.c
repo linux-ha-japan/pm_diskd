@@ -1495,11 +1495,11 @@ main(int argc, char ** argv)
 	/* Read all subsequent replies... */
 	fprintf(stderr, "Now waiting for more messages...\n");
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
-		fprintf(stderr, "Got another message...\n");
-		ha_log_message(reply);
-		fputs(hb->llc_ops->errmsg(hb), stderr);
-		fputs("\n", stderr);
-		ClearLog();
+		const char *	type;
+		if ((type = ha_msg_value(reply, F_TYPE)) == NULL) {
+			type = "?";
+		}
+		fprintf(stderr, "Got a message of type [%s]\n", type);
 		ZAPMSG(reply);
 	}
 	if (!quitnow) {

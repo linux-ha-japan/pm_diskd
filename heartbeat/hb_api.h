@@ -51,7 +51,7 @@ struct llc_ops {
 
 /*
  *	set_nstatus_callback:	Define callback for node status messages
- *				This is a message of type "st"
+ *				This is a message of type "status"
  *
  *	cbf:		callback function.
  *
@@ -62,7 +62,7 @@ struct llc_ops {
 	,		llc_nstatus_callback_t cbf, 	void * p);
 /*
  *	set_ifstatus_callback:	Define callback for interface status messages
- *				This is a message of type "???"
+ *				This is a message of type "ifstat"
  *			These messages are issued whenever an interface goes
  *			dead or becomes active again.
  *
