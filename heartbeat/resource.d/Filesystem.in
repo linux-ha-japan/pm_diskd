@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.5 2002/03/14 04:28:51 alan Exp $
+# $Id: Filesystem.in,v 1.6 2002/03/21 20:45:06 alan Exp $
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
@@ -17,6 +17,8 @@
 #
 # An example usage in /etc/ha.d/haresources: 
 #       node1  10.0.0.170 Filesystem::/dev/sda1::/data1::ext2
+#  or
+#       node1  10.0.0.170 Filesystem::-Ldata1::/data1::ext2
 #
 # This assumes you want to manage a filesystem on a shared scsi bus.
 # Do not put this filesystem in /etc/fstab.  This script manages all of
@@ -26,6 +28,10 @@
 # some sort of external hardware RAID controller in front of the actual 
 # disks.  I don't mean a RAID controller embedded in the host controller -
 # it has to be a external controller.
+#
+# It can also be an internal RAID controller if the controller supports
+# failover.  IBM's ServeRAID controller does this, and it automatically
+# prohibits concurrent access too, so it's pretty cool in this application.
 #
 # There is a script for software RAID-1 included in this directory.  Right 
 # now, I wouldn't recommend using software RAID (see notes in the Raid1 script)
@@ -47,12 +53,18 @@
 #
 #	If you don't do this, don't blame us when you scramble your disk.
 # 
+#
+#	Note:  the ServeRAID controller does prohibit concurrent acess
+#	So you don't actually need STONITH, but redundant comm is still
+#	an excellent idea.
+#
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
-. @sysconfdir@/ha.d/shellfuncs
+#. @sysconfdir@/ha.d/shellfuncs
+. /etc/ha.d/shellfuncs
 
 # Utilities used by this script
 MODPROBE=/sbin/modprobe
@@ -61,6 +73,7 @@ FUSER=/sbin/fuser
 MOUNT=/bin/mount
 UMOUNT=/bin/umount
 BLOCKDEV=@BLOCKDEV@
+BLOCKDEV=/sbin/blockdev
 
 check_util () {
     if [ ! -x "$1" ] ; then
@@ -75,10 +88,11 @@ cat <<-EOT;
 	usage: $0 <device> <directory> <fstype> {start|stop|status}
 
 	<device>    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
+			OR -LFileSystemLabel
 	<directory> : the mount point for the filesystem
 	<fstype>    : name of the filesystem type. e.g. ext2
 
-	$Id: Filesystem.in,v 1.5 2002/03/14 04:28:51 alan Exp $
+	$Id: Filesystem.in,v 1.6 2002/03/21 20:45:06 alan Exp $
 	EOT
 }
 
@@ -94,7 +108,10 @@ flushbufs() {
   if
     [ "$BLOCKDEV" != "" -a -x "$BLOCKDEV" ]
   then
-    $BLOCKDEV --flushbufs $1
+    case $1 in
+      -*)		;;
+      *)		$BLOCKDEV --flushbufs $1;;
+    esac
   fi
 }
 # Check the arguments passed to this script
@@ -102,11 +119,15 @@ DEVICE=$1
 MOUNTPOINT=$2
 FSTYPE=$3
 
-if [ ! -b "$DEVICE" ] ; then
-	ha_log "ERROR: Couldn't find device $DEVICE. Expected /dev/??? to exist"
-	usage
-	exit 1
-fi
+case $DEVICE in
+  -*) # Oh... An option to mount instead...  Typically -U or -L
+	;;
+  *)	if [ ! -b "$DEVICE" ] ; then
+	  ha_log "ERROR: Couldn't find device $DEVICE. Expected /dev/??? to exist"
+	  usage
+	  exit 1
+	fi;;
+esac
 
 if [ ! -d "$MOUNTPOINT" ] ; then
 	ha_log "ERROR: Couldn't find directory  $MOUNTPOINT to use as a mount point"
@@ -137,31 +158,17 @@ case "$4" in
 start)
 
 	# See if the device is already mounted.
-	$MOUNT | grep -e "^$DEVICE " >/dev/null
+	$MOUNT | cut -d' ' -f3 | grep -e "^$MOUNTPOINT$" >/dev/null
 	if [ $? -ne 1 ] ; then
-	    ha_log "ERROR: Device $DEVICE is already mounted!"
+	    ha_log "ERROR: Filesystem $MOUNTPOINT is already mounted!"
 	    exit 1;
 	fi
 
 	# Insert SCSI module
-	if
-	  $MODPROBE scsi_hostadapter
-	then
-	  : $MODPROBE scsi_hostadapter worked
-	else
-	    # This warning is sometimes bogus - the driver is often compiled
-	    # into the kernel.
-	    : ha_log "WARNING: Couldn't insert SCSI module."
-	fi
+	$MODPROBE scsi_hostadapter >/dev/null 2>&1
 
 	# Insert Filesystem module
-	$MODPROBE $FSTYPE
-	if [ $? -ne 0 ] ; then
-	    # This warning is usually bogus - the filesystem is often compiled
-	    # into the kernel.
-	    ha_log "WARNING: Couldn't insert $FSTYPE module. (usually safe to ingore)"
-	fi
-
+	$MODPROBE $FSTYPE >/dev/null 2>&1
 
 	# Check the filesystem & auto repair.  
 	# NOTE: Some filesystem types don't need this step...  Please modify
@@ -169,8 +176,8 @@ start)
 
 	if
 	  case $FSTYPE in
-	    ext3|reiserfs)	false;;
-	    *)			true;;
+	    ext3|reiserfs|vfat|fat)	false;;
+	    *)				true;;
 	  esac
         then
 	  ha_log "info: Starting filesystem check on $DEVICE"
@@ -206,28 +213,26 @@ start)
 stop)
 
 	# See if the device is currently mounted
-	$MOUNT | grep -e "^$DEVICE " >/dev/null
+	$MOUNT | grep -e " on $MOUNTPOINT " >/dev/null
 	if [ $? -ne 1 ] ; then
 
 		# Kill all processes open on filesystem
 		$FUSER -mk $MOUNTPOINT
 
-		# the return from fuser doesn't tell us much
-		#if [ $? -ne 0 ] ; then
-		#	echo "ERROR: Couldn't kill processes on $MOUNTPOINT"
-		#	exit 1;
-		#fi
-	
+		# Get the current real device name...
+		# (specified devname could be -L or -U...)
+
+		DEV=`$MOUNT | grep "on $MOUNTPOINT " | cut -d' ' -f1`
 		# Unmount the filesystem
-		$UMOUNT $DEVICE
+		$UMOUNT $MOUNTPOINT
 		if [ $? -ne 0 ] ; then
-			ha_log "ERROR: Couldn't unmount filesystem for $MDDEV"
+			ha_log "ERROR: Couldn't unmount $MOUNTPOINT"
 			exit 1
 		fi
+		flushbufs $DEV
 	else
 		ha_log "WARNING: Filesystem $MOUNTPOINT not mounted?"
 	fi
-	flushbufs $DEVICE
 
 # end of stop)
 ;;
@@ -237,11 +242,11 @@ stop)
 #
 status)
 
-	$MOUNT | grep -e "^$DEVICE" >/dev/null
+	$MOUNT | grep -e "on $MOUNTPOINT " >/dev/null
 	if [ $? = 0 ] ; then
-		echo "running"
+		echo "$MOUNTPOINT is mounted (running)"
 	else
-		echo "stopped"
+		echo "$MOUNTPOINT is unmounted (stopped)"
 	fi
 # end of status)
 ;;
