@@ -242,7 +242,7 @@ void
 client_init(void)
 {
 	if(ccm_hashclient) {
-		cl_log(LOG_DEBUG, "ccm: client already initialized");
+		cl_log(LOG_INFO, "ccm: client already initialized");
 		return;
 	}
 	ccm_hashclient =  g_hash_table_new(g_direct_hash, 

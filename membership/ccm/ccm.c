@@ -996,7 +996,7 @@ ccm_add_new_joiner(ccm_info_t *info, const char *orig)
 	} 
 	else {
 		if(global_debug)
-		cl_log(LOG_DEBUG,"add_joiner %s already done", orig);
+			cl_log(LOG_DEBUG,"add_joiner %s already done", orig);
 	}
 	return;
 }
@@ -1929,7 +1929,8 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 				ccm_init_to_joined(info);
 			} else {
 				if(global_debug)
-					cl_log(LOG_DEBUG,"joined but not really");
+					cl_log(LOG_DEBUG,
+						"joined but not really");
 				version_reset(CCM_GET_VERSION(info));
 				CCM_SET_STATE(info, CCM_STATE_NONE);
 			}
@@ -2209,7 +2210,7 @@ switchstatement:
 			 */
 			assert(trans_majorval == CCM_GET_MAJORTRANS(info));
 			assert(trans_minorval == CCM_GET_MINORTRANS(info));
-			cl_log(LOG_DEBUG, "considering a late join message "
+			cl_log(LOG_INFO, "considering a late join message "
 					  "from orig=%s", orig);
 			/* get the update value */
 			if ((uptime = ha_msg_value(reply, CCM_UPTIME)) 
@@ -2280,7 +2281,7 @@ switchstatement:
 			 */
 			if(trans_minorval != CCM_GET_MINORTRANS(info)) break;
 			if(trans_majorval != CCM_GET_MAJORTRANS(info)) {
-				cl_log(LOG_DEBUG, "dropping CCM_TYPE_RES_MEMLIST "
+				cl_log(LOG_INFO, "dropping CCM_TYPE_RES_MEMLIST "
 				   "from orig=%s mymajor=%d msg_major=%d", 
 				   orig, trans_majorval, 
 					CCM_GET_MAJORTRANS(info));
@@ -3050,8 +3051,10 @@ static void
 LinkStatus(const char * node, const char * lnk, const char * status ,
 		void * private)
 {
-        cl_log(LOG_DEBUG, "Link Status update: Link %s/%s now has status %s",
-				node, lnk, status);
+	if(global_debug) {
+		cl_log(LOG_DEBUG, "Link Status update: Link %s/%s "
+				"now has status %s", node, lnk, status);
+	}
 }
 
 
@@ -3100,7 +3103,7 @@ ccm_handle_hbapiclstat(ccm_info_t *info,
 
 	assert(status);
 	if(strncmp(status, JOINSTATUS, 5) == 0) {
-		cl_log(LOG_DEBUG, "ignoring join "
+		cl_log(LOG_INFO, "ignoring join "
 		"message from orig=%s", orig);
 		return NULL;
 	}
@@ -3320,8 +3323,11 @@ ccm_initialize()
 	(void)_ha_msg_h_Id;
 
 	system("clear");
-	cl_log(LOG_DEBUG, "========================== Starting CCM ===="
+
+	if(global_debug) {
+		cl_log(LOG_DEBUG, "========================== Starting CCM ===="
 			"======================");
+	}
 
 	if(gethostname(hname,hlen) != 0) {
 		cl_log(LOG_ERR, "gethostname() failed");
@@ -3372,8 +3378,10 @@ ccm_initialize()
 	}
 
 
-	cl_log(LOG_DEBUG, "======================= Starting  Node Walk =="
-			"=====================");
+	if(global_debug) {
+		cl_log(LOG_DEBUG, "======================= Starting  Node Walk "
+				"=======================");
+	}
 	if (hb_fd->llc_ops->init_nodewalk(hb_fd) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot start node walk");
 		cl_log(LOG_ERR, "REASON: %s", hb_fd->llc_ops->errmsg(hb_fd));
@@ -3385,8 +3393,10 @@ ccm_initialize()
 	llm_init(llm);
 	while((node = hb_fd->llc_ops->nextnode(hb_fd))!= NULL) {
 		status =  hb_fd->llc_ops->node_status(hb_fd, node);
-		cl_log(LOG_DEBUG, "Cluster node: %s: status: %s", node
-		,	status);
+		if(global_debug) {
+			cl_log(LOG_DEBUG, "Cluster node: %s: status: %s", node,
+				status);
+		}
 		
 		/* add the node to the low level membership list */
 		llm_add(llm, node, status, hname);
@@ -3400,10 +3410,12 @@ ccm_initialize()
 		return NULL;
 	}
 
-	cl_log(LOG_DEBUG, "======================== Ending  Node Walk ======"
-			"==================");
-	cl_log(LOG_DEBUG, "Total # of Nodes in the Cluster: %d", 
+	if(global_debug) {
+		cl_log(LOG_DEBUG, "======================== Ending  Node Walk "
+				"========================");
+		cl_log(LOG_DEBUG, "Total # of Nodes in the Cluster: %d", 
 						LLM_GET_NODECOUNT(llm));
+	}
 	
 	if (hb_fd->llc_ops->setmsgsignal(hb_fd, 0) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot set message signal");

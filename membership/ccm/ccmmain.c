@@ -171,7 +171,7 @@ clntCh_input_dispatch(gpointer source_data, GTimeVal* current_time
 			(struct IPC_CHANNEL *)user_data;
 
 	if(gpfd->revents&G_IO_HUP || (gpfd+1)->revents&G_IO_HUP) {
-		cl_log(LOG_DEBUG, "dispatch:received HUP");
+		cl_log(LOG_INFO, "dispatch:received HUP");
 		client_delete(client);
 		g_main_remove_poll(gpfd);
 		g_main_remove_poll(gpfd+1);
