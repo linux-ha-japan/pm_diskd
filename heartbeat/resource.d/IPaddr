@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr,v 1.8 2001/02/05 21:43:38 alan Exp $
+#	$Id: IPaddr,v 1.9 2001/05/17 18:45:55 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -22,7 +22,7 @@ IFCONFIG=/sbin/ifconfig
 ROUTE=/sbin/route
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-USAGE="usage: $0 ip-address {start|stop|status}";
+USAGE="usage: $0 ip-address {start|stop|status|monitor}";
 
 #
 #	Find out which alias serves the given IP address
@@ -139,7 +139,7 @@ ip_start() {
 #	Do we already service this IP address?
 #
   if
-    $IFCONFIG | grep "inet addr:$1 " >/dev/null 2>&1
+    $IFCONFIG | grep "inet addr:$BASEIP " >/dev/null 2>&1
   then
     exit 0	# We already own this IP address
   fi
@@ -270,6 +270,9 @@ esac
 #
 #
 # $Log: IPaddr,v $
+# Revision 1.9  2001/05/17 18:45:55  alan
+# Applied two patches for IPaddr from Emily Ratliff <emilyr@us.ibm.com>
+#
 # Revision 1.8  2001/02/05 21:43:38  alan
 # Added "monitor" action to IPaddr.
 #
