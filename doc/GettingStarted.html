@@ -252,6 +252,53 @@ how heartbeat treats this...
 <p>Once you straighten out your haresources file, copy ha.cf and
 haresources to /etc/ha.d and you're ready to start! <br>
 &nbsp; </p>
+
+<b><font size="+1">Configuring ipfail</font></b><br>
+The ipfail plugin attempts to provide detection of network failures, and then
+intelligently react, directing the cluster to failover resources as necessary.
+In order to accomplish this goal, it uses ping nodes which work as "dumb" third
+parties in the cluster.  Provided both HA nodes can communicate with each 
+other, ipfail can reliably detect when one of their network links has become 
+unusable, and compensate.<br>
+<br>
+To configure ipfail, the following steps must be performed.
+<ol>
+<li><b>Select good ping node candidates.</b><br>
+It is essential that good strategic ping nodes be selected.  The better your
+choices, the stronger your HA cluster becomes.  Choosing solid network devices
+like switches and routers is a good idea.  Do not choose either of the 
+members of the HA cluster.  Nor should you select someone's workstation.  It 
+is also important to select ping nodes that reflect the connectivity of your
+HA nodes.  If you wish to monitor the connectivity of two interfaces, it is 
+wise to select a ping node for each interface, that is reachable exclusively 
+from said interface.  Consult 
+<a href="ipfail-diagram.pdf">ipfail-diagram.pdf</a> for a graphical 
+representation of this idea.
+<br><br></li>
+<li><b>Configure your ha.cf to start ipfail.</b><br>
+Add a line like the following to ha.cf (assuming your compile PREFIX is /usr)
+<blockquote>
+respawn hacluster /usr/lib/heartbeat/ipfail
+</blockquote>
+</li>
+<li><b>Add the ping nodes to ha.cf.</b><br>
+The ping nodes can be added to the cluster by using a line like the following:
+<blockquote>
+ping pnode1 pnode2 pnodeN
+</blockquote>
+Simply replace pnode1, pnode2, ... pnodeN with the IP addresses of your ping 
+nodes.
+</li>
+</ol>
+Ensure that the above configuration directives are added to the ha.cf on 
+both members of the cluster, and that they are identical.<br>
+
+<blockquote>
+<b>NOTE:</b> You will want to check on the availability of the ping nodes 
+prior to using them.  If you cannot ping them from both of the HA nodes, 
+they are useless.
+</blockquote>
+
 <h2> Selecting an Interface</h2>
 One important aspect of configuring the haresources file for a machine
 which has multiple ethernet interfaces is to know how heartbeat selects
