@@ -180,7 +180,7 @@ main(int argc, char** argv)
 	}
 
 	if (optind < argc) {
-		rc = (s->s_ops->reset_req(s, ST_RESET, argv[optind]));
+		rc = (s->s_ops->reset_req(s, ST_GENERIC_RESET, argv[optind]));
 	}
 	s->s_ops->destroy(s);
 	return(rc);
