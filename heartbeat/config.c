@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.84 2003/05/30 14:10:21 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.85 2003/05/30 14:26:56 kevin Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -1426,7 +1426,7 @@ set_realtime_prio(const char * value)
 	}
 	hb_realtime_prio = foo;
 #else
-	ha_log(LOG_WARN
+	ha_log(LOG_WARNING
 	,	"Realtime scheduling not supported on this platform.");
 #endif
 	return HA_OK;
@@ -1449,7 +1449,7 @@ set_realtime(const char * value)
 		if (enable_realtime) {
 			cl_enable_realtime();
 #ifndef _POSIX_PRIORITY_SCHEDULING
-			ha_log(LOG_WARN
+			ha_log(LOG_WARNING
 			,	"Realtime scheduling not supported on this platform.");
 #endif
 		}else{
@@ -1552,6 +1552,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.85  2003/05/30 14:26:56  kevin
+ * LOG_WARNING, not LOG_WARN.
+ *
  * Revision 1.84  2003/05/30 14:10:21  alan
  * Include the POSIX realtime functions in appropriate #ifdefs to make
  * OpenBSD work right.
