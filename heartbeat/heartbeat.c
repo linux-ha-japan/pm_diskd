@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.121 2001/07/02 22:29:35 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.122 2001/07/03 14:09:07 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2413,6 +2413,7 @@ send_cluster_msg(struct ha_msg* msg)
 		if (DEBUGPKTCONT) {
 			ha_log(LOG_DEBUG, "%d bytes written to %s"
 			,	length, FIFONAME);
+			ha_log(LOG_DEBUG, "Packet content: %s", smsg);
 		}
 		close(ffd);
 
@@ -4033,6 +4034,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.122  2001/07/03 14:09:07  alan
+ * More debug for Matt Soffen...
+ *
  * Revision 1.121  2001/07/02 22:29:35  alan
  * Put in a little more basic debug for heartbeat.
  *
