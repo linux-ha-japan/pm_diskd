@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.9 1999/11/14 08:23:44 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.10 1999/11/15 05:31:43 alan Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -288,6 +288,7 @@ ttysetup(int fd)
 
 	ti.c_oflag &= ~(OPOST);
 	ti.c_cflag &= ~(CBAUD|CSIZE|PARENB);
+
 	ti.c_cflag |=  (serial_baud|CS8|CREAD|CLOCAL|CRTSCTS);
 
 	ti.c_lflag &= ~(ICANON|ECHO|ISIG);
@@ -520,6 +521,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.10  1999/11/15 05:31:43  alan
+ * More tweaks for CTS/RTS flow control.
+ *
  * Revision 1.9  1999/11/14 08:23:44  alan
  * Fixed bug in serial code where turning on flow control caused
  * heartbeat to hang.  Also now detect hangs and shutdown automatically.
