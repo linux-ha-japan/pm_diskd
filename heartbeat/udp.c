@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.4 1999/09/30 18:34:27 alanr Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.5 1999/10/06 05:37:24 alanr Exp $";
 /*
    About 150 lines of the code in this file borrowed 1999 from Tom Vogt's
 	"Heart" program, and significantly mangled by
@@ -363,12 +363,12 @@ HB_make_receive_sock(struct hb_media * mp) {
 
 /*
  *	Kludgy method of getting udp configuration information
- *	It works on Solaris and Linux.  Maybe other places, too.
+ *	It works on Solaris and Linux and FreeBSD.  Maybe other places, too.
  */
 
 #	define IFCONFIG	"/sbin/ifconfig"
 #	define	FILTER "grep '[Bb][a-z]*cast' | "	\
-	"sed -e 's%^.*[Bb][a-z]*cast%%' -e 's% .*%%'"
+	"sed -e 's%^.*[Bb][a-z]*cast[ :]*%%' -e 's% .*%%'"
 
 STATIC struct ip_private *
 new_ip_interface(const char * ifn, int port)
@@ -449,6 +449,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.5  1999/10/06 05:37:24  alanr
+ * FreeBSD port - getting broadcast address
+ *
  * Revision 1.4  1999/09/30 18:34:27  alanr
  * Matt Soffen's FreeBSD changes
  *
