@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.199 2002/08/14 21:38:05 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.200 2002/08/20 19:44:45 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2783,12 +2783,15 @@ reaper_action(int waitflags)
 	int status;
 	pid_t	pid;
 
-	while((pid=wait3(&status, waitflags, NULL)) > 0) {
+	while((pid=wait3(&status, waitflags, NULL)) > 0
+	||	(pid == -1 && errno == EINTR)) {
 
-		/* If they're in the API client table, remove them... */
-		api_remove_client_pid(pid, "died");
+		if (pid > 0) {
+			/* If they're in the API client table, remove them... */
+			api_remove_client_pid(pid, "died");
 
-		ReportProcHasDied(pid, status);
+			ReportProcHasDied(pid, status);
+		}
 
 	}/*endwhile*/
 }
@@ -6071,6 +6074,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.200  2002/08/20 19:44:45  alan
+ * Put in a Solaris patch from Thomas Hepper <th@ant.han.de>
+ * He was having trouble with wait3 calls being interrupted, so processes
+ * deaths got missed.  Maybe I had this problem before, and worked around
+ * it by waiting in a loop on exit...
+ *
  * Revision 1.199  2002/08/14 21:38:05  alan
  * Capabilities for plugins for apphbd, also for watchdog support.
  *
