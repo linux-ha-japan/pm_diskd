@@ -44,19 +44,19 @@
 #
 #	If you want to specify that this IP address is to be brought up
 #	on a subnet with a netmask of 255.255.255.0, you would specify
-#	this as IPaddr::135.9.8.7/8 .  
+#	this as IPaddr::135.9.8.7/24 .  
 #
 #	If you wished to tell it that the broadcast address for this subnet
 #	was 135.9.8.210, then you would specify that this way:
-#		IPaddr::135.9.8.7/8/135.9.8.210
+#		IPaddr::135.9.8.7/24/135.9.8.210
 #
 #	If you wished to tell it that the interface to add the address to
 #	is eth0, then you would need to specify it this way:
-#		IPaddr::135.9.8.7/8/eth0
+#		IPaddr::135.9.8.7/24/eth0
 #
 #       And this way to specify both the broadcast address and the
 #       interface:
-#		IPaddr::135.9.8.7/8/eth0/135.9.8.210
+#		IPaddr::135.9.8.7/24/eth0/135.9.8.210
 #
 #	The IP addresses you list in this file are called "service" addresses,
 #	since they're they're the publicly advertised addresses that clients
@@ -103,7 +103,7 @@
 #	One service address, with the subnet, interface and bcast addr
 #       explicitly defined.
 #
-#just.linux-ha.org	135.9.216.3/4/eth0/135.9.216.12 httpd
+#just.linux-ha.org	135.9.216.3/28/eth0/135.9.216.12 httpd
 #
 #-------------------------------------------------------------------
 #
