@@ -3,7 +3,8 @@
  *
  * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
  * Copyright (C) 2000 Marcelo Tosatti <marcelo@conectiva.com.br>
- * Copyright (C) 2000 Conectiva S.A. 
+ *
+ * Thanks to Conectiva S.A. for sponsoring Marcelo Tosatti work
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
