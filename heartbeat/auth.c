@@ -200,7 +200,7 @@ parse_authfile(void)
 
 			if ((i < 0) || (i >= MAXAUTH)) {
 				ha_log(LOG_ERR, "Invalid authnum [%d] in "
-				KEYFILE);
+				KEYFILE, i);
 				PILIncrIFRefCount(PluginLoadingSystem
 				,	HB_AUTH_TYPE_S, method, -1);
 				rc = HA_FAIL;
@@ -278,3 +278,10 @@ parse_authfile(void)
 	}
 	return(rc);
 }
+#endif
+/*
+ * $Log: auth.c,v $
+ * Revision 1.6  2001/07/18 15:36:33  alan
+ * Put in Emily Ratliff's fix of adding a missing parameter to an ha_log() call.
+ *
+ */
