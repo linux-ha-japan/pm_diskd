@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.14 2003/02/05 09:06:33 horms Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.15 2003/02/07 08:37:17 horms Exp $";
 /* 
  * send_arp
  * 
@@ -29,7 +29,7 @@ const static char * _send_arp_c = "$Id: send_arp.c,v 1.14 2003/02/05 09:06:33 ho
  *
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -235,6 +235,10 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.15  2003/02/07 08:37:17  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.14  2003/02/05 09:06:33  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

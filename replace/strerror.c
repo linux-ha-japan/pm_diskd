@@ -16,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <errno.h>
 #include <stdio.h>
 extern const char *	sys_err[];

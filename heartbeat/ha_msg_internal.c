@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.31 2003/02/05 09:06:33 horms Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.32 2003/02/07 08:37:16 horms Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -20,7 +20,7 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.31 2003/02/05 09:
  *
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -548,6 +548,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.32  2003/02/07 08:37:16  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.31  2003/02/05 09:06:33  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

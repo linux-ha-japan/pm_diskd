@@ -1,4 +1,4 @@
-const static char _serial_c_Id [] = "$Id: serial.c,v 1.23 2003/02/05 09:06:34 horms Exp $";
+const static char _serial_c_Id [] = "$Id: serial.c,v 1.24 2003/02/07 08:37:18 horms Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -24,7 +24,7 @@ const static char _serial_c_Id [] = "$Id: serial.c,v 1.23 2003/02/05 09:06:34 ho
  *
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
@@ -655,6 +655,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.24  2003/02/07 08:37:18  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.23  2003/02/05 09:06:34  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.240 2003/02/05 09:06:33 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.241 2003/02/07 08:37:16 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -218,7 +218,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.240 2003/02/05 09:06
  *
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -3895,6 +3895,10 @@ IncrGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.241  2003/02/07 08:37:16  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.240  2003/02/05 09:06:33  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

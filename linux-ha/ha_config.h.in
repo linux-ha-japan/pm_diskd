@@ -1,30 +1,6 @@
 #ifndef _HA_CONFIG_H
 #define _HA_CONFIG_H
 
-/* Define to 1 if time.h defines CLK_TCK */
-#undef HA_CLK_TCK_IN_TIME_H
-
-/* Define to 1 if limits.h defines CLK_TCK */
-#undef HA_CLK_TCK_IN_LIMITS_H
-
-/* Define to 1 if you have the `alphasort' function. */
-#undef HA_HAVE_ALPHASORT
-
-/* Define to 1 if you have the `inet_pton' function. */
-#undef HA_HAVE_INET_PTON
-
-/* Do we have nfds_t */
-#undef HA_HAVE_NFDS_T
-
-/* Define to 1 if you have the `scandir' function. */
-#undef HA_HAVE_SCANDIR
-
-/* Define to 1 if you have the `strerror' function. */
-#undef HA_HAVE_STRERROR
-
-/* Define to 1 if you have the `setenv' function. */
-#undef HA_HAVE_SETENV
-
 /* /var/lib directory */
 #undef HA_VARLIBDIR
 

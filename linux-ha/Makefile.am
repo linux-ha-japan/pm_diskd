@@ -24,4 +24,4 @@ EXTRA_DIST = ha_config.h.in
 
 includedir=$(base_includedir)/linux-ha
 
-include_HEADERS	        = portability.h ha_config.h
+noinst_HEADERS	        = portability.h ha_config.h

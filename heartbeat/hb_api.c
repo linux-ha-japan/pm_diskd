@@ -64,7 +64,7 @@
  *	same UID on each machine.
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <sys/time.h>
 #define	time FOOtime
 #include <glib.h>

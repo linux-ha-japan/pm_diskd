@@ -1,4 +1,4 @@
-#include <linux-ha/portability.h>
+#include <portability.h>
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif

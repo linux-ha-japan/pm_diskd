@@ -56,7 +56,7 @@
 #define ENABLE_PLUGIN_MANAGER_PRIVATE
 #define ENABLE_PIL_DEFS_PRIVATE
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <pils/generic.h>
 
 #include <stdio.h>

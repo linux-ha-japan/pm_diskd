@@ -19,7 +19,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <glib.h>
 #include <stdio.h>
 #include "gXMLparse.h"

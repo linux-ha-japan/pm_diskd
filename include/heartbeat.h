@@ -21,8 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.30 2003/02/05 09:06:33 horms Exp $";
-#include <linux-ha/portability.h>
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.31 2003/02/07 08:37:17 horms Exp $";
 
 #ifdef SYSV
 #	include <sys/termio.h>
@@ -198,6 +197,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.30 2003/02/05 09:06:
 #define HA_FUNCS	HA_D "/shellfuncs"
 
 #define	RC_ARG0		"harc"
+
 
 
 /* Which side of a pipe is which? */

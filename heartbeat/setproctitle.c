@@ -1,4 +1,4 @@
-const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.7 2003/02/05 09:06:33 horms Exp $";
+const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.8 2003/02/07 08:37:17 horms Exp $";
 
 /*
  * setproctitle.c
@@ -55,7 +55,7 @@ const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.7 2003/02/05 0
  * the source code for OpenSSL in the source distribution.
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>

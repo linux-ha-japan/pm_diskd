@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.30 2003/02/05 09:06:34 horms Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.31 2003/02/07 08:37:17 horms Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -23,7 +23,7 @@ static const char _bcast_Id [] = "$Id: bcast.c,v 1.30 2003/02/05 09:06:34 horms 
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -775,6 +775,10 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.31  2003/02/07 08:37:17  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.30  2003/02/05 09:06:34  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

@@ -23,7 +23,6 @@
 #ifndef _CLUSTER_MANAGER_H_
 #define _CLUSTER_MANAGER_H_
  
-#include <linux-ha/portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -22,7 +22,7 @@
  * newer.
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 
 #if HAVE_SYS_TYPES_H
 #include <sys/types.h>

@@ -22,8 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.13 2003/02/05 09:06:33 horms Exp $";
-#include <linux-ha/portability.h>
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.14 2003/02/07 08:37:17 horms Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 

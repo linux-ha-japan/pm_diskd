@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.21 2003/02/05 09:06:33 horms Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.22 2003/02/07 08:37:16 horms Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -47,7 +47,7 @@ static const char _findif_c [] = "$Id: findif.c,v 1.21 2003/02/05 09:06:33 horms
  *
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -601,6 +601,10 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.22  2003/02/07 08:37:16  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.21  2003/02/05 09:06:33  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

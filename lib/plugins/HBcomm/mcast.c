@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.13 2003/02/05 09:06:34 horms Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.14 2003/02/07 08:37:17 horms Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -23,7 +23,7 @@ static const char _mcast_Id [] = "$Id: mcast.c,v 1.13 2003/02/05 09:06:34 horms 
  *
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -819,6 +819,10 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.14  2003/02/07 08:37:17  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.13  2003/02/05 09:06:34  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

@@ -31,7 +31,7 @@
 /* We are a interface manager... */
 #define ENABLE_PLUGIN_MANAGER_PRIVATE
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <pils/interface.h>
 #include <stdio.h>
 

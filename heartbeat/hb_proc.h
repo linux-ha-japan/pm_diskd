@@ -25,6 +25,8 @@
 #ifndef _HB_PROC_H
 #	define _HB_PROC_H 1
 
+#include <clplumbing/longclock.h>
+
 /*
  * Unfortunately, PAGESIZE (Solaris) or PAGE_SIZE is not a guaranteed
  * constant, but might rather be a function call.

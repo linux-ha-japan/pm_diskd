@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-#include <linux-ha/portability.h>
+#include <portability.h>
 #define time FOOtime
 #include <glib.h>
 #undef time
@@ -294,6 +294,10 @@ parse_authfile(void)
 }
 /*
  * $Log: auth.c,v $
+ * Revision 1.11  2003/02/07 08:37:16  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.10  2003/02/05 09:06:33  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

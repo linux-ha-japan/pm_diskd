@@ -28,7 +28,7 @@
  ***************************************************************************
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 

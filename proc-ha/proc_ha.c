@@ -1,5 +1,5 @@
 /*
- * $Id: proc_ha.c,v 1.6 2003/02/05 09:06:35 horms Exp $
+ * $Id: proc_ha.c,v 1.7 2003/02/07 08:37:18 horms Exp $
  *
  * Linux-HA /proc interface
  *
@@ -44,7 +44,7 @@
 /*	Advice appreciated... :-) */
 
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <linux/malloc.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -946,6 +946,10 @@ void cleanup_module(void)
 
 /****************************************************
  * $Log: proc_ha.c,v $
+ * Revision 1.7  2003/02/07 08:37:18  horms
+ * Removed inclusion of portability.h from .h files
+ * so that it does not need to be installed.
+ *
  * Revision 1.6  2003/02/05 09:06:35  horms
  * Lars put a lot of work into making sure that portability.h
  * is included first, everywhere. However this broke a few

@@ -57,7 +57,7 @@
  *
  */
 
-#include <linux-ha/portability.h>
+#include <portability.h>
 #include <stdio.h>
 #include <syslog.h>
 #include <sys/types.h>

@@ -25,11 +25,6 @@
 #define	DIMOF(a)		((int) (sizeof(a)/sizeof(a[0])) )
 #define	STRLEN(conststr)	((int)(sizeof(conststr)/sizeof(char))-1)
 
-/* This is consistent with OpenBSD, and is a good choice anyway */
-#define	TIME_T	unsigned long
-#define	TIME_F	"%lu"
-#define	TIME_X	"%lx"
-
 /* Needs to be defined before any other includes, otherwise some system
  * headers do not behave as expected! Major black magic... */
 #define _GNU_SOURCE
@@ -55,7 +50,9 @@
 #define G_GNUC_PRINTF( format_idx, arg_idx )
 #endif	/* !__GNUC__ */
 
-#include <linux-ha/ha_config.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #ifndef HA_HAVE_SETENV
   /* We supply a replacement function, but need a prototype */
