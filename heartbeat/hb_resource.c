@@ -468,7 +468,7 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
  * mach_down.
  */
 
-#define	HB_UPD_RSC(cur, up)	((up == HB_NO_RSC) ? HB_NO_RSC : ((up)|(cur)))
+#define	HB_UPD_RSC(full, cur, up)	((full) ? up : (up == HB_NO_RSC) ? HB_NO_RSC : ((up)|(cur)))
 
 
 void
@@ -547,14 +547,14 @@ process_resources(const char * type, struct ha_msg* msg
 			ha_log(LOG_WARNING
 			,	"T_STARTING received during takeover.");
 		}
-		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
-		,	resourcestate == HB_R_STABLE, NULL);
+		hb_send_resources_held(resourcestate == HB_R_STABLE, NULL);
 	}
 
 	/* Manage resource related messages... */
 
 	if (strcasecmp(type, T_RESOURCES) == 0) {
 		const char *p;
+		int	fullupdate = FALSE;
 		int n;
 		/*
 		 * There are four possible resource answers:
@@ -572,6 +572,13 @@ process_resources(const char * type, struct ha_msg* msg
 			" field.");
 			return;
 		}
+		n = encode_resources(p);
+
+
+		if ((p = ha_msg_value(msg, F_RTYPE))
+		&&	strcmp(p, "full") == 0) {
+			fullupdate = TRUE;
+		}
 
 		switch (resourcestate) {
 
@@ -588,7 +595,6 @@ process_resources(const char * type, struct ha_msg* msg
 					return;
 		}
 
-		n = encode_resources(p);
 
 		if (thisnode != curnode) {
 			/*
@@ -618,7 +624,13 @@ process_resources(const char * type, struct ha_msg* msg
 			}
 
 			other_holds_resources
-			=	HB_UPD_RSC(other_holds_resources, n);
+			=	HB_UPD_RSC(fullupdate, other_holds_resources, n);
+			other_holds_resources =	n;
+			if (ANYDEBUG) {
+				ha_log(LOG_INFO
+				,	"other_holds_resources: %d"
+				,	other_holds_resources);
+			}
 
 			if ((resourcestate != HB_R_STABLE
 			&&   resourcestate != HB_R_SHUTDOWN)
@@ -628,9 +640,7 @@ process_resources(const char * type, struct ha_msg* msg
 				);
 				req_our_resources(FALSE);
 				newrstate = HB_R_STABLE;
-				hb_send_resources_held
-				(	rsc_msg[procinfo->i_hold_resources]
-				,	1, NULL);
+				hb_send_resources_held(TRUE, NULL);
 				PerformAutoFailback();
 			}
 		}else{
@@ -652,7 +662,7 @@ process_resources(const char * type, struct ha_msg* msg
 			 */
 				/* Probably unnecessary */
 			procinfo->i_hold_resources
-			=	HB_UPD_RSC(procinfo->i_hold_resources, n);
+			=	HB_UPD_RSC(fullupdate, procinfo->i_hold_resources, n);
 
 			if (comment) {
 				if (strcmp(comment, "mach_down") == 0) {
@@ -783,18 +793,19 @@ encode_resources(const char *p)
 	return 0;
 }
 
-
 /* Send the "I hold resources" or "I don't hold" resource messages */
 int
-hb_send_resources_held(const char *str, int stable, const char * comment)
+hb_send_resources_held(int stable, const char * comment)
 {
 	struct ha_msg * m;
 	int		rc = HA_OK;
 	char		timestamp[16];
+	const char *	str;
 
 	if (!nice_failback) {
 		return HA_OK;
 	}
+	str = rsc_msg[procinfo->i_hold_resources];
 	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (ANYDEBUG) {
@@ -808,6 +819,7 @@ hb_send_resources_held(const char *str, int stable, const char * comment)
 	}
 	if ((ha_msg_add(m, F_TYPE, T_RESOURCES) != HA_OK)
 	||  (ha_msg_add(m, F_RESOURCES, str) != HA_OK)
+	||  (ha_msg_add(m, F_RTYPE, "full") != HA_OK)
 	||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) != HA_OK)) {
 		ha_log(LOG_ERR, "hb_send_resources_held: Cannot create local msg");
 		rc = HA_FAIL;
@@ -1055,8 +1067,7 @@ req_our_resources(int getthemanyway)
 			,	rsc_count, cmd);
 		}
 	}
-	hb_send_resources_held(rsc_msg[procinfo->i_hold_resources], 1
-	,	"req_our_resources()");
+	hb_send_resources_held(TRUE, "req_our_resources()");
 	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
 }
@@ -1224,7 +1235,8 @@ ask_for_resources(struct ha_msg *msg)
 			}else{
 				if (ANYDEBUG) {
 					ha_log(LOG_INFO
-					,	"other_holds_resources: %d"
+					,	"standby"
+					": other_holds_resources: %d"
 					,	other_holds_resources);
 				}
 				/* Other node wants to go standby */
@@ -1320,9 +1332,7 @@ ask_for_resources(struct ha_msg *msg)
 				" takeover of %s resources."
 				,	decode_resources(rtype));
 			}
-			hb_send_resources_held(rsc_msg
-			[	procinfo->i_hold_resources]
-			,	1, NULL);
+			hb_send_resources_held(TRUE, NULL);
 			going_standby = NOT;
 		}else{
 			message_ignored = 1;
@@ -1393,8 +1403,7 @@ go_standby(enum standby who, int resourceset) /* Which resources to give up */
 		 * a funky warning message (or maybe two).
 		 */
 		procinfo->i_hold_resources &= ~resourceset;
-		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
-		,	0, "standby");
+		hb_send_resources_held(FALSE, "standby");
 		action = ACTION_GIVEUP;
 	}else{
 		action = ACTION_ACQUIRE;
@@ -1537,9 +1546,7 @@ hb_giveup_resources(void)
 	resourcestate = HB_R_SHUTDOWN; /* or we'll get a whiny little comment
 				out of the resource management code */
 	if (nice_failback) {
-		hb_send_resources_held(decode_resources
-		(procinfo->i_hold_resources)
-		,	0, "shutdown");
+		hb_send_resources_held(FALSE, "shutdown");
 	}
 	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)"
 	,	(int) getpid());
@@ -1863,6 +1870,10 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.23  2003/05/22 23:13:26  alan
+ * Changed the code to fix a bug in resource auditing code.
+ * We now indicate if an update to the resource set is incremental or full.
+ *
  * Revision 1.22  2003/05/22 05:17:42  alan
  * Added the auto_failback option to heartbeat.
  *

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.261 2003/05/22 05:10:15 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.262 2003/05/22 23:13:26 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1428,9 +1428,7 @@ polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 		resourcestate = HB_R_STABLE;
 		req_our_resources(0);
 		cl_log(LOG_INFO,"local resource transition completed.");
-		hb_send_resources_held
-		(	decode_resources(procinfo->i_hold_resources)
-		,	1, NULL);
+		hb_send_resources_held(TRUE, NULL);
 		AuditResources();
 	}
 
@@ -2929,9 +2927,7 @@ main(int argc, char * argv[], char **envp)
 			if (CurrentStatus == NULL) {
 				/* From !nice_failback to nice_failback */
 				procinfo->i_hold_resources = HB_LOCAL_RSC;
-				hb_send_resources_held
-				(	decode_resources(HB_LOCAL_RSC)
-				,	1, NULL);
+				hb_send_resources_held(TRUE, NULL);
 				cl_log(LOG_INFO
 				,	"restart: assuming HB_LOCAL_RSC");
 			}else{
@@ -4087,6 +4083,10 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.262  2003/05/22 23:13:26  alan
+ * Changed the code to fix a bug in resource auditing code.
+ * We now indicate if an update to the resource set is incremental or full.
+ *
  * Revision 1.261  2003/05/22 05:10:15  alan
  * Fixed some comments in heartbeat.c
  *
