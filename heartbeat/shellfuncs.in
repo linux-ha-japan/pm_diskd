@@ -7,6 +7,8 @@ exec_prefix=@exec_prefix@
 : ${HA_DIR=@sysconfdir@/ha.d}
 : ${HA_RCDIR=$HA_DIR/rc.d}
 : ${HA_CF=$HA_DIR/ha.cf}
+: ${HA_VARLIB=@localstatedir@/lib/heartbeat}
+: ${HA_RSCTMP=@localstatedir@/lib/heartbeat/rsctmp}
 : ${HA_FIFO=@localstatedir@/lib/heartbeat/fifo}
 : ${HA_BIN=@libdir@/heartbeat}
 : ${HA_DATEFMT="%Y/%m/%d_%T "}
@@ -144,4 +146,39 @@ BSD_Status() {
     echo "${base} dead but lock file exists"
     return 2
   fi
+}
+#
+
+#
+# pseudo_resource status tracking function...
+#
+# This allows pseudo resources to give correct status information.  As we add
+# resource monitoring, and better resource tracking in general, this will
+# become essential.
+#
+# These scripts work because ${HA_RSCTMP} is cleaned out every time
+# heartbeat is started.
+#
+# We create "resource-string" tracking files under ${HA_RSCTMP} in a
+# very simple way:
+#
+#	Existence of "${HA_RSCTMP}/resource-string" means that we consider
+#	the resource named by "resource-string" to be running.
+#
+# Note that "resource-string" needs to be unique.  Using the resource type
+# plus the resource instance arguments to make up the resource string
+# is probably sufficient...
+#
+# usage: ha_pseudo_resource resource-string {start|stop|status|restart|reload}
+#	Note that all operations are silent...
+#
+ha_pseudo_resource()
+{
+  ha_resource_tracking_file="${HA_RSCTMP}/$1"
+  case $2 in
+    start|restart|reload)  touch "$ha_resource_tracking_file";;
+    stop) rm -f "$ha_resource_tracking_file";;
+    status) test -f "$ha_resource_tracking_file";;
+    *)	return 3;;
+  esac
 }
