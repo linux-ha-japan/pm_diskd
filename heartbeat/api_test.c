@@ -34,6 +34,8 @@ static void		destroy_stringlist(struct stringlist *);
 static struct stringlist*
 			new_stringlist(const char *);
 static int		get_nodelist(void);
+static const char *	get_nodestatus(const char *host);
+static const char *	get_ifstatus(const char *host, const char * intf);
 static void		zap_nodelist(void);
 static int		get_iflist(const char *host);
 static void		zap_iflist(void);
@@ -253,14 +255,12 @@ get_nodelist(void)
 
 	/* Send message */
 	msg2stream(request, MsgFIFO);
-	ha_log_message(request);
 	ha_msg_del(request); request=NULL;
 
 	while ((reply=read_api_msg()) != NULL
 	&& 	(result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	(strcmp(result, API_MORE) == 0 || strcmp(result, API_OK) == 0)
 	&&	(sl = new_stringlist(ha_msg_value(reply, F_NODENAME))) != NULL){
-fprintf(stderr, "Got node [%s]\n", sl->value);
 		sl->next = nodelist;
 		nodelist = sl->next;
 		ha_msg_del(reply); reply=NULL;
@@ -299,14 +299,12 @@ get_iflist(const char *host)
 
 	/* Send message */
 	msg2stream(request, MsgFIFO);
-	ha_log_message(request);
 	ha_msg_del(request); request=NULL;
 
 	while ((reply=read_api_msg()) != NULL
 	&& 	(result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	(strcmp(result, API_MORE) == 0 || strcmp(result, API_OK) == 0)
-	&&	(sl = new_stringlist(ha_msg_value(reply, F_NODENAME))) != NULL){
-fprintf(stderr, "Got IF [%s]\n", sl->value);
+	&&	(sl = new_stringlist(ha_msg_value(reply, F_IFNAME))) != NULL){
 		sl->next = iflist;
 		iflist = sl->next;
 		ha_msg_del(reply); reply=NULL;
@@ -320,6 +318,101 @@ fprintf(stderr, "Got IF [%s]\n", sl->value);
 	}
 
 	return HA_FAIL;
+}
+static const char *
+get_nodestatus(const char *host)
+{
+	struct ha_msg*		request;
+	struct ha_msg*		reply;
+	const char *		result;
+	const char *		status;
+	static char		statbuf[128];
+	const char *		ret;
+
+	if (!SignedOnAlready) {
+		return NULL;
+	}
+
+	if ((request = hb_api_boilerplate(API_NODESTATUS)) == NULL) {
+		fprintf(stderr, "api_process_request: can't create msg\n");
+		return NULL;
+	}
+	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
+		fprintf(stderr, "api_process_request: cannot add field\n");
+		ha_msg_del(request); request=NULL;
+		return NULL;
+	}
+
+	/* Send message */
+	msg2stream(request, MsgFIFO);
+	ha_msg_del(request); request=NULL;
+	/* Read reply... */
+	if ((reply=read_api_msg()) == NULL) {
+		ha_msg_del(request); request=NULL;
+		perror("can't read reply");
+		return NULL;
+	}
+	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
+	&&	strcmp(result, API_OK) == 0
+	&&	(status = ha_msg_value(reply,F_STATUS)) != NULL) {
+		strncpy(statbuf, status, sizeof(statbuf));
+		ret = statbuf;
+	}else{
+		ret = NULL;
+	}
+	ha_msg_del(reply); reply=NULL;
+
+	return ret;
+}
+static const char *
+get_ifstatus(const char *host, const char * ifname)
+{
+	struct ha_msg*		request;
+	struct ha_msg*		reply;
+	const char *		result;
+	const char *		status;
+	static char		statbuf[128];
+	const char *		ret;
+
+	if (!SignedOnAlready) {
+		return NULL;
+	}
+
+	if ((request = hb_api_boilerplate(API_IFSTATUS)) == NULL) {
+		fprintf(stderr, "api_process_request: can't create msg\n");
+		return NULL;
+	}
+	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
+		fprintf(stderr, "api_process_request: cannot add field\n");
+		ha_msg_del(request); request=NULL;
+		return NULL;
+	}
+	if (ha_msg_add(request, F_IFNAME, ifname) != HA_OK) {
+		fprintf(stderr, "api_process_request: cannot add field\n");
+		ha_msg_del(request); request=NULL;
+		return NULL;
+	}
+
+	/* Send message */
+	msg2stream(request, MsgFIFO);
+	ha_msg_del(request); request=NULL;
+	/* Read reply... */
+	if ((reply=read_api_msg()) == NULL) {
+		ha_msg_del(request); request=NULL;
+		perror("can't read reply");
+		return NULL;
+	}
+	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
+	&&	strcmp(result, API_OK) == 0
+	&&	(status = ha_msg_value(reply,F_STATUS)) != NULL) {
+		strncpy(statbuf, status, sizeof(statbuf));
+		ret = statbuf;
+	}else{
+		ret = NULL;
+	}
+	ha_msg_del(reply); reply=NULL;
+
+	return ret;
 }
 static void
 zap_nodelist(void)
@@ -436,7 +529,6 @@ read_api_msg(void)
 		}
 		if ((type=ha_msg_value(msg, F_TYPE)) != NULL
 		&&	strcmp(type, T_APIRESP) == 0) {
-ha_log_message(msg);
 			return(msg);
 		}
 		/* Got an unexpected non-api message */
@@ -488,6 +580,8 @@ main(int argc, char ** argv)
 	hb_api_setfilter(fmask);
 	get_nodelist();
 	get_iflist("kathyamy");
+	fprintf(stderr, "Node status: %s\n", get_nodestatus("kathyamy"));
+	fprintf(stderr, "IF status: %s\n", get_ifstatus("kathyamy", "eth0"));
 
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, gotsig);
