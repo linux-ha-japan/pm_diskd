@@ -65,7 +65,7 @@ class HeartbeatCM(ClusterManager):
             "Pat:We_stopped"       : "Heartbeat shutdown complete",
             "Pat:They_stopped"     : "node (%s).*: is dead",
             "Pat:All_stopped"      : " (%s).*heartbeat.*Heartbeat shutdown complete",
-            "Pat:StandbyOK"        : "Standby process done.*primary",
+            "Pat:StandbyOK"        : "Standby resource acquisition done",
             "Pat:StandbyNONE"      : "No reply to standby request",
 	    "Pat:StandbyTRANSIENT" : "standby message.*ignored.*in flux",
 
