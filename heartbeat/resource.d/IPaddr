@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr,v 1.6 2000/06/12 06:11:09 alan Exp $
+#	$Id: IPaddr,v 1.7 2000/11/07 14:15:04 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -46,9 +46,10 @@ find_interface() {
       *)	continue;;
     esac
     case $addr in
-      addr:$ipaddr)	echo $ifname; return;;
+      addr:$ipaddr)	echo $ifname; return 0;;
     esac
   done
+  return 1
 }
 
 
@@ -96,7 +97,7 @@ find_free_interface() {
   else
     lrc=$?
     ha_log "ERROR: unable to find an interface for $ipaddr"
-    return $?
+    return $lrc
   fi
   nicname=`echo "$NICINFO" | cut -f1`
   nicinfo=`echo "$NICINFO" | cut -f2-`
@@ -110,13 +111,17 @@ find_free_interface() {
   IFLIST=`$IFCONFIG | grep "^$nicname:[0-9]" | sed 's% .*%%'`
   IFLIST=" `echo $IFLIST` "
 
-  for j in 0 1 2 3 4 5 6 7
+  j=0
+
+  while
+    [ $j -lt 512 ]
   do
     case $IFLIST in
       *" "$nicname:$j" "*)	;;
       *)			echo "$nicname:$j	$nicinfo"
       				return 0;;
     esac
+    j=`expr $j + 1`
   done
   return 1
 }
@@ -139,7 +144,13 @@ ip_start() {
     exit 0	# We already own this IP address
   fi
 
-  IFINFO=`find_free_interface $1`
+  if
+    IFINFO=`find_free_interface $1`
+  then
+    : OK got interface [$IFINFO] for $1
+  else
+    exit 1
+  fi
   IF=`echo "$IFINFO" | cut -f1`
   IFEXTRA=`echo "$IFINFO" | cut -f2-`
   BASEIP=`echo $1 | sed s'%/.*%%'`
@@ -177,7 +188,7 @@ ip_start() {
    $SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff \
      || ha_log "ERROR: Could not send gratuitous arp"
      sleep 2
-  done
+  done &
 }
 
 ip_status() {
@@ -238,6 +249,10 @@ esac
 #
 #
 # $Log: IPaddr,v $
+# Revision 1.7  2000/11/07 14:15:04  alan
+# Made the takeover of IP addresses go faster.
+# Removed the limit on 8 aliases per interface.
+#
 # Revision 1.6  2000/06/12 06:11:09  alan
 # Changed resource takeover order to left-to-right
 # Added new version of nice_failback.  Hopefully it works wonderfully!
