@@ -50,13 +50,14 @@ void apphb_setwarn_test(int warnhb_ms, int hb_ms);
 void dup_reg_test(void);
 
 #define APPNAME_LEN 256
-#define OPTARGS "n:p:i:l:dF"
+#define OPTARGS "n:p:i:l:dFh"
 #define USAGE_STR "Usage: [-n heartbeat number] \
 [-p process number] \
 [-l delay seconds] \
 [-i heartbeat interval(ms)] \
 [-d](debug information) \
-[-F](enable failure cases)"
+[-F](enable failure cases) \
+[-h](print help message)"
 
 int
 main(int argc,char ** argv)
@@ -88,6 +89,7 @@ main(int argc,char ** argv)
 			case 'F':	/* Enable failure cases */
 				dofailuretests = TRUE;
 				break;
+			case 'h':
 			default:
 				fprintf(stderr
 				,	"%s "USAGE_STR"\n", argv[0]);
