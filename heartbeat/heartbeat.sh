@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.13 1999/10/19 13:55:36 alan Exp $
+#	$Id: heartbeat.sh,v 1.14 1999/11/11 05:48:52 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -8,7 +8,7 @@
 #
 #		it should run under SuSE and Debian also...
 #
-# chkconfig: - 25 40
+# chkconfig: - 2345 40
 # description: Startup script high-availability services.
 # processname: heartbeat
 # pidfile: /var/run/heartbeat.pid
@@ -268,6 +268,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.14  1999/11/11 05:48:52  alan
+#  Added code to start up heartbeat automatically.
+#
 #  Revision 1.13  1999/10/19 13:55:36  alan
 #  Changed comments about being red hat compatible
 #  Also, changed heartbeat.c to be both SuSE and Red Hat compatible in it's -s
