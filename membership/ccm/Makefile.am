@@ -103,4 +103,4 @@ install-exec-local:
 uninstall-local:
 	-test -p $(DESTDIR)$(ccmreqfifo) && rm $(DESTDIR)$(ccmreqfifo)
 	-test -p $(DESTDIR)$(ccmresfifo) && rm $(DESTDIR)$(ccmresfifo)
-	$(rminstalldirs) $(DESTDIR)$(ccmdir)
+	rm -fr $(DESTDIR)$(ccmdir)
