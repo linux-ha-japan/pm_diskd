@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.47 2001/05/17 14:39:13 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.48 2001/05/17 15:33:11 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -342,4 +342,20 @@ void		ha_malloc_report(void);
 int setenv(const char *name, const char * value, int why);
 #endif
 
+#ifndef HAVE_SCANDIR
+#include <dirent.h>
+int
+scandir (const char *directory_name,
+	struct dirent ***array_pointer,
+	int (*select_function) (const struct dirent *),
+
+#ifdef USE_SCANDIR_COMPARE_STRUCT_DIRENT
+	/* This is what the Linux man page says */
+	int (*compare_function) (const struct dirent**, const struct dirent**)
+#else
+	/* This is what the Linux header file says ... */
+	int (*compare_function) (const void *, const void *)
+#endif
+	);
+#endif /* HAVE_SCANDIR */
 #endif /* _HEARTBEAT_H */
