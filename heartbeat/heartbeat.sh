@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.6 1999/10/04 01:47:22 alanr Exp $
+#	$Id: heartbeat.sh,v 1.7 1999/10/04 03:12:39 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -18,7 +18,8 @@
 HA_DIR=/etc/ha.d; export HA_DIR
 CONFIG=$HA_DIR/ha.cf
 . $HA_DIR/shellfuncs
-exec 2>>/var/log/ha-debug
+
+# exec 2>>/var/log/ha-debug
 
 RHFUNCS=/etc/rc.d/init.d/functions
 PROC_HA=$HA_BIN/ha.o
@@ -168,7 +169,6 @@ start_heartbeat() {
 #
 
 StartHA() {
-  ha_log "INFO: $SUBSYS starting."
   if
     [ $USE_MODULES = 1 ]
   then
@@ -188,8 +188,7 @@ StartHA() {
   if
     start_heartbeat
   then
-    #	Wait for things to settle a bit
-    ha_log "INFO: $SUBSYS initialization complete."
+    : OK
   else
     RC=$?
     echo "Heartbeat did not start [rc=$RC]"
@@ -205,26 +204,8 @@ StartHA() {
 StopHA() {
 
   MGR=$HA_BIN/ResourceManager
-  ha_log "$SUBSYS: shutdown in progress."
+  echo "$SUBSYS: shutdown in progress."
 
-#
-#	Extract all HA-protected key resources from the resources file
-#
-
-  $MGR listkeys '.*' |	#	This will give us all key resources
-  while
-    read resourcekey
-  do
-    ha_debug "Examining resource group $resourcekey"
-    case `$MGR status $resourcekey` in
-      *[Rr]unning*)	;;
-      *)			ha_debug "Resource group $resourcekey stopped."
-    			continue;;
-    esac
-
-    ha_debug "$MGR givegroup $resourcekey"
-    $MGR givegroup $resourcekey
-  done
   KILLPROC=""
 
   #	Use the Red Hat killproc function if it's there...
@@ -253,7 +234,6 @@ StopHA() {
     fi
   fi
   lrc=$?
-  ha_log "$SUBSYS: shutdown complete."
   return $lrc
 }
 
@@ -298,6 +278,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.7  1999/10/04 03:12:39  alanr
+#  Shutdown code now runs from heartbeat.
+#  Logging should be in pretty good shape now, too.
+#
 #  Revision 1.6  1999/10/04 01:47:22  alanr
 #  Fix the problem reported by Thomas Hepper with the code for loading the watchdog
 #  device correctly.

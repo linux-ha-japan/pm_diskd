@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.8 1999/10/03 03:13:47 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.9 1999/10/04 03:12:20 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -273,6 +273,7 @@ void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
 void	init_xmit_hist (struct msg_xmit_hist * hist);
 int	req_our_resources(void);
+int	giveup_resources(void);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -367,10 +368,14 @@ init_config(const char * cfgfile)
 	}
 	if (config->log_facility < 0 && *(config->logfile) == 0) {
 		strcpy(config->logfile, DEFAULTLOG);
-		strcpy(config->dbgfile, DEFAULTDEBUG);
 		ha_log(LOG_INFO, "Neither logfile nor logfacility found.");
 		ha_log(LOG_INFO, "Defaulting to " DEFAULTLOG);
 	}
+	if (*(config->dbgfile) == 0) {
+		strcpy(config->dbgfile, DEFAULTDEBUG);
+	}
+	ha_log(LOG_INFO, "***********************");
+	ha_log(LOG_INFO, "Configuration validated. Starting heartbeat.");
 	return(errcount ? HA_FAIL : HA_OK);
 }
 
@@ -1861,6 +1866,7 @@ struct fieldname_map fmap [] = {
 static int	monfd = -1;
 
 #define		RETRYINTERVAL	(3600*24)	/* Once A Day... */
+#define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
 
 void init_monitor()
 {
@@ -1960,7 +1966,6 @@ req_our_resources()
 
 	
 	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
-ha_log(LOG_INFO, "Running %s", cmd);
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot run command %s", cmd);
@@ -1972,13 +1977,49 @@ ha_log(LOG_INFO, "Running %s", cmd);
 			buf[strlen(buf)-1] = EOS;
 		}
 		sprintf(cmd, HALIB "/req_resource %s &", buf);
-ha_log(LOG_INFO, "Running %s", cmd);
 		if ((rc=system(cmd)) != 0) {
 			ha_log(LOG_ERR, "%s returned %d", cmd, rc);
 			finalrc=HA_FAIL;
 		}
 	}
 	pclose(rkeys);
+	return(finalrc);
+}
+
+int
+giveup_resources()
+{
+	FILE *	rkeys;
+	char	cmd[MAXLINE];
+	char	buf[MAXLINE];
+	int	finalrc = HA_OK;
+	int	rc;
+
+	
+	ha_log(LOG_INFO, "Giving up all HA resources.");
+	/*
+	 *	We could do this ourselves fairly easily...
+	 */
+
+	sprintf(cmd, HALIB "/ResourceManager listkeys '.*'");
+
+	if ((rkeys = popen(cmd, "r")) == NULL) {
+		ha_log(LOG_ERR, "Cannot run command %s", cmd);
+		return(HA_FAIL);
+	}
+
+	while (fgets(buf, MAXLINE, rkeys) != NULL) {
+		if (buf[strlen(buf)-1] == '\n') {
+			buf[strlen(buf)-1] = EOS;
+		}
+		sprintf(cmd, HALIB "/ResourceManager givegroup %s", buf);
+		if ((rc=system(cmd)) != 0) {
+			ha_log(LOG_ERR, "%s returned %d", cmd, rc);
+			finalrc=HA_FAIL;
+		}
+	}
+	pclose(rkeys);
+	ha_log(LOG_INFO, "All HA resources relinquished.");
 	return(finalrc);
 }
 
@@ -2129,12 +2170,16 @@ signal_all(int sig)
 			if (localdie) {
 				(*localdie)();
 			}
+			if (curproc->type == PROC_CONTROL) {
+				ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
+				giveup_resources();
+				ha_log(LOG_INFO, "Heartbeat shutdown complete.");
+			}
 			cleanexit(sig);
 			break;
 	}
 }
 
-#define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
 
 void
 make_daemon(void)
@@ -2147,6 +2192,8 @@ make_daemon(void)
 	if ((lockfd = fopen(PIDFILE, "r")) != NULL
 	&&	fscanf(lockfd, "%d", &pid) == 1 && pid > 0) {
 		if (kill(pid, 0) >= 0 || errno != ESRCH) {
+			ha_log(LOG_ERR, "%s: already running [pid %d].\n"
+			,	cmdname, pid);
 			fprintf(stderr, "%s: already running [pid %d].\n"
 			,	cmdname, pid);
 			exit(HA_FAILEXIT);
@@ -2494,6 +2541,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.9  1999/10/04 03:12:20  alanr
+ * Shutdown code now runs from heartbeat.
+ * Logging should be in pretty good shape now, too.
+ *
  * Revision 1.8  1999/10/03 03:13:47  alanr
  * Moved resource acquisition to 'heartbeat', also no longer attempt to make the FIFO, it's now done in heartbeat.  It should now be possible to start it up more readily...
  *
