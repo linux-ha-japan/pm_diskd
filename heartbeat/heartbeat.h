@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.46 2001/05/11 14:55:06 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.47 2001/05/17 14:39:13 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -80,7 +80,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.46 2001/05/11 14:55:
 #ifndef HA_MODULE_D
 #	define HA_MODULE_D	HALIB "/modules"
 #endif
-#ifndef TTYLOCK_D
+#ifndef TTY_LOCK_D
 #	if !defined(__FreeBSD__)
 #		define	TTY_LOCK_D	"/var/lock"
 #	else
@@ -337,4 +337,9 @@ void*		ha_malloc(size_t size);
 void*		ha_calloc(size_t nmemb, size_t size);
 void		ha_free(void *ptr);
 void		ha_malloc_report(void);
+
+#ifndef HAVE_SETENV
+int setenv(const char *name, const char * value, int why);
+#endif
+
 #endif /* _HEARTBEAT_H */
