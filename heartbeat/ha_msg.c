@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.39 2003/03/27 07:04:26 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.40 2003/04/15 23:05:01 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -38,6 +38,16 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.39 2003/03/27 07:04:26 ala
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
 
+#define DOAUDITS	1
+#ifdef DOAUDITS
+
+void ha_msg_audit(const struct ha_msg* msg);
+
+#	define	AUDITMSG(msg)	ha_msg_audit(msg)
+#else
+#	define	AUDITMSG(msg)	/* Nothing */
+#endif
+
 
 /* Create a new (empty) message */
 struct ha_msg *
@@ -51,16 +61,17 @@ ha_msg_new(nfields)
 	ret = MALLOCT(struct ha_msg);
 	if (ret) {
 		ret->nfields = 0;
-		ret->nalloc	= MINFIELDS;
-		ret->names	= (char **)ha_malloc(sizeof(char *)*MINFIELDS);
-		ret->nlens	= (int *)ha_malloc(sizeof(int)*MINFIELDS);
-		ret->values	= (char **)ha_malloc(sizeof(char *)*MINFIELDS);
-		ret->vlens	= (int *)ha_malloc(sizeof(int)*MINFIELDS);
-		ret->stringlen	= sizeof(MSG_START)+sizeof(MSG_END)-1;
+		ret->nalloc    = MINFIELDS;
+		ret->names     = (char **)ha_calloc(sizeof(char *), MINFIELDS);
+		ret->nlens     = (int *)ha_calloc(sizeof(int), MINFIELDS);
+		ret->values    = (char **)ha_calloc(sizeof(char *), MINFIELDS);
+		ret->vlens     = (int *)ha_calloc(sizeof(int), MINFIELDS);
+		ret->stringlen = sizeof(MSG_START)+sizeof(MSG_END)-1;
+
 		if (ret->names == NULL || ret->values == NULL
 		||	ret->nlens == NULL || ret->vlens == NULL) {
-			ha_log(LOG_ERR, "%s", "ha_msg_new: "
-					"out of memory for ha_msg");
+			ha_log(LOG_ERR, "%s"
+			,	"ha_msg_new: out of memory for ha_msg");
 			ha_msg_del(ret);
 			ret = NULL;
 		}else if (curproc) {
@@ -78,6 +89,7 @@ ha_msg_del(struct ha_msg *msg)
 {
 	if (msg) {
 		int	j;
+		AUDITMSG(msg);
 		if (curproc) {
 			curproc->allocmsgs--;
 		}
@@ -115,6 +127,127 @@ ha_msg_del(struct ha_msg *msg)
 		ha_free(msg);
 	}
 }
+struct ha_msg*
+ha_msg_copy(const struct ha_msg *msg)
+{
+	struct ha_msg*		ret;
+	int			j;
+
+	AUDITMSG(msg);
+
+	ret = MALLOCT(struct ha_msg);
+	ret->nfields	= msg->nfields;
+	ret->nalloc	= msg->nalloc;
+	ret->stringlen	= msg->stringlen;
+
+	ret->names  = (char **)	ha_calloc(sizeof(char *), msg->nalloc);
+	ret->nlens  = (int *)	ha_calloc(sizeof(int), msg->nalloc);
+	ret->values = (char **)	ha_calloc(sizeof(char *), msg->nalloc);
+	ret->vlens  = (int *)	ha_calloc(sizeof(int), msg->nalloc);
+
+	if (ret->names == NULL || ret->values == NULL
+	||	ret->nlens == NULL || ret->vlens == NULL) {
+		ha_log(LOG_ERR
+		,	"ha_msg_new: out of memory for ha_msg_copy");
+		goto freeandleave;
+	}
+	memcpy(ret->nlens, msg->nlens, sizeof(msg->nlens[0])*msg->nfields);
+	memcpy(ret->vlens, msg->vlens, sizeof(msg->nlens[0])*msg->nfields);
+
+	for (j=0; j < msg->nfields; ++j) {
+
+		if ((ret->names[j] = ha_malloc(msg->nlens[j]+1)) == NULL) {
+			goto freeandleave;
+		}
+		memcpy(ret->names[j], msg->names[j], msg->nlens[j]+1);
+
+		if ((ret->values[j] = ha_malloc(msg->vlens[j]+1)) == NULL) {
+			goto freeandleave;
+		}
+		memcpy(ret->values[j], msg->values[j], msg->vlens[j]+1);
+	}
+	return ret;
+
+freeandleave:
+	ha_msg_del(ret);
+	ret=NULL;
+	return ret;
+}
+
+#ifdef DOAUDITS
+void
+ha_msg_audit(const struct ha_msg* msg)
+{
+	int	doabort = FALSE;
+	int	j;
+	if (!ha_is_allocated(msg)) {
+		cl_log(LOG_CRIT, "Message @ 0x%x is not allocated"
+		,	(unsigned) msg);
+		abort();
+	}
+	if (msg->nfields < 0) {
+		cl_log(LOG_CRIT, "Message @ 0x%x has negative fields (%d)"
+		,	(unsigned) msg, msg->nfields);
+		doabort = TRUE;
+	}
+	if (msg->nalloc < 0) {
+		cl_log(LOG_CRIT, "Message @ 0x%x has negative nalloc (%d)"
+		,	(unsigned) msg, msg->nalloc);
+		doabort = TRUE;
+	}
+	if (msg->stringlen < 0) {
+		cl_log(LOG_CRIT
+		,	"Message @ 0x%x has negative stringlen (%d)"
+		,	(unsigned) msg, msg->stringlen);
+		doabort = TRUE;
+	}
+	if (msg->stringlen < 4 * msg->nfields) {
+		cl_log(LOG_CRIT
+		,	"Message @ 0x%x has too small stringlen (%d)"
+		,	(unsigned) msg, msg->stringlen);
+		doabort = TRUE;
+	}
+	if (!ha_is_allocated(msg->names)) {
+		cl_log(LOG_CRIT
+		,	"Message names @ 0x%x is not allocated"
+		,	(unsigned) msg->names);
+		doabort = TRUE;
+	}
+	if (!ha_is_allocated(msg->values)) {
+		cl_log(LOG_CRIT
+		,	"Message values @ 0x%x is not allocated"
+		,	(unsigned) msg->values);
+		doabort = TRUE;
+	}
+	if (!ha_is_allocated(msg->nlens)) {
+		cl_log(LOG_CRIT
+		,	"Message nlens @ 0x%x is not allocated"
+		,	(unsigned) msg->nlens);
+		doabort = TRUE;
+	}
+	if (!ha_is_allocated(msg->vlens)) {
+		cl_log(LOG_CRIT
+		,	"Message vlens @ 0x%x is not allocated"
+		,	(unsigned) msg->vlens);
+		doabort = TRUE;
+	}
+	if (doabort) {
+		abort();
+	}
+	for (j=0; j < msg->nfields; ++j) {
+		if (!ha_is_allocated(msg->names[j])) {
+			cl_log(LOG_CRIT, "Message name[%d] @ 0x%x"
+			" is not allocated."
+			,	j, (unsigned) msg->names[j]);
+		}
+		if (!ha_is_allocated(msg->values[j])) {
+			cl_log(LOG_CRIT, "Message value [%d] @ 0x%x"
+			" is not allocated."
+			,	j, (unsigned) msg->values[j]);
+		}
+	}
+}
+#endif
 
 /* Add a null-terminated name and value to a message */
 int
@@ -178,6 +311,7 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 	msg->nlens[next] = namelen;
 	msg->stringlen = newlen;
 	msg->nfields++;
+	AUDITMSG(msg);
 	return(HA_OK);
 }
 
@@ -220,6 +354,7 @@ ha_msg_value(const struct ha_msg * msg, const char * name)
 		return(NULL);
 	}
 
+	AUDITMSG(msg);
 	for (j=0; j < msg->nfields; ++j) {
 		if (strcmp(name, msg->names[j]) == 0) {
 			return(msg->values[j]);
@@ -235,6 +370,7 @@ ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 {
 	int	j;
 
+	AUDITMSG(msg);
 	if (msg == NULL || name == NULL || value == NULL) {
 		ha_log(LOG_ERR, "ha_msg_mod: NULL input.");
 		return HA_FAIL;
@@ -255,6 +391,7 @@ ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 			msg->stringlen += sizediff;
 			msg->vlens[j] = newlen;
 			strcpy(newv, value);
+			AUDITMSG(msg);
 			return(HA_OK);
 		}
 	}
@@ -364,6 +501,7 @@ msgfromIPC(IPC_Channel * ch)
 		ipcmsg->msg_done(ipcmsg);
 	}
 
+	AUDITMSG(hmsg);
 	return hmsg;
 }
 
@@ -397,7 +535,7 @@ ipcmsg_done(IPC_Message* m)
 	if (!m) {
 		return;
 	}
-	if (!m->msg_body) {
+	if (m->msg_body) {
 		ha_free(m->msg_body);
 	}
 	ha_free(m);
@@ -498,6 +636,7 @@ msg2string(const struct ha_msg *m)
 	char *	buf;
 	char *	bp;
 
+	AUDITMSG(m);
 	if (m->nfields <= 0) {
 		ha_log(LOG_ERR, "msg2string: Message with zero fields");
 		return(NULL);
@@ -530,6 +669,7 @@ ha_log_message (const struct ha_msg *m)
 {
 	int	j;
 
+	AUDITMSG(m);
 	ha_log(LOG_INFO, "MSG: Dumping message with %d fields", m->nfields);
 
 	for (j=0; j < m->nfields; ++j) {
@@ -560,6 +700,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.40  2003/04/15 23:05:01  alan
+ * Added new message copying function, and code
+ * to check the integrity of messages.  Too slow now, will turn it down later.
+ *
  * Revision 1.39  2003/03/27 07:04:26  alan
  * 1st step in heartbeat process restructuring.
  * Create fifo_child() processes to read the FIFO written by the shell scripts.

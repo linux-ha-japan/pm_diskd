@@ -22,7 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.17 2003/03/28 03:32:35 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.18 2003/04/15 23:05:01 alan Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 
@@ -111,6 +111,9 @@ struct ha_msg *	ha_msg_new(int nfields);
 
 /* Free message */
 void		ha_msg_del(struct ha_msg *msg);
+
+/* Copy message */
+struct ha_msg*	ha_msg_copy(const struct ha_msg *msg);
 
 /* Add null-terminated name and a value to the message */
 int		ha_msg_add(struct ha_msg * msg
