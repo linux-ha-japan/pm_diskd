@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.21 2000/07/17 19:27:52 alan Exp $
+#	$Id: Makefile,v 1.22 2000/07/31 00:04:32 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -94,7 +94,7 @@ F_HDRS	  =
 
 
 
-LIBCMDS = $(HEARTBEAT) $(SENDARP) $(FINDIF) $(LDIRECTORD)
+LIBCMDS = $(HEARTBEAT) $(SENDARP) $(FINDIF) $(LDIRECTORD) api_test
 
 PRODUCTS = $(LIBCMDS)
 

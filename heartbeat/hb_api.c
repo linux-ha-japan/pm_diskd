@@ -36,7 +36,7 @@ typedef struct client_process {
 	pid_t		pid;		/* PID of client process */
 	uid_t		uid;		/* UID of client  process */
 	int		iscasual;	/* 1 if this is a "casual" client */
-	int		input_fifo;	/* Input FIFO file descriptor */
+	FILE*		input_fifo;	/* Input FIFO file pointer */
 	int		signal;		/* Defaults to zero */
 	int		desired_types;	/* A bit mask */
 	struct client_process*	next;
@@ -50,7 +50,7 @@ static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
 static void api_remove_client(client_proc_t* client);
 static void api_add_client(struct ha_msg* msg);
 static client_proc_t*	find_client(const char * fromid, const char * pid);
-static int		open_reqfifo(client_proc_t* client);
+static FILE*		open_reqfifo(client_proc_t* client);
 static const char *	client_fifo_name(client_proc_t* client, int isreq);
 static	uid_t		pid2uid(pid_t pid);
 static int		ClientSecurityIsOK(client_proc_t* client);
@@ -102,12 +102,13 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 		return;
 	}
 
-
 	clientid = ha_msg_value(msg, F_TOID);
 
 	for (client=client_list; client != NULL; client=nextclient) {
-
-		/* "client" could be removed by api_send_client_msg() ! */
+		/*
+		 * "client" could be removed by api_send_client_msg()
+		 * so, we'd better fetch the next client now!
+		 */
 		nextclient=client->next;
 	
 		if (clientid != NULL
@@ -162,29 +163,6 @@ api_process_request(struct ha_msg * msg)
 	}
 	if (ha_msg_add(resp, F_APIREQ, reqtype) != HA_OK) {
 		ha_log(LOG_ERR, "api_process_request: cannot add field/3");
-		ha_msg_del(resp); resp=NULL;
-		return;
-	}
-
-	/*
-	 *	Sign on a new client.
-	 */
-
-	if (strcmp(reqtype, API_SIGNON) == 0) {
-		api_add_client(msg);
-		if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
-			ha_log(LOG_ERR
-			,	"api_process_request: cannot add field/4");
-			ha_msg_del(resp); resp=NULL;
-			return;
-		}
-		if ((client = find_client(fromid, pid)) == NULL) {
-			ha_log(LOG_ERR
-			,	"api_process_request: cannot add client");
-			return;
-		}
-		ha_log(LOG_INFO, "Signing client %d on to API", client->pid);
-		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
@@ -323,6 +301,7 @@ api_process_request(struct ha_msg * msg)
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
+
 	}else if (strcmp(reqtype, API_IFLIST) == 0) {
 		struct link * lnk;
 	/*
@@ -417,6 +396,71 @@ bad_req:
 }
 
 /*
+ *	Register a new client.
+ */
+void
+api_process_registration(struct ha_msg * msg)
+{
+	const char *	msgtype;
+	const char *	reqtype;
+	const char *	fromid;
+	const char *	pid;
+	struct ha_msg *	resp;
+	client_proc_t*	client;
+
+	if (msg == NULL
+	||	(msgtype = ha_msg_value(msg, F_TYPE)) == NULL
+	||	(reqtype = ha_msg_value(msg, F_APIREQ)) == NULL
+	||	strcmp(msgtype, T_APIREQ) != 0
+	||	strcmp(reqtype, API_SIGNON) != 0)  {
+		ha_log(LOG_ERR, "api_process_registration: bad message");
+		return;
+	}
+	fromid = ha_msg_value(msg, F_FROMID);
+	pid = ha_msg_value(msg, F_PID);
+
+	if (fromid == NULL && pid == NULL) {
+		ha_log(LOG_ERR, "api_process_registration: no fromid in msg");
+		return;
+	}
+
+	if ((resp = ha_msg_new(4)) == NULL) {
+		ha_log(LOG_ERR, "api_process_registration: out of memory/1");
+		return;
+	}
+	if (ha_msg_add(resp, F_TYPE, T_APIRESP) != HA_OK) {
+		ha_log(LOG_ERR, "api_process_registration: cannot add field/2");
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+	if (ha_msg_add(resp, F_APIREQ, reqtype) != HA_OK) {
+		ha_log(LOG_ERR, "api_process_registration: cannot add field/3");
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+
+	/*
+	 *	Sign 'em up.
+	 */
+	api_add_client(msg);
+	if ((client = find_client(fromid, pid)) == NULL) {
+		ha_log(LOG_ERR
+		,	"api_process_registration: cannot add client");
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+	if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
+		ha_log(LOG_ERR
+		,	"api_process_registration: cannot add field/4");
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+	ha_log(LOG_INFO, "Signing client %d on to API", client->pid);
+	api_send_client_msg(client, resp);
+	ha_msg_del(resp); resp=NULL;
+}
+
+/*
  *	Send a message to a client process.
  */
 void
@@ -465,6 +509,8 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 /*
  *	Make this client no longer a client ;-)
  */
+static int	maxfd = -1;
+static int	minfd = -1;
 void
 api_remove_client(client_proc_t* req)
 {
@@ -483,10 +529,14 @@ api_remove_client(client_proc_t* req)
 
 	for (client=client_list; client != NULL; client=client->next) {
 		if (client->pid == req->pid) {
-			if (client->input_fifo > 0) {
-				FDclients[client->input_fifo] = NULL;
-				close(client->input_fifo);
-				client->input_fifo = -1;
+			if (client->input_fifo != NULL) {
+				int	fd = fileno(client->input_fifo);
+				if (fd == maxfd) {
+					--maxfd;
+				}
+				FDclients[fd] = NULL;
+				fclose(client->input_fifo);
+				client->input_fifo = NULL;
 			}
 			if (prev == NULL) {
 				client_list = client->next;
@@ -516,6 +566,7 @@ api_add_client(struct ha_msg* msg)
 {
 	pid_t		pid = 0;
 	int		fifoifd;
+	FILE*		fifofp;
 	client_proc_t*	client;
 	const char*	cpid;
 	const char *	fromid;
@@ -553,13 +604,17 @@ api_add_client(struct ha_msg* msg)
 		return;
 	}
 	memset(client, 0, sizeof(*client));
-	client->input_fifo = -1;
+	client->input_fifo = NULL;
 	client->pid = pid;
 	client->desired_types = DEFAULTREATMENT;
 	client->signal = 0;
-	if (fromid != NULL) {
+	if (fromid == NULL) {
 		strncpy(client->client_id, cpid, sizeof(client->client_id));
-		client->iscasual = 0;
+		if (atoi(client->client_id) == pid) {
+			client->iscasual = 1;
+		}else{
+			client->iscasual = 0;
+		}
 	}else{
 		snprintf(client->client_id, sizeof(client->client_id)
 		,	"%d", pid);
@@ -572,21 +627,28 @@ api_add_client(struct ha_msg* msg)
 	if (!ClientSecurityIsOK(client)) {
 		return;
 	}
-	if ((fifoifd=open_reqfifo(client)) <= 0) {
+	if ((fifofp=open_reqfifo(client)) <= 0) {
 		ha_log(LOG_ERR
 		,	"Unable to open API FIFO for client %s"
 		,	client->client_id);
 		api_remove_client(client);
 		return;
 	}
+	fifoifd=fileno(fifofp);
 	if (fifoifd >= MAXFD) {
 		ha_log(LOG_ERR
 		,	"Too many API clients [%d]", total_client_count);
 		api_remove_client(client);
 		return;
 	}
-	client->input_fifo = fifoifd;
+	client->input_fifo = fifofp;
 	FDclients[fifoifd] = client;
+	if (fifoifd > maxfd) {
+		maxfd = fifoifd;
+	}
+	if (minfd < 0 || fifoifd < minfd) {
+		minfd = fifoifd;
+	}
 }
 
 /*
@@ -625,7 +687,7 @@ client_fifo_name(client_proc_t* client, int isrequest)
 	const char *	fifosuffix;
 
 	dirprefix = (client->iscasual ? CASUALCLIENTDIR : NAMEDCLIENTDIR);
-	fifosuffix = (isrequest ? ".req" : ".rsp");
+	fifosuffix = (isrequest ? REQ_SUFFIX : RSP_SUFFIX);
 	
 	snprintf(fifoname, sizeof(fifoname), "%s/%s%s"
 	,	dirprefix, client->client_id, fifosuffix);
@@ -669,7 +731,7 @@ client_fifo_name(client_proc_t* client, int isrequest)
  *	then they are allowed to receive all packets, but otherwise only
  *	clients registered with the same name will receive these messages.
  *
- *	It is important, then to make sure that each FIFO is owned by the
+ *	It is important to make sure that each named client FIFO is owned by the
  *	same UID on each machine.
  */
 
@@ -993,11 +1055,13 @@ ClientSecurityIsOK(client_proc_t* client)
 /*
  * Open the request FIFO for the given client.
  */
-static int
+static FILE*
 open_reqfifo(client_proc_t* client)
 {
 	struct stat	s;
 	const char *	fifoname = client_fifo_name(client, 1);
+	int		fd;
+	FILE *		ret;
 
 
 	if (client->input_fifo > 0) {
@@ -1006,7 +1070,15 @@ open_reqfifo(client_proc_t* client)
 
 	/* How about that! */
 	client->uid = s.st_uid;
-	return(open(fifoname, O_RDONLY|O_NDELAY));
+ha_log(LOG_ERR, "Opening request FIFO [%s]\n", fifoname);
+	fd = open(fifoname, O_RDONLY|O_NDELAY);
+	if (fd < 0) {
+		return(NULL);
+	}
+	if ((ret = fdopen(fd, "r")) != NULL) {
+		setbuf(ret, NULL);
+	}
+	return ret;
 }
 
 #define	PROC	"/proc/"
@@ -1029,4 +1101,74 @@ pid2uid(pid_t pid)
 	 * and parse it for find out whatever we want to know.
 	 */
 	return s.st_uid;
+}
+
+/* Compute file descriptor set for select(2) */
+int
+compute_msp_fdset(fd_set* set, int fd1, int fd2)
+{
+	int	fd;
+	int	newmax = -1;
+	int	newmin = MAXFD + 1;
+	int	pmax = (fd1 > fd2 ? fd1 : fd2);
+
+	
+	FD_ZERO(set);
+	FD_SET(fd1, set);
+	FD_SET(fd2, set);
+	for (fd=minfd; fd <= maxfd; ++fd) {
+		if (FDclients[fd]) {
+			FD_SET(fd, set);
+			newmax = fd;
+			if (fd < newmin) {
+				newmin = fd;
+			}
+		}
+		
+	}
+	maxfd = newmax;
+	minfd = newmin;
+	return (pmax > newmax ? pmax : newmax)+1;
+}
+/* Process select(2)ed API FIFOs for messages */
+void
+process_api_msgs(fd_set* inputs, fd_set* exceptions)
+{
+	int		fd;
+	client_proc_t*	client;
+
+	for (fd=minfd; fd <= maxfd; ++fd) {
+
+		/* Do we have a client on this file descriptor? */
+		if ((client = FDclients[fd]) != NULL) {
+			struct ha_msg*	msg;
+			if (FD_ISSET(fd, exceptions)) {
+				ha_log(LOG_INFO, "Exception from client %d"
+				,	client->pid);
+				if (kill(client->pid, 0) < 0
+				&&	errno == ESRCH) {
+					api_remove_client(client);
+					continue;
+				}
+			}
+			if (!FD_ISSET(fd, inputs)) {
+				continue;
+			}
+			/* Got a message from 'client' */
+ha_log(LOG_DEBUG, "Got a message from client %d [pid %d] [uid=%d]\n", fd, client->pid, client->uid);
+			if (kill(client->pid, 0) < 0
+			&&	errno == ESRCH) {
+ha_log(LOG_DEBUG, "Client %d [pid %d] [uid=%d] is dead.\n", fd, client->pid, client->uid);
+				api_remove_client(client);
+				continue;
+			}
+
+			if ((msg = msgfromstream(client->input_fifo)) == NULL) {
+				continue;
+			}
+			api_heartbeat_monitor(msg, APICALL, "<api>");
+			api_process_request(msg);
+			ha_msg_del(msg); msg = NULL;
+		}
+	}
 }
