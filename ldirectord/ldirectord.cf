@@ -108,6 +108,8 @@ virtual=192.168.6.240:80
 #	fallback=127.0.0.1:110
 #	service=pop
 #	scheduler=wlc
+#	#login="test"
+#	#passwd="test"
 #	persistent=600
 #	protocol=tcp
 
@@ -120,6 +122,9 @@ virtual=192.168.6.240:80
 #	fallback=127.0.0.1:143
 #	service=imap
 #	scheduler=wlc
+#	#login="test"
+#	#passwd="test"
+#	persistent=600
 #	persistent=600
 #	protocol=tcp
 
