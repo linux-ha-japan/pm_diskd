@@ -1,6 +1,7 @@
-/* ipfail.c
- * Author: Kevin Dwyer <Kevin.Dwyer@algx.net>/<kevin@pheared.net>
- * IP Failover plugin for Linux-HA.
+/* ipfail: IP Failover plugin for Linux-HA
+ *
+ * Copyright (C) 2002-2003 Kevin Dwyer <kevin@pheared.net>
+ *
  * This plugin uses ping nodes to determine a failure in an
  * interface's connectivity and forces a hb_standby. It is based on the
  * api_test.c program included with Linux-HA.
@@ -37,7 +38,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-
 #include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,26 +56,214 @@
 #include <hb_api.h>
 #include <clplumbing/cl_log.h>
 #include <clplumbing/cl_signal.h>
-
-void NodeStatus(const char *node, const char *status, void *private);
-void LinkStatus(const char *node, const char *, const char *, void *);
-void msg_ipfail_join(const struct ha_msg *, void *);
-void msg_ping_nodes(const struct ha_msg *, void *);
-void i_am_dead(const struct ha_msg *, void *);
-void got_wake_up(const struct ha_msg *, void *);
-void msg_resources(const struct ha_msg *, void *);
-void gotsig(int);
-void giveup(ll_cluster_t *);
-void you_are_dead(ll_cluster_t *);
-int ping_node_status(ll_cluster_t *);
-void ask_ping_nodes(ll_cluster_t *, int);
-void wake_up(ll_cluster_t *);
+#include "ipfail.h"
 
 /* ICK! global vars. */
-const char *node_name;     /* The node we are connected to  */
-char other_node[SYS_NMLN]; /* The remote node in the pair   */
-int node_stable;           /* Other node stable?            */
-int need_standby;          /* Are we waiting for stability? */
+const char *node_name;	   /* The node we are connected to            */
+char other_node[SYS_NMLN]; /* The remote node in the pair             */
+int node_stable;           /* Other node stable?                      */
+int need_standby;          /* Are we waiting for stability?           */
+int quitnow = 0;           /* Allows a signal to break us out of loop */
+
+int
+main(int argc, char **argv)
+{
+	struct ha_msg *reply;
+	unsigned fmask;
+	ll_cluster_t *hb;
+	char pid[10];
+	char *bname;
+	int apifd;
+
+	(void)_heartbeat_h_Id;
+	(void)_ha_msg_h_Id;
+	cl_log_enable_stderr(TRUE);
+	
+	/* Get the name of the binary for logging purposes */
+	bname = strdup(argv[0]);
+	cl_log_set_entity(basename(bname));
+
+	cl_log_set_facility(DEFAULT_FACILITY);
+
+	hb = ll_cluster_new("heartbeat");
+
+	/* Get the file descriptor from the API */
+	apifd = hb->llc_ops->inputfd(hb);
+
+	memset(other_node, 0, sizeof(other_node));
+	node_stable = 0;
+	need_standby = 0;
+
+	memset(pid, 0, sizeof(pid));
+	snprintf(pid, sizeof(pid), "%ld", (long)getpid());
+	cl_log(LOG_DEBUG, "PID=%s", pid);
+
+	open_api(hb);
+
+	/* Obtain our local node name */
+	node_name = hb->llc_ops->get_mynodeid(hb);
+	if (node_name == NULL) {
+		cl_log(LOG_ERR, "Cannot get my nodeid");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(19);
+	}
+	cl_log(LOG_DEBUG, "[We are %s]", node_name);
+
+	set_callbacks(hb);
+
+	fmask = LLC_FILTER_DEFAULT;
+
+	cl_log(LOG_DEBUG, "Setting message filter mode");
+	if (hb->llc_ops->setfmode(hb, fmask) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set filter mode");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(8);
+	}
+
+	node_walk(hb);
+
+	set_signals(hb);
+
+	cl_log(LOG_DEBUG, "Waiting for messages...");
+	errno = 0;
+	cl_log_enable_stderr(FALSE);
+
+
+	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
+		ha_log_message(reply);
+		ha_msg_del(reply); reply=NULL;
+	}
+
+	if (!quitnow) {
+		cl_perror("read_hb_msg returned NULL");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+	}
+
+	close_api(hb);
+
+	return 0;
+}
+
+void
+node_walk(ll_cluster_t *hb)
+{
+	const char *node;
+/*	const char *intf;  --Out until ifwalk is fixed */
+
+	cl_log(LOG_DEBUG, "Starting node walk");
+	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot start node walk");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(9);
+	}
+	while((node = hb->llc_ops->nextnode(hb)) != NULL) {
+		cl_log(LOG_DEBUG, "Cluster node: %s: status: %s", node
+		,	hb->llc_ops->node_status(hb, node));
+
+		/* Look for our partner */
+		if (!strcmp("normal", hb->llc_ops->node_type(hb, node))
+		    && strcmp(node, node_name)) {
+			strcpy(other_node, node);
+			cl_log(LOG_DEBUG, "[They are %s]", other_node);
+		}
+
+		/* ifwalking is broken for ping nodes.  I don't think we even
+		   need it at this point.
+
+		if (hb->llc_ops->init_ifwalk(hb, node) != HA_OK) {
+			cl_log(LOG_ERR, "Cannot start if walk");
+			cl_log(LOG_ERR, "REASON: %s"
+			,	hb->llc_ops->errmsg(hb));
+			exit(10);
+		}
+		while ((intf = hb->llc_ops->nextif(hb))) {
+			cl_log(LOG_DEBUG, "\tnode %s: intf: %s ifstatus: %s"
+			,	node, intf
+			,	hb->llc_ops->if_status(hb, node, intf));
+		}
+		if (hb->llc_ops->end_ifwalk(hb) != HA_OK) {
+			cl_log(LOG_ERR, "Cannot end if walk");
+			cl_log(LOG_ERR, "REASON: %s"
+			,	hb->llc_ops->errmsg(hb));
+			exit(11);
+		}
+		-END of ifwalkcode */
+	}
+	if (hb->llc_ops->end_nodewalk(hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot end node walk");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(12);
+	}
+}
+
+void
+set_callbacks(ll_cluster_t *hb)
+{
+	/* Add each of the callbacks we use with the API */
+
+	if (hb->llc_ops->set_msg_callback(hb, T_APICLISTAT, 
+					  msg_ipfail_join, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set msg_ipfail_join callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(2);
+	}
+
+	if (hb->llc_ops->set_msg_callback(hb, T_RESOURCES, 
+					  msg_resources, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set msg_resources callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(18);
+	}
+
+	if (hb->llc_ops->set_msg_callback(hb, "num_ping_nodes", 
+					  msg_ping_nodes, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set msg callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(3);
+	}
+
+	if (hb->llc_ops->set_msg_callback(hb, "wake_up", 
+					  got_wake_up, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set msg callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(4);
+	}
+
+	if (hb->llc_ops->set_msg_callback(hb, "you_are_dead", 
+					  i_am_dead, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set i_am_dead callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(5);
+	}
+
+	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set node status callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(6);
+	}
+
+	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set if status callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(7);
+	}
+}
+
+void
+set_signals(ll_cluster_t *hb)
+{
+	/* Setup the various signals */
+
+	CL_SIGINTERRUPT(SIGINT, 1);
+	CL_SIGNAL(SIGINT, gotsig);
+
+	cl_log(LOG_DEBUG, "Setting message signal");
+	if (hb->llc_ops->setmsgsignal(hb, 0) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set message signal");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(13);
+	}
+}
 
 void
 NodeStatus(const char *node, const char *status, void *private)
@@ -374,8 +562,6 @@ got_wake_up(const struct ha_msg *msg, void *private)
 	}	
 }
 
-int quitnow = 0;
-
 void
 gotsig(int nsig)
 {
@@ -383,37 +569,11 @@ gotsig(int nsig)
 	quitnow = 1;
 }
 
-
-#define	DEFAULT_FACILITY	LOG_DAEMON
-
-int
-main(int argc, char **argv)
+void
+open_api(ll_cluster_t *hb)
 {
-	struct ha_msg *reply;
-	unsigned fmask;
-	ll_cluster_t *hb;
-	const char *node;
-/*	const char *intf;  --Out until ifwalk is fixed */
-	char pid[10];
-	char *bname;
-	int	facility;
-
-	(void)_heartbeat_h_Id;
-	(void)_ha_msg_h_Id;
-	cl_log_enable_stderr(TRUE);
-	bname = strdup(argv[0]);
-	cl_log_set_entity(basename(bname));
-	cl_log_set_facility(DEFAULT_FACILITY);
-
-	hb = ll_cluster_new("heartbeat");
-
-	memset(other_node, 0, sizeof(other_node));
-	node_stable = 0;
-	need_standby = 0;
-
-	memset(pid, 0, sizeof(pid));
-	snprintf(pid, sizeof(pid), "%ld", (long)getpid());
-	cl_log(LOG_DEBUG, "PID=%s", pid);
+	/* Sign in to the API and setup the log facility */
+	int facility;
 
 	cl_log(LOG_DEBUG, "Signing in with heartbeat");
 	if (hb->llc_ops->signon(hb, "ipfail")!= HA_OK) {
@@ -425,140 +585,12 @@ main(int argc, char **argv)
 		facility = DEFAULT_FACILITY;
 	}
 	cl_log_set_facility(facility);
-	
-	node_name = hb->llc_ops->get_mynodeid(hb);
-	if (node_name == NULL) {
-		cl_log(LOG_ERR, "Cannot get my nodeid");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(19);
-	}
-	cl_log(LOG_DEBUG, "[We are %s]", node_name);
+}
 
-	if (hb->llc_ops->set_msg_callback(hb, T_APICLISTAT, 
-					  msg_ipfail_join, hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set msg_ipfail_join callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(2);
-	}
-
-	if (hb->llc_ops->set_msg_callback(hb, T_RESOURCES, 
-					  msg_resources, hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set msg_resources callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(18);
-	}
-
-	if (hb->llc_ops->set_msg_callback(hb, "num_ping_nodes", 
-					  msg_ping_nodes, hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set msg callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(3);
-	}
-
-	if (hb->llc_ops->set_msg_callback(hb, "wake_up", 
-					  got_wake_up, hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set msg callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(4);
-	}
-
-	if (hb->llc_ops->set_msg_callback(hb, "you_are_dead", 
-					  i_am_dead, hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set i_am_dead callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(5);
-	}
-
-	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set node status callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(6);
-	}
-
-	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set if status callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(7);
-	}
-
-	fmask = LLC_FILTER_DEFAULT;
-
-	cl_log(LOG_DEBUG, "Setting message filter mode");
-	if (hb->llc_ops->setfmode(hb, fmask) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set filter mode");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(8);
-	}
-
-	cl_log(LOG_DEBUG, "Starting node walk");
-	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot start node walk");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(9);
-	}
-	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
-		cl_log(LOG_DEBUG, "Cluster node: %s: status: %s", node
-		,	hb->llc_ops->node_status(hb, node));
-
-		/* Look for our partner */
-		if (!strcmp("normal", hb->llc_ops->node_type(hb, node))
-		    && strcmp(node, node_name)) {
-			strcpy(other_node, node);
-			cl_log(LOG_DEBUG, "[They are %s]", other_node);
-		}
-
-		/* ifwalking is broken for ping nodes.  I don't think we even
-		   need it at this point.
-
-		if (hb->llc_ops->init_ifwalk(hb, node) != HA_OK) {
-			cl_log(LOG_ERR, "Cannot start if walk");
-			cl_log(LOG_ERR, "REASON: %s"
-			,	hb->llc_ops->errmsg(hb));
-			exit(10);
-		}
-		while ((intf = hb->llc_ops->nextif(hb))) {
-			cl_log(LOG_DEBUG, "\tnode %s: intf: %s ifstatus: %s"
-			,	node, intf
-			,	hb->llc_ops->if_status(hb, node, intf));
-		}
-		if (hb->llc_ops->end_ifwalk(hb) != HA_OK) {
-			cl_log(LOG_ERR, "Cannot end if walk");
-			cl_log(LOG_ERR, "REASON: %s"
-			,	hb->llc_ops->errmsg(hb));
-			exit(11);
-		}
-		-END of ifwalkcode */
-	}
-	if (hb->llc_ops->end_nodewalk(hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot end node walk");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(12);
-	}
-
-	CL_SIGINTERRUPT(SIGINT, 1);
-	CL_SIGNAL(SIGINT, gotsig);
-
-	cl_log(LOG_DEBUG, "Setting message signal");
-	if (hb->llc_ops->setmsgsignal(hb, 0) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set message signal");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(13);
-	}
-
-	cl_log(LOG_DEBUG, "Waiting for messages...");
-	errno = 0;
-	cl_log_enable_stderr(FALSE);
-
-
-	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
-		ha_log_message(reply);
-		ha_msg_del(reply); reply=NULL;
-	}
-
-	if (!quitnow) {
-		cl_perror("read_hb_msg returned NULL");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-	}
+void
+close_api(ll_cluster_t *hb)
+{
+	/* Log off of the API and clean up */
 	if (hb->llc_ops->signoff(hb) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot sign off from heartbeat.");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
@@ -569,8 +601,4 @@ main(int argc, char **argv)
 		cl_log(LOG_ERR, "Cannot delete API object.");
 		exit(15);
 	}
-
-	return 0;
 }
-
-
