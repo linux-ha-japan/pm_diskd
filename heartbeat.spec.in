@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.6 2001/09/22 08:19:28 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.7 2001/10/04 16:10:45 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -408,7 +408,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %doc doc/GettingStarted.html 
 %doc doc/HardwareGuide.txt
 %doc doc/HardwareGuide.html 
-%doc doc/faqntips
+%doc doc/faqntips.txt
 %doc doc/faqntips.html 
 %doc doc/README 
 %doc doc/Requirements.txt
