@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.62 2000/11/25 23:36:08 alan Exp $
+#	$Id: Makefile,v 1.63 2000/12/04 21:13:41 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -47,7 +47,7 @@ B_VARRUN=$(DESTDIR)/var/run
 B_FIFO=$(B_VARRUN)/heartbeat-fifo
 B_HAPPP=$(B_VARRUN)/ppp.d
 #
-VARS=PKG=$(PKG) VERS=$(VERS) APIGID=$(APIGID) APIGROUP=$(APIGROUP)
+VARS=MAKE="$(MAKE)" PKG=$(PKG) VERS=$(VERS) APIGID=$(APIGID) APIGROUP=$(APIGROUP)
 MAKE=make
 MAKE_CMD = $(MAKE) $(VARS)
 
