@@ -1040,7 +1040,7 @@ make_daemon(void)
 		cl_log(LOG_CRIT, "cannot start daemon.\n");
 		exit(LSB_EXIT_GENERIC);
 	}else if (pid > 0) {
-		exit(LSB_EXIT_GENERIC);
+		exit(LSB_EXIT_OK);
 	}
 
 	lockfd = fopen(PIDFILE, "w");
