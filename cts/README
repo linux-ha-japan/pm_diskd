@@ -2,7 +2,11 @@ Here's what you need to do to run CTS
 
 Configure the two "cluster" machines with their logging of heartbeat
 messages redirected via syslog to the third machine.  Let's call it the
-exerciser...  Configure syslog on the cluster machines accordingly.
+exerciser...   The exerciser doesn't have to be the same OS as the others
+but it needs to be one that supports a lot of the other things
+(like ssh and remote syslog logging).
+
+Configure syslog on the cluster machines accordingly.
 	(see the mini-HOWTOs at the end for more details)
 
 The exerciser needs to be able to ssh over to the cluster nodes as root
@@ -57,6 +61,10 @@ TestList is defined in CTStests.py  It looks like it has appropriate values.
 The one thing you can't test with this version of CTS is cluster partition
 merging.  That's what a couple of our users have been having trouble with.
 That (currently) has to be tested by hand...
+
+OK.  Now assuming you did all this and the stuff described below, what you
+need to do is run CTSlab.py.  This is the same as the file you modified above.
+If you run any other file, it won't test your cluster ;-)
 
 ==============
 Mini HOWTOs:
