@@ -248,7 +248,7 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 
 	if (debug >= DBGMIN) {
 		cl_log(LOG_DEBUG, "apphb_client_new: channel: 0x%x"
-		" pid=%d"
+		" pid=%ld"
 		,	GPOINTER_TO_UINT(ch)
 		,	ch->farside_pid);
 	}
@@ -539,7 +539,7 @@ apphb_new_dispatch(IPC_Channel* src, gpointer user)
 
 	if (debug >= DBGMIN) {
 		cl_log(LOG_DEBUG, "apphb_new_dispatch: IPC_channel: 0x%x"
-		" pid=%d"
+		" pid=%ld"
 		,	GPOINTER_TO_UINT(src)
 		,	src->farside_pid);
 	}
