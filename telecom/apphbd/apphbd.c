@@ -829,7 +829,7 @@ get_running_pid(gboolean* anypidfile)
 
 	if (lockfd != NULL
 	&&      fscanf(lockfd, "%ld", &pid) == 1 && pid > 0) {
-		if (!CL_PID_EXISTS((pid_t)pid)) {
+		if (CL_PID_EXISTS((pid_t)pid)) {
 			fclose(lockfd);
 			return(pid);
 		}
