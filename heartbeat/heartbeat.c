@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.254 2003/04/23 01:31:16 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.255 2003/04/23 01:32:27 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -538,7 +538,7 @@ lookup_iface(struct node_info * hip, const char *iface)
 		if (strcmp(lnk->name, iface) == 0) {
 			return lnk;
 		}
-	j++;
+		j++;
 	}
 	return NULL;
 }
@@ -4020,6 +4020,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.255  2003/04/23 01:32:27  horms
+ * Fixed indentation
+ *
  * Revision 1.254  2003/04/23 01:31:16  horms
  * Return early to avoid excessive indenting
  *
