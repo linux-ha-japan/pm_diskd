@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.94 2003/07/12 13:14:38 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.95 2003/08/06 13:48:46 horms Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -1511,7 +1511,9 @@ add_client_child(const char * directive)
 	char			chuid[64];
 	size_t			uidlen;
 	size_t			cmdlen;
+	size_t			pathlen;
 	char*			command;
+	char*			path;
 	struct passwd*		pw;
 
 	if (ANYDEBUG) {
@@ -1527,7 +1529,8 @@ add_client_child(const char * directive)
 
 	/* Skip over white space, find the command */
 	cmdp += strspn(cmdp, WHITESPACE);
-	cmdlen = strcspn(cmdp, WHITESPACE);
+	cmdlen = strcspn(cmdp, CRLF);
+	pathlen = strcspn(cmdp, WHITESPACE);
 	
 	if (uidlen >= sizeof(chuid)) {
 		ha_log(LOG_ERR
@@ -1553,24 +1556,36 @@ add_client_child(const char * directive)
 
 	command = ha_malloc(cmdlen+1);
 	if (command == NULL) {
-		ha_log(LOG_ERR, "Out of memory in add_client_child");
+		ha_log(LOG_ERR, "Out of memory in add_client_child (command)");
 		return HA_FAIL;
 	}
 	memcpy(command, cmdp, cmdlen);
 	command[cmdlen] = EOS;
 
-	if (access(command, X_OK|F_OK) < 0) {
+	path = ha_malloc(pathlen+1);
+	if (command == NULL) {
+		ha_log(LOG_ERR, "Out of memory in add_client_child "
+				"(path)");
+		ha_free(command); command=NULL;
+		return HA_FAIL;
+	}
+	memcpy(path, cmdp, pathlen);
+	path[pathlen] = EOS;
+
+	if (access(path, X_OK|F_OK) < 0) {
 		ha_log(LOG_ERR
 		,	"Client child command [%s] is not executable"
-		,	command);
+		,	path);
 		ha_free(command); command=NULL;
+		ha_free(path); path=NULL;
 		return HA_FAIL;
 	}
 
  	child = MALLOCT(struct client_child);
 	if (child == NULL) {
-		ha_log(LOG_ERR, "Out of memory in add_client_child");
+		ha_log(LOG_ERR, "Out of memory in add_client_child (child)");
 		ha_free(command); command=NULL;
+		ha_free(path); path=NULL;
 		return HA_FAIL;
 	}
 	memset(child, 0, sizeof(*child));
@@ -1578,12 +1593,16 @@ add_client_child(const char * directive)
 	child->u_runas = pw->pw_uid;
 	child->g_runas = pw->pw_gid;
 	child->command = command;
+	child->path = path;
 	config->client_list = g_list_append(config->client_list, child);
 
 	return HA_OK;
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.95  2003/08/06 13:48:46  horms
+ * Allow respawn programmes to have arguments. Diarmuid O'Neill + Horms
+ *
  * Revision 1.94  2003/07/12 13:14:38  alan
  * Very minor change - either a minor bug fix or not needed.
  *

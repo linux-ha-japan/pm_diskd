@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.37 2003/07/01 10:12:26 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.38 2003/08/06 13:48:46 horms Exp $";
 
 #ifdef SYSV
 #	include <sys/termio.h>
@@ -328,6 +328,7 @@ struct client_child {
 	int	respawncount;	/* Last time we respawned this command */
 	int	shortrcount;	/* How many times has it respawned too fast? */
 	char*	command;	/* What command to run? */
+	char*	path;		/* Path (argv[0])? */
 };
 
 int api_remove_client_pid(pid_t c_pid, const char * reason);

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.273 2003/07/22 09:51:35 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.274 2003/08/06 13:48:46 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2083,13 +2083,13 @@ ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode
 		}
 		if (managedchild->shortrcount > 10) {
 			cl_log(LOG_ERR
-			,	"Client %s %s"
+			,	"Client %s \"%s\""
 			,	managedchild->command
 			,	"respawning too fast");
 			managedchild->shortrcount = 0;
 		}else{
 			cl_log(LOG_INFO
-			,	"Respawning client %s:"
+			,	"Respawning client \"%s\":"
 			,	managedchild->command);
 			start_a_child_client(managedchild
 			,	config->client_children);
@@ -2147,7 +2147,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	pid_t			pid;
 	struct passwd*		pwent;
 
-	cl_log(LOG_INFO, "Starting child client %s (%d,%d)"
+	cl_log(LOG_INFO, "Starting child client \"%s\" (%d,%d)"
 	,	centry->command, (int) centry->u_runas
 	,	(int) centry->g_runas);
 
@@ -2162,7 +2162,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	 * won't exec in the first place.
 	 */
 
-	if (access(centry->command, F_OK|X_OK) < 0) {
+	if (access(centry->path, F_OK|X_OK) < 0) {
 		cl_perror("Cannot exec %s", centry->command);
 		return;
 	}
@@ -2193,7 +2193,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		sleep(1);
 	}
 
-	cl_log(LOG_INFO, "Starting %s as uid %d  gid %d (pid %d)"
+	cl_log(LOG_INFO, "Starting \"%s\" as uid %d  gid %d (pid %d)"
 	,	centry->command, (int) centry->u_runas
 	,	(int) centry->g_runas, (int) getpid());
 
@@ -2221,7 +2221,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		(void)open(devnull, O_RDONLY);	/* Stdin:  fd 0 */
 		(void)open(devnull, O_WRONLY);	/* Stdout: fd 1 */
 		(void)open(devnull, O_WRONLY);	/* Stderr: fd 2 */
-		(void)execl(centry->command, centry->command
+		(void)execl("/bin/sh", "sh", "-c", centry->command
 		,	(const char *)NULL);
 
 		/* Should not happen */
@@ -4121,6 +4121,9 @@ get_localnodeinfo(void)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.274  2003/08/06 13:48:46  horms
+ * Allow respawn programmes to have arguments. Diarmuid O'Neill + Horms
+ *
  * Revision 1.273  2003/07/22 09:51:35  alan
  * Patch to fix problem noted by "Ing. Jozef Sakalos" <jsakalos@ba.success.sk>
  * with comparisons between signed an unsigned ints.
