@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.122 2001/07/03 14:09:07 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.123 2001/07/04 17:00:56 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -4007,19 +4007,28 @@ IncrGeneration(unsigned long * generation)
 		close(fd);
 		return HA_FAIL;
 	}
-
+	
 	/* 
 	 * Some UNIXes don't implement O_SYNC. 
 	 * So we do an fsync here for good measure.  It can't hurt ;-)
 	 */
 
-	fsync(fd);
-	close(fd);
+	if (fsync(fd) < 0) {
+		ha_perror("fsync failure on " HB_VERS_FILE);
+		return HA_FAIL;
+	}
+	if (close(fd) < 0) {
+		ha_perror("close failure on " HB_VERS_FILE);
+		return HA_FAIL;
+	}
 	/*
-	 * We *really* don't want to lose this data.  We won't be able to join the
-	 * cluster again without it.
+	 * We *really* don't want to lose this data.  We won't be able to
+	 * join the cluster again without it.
 	 */
 	sync();
+#if HAVE_UNRELIABLE_FSYNC
+	sleep(10);
+#endif
 	return HA_OK;
 }
 
@@ -4034,6 +4043,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.123  2001/07/04 17:00:56  alan
+ * Put in changes to make the the sequence number updating report failure
+ * if close or fsync fails.
+ *
  * Revision 1.122  2001/07/03 14:09:07  alan
  * More debug for Matt Soffen...
  *
