@@ -66,6 +66,28 @@ void gotsig(int nsig)
 	quitnow = 1;
 }
 
+const char * mandparms[] =
+{	KEY_HBVERSION
+,	KEY_HOPS
+,	KEY_KEEPALIVE
+,	KEY_DEADTIME
+,	KEY_DEADPING
+,	KEY_WARNTIME
+,	KEY_INITDEAD
+,	KEY_BAUDRATE
+,	KEY_UDPPORT
+,	KEY_AUTOFAIL
+,	KEY_GEN_METH
+,	KEY_REALTIME
+,	KEY_DEBUGLEVEL
+,	KEY_NORMALPOLL};
+
+const char * optparms[] =
+{	KEY_LOGFILE
+,	KEY_DBGFILE
+,	KEY_FACILITY
+,	KEY_RT_PRIO
+,	KEY_WATCHDOG};
 
 
 int
@@ -79,6 +101,8 @@ main(int argc, char ** argv)
 	const char *	intf;
 	int		msgcount=0;
 	char *		ctmp;
+	const char *	cval;
+	int		j;
 
 	(void)_ha_msg_h_Id;
 
@@ -119,19 +143,33 @@ main(int argc, char ** argv)
 		exit(4);
 	}
 
-	if ((ctmp = hb->llc_ops->get_parameter(hb, KEY_HBVERSION)) != NULL) {
-		cl_log(LOG_INFO, "Heartbeat version is %s", ctmp);
-		free(ctmp);
+	for (j=0; j < DIMOF(mandparms); ++j) {
+		if ((ctmp = hb->llc_ops->get_parameter(hb, mandparms[j])) != NULL) {
+			cl_log(LOG_INFO, "Parameter %s is [%s]"
+			,	mandparms[j]
+			,	ctmp);
+			free(ctmp); ctmp = NULL;
+		}else{
+			cl_log(LOG_ERR, "Mandantory Parameter %s is not available!"
+			,	mandparms[j]);
+		}
+	}
+	for (j=0; j < DIMOF(optparms); ++j) {
+		if ((ctmp = hb->llc_ops->get_parameter(hb, optparms[j])) != NULL) {
+			cl_log(LOG_INFO, "Optional Parameter %s is [%s]"
+			,	optparms[j]
+			,	ctmp);
+			free(ctmp); ctmp = NULL;
+		}
+	}
+	if ((cval = hb->llc_ops->get_resources(hb)) == NULL) {
+		cl_perror("Cannot get resource status");
+		cl_log(LOG_ERR, "REASON: %s\n"
+		,	hb->llc_ops->errmsg(hb));
+	}else{
+		cl_log(LOG_INFO, "Current resource status: %s", cval);
 	}
 
-	if ((ctmp = hb->llc_ops->get_parameter(hb, KEY_AUTOFAIL)) != NULL) {
-		cl_log(LOG_INFO, "auto_failback is set to %s", ctmp);
-		free(ctmp);
-	}
-	if ((ctmp = hb->llc_ops->get_parameter(hb, KEY_INITDEAD)) != NULL) {
-		cl_log(LOG_INFO, "init_dead is set to %s", ctmp);
-		free(ctmp);
-	}
 
 	cl_log(LOG_INFO, "Starting node walk\n");
 	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
@@ -149,7 +187,7 @@ main(int argc, char ** argv)
 			exit(6);
 		}
 		while ((intf = hb->llc_ops->nextif(hb))) {
-			cl_log(LOG_ERR, "\tnode %s: intf: %s ifstatus: %s\n"
+			cl_log(LOG_INFO, "\tnode %s: intf: %s ifstatus: %s\n"
 			,	node, intf
 			,	hb->llc_ops->if_status(hb, node, intf));
 		}
@@ -184,11 +222,11 @@ main(int argc, char ** argv)
 	cl_log(LOG_INFO, "Sleeping...\n");
 	sleep(5);
 	if (hb->llc_ops->sendclustermsg(hb, pingreq) == HA_OK) {
-		cl_log(LOG_ERR, "Sent ping request to cluster\n");
+		cl_log(LOG_INFO, "Sent ping request to cluster\n");
 	}else{
 		cl_log(LOG_ERR, "PING request FAIL to cluster\n");
 	}
-	cl_log(LOG_ERR, "Waiting for messages...\n");
+	cl_log(LOG_INFO, "Waiting for messages...\n");
 	errno = 0;
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
 		const char *	type;
