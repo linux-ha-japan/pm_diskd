@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.12 2002/03/05 21:13:06 alan Exp $
+#	$Id: heartbeat.in,v 1.13 2002/03/21 02:03:00 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -23,6 +23,7 @@ CONFIG=$HA_DIR/ha.cf
 . $HA_DIR/shellfuncs
 
 LOCKDIR=@localstatedir@/lock/subsys
+RSCDIR=@localstatedir@/lib/heartbeat/rsctmp
 RUNDIR=@localstatedir@/run
 
 if
@@ -200,6 +201,7 @@ StartHA() {
     init_watchdog
   fi
   rm -f $RUNDIR/ppp.d/*
+  rm -fr $RSCDIR/*
   if
     [  -f $HA_DIR/ipresources -a ! -f $HA_DIR/haresources ]
   then
@@ -308,6 +310,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.13  2002/03/21 02:03:00  alan
+#  Added locking to the assignment of interfaces in IPaddr.
+#
 #  Revision 1.12  2002/03/05 21:13:06  alan
 #  Put in fix suggested by João Miguel P. Sá <joao-m-sa@ptinovacao.pt>
 #  to use grave accents instead of the silly bash notation.

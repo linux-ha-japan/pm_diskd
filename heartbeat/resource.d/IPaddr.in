@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.16 2002/03/14 04:28:51 alan Exp $
+#	$Id: IPaddr.in,v 1.17 2002/03/21 02:03:00 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -23,6 +23,8 @@ exec_prefix=@exec_prefix@
 
 IFCONFIG=@IFCONFIG@
 IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
+VARLIB=@localstatedir@/lib/@HEARTBEATPKG@
+VLDIR=$VARLIB/rsctmp/IPaddr
 ROUTE=@ROUTE@
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
@@ -149,6 +151,12 @@ ip_stop() {
   $CMD
   rc=$?
 
+  case $SYSTYPE in
+	*BSD|SunOS)	;;
+	*)		# remove lock file...
+  			rm -f "$VLDIR/$IF";;
+  esac
+
   case $rc in
     0) ha_log "info: IP Address $BASEIP released";;
     *) ha_log "WARN: IP Address $BASEIP NOT released";;
@@ -163,6 +171,11 @@ ip_stop() {
 #	is an aliased interface name (e.g., "eth0:0", "dc0", "le0:0").
 #
 find_free_interface() {
+  if
+    [ ! -d $VLDIR ]
+  then
+    mkdir -p $VLDIR
+  fi
   BASEIP=`echo $1 | sed s'%/.*%%'`
   if
     NICINFO=`$FINDIF $1`
@@ -183,6 +196,8 @@ find_free_interface() {
     return 1;
   fi
 
+  NICBASE="$VLDIR/$nicname"
+  touch "$NICBASE"
   IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | grep "^$nicname:[0-9]" | sed 's% .*%%'`
   IFLIST=" `echo $IFLIST` "
 
@@ -199,8 +214,14 @@ find_free_interface() {
   	do
     	    case $IFLIST in
 	      *" "$nicname:$j" "*)	;;
-	      *)			echo "$nicname:$j	$nicinfo"
-					return 0;;
+	      *)			
+		NICLINK="$NICBASE:$j"
+		if
+		  ln "$NICBASE" "$NICLINK"
+		then
+		  echo "$nicname:$j	$nicinfo"
+		  return 0
+		fi;;
 	    esac
             j=`expr $j + 1`
 	done;;
@@ -337,7 +358,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.16 2002/03/14 04:28:51 alan Exp $"
+  echo "$Id: IPaddr.in,v 1.17 2002/03/21 02:03:00 alan Exp $"
 }
 
 #
@@ -384,6 +405,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.17  2002/03/21 02:03:00  alan
+# Added locking to the assignment of interfaces in IPaddr.
+#
 # Revision 1.16  2002/03/14 04:28:51  alan
 # Changed all the resource scripts to have ID strings in them
 #
