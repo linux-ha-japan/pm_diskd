@@ -162,7 +162,7 @@ void update_reset(ccm_update_t *);
 void update_init(ccm_update_t *);
 int update_timeout_expired(ccm_update_t *, long);
 int update_any(ccm_update_t *);
-void update_add(ccm_update_t *, llm_info_t *, const char *, int);
+void update_add(ccm_update_t *, llm_info_t *, const char *, int, gboolean);
 void update_remove(ccm_update_t *, llm_info_t *, const char *);
 int update_am_i_leader(ccm_update_t *, llm_info_t *);
 int update_can_be_leader(ccm_update_t *,  llm_info_t *llm, const char *, int );

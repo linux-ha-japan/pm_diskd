@@ -282,9 +282,9 @@ wait_channel_init(void)
 {
 	struct IPC_WAIT_CONNECTION *wait_ch;
 	mode_t mask;
-	char path[] = "path";
+	char path[] = PATH_ATTR;
 	char ccmfifo[] = CCMFIFO;
-	char domainsocket[] = "domain_socket";
+	char domainsocket[] = IPC_DOMAIN_SOCKET;
 
 	GHashTable * attrs = g_hash_table_new(g_str_hash,g_str_equal);
 	g_hash_table_insert(attrs, path, ccmfifo);

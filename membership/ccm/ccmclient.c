@@ -53,10 +53,10 @@ static GMemChunk *ipc_mem_chk = NULL;
 static GMemChunk *ipc_born_chk = NULL;
 static GMemChunk *ipc_misc_chk = NULL;
 
-static char llm_flag=0;
-static char evicted_flag=0;
-static char prim_flag=0;
-static char restored_flag=0;
+static gboolean llm_flag=FALSE;
+static gboolean evicted_flag=FALSE;
+static gboolean prim_flag=FALSE;
+static gboolean restored_flag=FALSE;
 
 
 /* 
@@ -220,9 +220,9 @@ flush_all(void)
 static void
 cleanup(void)
 {
-	evicted_flag=0;
-	prim_flag=0;
-	restored_flag=0;
+	evicted_flag=FALSE;
+	prim_flag=FALSE;
+	restored_flag=FALSE;
 	flush_all(); /* flush out all the messages to all the clients*/
 	g_mem_chunk_reset(ipc_mem_chk);
 	g_mem_chunk_reset(ipc_born_chk);
@@ -321,8 +321,8 @@ client_send_msg(int n,  int trans, int *member, void *borndata)
 
 	assert(n<=MAXNODE);
 
-	prim_flag=1;
-	restored_flag=0;
+	prim_flag=TRUE;
+	restored_flag=FALSE;
 
 
 	ccm->ev = OC_EV_MS_NEW_MEMBERSHIP;
@@ -363,8 +363,8 @@ client_not_primary(void)
 	int type = OC_EV_MS_NOT_PRIMARY;
 
 	if(prim_flag){
-		prim_flag = 0;
-		restored_flag = 0;
+		prim_flag = FALSE;
+		restored_flag = FALSE;
 		if(ipc_misc_message && --(ipc_misc_message->count)==0){
 			delete_message(ipc_misc_message);
 		}
@@ -383,8 +383,8 @@ client_primary_restored(void)
 {
 	int type = OC_EV_MS_PRIMARY_RESTORED;
 	if(!prim_flag){
-		prim_flag = 1;
-		restored_flag = 1;
+		prim_flag = TRUE;
+		restored_flag = TRUE;
 		if(ipc_misc_message && --(ipc_misc_message->count)==0){
 			delete_message(ipc_misc_message);
 		}
@@ -403,7 +403,7 @@ void
 client_evicted(void)
 {
 	int type = OC_EV_MS_EVICTED;
-	evicted_flag=1;
+	evicted_flag=TRUE;
 	if(llm_flag) {
 		if(ipc_misc_message && --(ipc_misc_message->count)==0){
 			delete_message(ipc_misc_message);
@@ -442,7 +442,7 @@ client_llm_init(llm_info_t *llm)
 	g_free(data);
 	ipc_llm_message->count++; /* make sure it never gets
 				     	dellocated */
-	llm_flag = 1;
+	llm_flag = TRUE;
 
 	ipc_mem_chk = g_mem_chunk_new(memstr,
 				sizeof(ccm_ipc_t)+

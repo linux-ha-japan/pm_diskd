@@ -1448,7 +1448,7 @@ ccm_send_memlist_res(ll_cluster_t *hb,
 	char *cookie;
 	int  rc;
 	unsigned char *bitmap;
-	int del_flag=0;
+	gboolean del_flag=FALSE;
 	
 	if ((m=ha_msg_new(0)) == NULL) {
 		ha_log(LOG_ERR, "ccm_send_memlist_res: Cannot allocate "
@@ -1468,7 +1468,7 @@ ccm_send_memlist_res(ll_cluster_t *hb,
 		int numBytes = bitmap_create(&bitmap, MAXNODE);
 		(void) ccm_bitmap2str(bitmap, numBytes, &memlist);
 		bitmap_delete(bitmap);
-		del_flag = 1;
+		del_flag = TRUE;
 	} 
 
 	if ((ha_msg_add(m, F_TYPE, ccm_type2string(CCM_TYPE_RES_MEMLIST)) 
@@ -2076,7 +2076,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 			assert (trans_minorval >= CCM_GET_MINORTRANS(info));
 			update_reset(CCM_GET_UPDATETABLE(info));
 			update_add(CCM_GET_UPDATETABLE(info), CCM_GET_LLM(info),
-						orig, uptime_val);
+						orig, uptime_val, TRUE);
 
 			CCM_SET_MINORTRANS(info, trans_minorval);
 			while (ccm_send_join(hb, info) != HA_OK) {
@@ -2133,8 +2133,8 @@ ccm_state_sent_memlistreq(enum ccm_type ccm_msg_type,
 			ll_cluster_t *hb, 
 			ccm_info_t *info)
 {
-	const char *orig,  *trans, *memlist;
-	int   trans_majorval=0, trans_minorval=0;
+	const char *orig,  *trans, *memlist, *uptime;
+	int   trans_majorval=0, trans_minorval=0, uptime_val;
 
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
 		ha_log(LOG_ERR, "ccm_state_sent_memlistreq: received message "
@@ -2205,18 +2205,29 @@ switchstatement:
 			break;
 
 		case CCM_TYPE_JOIN:
+
 			/* The join request has come too late.
 			 * I am already the leader, and my
 			 * leadership cannot be relinquished
 			 * because that can confuse everybody.
-			 * This join request shall be considered
-			 * only if the requestor cannot compete be
-			 * a leader.
+			 * This join request shall be considered.
+			 * But leadership shall not be relinquished.
 			 */
 			assert(trans_majorval == CCM_GET_MAJORTRANS(info));
 			assert(trans_minorval == CCM_GET_MINORTRANS(info));
 			fprintf(stderr, "considering a late join message "
 					  "from orig=%s\n", orig);
+			/* get the update value */
+			if ((uptime = ha_msg_value(reply, CCM_UPTIME)) 
+						== NULL){
+				ha_log(LOG_ERR, 
+					"ccm_state_sent_memlistreq: no "
+					"update information");
+				return;
+			}
+			uptime_val = atoi(uptime);
+			update_add(CCM_GET_UPDATETABLE(info), 
+				CCM_GET_LLM(info), orig, uptime_val, FALSE);
 			ccm_add_membership(info, orig);
 			break;
 
@@ -2493,7 +2504,7 @@ switchstatement:
 
 				update_reset(CCM_GET_UPDATETABLE(info));
 				update_add(CCM_GET_UPDATETABLE(info), 
-					CCM_GET_LLM(info), orig, uptime_val);
+					CCM_GET_LLM(info), orig, uptime_val, TRUE);
 
 				CCM_SET_MINORTRANS(info, trans_minorval);
 				while (ccm_send_join(hb, info) != HA_OK) {
@@ -2809,7 +2820,7 @@ switchstatement:
 			if (trans_minorval > CCM_GET_MINORTRANS(info)) {
 				update_reset(CCM_GET_UPDATETABLE(info));
 				update_add( CCM_GET_UPDATETABLE(info),
-					CCM_GET_LLM(info), orig, uptime_val);
+					CCM_GET_LLM(info), orig, uptime_val, TRUE);
 
 				CCM_SET_MINORTRANS(info, trans_minorval);
 				while (ccm_send_join(hb, info) != HA_OK) {
@@ -2821,7 +2832,8 @@ switchstatement:
 			} else {
 				/* update the update table  */
 				update_add( CCM_GET_UPDATETABLE(info),
-					CCM_GET_LLM(info), orig, uptime_val);
+					CCM_GET_LLM(info), orig, uptime_val, 
+					TRUE);
 
 				/* if all nodes have responded, its time 
 				 * to elect the leader 
@@ -3275,14 +3287,14 @@ ccm_take_control(void *data)
 {
 	ccm_info_t *info =  (ccm_info_t *)((ccm_t *)data)->info;
 	ll_cluster_t *hbfd = (ll_cluster_t *)((ccm_t *)data)->hbfd;
-	static char client_flag=0;
+	static gboolean client_flag=FALSE;
 
 	int ret = ccm_control_process(info, hbfd);
 
 	
 	if(!client_flag) {
 		client_llm_init(CCM_GET_LLM(info));
-		client_flag=1;
+		client_flag=TRUE;
 	}
 
 	return ret;

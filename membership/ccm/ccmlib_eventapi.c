@@ -114,7 +114,7 @@ class_construct(oc_ev_class_t class_type, oc_ev_callback_t  *fn)
 static void
 oc_ev_init(void)
 {
-	static char ocinit_flag = FALSE;
+	static gboolean ocinit_flag = FALSE;
 
 	if(ocinit_flag==FALSE) {
 		tokenhash =  g_hash_table_new(g_direct_hash, 

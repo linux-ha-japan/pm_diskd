@@ -543,7 +543,7 @@ oc_ev_memb_class(oc_ev_callback_t  *fn)
 
 	attrs = g_hash_table_new(g_str_hash,g_str_equal);
 	g_hash_table_insert(attrs, path, ccmfifo);
-	ch = ipc_channel_constructor("domain_socket", attrs);
+	ch = ipc_channel_constructor(IPC_DOMAIN_SOCKET, attrs);
 	g_hash_table_destroy(attrs);
 
 	if(!ch) {

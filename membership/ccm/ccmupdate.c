@@ -187,50 +187,41 @@ update_any(ccm_update_t *tab)
 // given two members return the leader.
 //
 //
-static update_t *
-update_choose_leader(update_t *entry1,
-			update_t *entry2,  
-			llm_info_t *llm)
+static int
+update_compute_leader(ccm_update_t *tab, int j, llm_info_t *llm)
 {
+	update_t *entry1, *entry2;
 	int value;
 
-	if (entry2 == NULL) {
-		return entry1;	
-	}
-	if (entry1 == NULL) {
-		return entry2;
-	}
+	int leader = tab->leader;
 
-	if ((entry2->uptime == 0)  &&  (entry1->uptime == 0)) {
-		goto leader_str;
-	}
+	if(leader == -1) return j;
 
-	if (entry1->uptime == 0) {
-		return entry2;
-	}
+	entry1 = &(tab->update[j]);
 
-	if (entry2->uptime == 0) {
-		return entry1;
-	}
+	entry2 = &(tab->update[leader]);
 
-	if (entry2->uptime < entry1->uptime) {
-		return entry2;
-	}
+	if (entry2 == NULL) return j;	
+	if (entry1 == NULL) return leader;
 
-	if (entry2->uptime > entry1->uptime) {
-		return entry1;
-	}
+	if ((entry2->uptime == 0)  
+		&&  (entry1->uptime == 0)) goto leader_str;
+
+	if (entry1->uptime == 0) return leader;
+
+	if (entry2->uptime == 0) return j;
+
+	if (entry2->uptime < entry1->uptime) return leader;
+
+	if (entry2->uptime > entry1->uptime) return j;
 
 leader_str :
 	value =  llm_nodeid_cmp(llm, entry2->index, entry1->index);
 
 	assert(value != 0);
 
-	if (value < 0) {
-		return entry2;
-	} else {
-		return entry1;
-	}
+	if (value < 0) return leader;
+	return j;
 }
 
 
@@ -241,9 +232,6 @@ static int
 update_find_leader(ccm_update_t *tab, llm_info_t *llm) 
 {
 	int i, leader, j;
-	update_t *table, *tmp;
-
-	table = tab->update;
 
 	for ( i = 0 ; i < LLM_GET_NODECOUNT(llm); i++ ){
 		if (UPDATE_GET_INDEX(tab, i) != -1) break;
@@ -255,10 +243,8 @@ update_find_leader(ccm_update_t *tab, llm_info_t *llm)
 
 		if (UPDATE_GET_INDEX(tab, j) == -1) continue;
 
-		tmp = update_choose_leader(&table[j], &table[leader], llm);
-		if (tmp == &table[j]) {
+		if(update_compute_leader(tab, j, llm) == j)
 			leader = j;
-		} 
 	}
 	return leader;
 }
@@ -328,10 +314,10 @@ update_add(ccm_update_t *tab,
 		const char *orig,
 		int  uptime /*incidently its the transition number 
 			      when the node
-			     joined*/)
+			     joined*/,
+		gboolean leader_flag /* should the leader be recomputed? */)
 {
 	int i,j;
-	update_t *table, *leader;
 
 	/* find the location of the hostname in the llm table */
 	i = llm_get_index(llm, orig);
@@ -340,7 +326,8 @@ update_add(ccm_update_t *tab,
 		/* something wrong. Better printout a error and exit 
 	 	* Lets catch this bug
 	 	*/
-		ha_log(LOG_ERR, "ccm_update_table:Internal Logic error i=%d\n",i);
+		ha_log(LOG_ERR, "ccm_update_table:Internal Logic error i=%d\n",
+				i);
 		exit(1);
 	}
 
@@ -348,7 +335,6 @@ update_add(ccm_update_t *tab,
 	 * entry. A free entry should be found within LLM_GET_NODECOUNT
 	 * entries.
 	 */
-	table = tab->update;
 	for ( j = 0 ; j < LLM_GET_NODECOUNT(llm); j++ ){
 		if (UPDATE_GET_INDEX(tab,j) == -1 ) break;
 
@@ -366,25 +352,19 @@ update_add(ccm_update_t *tab,
 		/* something wrong. Better printout a error and exit 
 	 	* Lets catch this bug
 	 	*/
-		ha_log(LOG_ERR, "ccm_update_table:Internal Logic error j=%d\n",j);
+		ha_log(LOG_ERR, "ccm_update_table:Internal Logic error j=%d\n",
+				j);
 		exit(1);
 	}
 
 	UPDATE_SET_INDEX(tab,j,i);
 	UPDATE_SET_UPTIME(tab,j,uptime);
-	if(UPDATE_GET_LEADER(tab) == -1 ) {
-		UPDATE_SET_LEADER(tab, j);
-	} else {
-		leader = update_choose_leader(&table[j], &table[tab->leader], llm);
-		if (leader == NULL) {
-			UPDATE_SET_LEADER(tab, -1);
-		} else if (leader == &table[j]) {
-			UPDATE_SET_LEADER(tab, j);
-		} 
-	}
-
 	// increment the nodecount
 	UPDATE_INCR_NODECOUNT(tab);
+
+	if(leader_flag) 
+		UPDATE_SET_LEADER(tab, update_compute_leader(tab, j, llm));
+
 	return;
 }
 
@@ -446,31 +426,6 @@ update_am_i_leader(ccm_update_t *tab,
 	}
 	return FALSE;
 }
-
-/* 
- * return TRUE if this 'orig' node with 'uptime' uptime can become
- * the leader
- */
-int
-update_can_be_leader(ccm_update_t *tab,  
-			llm_info_t *llm, 
-			const char *orig, 
-			int uptime)
-{
-	int leader_slot = UPDATE_GET_LEADER(tab);
-	update_t entry, *tmp, *table;
-
-	entry.index  = llm_get_index(llm, orig);
-	entry.uptime = uptime;
-	table = tab->update;
-	tmp = update_choose_leader(&table[leader_slot], &entry, llm);
-
-	if (tmp == &entry)
-		return TRUE;
-
-	return FALSE;
-}
-
 
 
 //
