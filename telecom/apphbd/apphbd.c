@@ -140,7 +140,7 @@ apphb_putrc(apphb_client_t* client, int rc)
 {
 	client->rc.rc = rc;
 
-	if (client->ch->ops->send(client->ch, &client->rcmsg) != CH_SUCCESS) {
+	if (client->ch->ops->send(client->ch, &client->rcmsg) != IPC_OK) {
 		client->deleteme = TRUE;
 	}
 	
@@ -381,7 +381,7 @@ apphb_read_msg(apphb_client_t* client)
 	
 	switch (client->ch->ops->recv(client->ch, &msg)) {
 
-		case CH_SUCCESS:
+		case IPC_OK:
 		apphb_process_msg(client, msg->msg_body, msg->msg_len);
 		if (msg->msg_done) {
 			msg->msg_done(msg);
@@ -389,12 +389,12 @@ apphb_read_msg(apphb_client_t* client)
 		break;
 
 
-		case CH_BROKEN:
+		case IPC_BROKEN:
 		client->deleteme = TRUE;
 		break;
 
 
-		case CH_FAIL:
+		case IPC_FAIL:
 		fprintf(stderr, "OOPS! client %s (pid %d) read failure!"
 		,	client->appname, client->pid);
 		break;

@@ -56,7 +56,7 @@ apphb_getrc(void)
 		;
 	}
 	hbcomm->ops->resume_io(hbcomm);
-	if (hbcomm->ops->recv(hbcomm, &msg) != CH_SUCCESS) {
+	if (hbcomm->ops->recv(hbcomm, &msg) != IPC_OK) {
 		perror("Receive failure:");
 		return errno;
 	}
@@ -100,7 +100,7 @@ apphb_register(const char * appname)
   
 	if (hbcomm == NULL
 	||	(hbstatus = hbcomm->ops->initiate_connection(hbcomm)
-	!=	CH_SUCCESS)) {
+	!=	IPC_OK)) {
 		apphb_unregister();
   		errno = EBADF;
 		return -1;
@@ -117,7 +117,7 @@ apphb_register(const char * appname)
 	Msg.msg_private = NULL;
 	Msg.ch = hbcomm;
 
-	if (hbcomm->ops->send(hbcomm, &Msg) != CH_SUCCESS) {
+	if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
 		apphb_unregister();
   		errno = EBADF;
 		return -1;
@@ -140,13 +140,13 @@ apphb_unregister(void)
 	struct OCF_IPC_MESSAGE Msg;
 
 
-	if (hbcomm == NULL || hbstatus != CH_SUCCESS) {
+	if (hbcomm == NULL || hbstatus != IPC_OK) {
 		errno = ESRCH;
 		rc = -1;
 	}
 
 	/* Send an unregister message to the server... */
-	if (hbcomm != NULL && hbstatus == CH_SUCCESS) {
+	if (hbcomm != NULL && hbstatus == IPC_OK) {
 		strncpy(msg.msgtype, UNREGISTER, sizeof(msg.msgtype));
 		Msg.msg_body = &msg;
 		Msg.msg_len = sizeof(msg);
@@ -154,7 +154,7 @@ apphb_unregister(void)
 		Msg.msg_private = NULL;
 		Msg.ch = hbcomm;
 
-		if (hbcomm->ops->send(hbcomm, &Msg) != CH_SUCCESS) {
+		if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
 			rc = -1;
 			rc = EBADF;
 		}else if ((err = apphb_getrc()) != 0) {
@@ -188,7 +188,7 @@ apphb_setinterval(int hbms)
 	struct OCF_IPC_MESSAGE	Msg;
 	int			err;
 
-	if (hbcomm == NULL || hbstatus != CH_SUCCESS) {
+	if (hbcomm == NULL || hbstatus != IPC_OK) {
 		errno = ESRCH;
 		return -1;
 	}
@@ -204,7 +204,7 @@ apphb_setinterval(int hbms)
 	Msg.msg_private = NULL;
 	Msg.ch = hbcomm;
 
-	if (hbcomm->ops->send(hbcomm, &Msg) != CH_SUCCESS) {
+	if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
 		errno = EBADF;
 		return -1;
 	}
@@ -222,7 +222,7 @@ apphb_hb(void)
 	struct apphb_msg msg;
 	struct OCF_IPC_MESSAGE	Msg;
 
-	if (hbcomm == NULL || hbstatus != CH_SUCCESS) {
+	if (hbcomm == NULL || hbstatus != IPC_OK) {
 		errno = ESRCH;
 		return -1;
 	}
@@ -233,7 +233,7 @@ apphb_hb(void)
 	Msg.msg_private = NULL;
 	Msg.ch = hbcomm;
 
-	if (hbcomm->ops->send(hbcomm, &Msg) != CH_SUCCESS) {
+	if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
 		errno = EBADF;
 		return -1;
 	}
