@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.18 2003/02/17 18:51:03 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.19 2003/03/21 17:38:31 alan Exp $";
 /* 
  * send_arp
  * 
@@ -102,7 +102,7 @@ main(int argc, char *argv[])
 	syslog(LOG_ERR, "libnet_init failure:");
         exit(EXIT_FAILURE);
     }
-    if ((ip = libnet_name2addr4(l, argv[2], 1)) == -1) {
+    if ((signed)(ip = libnet_name2addr4(l, argv[2], 1)) == -1) {
         syslog(LOG_ERR, "Cannot resolve IP address\n");
         exit(EXIT_FAILURE);
     }
@@ -228,6 +228,10 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.19  2003/03/21 17:38:31  alan
+ * Put in a patch by Thiago Rondon <thiago@nl.linux.org> to fix a minor
+ * compile error in send_arp.c, which only affects the 1.1 libnet API code.
+ *
  * Revision 1.18  2003/02/17 18:51:03  alan
  * Minor typo correction for #error line in send_arp.c
  *
