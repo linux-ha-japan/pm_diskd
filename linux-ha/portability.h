@@ -131,4 +131,7 @@ inet_pton(int af, const char *src, void *dst);
 #	define USE_GNU
 #endif
 
+#ifndef HAVE_NFDS_T 
+	typedef unsigned long int nfds_t;
+#endif
 #endif /* !PORTABILITY_H */
