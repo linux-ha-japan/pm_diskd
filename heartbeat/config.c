@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.65 2002/07/08 04:14:12 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.66 2002/07/30 17:34:37 horms Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -193,7 +193,12 @@ init_config(const char * cfgfile)
 		if (config->deadtime_interval > 10) {
 			config->initial_deadtime = config->deadtime_interval;
 		}else{
-			config->initial_deadtime = 2 * config->deadtime_interval;
+			if (config->deadtime_interval < 6) {
+				config->initial_deadtime = 12;
+			}else{
+				config->initial_deadtime = 
+					2 * config->deadtime_interval;
+			}
 		}
 	}
 
@@ -1352,6 +1357,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.66  2002/07/30 17:34:37  horms
+ * Make sure that the initial dead time is not set to less than
+ * 10 seconds if it has not been specified in the configuration file.
+ *
  * Revision 1.65  2002/07/08 04:14:12  alan
  * Updated comments in the front of various files.
  * Removed Matt's Solaris fix (which seems to be illegal on Linux).
