@@ -1,5 +1,5 @@
 /*
- * $Id: proc_ha.c,v 1.1 1999/09/23 15:31:24 alanr Exp $
+ * $Id: proc_ha.c,v 1.2 1999/10/02 05:08:03 alanr Exp $
  *
  * Linux-HA /proc interface
  *
@@ -42,12 +42,6 @@
 
 /*	Not sure when I need this... Wanger told me to put it in :-) */
 /*	Advice appreciated... :-) */
-
-#if LINUX_VERSION_CODE >= VERSION_CODE(2,2,12)
-#	ifdef CONFIG_SMP
-#		include <linux/autoconf-smp.h>
-#	endif
-#endif
 
 
 #define	DIMOF(a)	(sizeof(a)/sizeof(a[0])	)
@@ -955,8 +949,11 @@ void cleanup_module(void)
 
 /****************************************************
  * $Log: proc_ha.c,v $
- * Revision 1.1  1999/09/23 15:31:24  alanr
- * Initial revision
+ * Revision 1.2  1999/10/02 05:08:03  alanr
+ * Removed the #include that Mike had thought I'd needed.
+ *
+ * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+ * High-Availability Linux
  *
  * Revision 1.8  1999/07/10 05:26:19  alanr
  * Changed it so that blanks don't delimit values...
