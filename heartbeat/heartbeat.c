@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.111 2001/05/27 04:58:32 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.112 2001/05/31 13:50:56 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -472,6 +472,10 @@ init_procinfo()
 	 *
 	 *	IPC_RMID    is used to mark the segment as destroyed. It
 	 *	will actually be destroyed after the last detach.
+	 *
+	 * Not all the Shared memory implementations have as clear a
+	 * description of this fact as Linux, but they all work this way
+	 * anyway (as far as we have ever tested).
 	 */
 	if (shmctl(ipcid, IPC_RMID, NULL) < 0) {
 		ha_perror("Cannot IPC_RMID proc status shared memory id");
@@ -486,9 +490,10 @@ ha_versioninfo(void)
 	ha_log(LOG_INFO, "%s: version %s", cmdname, VERSION);
 
 	/*
-	 * The reason why we only do this once is that we are doing it with our
-	 * priority which could hang the machine, and forking could possibly 
-	 * cause us to miss a heartbeat if this is done under load.
+	 * The reason why we only do this once is that we are doing it with
+	 * our priority which could hang the machine, and forking could
+	 * possibly cause us to miss a heartbeat if this is done
+	 * under load.
 	 */
 	if (ANYDEBUG && !everprinted) {
 		char	cmdline[MAXLINE];
@@ -496,7 +501,7 @@ ha_versioninfo(void)
 		FILE *	f;
 
 		/*
-		 * Do a 'strings' on ourselves, and look for version info...
+		 * Do 'strings' on ourselves, and look for version info...
 		 */
 
 		/* This command had better be well-behaved! */
@@ -3988,6 +3993,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.112  2001/05/31 13:50:56  alan
+ * Moving towards getting modules working.  More debug also...
+ *
  * Revision 1.111  2001/05/27 04:58:32  alan
  * Made some warnings go away.
  *

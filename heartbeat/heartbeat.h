@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.51 2001/05/26 17:38:01 mmoerz Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.52 2001/05/31 13:50:56 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -329,6 +329,7 @@ extern int			RestartRequested;
 
 #define	ANYDEBUG	(debug)
 #define	DEBUGAUTH	(debug >=3)
+#define	DEBUGMODULE	(debug >=3)
 #define	DEBUGPKT	(debug >= 4)
 #define	DEBUGPKTCONT	(debug >= 5)
 

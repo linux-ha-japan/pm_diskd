@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.10 2001/05/27 22:26:37 mmoerz Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.11 2001/05/31 13:50:56 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -76,12 +76,30 @@ static int
 so_select (const struct dirent *dire)
 { 
     
-	const char *end = &dire->d_name[strlen(dire->d_name) - 3];
+	const char obj_end [] = ".so";
+	const char *end = &dire->d_name[strlen(dire->d_name) - (sizeof(obj_end)-1)];
 	
-	const char *obj_end = ".so";
 	
+	if (DEBUGMODULE) {
+		ha_log(LOG_DEBUG
+		,	"In so_select: %s.", dire->d_name);
+	}
+	if (obj_end < dire->d_name) {
+			return 0;
+	}
 	if (strcmp(end, obj_end) == 0) {
+		if (DEBUGMODULE) {
+			ha_log(LOG_DEBUG
+			,	"FILE %s looks like a module name."
+			,	dire->d_name);
+		}
 		return 1;
+	}
+	if (DEBUGMODULE) {
+		ha_log(LOG_DEBUG
+		,	"FILE %s Doesn't look like a module name [%s], %d %d %s."
+		,	dire->d_name, end, sizeof(obj_end), strlen(dire->d_name)
+		,	&dire->d_name[strlen(dire->d_name) - (sizeof(obj_end)-1)]);
 	}
 	
 	return 0;
@@ -150,7 +168,17 @@ comm_module_init(void)
 	strcpy(comm_symbols[9].name, "hb_dev_isping");
 	comm_symbols[9].mandatory = 1;
 
-	n = scandir(COMM_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
+	if (DEBUGMODULE) {
+		ha_log(LOG_DEBUG
+		,	"Scanning directory %s for modules."
+		,	COMM_MODULE_DIR);
+	}
+	n = scandir(COMM_MODULE_DIR, &namelist, SCANSEL_C &so_select, NULL);
+	if (DEBUGMODULE) {
+		ha_log(LOG_DEBUG
+		,	"scandir on %s returned %d."
+		,	COMM_MODULE_DIR, n);
+	}
 
         if (n < 0) { 
 		ha_log(LOG_ERR, "%s: scandir failed.", __FUNCTION__);
@@ -159,20 +187,26 @@ comm_module_init(void)
 
         for (a = 0; a < n; a++) {
 		char *mod_path           = NULL;
+#if 0
 		char *help               = NULL;
+#endif
 		struct hb_media_fns* fns;
 		int ret;
 
+#if 0
 		/* should use d_type one day when libc6 implements it */
 		if ( !strcmp( namelist[a]->d_name, "." ) || 
 		     !strcmp( namelist[a]->d_name, ".." ) ) 
 			continue;
+#endif
 	  
+#if 0
 		help = strchr(namelist[a]->d_name, '.');
 		if ( !help )
 			continue;
 		if ( strcmp( help, ".la" ) ) 
 			continue;
+#endif
 		
 		mod_path = ha_malloc((strlen(COMM_MODULE_DIR) 
 		+ strlen(namelist[a]->d_name) + 2) * sizeof(char));
@@ -188,6 +222,11 @@ comm_module_init(void)
 		sprintf(mod_path,"%s/%s", COMM_MODULE_DIR, 
 			namelist[a]->d_name);
 
+		if (DEBUGMODULE) {
+			ha_log(LOG_DEBUG
+			,	"Examining module %s:"
+			,	mod_path);
+		}
 		fns = MALLOCT(struct hb_media_fns);
 		
 		if (fns == NULL) { 
@@ -207,6 +246,11 @@ comm_module_init(void)
 				free(namelist[a]);
                         } 
 			return(HA_FAIL);
+		}
+		if (DEBUGMODULE) {
+			ha_log(LOG_DEBUG
+			,	"Loading module %s:"
+			,	mod_path);
 		}
 
 		ret = generic_symbol_load(comm_symbols, NR_HB_MEDIA_FNS, 
@@ -265,8 +309,18 @@ auth_module_init()
 	strcpy(auth_symbols[2].name, "hb_auth_nkey");
 	auth_symbols[2].mandatory = 1;
 
+	if (DEBUGMODULE) {
+		ha_log(LOG_DEBUG
+		,	"Scanning directory %s for modules."
+		,	AUTH_MODULE_DIR);
+	}
         n = scandir(AUTH_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
 
+	if (DEBUGMODULE) {
+		ha_log(LOG_DEBUG
+		,	"scandir on %s returned %d."
+		,	AUTH_MODULE_DIR, n);
+	}
         if (n < 0) { 
 		ha_log(LOG_ERR, "%s: scandir failed", __FUNCTION__);
 		return (HA_FAIL);
@@ -397,7 +451,3 @@ module_init(void)
     _module_error = multi_init_error;
     return HA_FAIL;
 }
-
-
-
-
