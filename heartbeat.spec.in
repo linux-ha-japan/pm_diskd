@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.39 2002/10/10 14:36:51 msoffen Exp $
+#	$Id: heartbeat.spec.in,v 1.40 2002/10/14 11:32:41 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -9,7 +9,7 @@ Group: Utilities
 Packager: Alan Robertson <alanr@unix.sh>
 Source: http://linux-ha.org/download/@HEARTBEATPKG@-@VERSION@.tar.gz
 Buildroot: /var/tmp/@HEARTBEATPKG@-root
-BuildPrereq: glib-devel, lynx, @UCDSNMPDEVEL@, perl, iputils, /usr/bin/ssh
+BuildPrereq: glib-devel, lynx, @UCDSNMPDEVEL@, perl, iputils, /usr/bin/ssh, openssl-devel
 Requires: sysklogd
 
 %package ldirectord
@@ -78,7 +78,7 @@ implementing any number of interfaces.
   + Added a hb_warntime() call to the application heartbeat API.
   + Changed all times in the configuration file to be in milliseconds
         if specified with "ms" at the end.  (seconds is still the default).
-  + Good changes due to Nathan Wallwork <nwallwo@pnm.com>
+  + Fixes to serious security issue due to Nathan Wallwork <nwallwo@pnm.com>
   + Changed read/write child processes to run as nobody.
   + Fixed a bug where ping packets are printed incorrectly when debugging.
   + Changed heartbeat code to preallocate a some heap space.
