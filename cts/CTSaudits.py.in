@@ -108,12 +108,12 @@ class ResourceAudit(ClusterAudit):
                 elif GrpServedBy != ResourceNodes:
                     result.append("Resource resource" + repr(resource)
                     +	" running on different nodes: "
-                    +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
-                    +   "(otherRsc = " + repr(lastResource) + ")"
+                    +	repr(ResourceNodes)+" vs "+repr(GrpServedBy)
+                    +   "(otherRsc = " + repr(lastResource) + ")")
                     self.CM.log("Resource group resource" + repr(resource)
                     +	" running on different nodes: "
-                    +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
-                    +   "(otherRsc = " + repr(lastResource) + ")"
+                    +	repr(ResourceNodes)+" vs "+repr(GrpServedBy)
+                    +   "(otherRsc = " + repr(lastResource) + ")")
                     Fatal = 1
 
 
