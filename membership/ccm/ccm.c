@@ -3559,6 +3559,11 @@ ccm_initialize()
 		/* ignore non normal nodes */
 		if(strcmp(hb_fd->llc_ops->node_type(hb_fd, node), 
 				"normal") != 0) {
+			if(strcmp(node,hname) == 0) {
+				cl_log(LOG_ERR, "This cluster node: %s: "
+						"is a ping node", node);
+				return NULL;
+			}
 			continue;
 		}
 
