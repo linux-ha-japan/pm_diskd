@@ -75,7 +75,8 @@ struct stonith_ops {
  */
 #define	ST_CONF_FILE_SYNTAX	1	/* Config file syntax help */
 #define	ST_CONF_INFO_SYNTAX	2	/* Config string (info) syntax help */
-#define	ST_DEVICEID		3	/* Device Identification */
+#define	ST_DEVICEID		3	/* Device Type Identification */
+#define	ST_DEVICENAME		4	/* Unique Device Identification */
 
 	/* Getinfo() calls return text in the current locale */
 	const char* (*getinfo)		(Stonith*, int infotype);

@@ -64,6 +64,10 @@ static const char * NOTnullID = "Hey, dummy this has been destroyed (NullDev)";
 
 #define DIMOF(a)	(sizeof(a)/sizeof(a[0]))
 
+
+#define N_(text)	(text)
+#define _(text)		dgettext(ST_TEXTDOMAIN, text)
+
 static const char *
 		NULL_getinfo(Stonith * s, int InfoType);
 
@@ -227,7 +231,7 @@ NULL_host_req(Stonith * s, int request, const char * host)
 		syslog(LOG_ERR, "invalid argument to NULL_host_req");
 		return(S_OOPS);
 	}
-	syslog(LOG_INFO, dgettext(ST_TEXTDOMAIN,"Host %s null-reset."), host);
+	syslog(LOG_INFO, _("Host %s null-reset."), host);
 	return S_OK;
 }
 
@@ -297,18 +301,16 @@ NULL_getinfo(Stonith * s, int reqtype)
 
 	switch (reqtype) {
 		case ST_DEVICEID:
-			ret = dgettext(ST_TEXTDOMAIN, "null STONITH device");
+			ret = _("null STONITH device");
 			break;
 
 		case ST_CONF_INFO_SYNTAX:
-			ret = dgettext(ST_TEXTDOMAIN
-			,	"hostname ...\n"
+			ret = _("hostname ...\n"
 			"host names are white-space delimited.");
 			break;
 
 		case ST_CONF_FILE_SYNTAX:
-			ret = dgettext(ST_TEXTDOMAIN
-			,	"IP-address login password\n"
+			ret = _("IP-address login password\n"
 			"host names are white-space delimited.  "
 			"All host names must be on one line.  "
 			"Blank lines and lines beginning with # are ignored");

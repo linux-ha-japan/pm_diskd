@@ -34,6 +34,9 @@
 
 #define	DEVICE	"BayTech power switch"
 
+#define N_(text)	(text)
+#define _(text)		dgettext(ST_TEXTDOMAIN, text)
+
 /*
  *	I have an RPC-5.  This code has been tested with this switch.
  *
@@ -82,7 +85,7 @@ static const char * NOTbtid = "Hey, dummy this has been destroyed (BayTech)";
 			}					\
 			(s) = MALLOC(strlen(v)+1);		\
 			if ((s) == NULL) {			\
-				syslog(LOG_ERR, "out of memory");\
+				syslog(LOG_ERR, _("out of memory"));\
 			}else{					\
 				strcpy((s),(v));		\
 			}					\
@@ -182,7 +185,7 @@ RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout)
 {
 	int	rc;
 	if ((rc = ExpectToken(bt->rdfd, tlist, timeout, NULL, 0)) < 0) {
-		syslog(LOG_ERR, "Did not find string: '%s' from" DEVICE "."
+		syslog(LOG_ERR, _("Did not find string: '%s' from" DEVICE ".")
 		,	tlist[0].string);
 		RPCkillcomm(bt);
 		return(-1);
@@ -196,7 +199,7 @@ static int
 RPCScanLine(struct BayTech* bt, int timeout, char * buf, int max)
 {
 	if (ExpectToken(bt->rdfd, CRNL, timeout, buf, max) < 0) {
-		syslog(LOG_ERR, "Could not read line from " DEVICE ".");
+		syslog(LOG_ERR, ("Could not read line from " DEVICE "."));
 		RPCkillcomm(bt);
 		bt->pid = -1;
 		return(S_OOPS);
@@ -219,7 +222,7 @@ RPCLogin(struct BayTech * bt)
 	/* Look for the unit type info */
 	if (ExpectToken(bt->rdfd, BayTechAssoc, 2, IDinfo
 	,	sizeof(IDinfo)) < 0) {
-		syslog(LOG_ERR, "No initial response from " DEVICE ".");
+		syslog(LOG_ERR, _("No initial response from " DEVICE "."));
 		RPCkillcomm(bt);
 		return(errno == ETIME ? S_TIMEOUT : S_OOPS);
 	}
@@ -258,7 +261,7 @@ RPCLogin(struct BayTech * bt)
 			break;
 
 		case 1:	/* OOPS!  got another username prompt */
-			syslog(LOG_ERR, "Invalid username for " DEVICE ".");
+			syslog(LOG_ERR, _("Invalid username for " DEVICE "."));
 			return(S_ACCESS);
 
 		default:
@@ -276,7 +279,7 @@ RPCLogin(struct BayTech * bt)
 			break;
 
 		case 1:	/* Uh-oh - bad password */
-			syslog(LOG_ERR, "Invalid password for " DEVICE ".");
+			syslog(LOG_ERR, _("Invalid password for " DEVICE "."));
 			return(S_ACCESS);
 
 		default:
@@ -361,13 +364,13 @@ RPCReset(struct BayTech* bt, int unitnum, const char * rebootid)
 			goto retry;
 
 		case 2:	/* Outlet is turned off */
-			syslog(LOG_ERR, "Host %s is OFF.", rebootid);
+			syslog(LOG_ERR, _("Host %s is OFF."), rebootid);
 			return(S_ISOFF);
 
 		default: 
 			return(errno == ETIME ? S_RESETFAIL : S_OOPS);
 	}
-	syslog(LOG_INFO, "Host %s being rebooted.", rebootid);
+	syslog(LOG_INFO, _("Host %s being rebooted."), rebootid);
 
 	/* Expect "ower applied to outlet" */
 	if (RPCLookFor(bt, PowerApplied, 30) < 0) {
@@ -376,7 +379,7 @@ RPCReset(struct BayTech* bt, int unitnum, const char * rebootid)
 
 	/* All Right!  Power is back on.  Life is Good! */
 
-	syslog(LOG_INFO, "Power restored to host %s.", rebootid);
+	syslog(LOG_INFO, _("Power restored to host %s."), rebootid);
 
 	/* Expect: "RPC-x>" */
 	EXPECT(RPC,5);
@@ -402,7 +405,7 @@ RPC_onoff(struct BayTech* bt, int unitnum, const char * unitid, int req)
 	}
 
 	if ((rc = RPCLogin(bt) != S_OK)) {
-		syslog(LOG_ERR, "Cannot log into " DEVICE ".");
+		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(rc);
 	}
 	SEND("\r");
@@ -439,7 +442,7 @@ RPC_onoff(struct BayTech* bt, int unitnum, const char * unitid, int req)
 	EXPECT(GTSign, 5);
 
 	/* All Right!  Command done. Life is Good! */
-	syslog(LOG_NOTICE, "Power to host %s turned %s.", unitid, onoff);
+	syslog(LOG_NOTICE, _("Power to host %s turned %s."), unitid, onoff);
 	/* Pop back to main menu */
 	SEND("MENU\r");
 	return(S_OK);
@@ -534,7 +537,7 @@ RPC_status(Stonith  *s)
 	}
 
 	if ((rc = RPCLogin(bt) != S_OK)) {
-		syslog(LOG_ERR, "Cannot log into " DEVICE ".");
+		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(rc);
 	}
 
@@ -576,7 +579,7 @@ RPClist_hosts(Stonith  *s)
 	}
 
 	if (RPCLogin(bt) != S_OK) {
-		syslog(LOG_ERR, "Cannot log into " DEVICE ".");
+		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(NULL);
 	}
 
@@ -762,14 +765,14 @@ RPC_reset_host(Stonith * s, int request, const char * host)
 	}
 
 	if ((rc = RPCLogin(bt)) != S_OK) {
-		syslog(LOG_ERR, "Cannot log into " DEVICE ".");
+		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 	}else{
 		int	noutlet;
 		noutlet = RPCNametoOutlet(bt, host);
 
 		if (noutlet < 1) {
-			syslog(LOG_WARNING, "%s %s "
-			"doesn't control host [%s].", bt->idinfo
+			syslog(LOG_WARNING, _("%s %s "
+			"doesn't control host [%s]."), bt->idinfo
 			,	bt->unitid, host);
 			RPCkillcomm(bt);
 			return(S_BADHOST);
@@ -817,7 +820,7 @@ RPC_set_configfile(Stonith* s, const char * configname)
 	bt = (struct BayTech*) s->pinfo;
 
 	if ((cfgfile = fopen(configname, "r")) == NULL)  {
-		syslog(LOG_ERR, "Cannot open %s", configname);
+		syslog(LOG_ERR, _("Cannot open %s"), configname);
 		return(S_BADCONFIG);
 	}
 	while (fgets(RPCid, sizeof(RPCid), cfgfile) != NULL){
@@ -866,14 +869,12 @@ RPC_getinfo(Stonith * s, int reqtype)
 			break;
 
 		case ST_CONF_INFO_SYNTAX:
-			ret = dgettext(ST_TEXTDOMAIN
-			,	"IP-address login password\n"
+			ret = _("IP-address login password\n"
 			"The IP-address and login are white-space delimited.");
 			break;
 
 		case ST_CONF_FILE_SYNTAX:
-			ret = dgettext(ST_TEXTDOMAIN
-			,	"IP-address login password\n"
+			ret = _("IP-address login password\n"
 			"The IP-address and login are white-space delimited.  "
 			"All three items must be on one line.  "
 			"Blank lines and lines beginning with # are ignored");

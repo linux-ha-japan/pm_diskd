@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.3 2000/07/28 05:32:21 alan Exp $
+#	$Id: Makefile,v 1.4 2000/08/01 13:45:16 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -48,6 +48,7 @@ CFLAGS=-g 				\
 
 
 STONITH = stonith
+
 E_OBJLIST =	expect.o	\
 		baytech.o	\
 		null.o	\
@@ -57,10 +58,11 @@ E_HDRS    =	expect.h stonith.h
 
 LIBS=
 
+BINDIR = $(BUILD_ROOT)/usr/sbin
 
-LIBCMDS = $(STONITH)
+BINCMDS = $(STONITH)
 
-PRODUCTS = $(LIBCMDS)
+PRODUCTS = $(BINCMDS)
 
 SPECSRC = Specfile
 
@@ -77,12 +79,11 @@ $(E_OBJLIST) : $(E_HDRS)
 install: install_bin
 
 install_bin: all
-	[ -p $(FIFO) ] || mkfifo $(FIFO) || chmod 0600 $(FIFO)
-	$(INSTALL) -cm 755 $(LIBCMDS)
+	$(INSTALL) -cm 755 $(BINCMDS) $(BINDIR)
 
 clean:	
 	rm -f *.o *.swp .*.swp core make.out
-	rm -f $(LIBCMDS)
+	rm -f $(BINCMDS)
 
 pristene: clean
 
