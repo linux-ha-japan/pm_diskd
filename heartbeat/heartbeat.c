@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.272 2003/07/14 04:10:31 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.273 2003/07/22 09:51:35 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2510,7 +2510,7 @@ send_cluster_msg(struct ha_msg* msg)
 		if (	(smsg = msg2string(msg)) == NULL
 		||	(ffd = open(FIFONAME, O_WRONLY|O_NDELAY)) < 0
 		||	write(ffd, smsg, msg->stringlen-1)
-		!=	msg->stringlen-1){
+		!=	((int)msg->stringlen)-1){
 			cl_perror("Cannot write message to " FIFONAME
 			" [%d vs %d]", getpid(), processes[0]);
 			ha_log_message(msg);
@@ -4121,6 +4121,10 @@ get_localnodeinfo(void)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.273  2003/07/22 09:51:35  alan
+ * Patch to fix problem noted by "Ing. Jozef Sakalos" <jsakalos@ba.success.sk>
+ * with comparisons between signed an unsigned ints.
+ *
  * Revision 1.272  2003/07/14 04:10:31  alan
  * Changed the "clock just jumped" code to do nothing nowadays.
  * It's not really needed, but it's good information because it can mess up

@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.19 2003/05/09 15:15:37 alan Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.20 2003/07/22 09:51:35 alan Exp $";
 #include <portability.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -121,7 +121,7 @@ static struct ha_bucket*	ha_malloc_buckets[NUMBUCKS];
 static size_t	ha_bucket_sizes[NUMBUCKS];
 
 static int ha_malloc_inityet = 0;
-static int ha_malloc_hdr_offset = sizeof(struct ha_mhdr);
+static size_t ha_malloc_hdr_offset = sizeof(struct ha_mhdr);
 
 void*		ha_malloc(size_t size);
 static void*	ha_new_mem(size_t size, int numbuck);
