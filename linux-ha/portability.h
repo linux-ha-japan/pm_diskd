@@ -18,8 +18,7 @@
  * 
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA *
  */
 
 #define	EOS			'\0'
@@ -61,6 +60,14 @@
 int setenv(const char *name, const char * value, int why);
 
 #endif /* HAVE_SETENV */
+
+#ifndef HAVE_STRERROR
+  /* We supply a replacement function, but need a prototype */
+const char * strerror(int errnum);
+
+#endif /* HAVE_STRERROR */
+int setenv(const char *name, const char * value, int why);
+
 
 #ifndef HAVE_SCANDIR
   /* We supply a replacement function, but need a prototype */
