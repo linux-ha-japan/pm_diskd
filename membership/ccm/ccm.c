@@ -3303,6 +3303,7 @@ ccm_control_process(ccm_info_t *info, ll_cluster_t * hb)
 		} else if((strncmp(type, T_SHUTDONE, TYPESTRSIZE)) == 0) {
 			/* handle heartbeat shutdown message */
 			cl_log(LOG_DEBUG, "received shutdown orig=%s", orig);
+			nodelist_update(orig, CLUST_INACTIVE, -1, info);
 		       	if((newreply = ccm_handle_shutdone(info, orig, status)) 
 					== NULL) {
 				ha_msg_del(reply);
@@ -3334,7 +3335,7 @@ ccm_control_process(ccm_info_t *info, ll_cluster_t * hb)
 			const char *result = ha_msg_value(reply, F_APIRESULT);
 			const char *node = ha_msg_value(reply, F_NODE);
 			if(strcmp(result,T_STONITH_OK)==0){
-				nodelist_update(node, STONITHSTATUS, -1, info);
+				nodelist_update(node, CLUST_INACTIVE, -1, info);
 			} else {
 				nodelist_update(node, DEADSTATUS, -1, info);
 			}
@@ -3456,15 +3457,12 @@ ccm_take_control(void *data)
 	ll_cluster_t *hbfd = (ll_cluster_t *)((ccm_t *)data)->hbfd;
 	static gboolean client_flag=FALSE;
 
-	int ret = ccm_control_process(info, hbfd);
-
-	
 	if(!client_flag) {
 		client_llm_init(CCM_GET_LLM(info));
 		client_flag=TRUE;
 	}
 
-	return ret;
+	return  ccm_control_process(info, hbfd);
 }
 
 int

@@ -101,20 +101,15 @@ send_func(gpointer key, gpointer value, gpointer user_data)
 
 	switch(ccm_client->ccm_flags) {
 	case CL_INIT:
-		if(llm_flag) {
-			/* send llm message */
-			send_message(ccm_client, ipc_llm_message);
-			ccm_client->ccm_flags = CL_LLM;
+		if(!llm_flag) {
+			break;
 		}
-		if(prim_flag) {
-			/* send born message */
-			send_message(ccm_client, ipc_born_message);
-			/* send mem message */
-			send_message(ccm_client, ipc_mem_message);
-			ccm_client->ccm_flags = CL_MEM;
-		} 
-		break;
-
+		/* send llm message */
+		send_message(ccm_client, ipc_llm_message);
+		ccm_client->ccm_flags = CL_LLM;
+		/* 
+		 * FALL THROUGH
+		 */
 	case CL_LLM:
 		if(prim_flag) {
 			/* send born message */
@@ -437,5 +432,8 @@ client_llm_init(llm_info_t *llm)
 				sizeof(ccm_ipc_t)+
 				sizeof(int), 
 				MAXIPC, G_ALLOC_AND_FREE);
+
+	/* check if anybody is waiting */
+	send_all();
 	return;
 }

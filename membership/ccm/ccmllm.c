@@ -47,7 +47,7 @@ llm_only_active_node(llm_info_t *llm)
 	for ( i = 0 ; i < LLM_GET_NODECOUNT(llm) ; i++ ) {
 		if(i == (uint)LLM_GET_MYNODE(llm)) continue;
 		if(strncmp(LLM_GET_STATUS(llm, i), 
-			STONITHSTATUS, STATUSSIZE) != 0) {
+			CLUST_INACTIVE, STATUSSIZE) != 0) {
 			return FALSE;
 		}
 	}
@@ -104,12 +104,12 @@ llm_get_index(llm_info_t *llm, const char *node)
 
 //
 // Update the status of node 'nodename'.
-// return TRUE if the node transitioned to DEADSTATUS or STONITHSTATUS
+// return TRUE if the node transitioned to DEADSTATUS or CLUST_INACTIVE
 //
-// NOTE: STONITHSTATUS carries more information then DEADSTATUS
+// NOTE: CLUST_INACTIVE carries more information then DEADSTATUS
 // DEADSTATUS just means the node is assumed to be dead, probably because
 // of loss of connectivity or because of real death.
-// BUT STONITHSTATUS confirms that the node is really dead(killed).
+// BUT CLUST_INACTIVE confirms that the node is really cluster inactive.
 //
 int
 llm_status_update(llm_info_t *llm, const char *node, const char *status)
@@ -128,7 +128,7 @@ llm_status_update(llm_info_t *llm, const char *node, const char *status)
 
 	LLM_SET_STATUS(llm,i,status);
 	if((strncmp(status, DEADSTATUS, STATUSSIZE) == 0) || 
-		strncmp(status, STONITHSTATUS, STATUSSIZE) == 0) {
+		strncmp(status, CLUST_INACTIVE, STATUSSIZE) == 0) {
 		return TRUE;
 	}
 	return FALSE;

@@ -92,7 +92,7 @@ typedef struct llm_info_s { /* information about low level membership info */
 	int	   llm_mynode;	 //index of mynode
 	NodeList_t llm_nodes[MAXNODE];  //information of each node
 } llm_info_t;
-#define STONITHSTATUS  "stnth"
+#define CLUST_INACTIVE  "inctv"
 #define LLM_GET_MYNODE(llm) llm->llm_mynode
 #define LLM_GET_NODECOUNT(llm) llm->llm_nodeCount
 #define LLM_GET_UUID(llm,i) llm->llm_nodes[i].NodeUuid
