@@ -79,11 +79,13 @@ clean:	am_config_clean
 am_config_clean:
 		rm -fr $(PACKAGE)-*.tar.gz
 
-handy: rpm
+handy: rpm handy-copy
+
+handy-copy:
 	cd doc; $(MAKE) ChangeLog
 	rm -f $(WEBDIR)/ChangeLog
 	cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(RPMstonith) $(RPMldir) $(RPMpils) $(WEBDIR)
 
 
 
-.PHONY: rpm handy
+.PHONY: rpm handy handy-copy
