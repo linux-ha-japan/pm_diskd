@@ -3,3 +3,4 @@ Makefile
 stonith
 meatclient
 *.la
+*.lo

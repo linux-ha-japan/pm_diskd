@@ -7,3 +7,4 @@ send_arp
 findif
 api_test
 *.la
+*.lo
