@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.9 2003/01/08 21:14:08 msoffen Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.10 2003/01/17 07:27:11 msoffen Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -34,6 +34,10 @@ static const char _ucast_Id [] = "$Id: ucast.c,v 1.9 2003/01/08 21:14:08 msoffen
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+
+#ifndef HAVE_INET_ATON
+	extern  int     inet_aton(const char *, struct in_addr *);
+#endif
 #include <arpa/inet.h>
 
 #include <heartbeat.h>
@@ -580,9 +584,11 @@ new_ip_interface(const char * ifn, const char *hbaddr, int port)
 	struct ip_private * ep;
 	struct in_addr heartadr;
 
+
 	if (0 == inet_aton(hbaddr, &heartadr)) {
 		return (NULL);
 	}
+
 	
 	/*
 	 * We now have all the information we need.  Populate our
