@@ -1,6 +1,6 @@
 #
 #	There are lots of options in this file.  All you have to have is a set
-#	of nodes listedJ {"node ...}
+#	of nodes listed {"node ...}
 #	and one of {serial, udp, or mcast}
 #
 #
@@ -14,7 +14,7 @@
 #       defined then defaults will be used for debugfile and logfile as
 #       required and messages will be sent there.
 #
-#	File to wirte debug messages to
+#	File to write debug messages to
 #debugfile /var/log/ha-debug
 #
 #
@@ -51,6 +51,7 @@ logfacility	local0
 #	
 #	serial	serialportname ...
 #serial	/dev/ttyS0
+#serial	/dev/cuaa0
 #
 #
 #	Baud rate for serial ports...
