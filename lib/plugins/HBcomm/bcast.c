@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.6 2001/10/02 05:12:19 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.7 2001/10/02 15:52:20 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -559,7 +559,7 @@ new_ip_interface(const char * ifn, int port)
 	}
 	strcpy(ep->interface, ifn);
 	
-	bzero(&ep->addr, sizeof(ep->addr));	/* zero the struct */
+	memset(&ep->addr, 0, sizeof(ep->addr));	/* zero the struct */
 	ep->addr.sin_family = AF_INET;		/* host byte order */
 	ep->addr.sin_port = htons(port);	/* short, network byte order */
 	ep->port = port;
@@ -680,6 +680,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.7  2001/10/02 15:52:20  alan
+ * Replaced bzero with memset...  This is a minor portability issue...
+ *
  * Revision 1.6  2001/10/02 05:12:19  alan
  * Various portability fixes (make warnings go away) for Solaris.
  *

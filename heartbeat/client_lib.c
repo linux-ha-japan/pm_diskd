@@ -792,7 +792,7 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	strcmp(result, API_OK) == 0
 	&&	(status = ha_msg_value(reply, F_STATUS)) != NULL) {
-                bzero(statbuf, sizeof(statbuf));
+                memset(statbuf, 0, sizeof(statbuf));
 		strncpy(statbuf, status, sizeof(statbuf) - 1);
 		ret = statbuf;
 	}else{
