@@ -1,7 +1,7 @@
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H
 
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.9 2000/07/10 23:08:41 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.10 2000/07/19 23:03:53 alan Exp $";
 #include <stdio.h>
 /*
  *	Intracluster message object (struct ha_msg)
@@ -26,6 +26,7 @@ struct ha_msg {
 	/* Common field names for our messages */
 #define	F_TYPE		"t"		/* Message type */
 #define	F_ORIG		"src"		/* Originator */
+#define	F_NODE		"node"		/* Originator */
 #define	F_TO		"dest"		/* Destination (optional) */
 #define	F_STATUS	"st"		/* New status (type = status) */
 #define	F_TIME		"ts"		/* Timestamp */
@@ -43,9 +44,11 @@ struct ha_msg {
 #define F_ISSTABLE	"isstable"	/* true/false for RESOURCES */
 #define F_APIREQ	"reqtype"	/* API request type for "hbapi" */
 #define F_APIRESULT	"result"	/* API request result code */
+#define F_IFNAME	"ifname"	/* Interface name */
 
 
 #define	T_STATUS	"status"	/* Message type = Status */
+#define	T_IFSTATUS	"ifstat"	/* Message type = Interface status */
 #define	NOSEQ_PREFIX	"NS_"		/* Give no sequence number */
 #define	T_REXMIT	"NS_rexmit"	/* Message type = Retransmit request */
 #define	T_NAKREXMIT	"NS_nak_rexmit"	/* Message type = NAK Re-xmit rqst */

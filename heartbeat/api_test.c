@@ -38,6 +38,7 @@ typedef struct gen_callback {
 }gen_callback_t;
 
 typedef struct llc_private {
+	const char *			PrivateId;
 	llc_nstatus_callback_t*		node_callback;
 	void*				node_private;
 	llc_ifstatus_callback_t*	if_callback;
@@ -46,11 +47,14 @@ typedef struct llc_private {
 	struct stringlist*		nextnode;
 	struct stringlist*		nextif;
 }llc_private_t;
+static const char * OurID = "Heartbeat private data";
+#define ISOURS(l) (l && l->ll_cluster_private &&				\
+		(((llc_private_t*)(l->ll_cluster_private))->PrivateId) == OurID)
 
 static void		ClearLog(void);
 static struct ha_msg*	hb_api_boilerplate(const char * apitype);
-static int		hb_api_signon(const char * clientid);
-static int		hb_api_signoff(void);
+static int		hb_api_signon(struct ll_cluster*, const char * clientid);
+static int		hb_api_signoff(struct ll_cluster*);
 static int		hb_api_setfilter(unsigned);
 static void		destroy_stringlist(struct stringlist *);
 static struct stringlist*
@@ -67,7 +71,7 @@ static int		add_gen_callback(const char * msgtype
 static int		del_gen_callback(llc_private_t*, const char * msgtype);
 
 static struct ha_msg*	read_api_msg(void);
-static struct ha_msg*	read_hb_msg(void);
+static struct ha_msg*	read_hb_msg(ll_cluster_t*, int blocking);
 
 static int		hb_api_setsignal(ll_cluster_t*, int nsig);
 static int set_msg_callback
@@ -94,6 +98,9 @@ static int		sendclustermsg(ll_cluster_t*, struct ha_msg* msg);
 static int		sendnodemsg(ll_cluster_t*, struct ha_msg* msg
 ,			const char * nodename);
 static const char *	APIError(ll_cluster_t*);
+static int		CallbackCall(llc_private_t* p, struct ha_msg * msg);
+static struct ha_msg *	read_msg_w_callbacks(ll_cluster_t* llc, int blocking);
+static int		rcvmsg(ll_cluster_t* llc, int blocking);
 
 volatile struct process_info *	curproc = NULL;
 static char		OurPid[16];
@@ -103,6 +110,7 @@ static FILE*		ReplyFIFO = NULL;
 static int		SignedOnAlready = 0;
 static char 		OurNode[SYS_NMLN];
 static char		ReplyFIFOName[API_FIFO_LEN];
+static ll_cluster_t*	hb_cluster_new(void);
 
 #define	ZAPMSG(m)	{ha_msg_del(m); (m) = NULL;}
 
@@ -142,8 +150,9 @@ hb_api_boilerplate(const char * apitype)
 	}
 	return(msg);
 }
+
 static int
-hb_api_signon(const char * clientid)
+hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 {
 	struct ha_msg*	request;
 	struct ha_msg*	reply;
@@ -153,8 +162,12 @@ hb_api_signon(const char * clientid)
 	int		rc;
 	const char *	result;
 
+	if (!ISOURS(cinfo)) {
+		ha_log(LOG_ERR, "hb_api_signon: bad cinfo");
+		return HA_FAIL;
+	}
 	if (SignedOnAlready) {
-		return HA_OK;
+		hb_api_signoff(cinfo);
 	}
 	snprintf(OurPid, sizeof(OurPid), "%d", getpid());
 	snprintf(ReplyFIFOName, sizeof(ReplyFIFOName), "%s/%d", API_FIFO_DIR
@@ -224,10 +237,14 @@ hb_api_signon(const char * clientid)
 }
 
 static int
-hb_api_signoff()
+hb_api_signoff(struct ll_cluster* cinfo)
 {
 	struct ha_msg*	request;
 
+	if (!ISOURS(cinfo)) {
+		ha_log(LOG_ERR, "hb_api_signoff: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
@@ -313,6 +330,10 @@ hb_api_setsignal(ll_cluster_t* lcl, int nsig)
 	char		csignal[32];
 
 	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_log(LOG_ERR, "hb_api_setsignal: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
@@ -458,6 +479,10 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 	const char *		ret;
 
 	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_log(LOG_ERR, "get_nodestatus: bad cinfo");
+		return NULL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return NULL;
@@ -508,6 +533,10 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 	const char *		ret;
 
 	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_log(LOG_ERR, "get_ifstatus: bad cinfo");
+		return NULL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return NULL;
@@ -745,23 +774,36 @@ read_api_msg(void)
 }
 
 static struct ha_msg *
-read_hb_msg(void)
+read_hb_msg(ll_cluster_t* llc, int blocking)
 {
 	struct ha_msg*	msg;
+
+	if (!ISOURS(llc)) {
+		ha_log(LOG_ERR, "read_hb_msg: bad cinfo");
+		return HA_FAIL;
+	}
 	msg = dequeue_msg();
 
 	if (msg != NULL) {
 		return(msg);
 	}
-	return(msgfromstream(ReplyFIFO));
-	
+	if (!blocking && !msgready(llc)) {
+		return(NULL);
+	}
+	msg = msgfromstream(ReplyFIFO);
+
+	return msg;
 }
 static int
-set_msg_callback (ll_cluster_t* ci, const char * msgtype
+set_msg_callback(ll_cluster_t* ci, const char * msgtype
 ,			llc_msg_callback_t* callback, void * p)
 {
 
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "set_msg_callback: bad cinfo");
+		return HA_FAIL;
+	}
 	return(add_gen_callback(msgtype,
 	(llc_private_t*)ci->ll_cluster_private, callback, p));
 }
@@ -786,10 +828,81 @@ set_ifstatus_callback (ll_cluster_t* ci
 	return(HA_OK);
 }
 static int
+CallbackCall(llc_private_t* p, struct ha_msg * msg)
+{
+	const char *	mtype=  ha_msg_value(msg, F_TYPE);
+	struct gen_callback*	gcb;
+
+	if (mtype == NULL) {
+		return(0);
+	}
+	
+	/* Special case: node status (change) */
+
+	if (p->node_callback && strcasecmp(mtype, T_STATUS) == 0) {
+		(*p->node_callback)(ha_msg_value(msg, F_ORIG)
+		,	ha_msg_value(msg, F_STATUS), p->node_private);
+		return(1);
+	}
+
+	/* Special case: interface status (change) */
+
+	if (p->if_callback && strcasecmp(mtype, T_IFSTATUS) == 0) {
+		(*p->if_callback)(ha_msg_value(msg, F_NODE)
+		,	ha_msg_value(msg, F_IFNAME)
+		,	ha_msg_value(msg, F_STATUS)
+		,	p->if_private);
+		return(1);
+	}
+
+	/* The general case: Any other message type */
+
+	for (gcb = p->genlist; gcb; gcb=gcb->next) {
+		if (gcb->cf && strcasecmp(gcb->msgtype, mtype) == 0) {
+			(*gcb->cf)(msg, gcb->pd);
+			return(1);
+		}
+	}
+	return(0);
+}
+static struct ha_msg *
+read_msg_w_callbacks(ll_cluster_t* llc, int blocking)
+{
+	struct ha_msg*	msg = NULL;
+	llc_private_t* p = (llc_private_t*) llc->ll_cluster_private;
+
+	do {
+		if (msg) {
+			ZAPMSG(msg);
+		}
+		msg = read_hb_msg(llc, blocking);
+
+	}while (msg && CallbackCall(p, msg));
+	return(msg);
+}
+static int
+rcvmsg(ll_cluster_t* llc, int blocking)
+{
+	struct ha_msg*	msg = NULL;
+	
+	msg=read_msg_w_callbacks(llc, blocking);
+
+	if (msg) {
+		ZAPMSG(msg);
+		return(1);
+	}
+	return(0);
+}
+
+static int
 init_nodewalk (ll_cluster_t* ci)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "init_nodewalk: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
@@ -807,6 +920,10 @@ nextnode (ll_cluster_t* ci)
 	const char *	ret;
 
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "nextnode: bad cinfo");
+		return NULL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return NULL;
@@ -824,6 +941,10 @@ end_nodewalk(ll_cluster_t* ci)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "end_nodewalk: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
@@ -838,6 +959,10 @@ init_ifwalk (ll_cluster_t* ci, const char * host)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "init_ifwalk: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
@@ -851,9 +976,12 @@ nextif (ll_cluster_t* ci)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
 	const char *	ret;
-	ClearLog();
 
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "nextif: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
@@ -871,19 +999,27 @@ end_ifwalk(ll_cluster_t* ci)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "end_ifwalk: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 	pi->nextif = NULL;
 	zap_iflist();
-	return(HA_OK);
+	return HA_OK;
 }
 
 static int
 get_inputfd(ll_cluster_t*ci )
 {
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "get_inputfd: bad cinfo");
+		return(-1);
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return -1;
@@ -898,6 +1034,10 @@ msgready(ll_cluster_t*ci )
 	int		rc;
 
 	ClearLog();
+	if (!ISOURS(ci)) {
+		ha_log(LOG_ERR, "msgready: bad cinfo");
+		return 0;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return 0;
@@ -917,9 +1057,13 @@ setfmode(ll_cluster_t* lcl, int mode)
 	unsigned	filtermask;
 
 	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_log(LOG_ERR, "setfmode: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
-		return 0;
+		return HA_FAIL;
 	}
 	switch(mode) {
 
@@ -945,6 +1089,10 @@ static int
 sendclustermsg(ll_cluster_t* lcl, struct ha_msg* msg)
 {
 	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_log(LOG_ERR, "sendclustermsg: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
@@ -956,6 +1104,10 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 ,			const char * nodename)
 {
 	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_log(LOG_ERR, "sendnodemsg: bad cinfo");
+		return HA_FAIL;
+	}
 	if (!SignedOnAlready) {
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
@@ -967,8 +1119,7 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 	return(msg2stream(msg, MsgFIFO));
 }
 
-
-struct llc_ops heartbeat_ops = {
+static struct llc_ops heartbeat_ops = {
 	set_msg_callback,	/* set_msg_callback */
 	set_nstatus_callback,	/* set_nstatus_callback */
 	set_ifstatus_callback,	/* set_ifstatus_callback */
@@ -985,8 +1136,8 @@ struct llc_ops heartbeat_ops = {
 	get_inputfd,		/* inputfd */
 	msgready,		/* msgready */
 	hb_api_setsignal,	/* setmsgsignal */
-	NULL,			/* rcvmsg */
-	NULL,			/* readmsg */
+	rcvmsg,			/* rcvmsg */
+	read_msg_w_callbacks,	/* readmsg */
 	setfmode,		/* setfmode */
 	APIError,		/* errormsg */
 };
@@ -999,50 +1150,6 @@ void gotsig(int nsig)
 	quitnow = 1;
 }
 
-int
-main(int argc, char ** argv)
-{
-	struct ha_msg*	reply;
-	unsigned	fmask;
-	(void)_heartbeat_h_Id;
-	(void)_ha_msg_h_Id;
-
-	fprintf(stderr, "Signing in with heartbeat\n");
-	hb_api_signon(NULL);
-
-#if 0
-	fmask = ALLTREATMENTS;
-#else
-	fmask = DEFAULTREATMENT;
-#endif
-	fprintf(stderr, "Setting message filter mask\n");
-	hb_api_setfilter(fmask);
-	fprintf(stderr, "Setting message signal\n");
-	hb_api_setsignal(NULL, 0);
-	fprintf(stderr, "Getting list of nodes\n");
-	get_nodelist();
-	fprintf(stderr, "Getting list of interfaces\n");
-	get_iflist("kathyamy");
-	fprintf(stderr, "Node status: %s\n"
-	,	get_nodestatus(NULL, "kathyamy"));
-	fprintf(stderr, "IF status: %s\n"
-	,	get_ifstatus(NULL, "kathyamy", "eth0"));
-
-	siginterrupt(SIGINT, 1);
-	signal(SIGINT, gotsig);
-	/* Read all subsequent replies... */
-	fprintf(stderr, "Now waiting for more messages...\n");
-	for(; !quitnow && (reply=read_hb_msg()) != NULL;) {
-		fprintf(stderr, "Got another message...\n");
-		ha_log_message(reply);
-		ZAPMSG(reply);
-	}
-	if (!quitnow) {
-		perror("msgfromstream returned NULL");
-	}
-	hb_api_signoff();
-	return 0;
-}
 
 void *
 ha_malloc(size_t size)
@@ -1057,10 +1164,12 @@ ha_free(void * ptr)
 }
 
 static char	APILogBuf[MAXLINE];
+int		BufLen = 0;
 void
 ClearLog(void)
 {
 	APILogBuf[0] = EOS;
+	BufLen = 1;
 }
 
 
@@ -1073,20 +1182,28 @@ APIError(ll_cluster_t* lcl)
 void
 ha_log(int priority, const char * fmt, ...)
 {
+	int	len;
         va_list ap;
         char buf[MAXLINE];
  
         va_start(ap, fmt);
-        vsnprintf(buf, MAXLINE, fmt, ap);
+        vsnprintf(buf, sizeof(buf), fmt, ap);
         va_end(ap);
+	len = strlen(buf);
+fprintf(stderr, "%s\n", buf);
+
+	if ((BufLen + len) >= sizeof(APILogBuf)) {
+		ClearLog();
+	}
+		
  
 	if (APILogBuf[0] != EOS && APILogBuf[strlen(APILogBuf)-1] != '\n') {
-
-		/* Strncat checks for overflow */
 		strncat(APILogBuf, "\n", sizeof(APILogBuf));
+		BufLen++;
 	}
-			
+
 	strncat(APILogBuf, buf, sizeof(APILogBuf));
+	BufLen += len;
 }
 
 
@@ -1121,4 +1238,84 @@ ha_perror(const char * fmt, ...)
 
 	ha_log(LOG_ERR, "%s: %s", buf, err);
 
+}
+static ll_cluster_t*
+hb_cluster_new()
+{
+	ll_cluster_t*	ret;
+	struct llc_private* hb;
+
+	if ((hb = MALLOCT(struct llc_private)) == NULL) {
+		return(NULL);
+	}
+	memset(hb, 0, sizeof(*hb));
+	if ((ret = MALLOCT(ll_cluster_t)) == NULL) {
+		ha_free(hb);
+		hb = NULL;
+		return(NULL);
+	}
+	memset(ret, 0, sizeof(*ret));
+
+	hb->PrivateId = OurID;
+	ret->ll_cluster_private = hb;
+	ret->llc_ops = &heartbeat_ops;
+
+	return ret;
+}
+
+ll_cluster_t*
+ll_cluster_new(const char * llctype)
+{
+	if (strcmp(llctype, "heartbeat") == 0) {
+		return hb_cluster_new();
+	}
+	return NULL;
+}
+
+
+int
+main(int argc, char ** argv)
+{
+	struct ha_msg*	reply;
+	unsigned	fmask;
+	ll_cluster_t*	hb;
+	(void)_heartbeat_h_Id;
+	(void)_ha_msg_h_Id;
+
+	hb = ll_cluster_new("heartbeat");
+	fprintf(stderr, "Signing in with heartbeat\n");
+	hb_api_signon(hb, NULL);
+
+#if 0
+	fmask = ALLTREATMENTS;
+#else
+	fmask = DEFAULTREATMENT;
+#endif
+	fprintf(stderr, "Setting message filter mask\n");
+	hb_api_setfilter(fmask);
+	fprintf(stderr, "Setting message signal\n");
+	hb_api_setsignal(hb, 0);
+	fprintf(stderr, "Getting list of nodes\n");
+	get_nodelist();
+	fprintf(stderr, "Getting list of interfaces\n");
+	get_iflist("kathyamy");
+	fprintf(stderr, "Node status for kathyamy: %s\n"
+	,	get_nodestatus(hb, "kathyamy"));
+	fprintf(stderr, "IF status for kathyamy/eth0: %s\n"
+	,	get_ifstatus(hb, "kathyamy", "eth0"));
+
+	siginterrupt(SIGINT, 1);
+	signal(SIGINT, gotsig);
+	/* Read all subsequent replies... */
+	fprintf(stderr, "Now waiting for more messages...\n");
+	for(; !quitnow && (reply=read_hb_msg(hb, 1)) != NULL;) {
+		fprintf(stderr, "Got another message...\n");
+		ha_log_message(reply);
+		ZAPMSG(reply);
+	}
+	if (!quitnow) {
+		perror("read_hb_msg returned NULL");
+	}
+	hb_api_signoff(hb);
+	return 0;
 }

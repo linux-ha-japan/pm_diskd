@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.13 2000/07/11 14:42:42 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.14 2000/07/19 23:03:53 alan Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -60,6 +60,7 @@ ha_msg_del(struct ha_msg *msg)
 			for (j=0; j < msg->nfields; ++j) {
 				if (msg->names[j]) {
 					ha_free(msg->names[j]);
+					msg->names[j] = NULL;
 				}
 			}
 			ha_free(msg->names);
@@ -69,6 +70,7 @@ ha_msg_del(struct ha_msg *msg)
 			for (j=0; j < msg->nfields; ++j) {
 				if (msg->values[j]) {
 					ha_free(msg->values[j]);
+					msg->values[j] = NULL;
 				}
 			}
 			ha_free(msg->values);
@@ -387,6 +389,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.14  2000/07/19 23:03:53  alan
+ * Working version of most of the API code.  It still has the security bug...
+ *
  * Revision 1.13  2000/07/11 14:42:42  alan
  * More progress on API code.
  *

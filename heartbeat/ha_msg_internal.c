@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.1 2000/07/11 00:25:52 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.2 2000/07/19 23:03:53 alan Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -32,7 +32,7 @@ if_msgfromstream(FILE * f, char *iface)
 		return(NULL);
 	}
 
-	/* Try to find the interface on the message. */
+	/* Try to find the interface in the message. */
 
 	if (!strcmp(buf, IFACE)) {
 		/* Found interface name header, get interface name. */
@@ -164,7 +164,7 @@ controlfifo2msg(FILE * f)
 	}
 
 	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
-		ha_error("msgfromstream: cannot get message");
+		ha_error("controlfifo2msg: cannot create message");
 		return(NULL);
 	}
 
@@ -203,13 +203,13 @@ controlfifo2msg(FILE * f)
 			continue;
 		}
 
-		/* Don't put in duplicate values already gotten from other side */
+		/* Don't put in duplicate values already gotten */
 		if (noseqno && ha_msg_value(ret, defaults[j].name) != NULL) {
 			/* This keeps us from adding another "from" field */
 			continue;
 		}
 
-		if (ha_msg_add(ret, defaults[j].name, defaults[j].value())
+		if (ha_msg_mod(ret, defaults[j].name, defaults[j].value())
 		!=	HA_OK)  {
 			ha_msg_del(ret);
 			return(NULL);
@@ -408,6 +408,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.2  2000/07/19 23:03:53  alan
+ * Working version of most of the API code.  It still has the security bug...
+ *
  * Revision 1.1  2000/07/11 00:25:52  alan
  * Added a little more API code.  It looks like the rudiments are now working.
  *

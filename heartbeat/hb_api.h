@@ -155,13 +155,14 @@ struct llc_ops {
 	int		(*setmsgsignal)(ll_cluster_t*, int signo);
 /*
  *	rcvmsg:	Cause the next message to be read - activating callbacks for
- *		processing the message.
+ *		processing the message.  If no callback processes the message
+ *		it will be ignored.  The message is automatically disposed of.
+ *		It returns 1 if a message was received.
  */
 	int		(*rcvmsg)(ll_cluster_t*, int blocking);
 
 /*
- *	Read the next message without any silly callbacks.
- *	(at least the next one not intercepted by another callback).
+ *	Return next message not intercepted by a callback.
  *	NOTE: you must dispose of this message by calling ha_msg_del().
  */
 	struct ha_msg* (*readmsg)(ll_cluster_t*, int blocking);
@@ -197,3 +198,8 @@ struct llc_ops {
 
 	const char * (*errmsg)(ll_cluster_t*);
 };
+
+ll_cluster_t*
+ll_cluster_new(const char * llctype);
+
+
