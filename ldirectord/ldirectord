@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.31 2001/04/29 01:40:37 horms Exp $
+# $Id: ldirectord,v 1.32 2001/04/29 08:57:23 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -149,7 +149,7 @@ with a minimum of 4 spaces or one tab.
 
 B<real => I<ip_address|hostname[->ip_address|hostname]:portnumber|servicename> B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
 
-Defines a real service by IP-address (or hoatname) and port (or
+Defines a real service by IP-address (or hostname) and port (or
 servicename). Optionally a range of IP addresses (or two hostnames) may be
 given, in which case each IP address in the range will be treated as a real
 server using the given port. The second argument defines the forwarding
@@ -431,13 +431,15 @@ sub init
 	undef @OLDVIRTUAL;
 
 	# Run as daemon
-	if (!defined $opt_d) {
+	if (defined $opt_d) {
+		&ld_log("Starting Linux Director");
+        } else {
+		&ld_log("Starting Linux Director Daemon");
 		&ld_daemon();
 		open(FILE, ">$RUNPID.$CFGNAME.pid") || init_error("Can not open $RUNPID.$CFGNAME.pid");
 		print FILE "$$\n";
 		close(FILE);
 	}
-	&ld_log("Starting Linux Director Daemon");
 }
 
 
@@ -749,7 +751,7 @@ sub read_config
 #       "https", "ftp" or "none" if $vsrv->{port} is 80, 443, 21
 #       or any other value respectivley
 # reurn: none
-#        Debuging message will be reported and programme will exit
+#        Debugging message will be reported and programme will exit
 #        on error.
 
 sub _ld_read_config_virtual_resolve
@@ -794,7 +796,7 @@ sub _ld_read_config_virtual_resolve
 # post: Take $vsrv->{fallback}, resolve it as per ld_gethostservbyname
 #       and set $vsrv->{fallback} to the result
 # reurn: none
-#        Debuging message will be reported and programme will exit
+#        Debugging message will be reported and programme will exit
 #        on error.
 
 sub _ld_read_config_fallback_resolve
@@ -823,7 +825,7 @@ sub _ld_read_config_fallback_resolve
 #                 line number, used for error reporting
 # post: Run through rsrv_todo and parse real servers
 # reurn: none
-#        Debuging message will be reported and programme will exit
+#        Debugging message will be reported and programme will exit
 #        on error.
 
 sub _ld_read_config_real_resolve
@@ -879,7 +881,7 @@ sub _ld_read_config_real_resolve
 #             gate|masq|ipip [<weight>] [">I<request>", "<receive>"]
 # post: real servers are added to virtual server
 # return: none
-#         Debuging message will be reported and programme will exit
+#         Debugging message will be reported and programme will exit
 #         on error.
 
 sub add_real_server_range
@@ -921,7 +923,7 @@ sub add_real_server_range
 #             gate|masq|ipip [<weight>] [">I<request>", "<receive>"]
 # post: real server is added to virtual server
 # return: none
-#         Debuging message will be reported and programme will exit
+#         Debugging message will be reported and programme will exit
 #         on error.
 
 sub add_real_server
@@ -1123,7 +1125,7 @@ sub ld_start
 		if (exists($oldsrv{"$real_service"})) {
 			# service exists, modify it
 			&system_wrapper("$IPVSADM -E $$nv{flags}");
-			&ld_log("Changing virtual server: " . &get_virtual($nv));
+			&ld_log("Changed virtual server: " . &get_virtual($nv));
 			my $ov = $oldsrv{&get_virtual($nv) . " " . $$nv{protocol}};
 			my $or = $$ov{real};
 			for $nr (@$nreal) {
@@ -1131,7 +1133,7 @@ sub ld_start
 					&system_wrapper("$IPVSADM -e $$nv{proto} " . &get_virtual($nv) . " -R $$nr{server}:$$nr{port} $$nr{forw} $$nr{wght}");
 					$$nr{status} = 1;
 					$$nv{status}++;
-					&ld_log("Changing real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
+					&ld_log("Changed real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
 					delete($$or{"$$nr{server}:$$nr{port}"});
 				} else {
 					$$nr{status} = 0;
@@ -1140,7 +1142,7 @@ sub ld_start
 			# remove remaining entries for real servers
 			for my $k (keys %$or) {
 				&system_wrapper("$IPVSADM -d $$nv{proto} " . &get_virtual($nv) . " -R $k");
-				print ("Removing real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
+				print ("Removed real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
 			}
 			delete $oldsrv{&get_virtual($nv) . " " . $$nv{protocol}};
 		} else {
@@ -1149,7 +1151,7 @@ sub ld_start
 			for $nr (@$nreal) {
 				$$nr{status} = 0;
 			}
-			&ld_log("Adding virtual server: " . &get_virtual($nv));
+			&ld_log("Added virtual server: " . &get_virtual($nv));
 		}
 
 		&fallback_on($nv);
@@ -1160,7 +1162,7 @@ sub ld_start
 		if (exists($oldsrv{&get_virtual($nv) . " " . $$nv{protocol}})) {
 			# service still exists, remove it
 			&system_wrapper("$IPVSADM -D $$nv{proto} " . &get_virtual($nv));
-			&ld_log("Removing virtual server: " . &get_virtual($nv) . "\n");
+			&ld_log("Removed virtual server: " . &get_virtual($nv) . "\n");
 		}
 	}
 }
@@ -1186,11 +1188,11 @@ sub ld_stop
 				&system_wrapper("$IPVSADM -d $$v{proto} " . &get_virtual($v) . " -R $$r{server}:$$r{port}");
 				$$r{status} = 0;
 				$$v{status}--;
-				&ld_log("Removing real server: $$r{server}:$$r{port} ($$v{status} x " . &get_virtual($v) );
+				&ld_log("Removed real server: $$r{server}:$$r{port} ($$v{status} x " . &get_virtual($v) );
 			}
 		}
 		&system_wrapper("$IPVSADM -D $$v{proto} " .  &get_virtual($v));
-		&ld_log("Removing virtual server: " .  &get_virtual($v));
+		&ld_log("Removed virtual server: " .  &get_virtual($v));
 	}
 }
 
@@ -1346,11 +1348,11 @@ sub check_connect
 	alarm 0; # Cancel the alarm
 	if ($@) {
 		&service_set($v, $r, "down");
-		&ld_debug(3, "Deactivating service $$r{server}:$$r{port}: $@");
+		&ld_debug(3, "Deactivated service $$r{server}:$$r{port}: $@");
 		return 0;
 	} else {
 		&service_set($v, $r, "up");
-		&ld_debug(3, "Activating service $$r{server}:$$r{port}");
+		&ld_debug(3, "Activated service $$r{server}:$$r{port}");
 		return 1;
 	}
 }
@@ -1447,11 +1449,11 @@ sub service_set()
 			if ($state=~/up/i) {
 				$$r{status}=0;
 				_service_up($v, $r);
-				&ld_debug(2, "Enabling server=$$r{server}");
+				&ld_debug(2, "Enabled server=$$r{server}");
 			} elsif ($state=~/down/i) {
 				$$r{status}=1;
 				_service_down($v, $r);
-				&ld_debug(2, "Disabling server=$$r{server}");
+				&ld_debug(2, "Disabled server=$$r{server}");
 			}
 		}
 	}
@@ -1477,7 +1479,7 @@ sub _service_up
 		&system_wrapper("$IPVSADM -a $$v{proto}  " . &get_virtual($v) . " -R $$r{server}:$$r{port} $$r{forw} $$r{wght}");
 		$$r{status} = 1;
 		$$v{status}++;
-		&ld_log("Adding real server: $$r{server}:$$r{port} ($$v{status} x " .  &get_virtual($v) . ")");
+		&ld_log("Added real server: $$r{server}:$$r{port} ($$v{status} x " .  &get_virtual($v) . ")");
 		&fallback_off($v);
 	}
 }
@@ -1502,7 +1504,7 @@ sub _service_down
 		&system_wrapper("$IPVSADM -d $$v{proto} " .  &get_virtual($v) . " -R $$r{server}:$$r{port}");
 		$$r{status} = 0;
 		$$v{status}--;
-		&ld_log("Removing real server: $$r{server}:$$r{port} ($$v{status} x " .  &get_virtual($v) . ")");
+		&ld_log("Removed real server: $$r{server}:$$r{port} ($$v{status} x " .  &get_virtual($v) . ")");
 		&fallback_on($v);
 	}
 }
@@ -1522,7 +1524,7 @@ sub fallback_on
 	if (defined $fallback and $$virtual{status}==0) {
 		# turn on fallback service
 		&system_wrapper("$IPVSADM -a $$virtual{proto} " . &get_virtual($virtual) . " -R $fallback");
-		&ld_log("Starting fallback server for: " . &get_virtual($virtual) . " ($fallback)");
+		&ld_log("Started fallback server for: " . &get_virtual($virtual) . " ($fallback)");
 	}
 }
 
@@ -1541,7 +1543,7 @@ sub fallback_off
 	if (defined $fallback and $$virtual{status}==1) {
 		# turn off fallback service
 		&system_wrapper("$IPVSADM -d $$virtual{proto} " . &get_virtual($virtual) . " -R $fallback");
-		&ld_log("Turning off fallback server for: " . &get_virtual($virtual) . " ($fallback)");
+		&ld_log("Turned off fallback server for: " . &get_virtual($virtual) . " ($fallback)");
 	}
 }
 
@@ -1649,8 +1651,8 @@ sub ld_debug
 sub system_wrapper
 {
 	my (@args)=(@_);
-
-	system(@_) == 0 or &ld_log("system(@args) failed");
+        &ld_log("Running system(@args)") if $DEBUG>2;
+	system(@args) == 0 or &ld_log("system(@args) failed");
 }
 
 
