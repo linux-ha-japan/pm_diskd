@@ -1,0 +1,9 @@
+#!/bin/sh
+
+. $HA_FUNCS
+
+ha_debug "Running $0: $*"
+
+case $HA_st in
+  dead)	$HA_BIN/mach_down $HA_src;;
+esac

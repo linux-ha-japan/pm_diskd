@@ -1,0 +1,47 @@
+#
+#	There are lots of options in this file.  All you have to have is a set
+#	of nodes listedJ {"node ...}
+#	and one of {serial, udp, or ppp-udp}
+#
+#	keepalive: how many seconds between heartbeats
+#
+#keepalive 2
+#
+#	deadtime: seconds-to-declare-host-dead
+#
+#deadtime 10
+#	hopfudge maximum hop count minus number of nodes in config
+#hopfudge 1
+#	
+#	serial	serialportname ...
+#serial	/dev/ttyS0
+#
+#	Only for serial ports.  It applies to both PPP/UDP and "raw" ports
+#
+#	This means run PPP over ports ttyS1 and ttyS2
+#	Their respective IP addresses are as listed.
+#	Note that I enforce that these are local addresses.  Other addresses
+#	are almost certainly a mistake.
+#ppp-udp	/dev/ttyS1 10.0.0.1 /dev/ttyS2 10.0.0.2
+#
+#	Baud rate for both serial and ppp-udp ports...
+#
+#baud	19200
+#
+#	What UDP port to use for udp or ppp-udp communication?
+#
+#udpport	1001
+#
+#	What interfaces to heartbeat over?
+#
+#udp	eth0
+#
+#	Watchdog is the watchdog timer.  If our own heart doesn't beat for
+#	a minute, then our machine will reboot.
+#
+#watchdog /dev/watchdog
+#
+#	Tell what machines are in the cluster
+#	node	nodename ...	-- must match uname -n
+#node	ken3
+#node	kathy

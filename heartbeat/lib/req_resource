@@ -1,0 +1,41 @@
+#
+#	This script is called to politely request that a resource be given up
+#	to us.
+#
+#	At the end of $TIMEOUT, we take it anyway.
+#
+#	It could be that we already have taken it, in which case it should
+#	do nothing.
+#
+#
+
+# set -x
+HA_DIR=/etc/ha.d; export HA_DIR
+. $HA_DIR/shellfuncs
+
+TIMEOUT=30
+
+RESOURCE=$1
+
+#
+#	Do we already have this resource?
+#
+case `$HA_BIN/ResourceManager status $RESOURCE` in
+  *[Rr]unning*)		exit 0;;
+esac
+
+#
+#	Now give our ip-request-message...
+#
+#		"ip-request"		Message type
+#		ip-address		IP address requested
+#						DENY if we won't/can't
+#
+
+
+ha_clustermsg <<!MSG
+t=ip-request
+ipaddr=$RESOURCE
+!MSG
+
+(sleep $TIMEOUT;  $HA_BIN/ResourceManager takegroup $RESOURCE)&

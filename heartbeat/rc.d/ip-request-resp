@@ -1,0 +1,48 @@
+#
+#	This script is called in response to an ip-request message after the
+#	one we've called calls us back.
+#
+#	What we do then is to take over the IP address requested...
+#
+#	Note: this script is called by the heartbeat code, so it gets all
+#	kinds of funny arguments
+#
+#		"ip-request-resp"
+
+. $HA_FUNCS
+
+#
+#
+US="ip-request-resp"
+TAKE=$HA_BIN/ResourceManager
+
+CMD=$1
+#
+#	$HA_dest, $HA_ipaddr and $HA_ok are fields from the message
+#
+REQNODE=$HA_dest
+IPADDR=$HA_ipaddr
+RESPONSE=$HA_ok
+if
+  [  "$CMD" != $US ] ||
+  case $IPADDR in
+    *.*.*.*)	false;;
+    *)		true;;
+  esac
+then
+  cat <<-!EOF
+	Usage: $0 "$US"
+	$0 will take control of the given IP address using $TAKE
+	!EOF
+  exit 1
+fi
+if
+  [ "X$REQNODE" != "X$HA_CURHOST" ]
+then
+  exit 0; # We didn't request this IP address...  Ignore the response.
+fi
+ha_log "received $US $IPADDR $RESPONSE"
+case $RESPONSE in
+  OK)	$TAKE takegroup $IPADDR;;
+  *);;
+esac

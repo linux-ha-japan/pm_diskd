@@ -1,0 +1,34 @@
+HA_DIR=/etc/ha.d
+HA_RCDIR=$HA_DIR/rc.d
+HA_FIFO=/var/run/heartbeat-fifo
+HA_BIN=/usr/lib/heartbeat
+HA_LOGFILE=/var/log/ha-log
+HA_DEBUGLOG=/var/log/ha-debug
+HA_DATEFMT="%Y/%m/%d_%T "
+HA_RESOURCEDIR=$HA_DIR/resource.d
+HA_DOCDIR=/usr/doc/heartbeat
+
+export HA_DIR HA_RCDIR HA_FIFO HA_BIN HA_DEBUGLOG HA_LOGFILE
+export HA_DATEFMT HA_RESOURCEDIR HA_DOCDIR
+
+hadate() {
+  date "+${HA_DATEFMT}"
+}
+
+ha_log() {
+	: appending to $HA_LOGFILE
+	echo `hadate`"${*}" >> $HA_LOGFILE
+}
+
+ha_debug() {
+	: appending to $HA_DEBUGLOG
+	echo `hadate`"${*}" >> $HA_DEBUGLOG
+}
+
+ha_clustermsg() {
+	cat $* <<-!MSG >> $HA_FIFO
+>>>
+`cat`
+<<<
+!MSG
+}

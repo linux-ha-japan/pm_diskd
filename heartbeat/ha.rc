@@ -1,0 +1,77 @@
+#! /bin/sh
+#
+# ha            Start high-availability services
+#
+# Author:       Alan Robertson
+#
+#		Parts are patterned after some Red Hat examples, but now
+#		it should run (except for status) under SuSE also...
+#
+# processname: heartbeat
+# pidfile: /var/run/heartbeat.pid
+# config: /etc/ha.d/ha.cf
+
+HA_BIN="/etc/ha.d/bin"
+HAINIT="$HA_BIN/init-ha"
+HASTOP="$HA_BIN/stop-ha"
+KILLPROC=/sbin/killproc
+RHFUNCS=/etc/rc.d/init.d/functions
+
+#
+#	Source Red Hat's nice function library.
+#	unfortunately, I still require this for "status"
+#	So that function (status) only runs on the Red Hat distribution
+#
+if
+  [ ! -x $RHFUNCS ]
+then
+  daemon() {
+	$*
+  }
+else
+  . $RHFUNCS
+fi
+
+ShutDown() {
+	$HASTOP
+	if
+	  [ -x $KILLPROC ]
+	then
+	  $KILLPROC $HA_BIN/heartbeat
+	else
+	  killproc heartbeat
+	fi
+	$HA_BIN/stop-ha
+}
+
+# Get config.
+
+# See how we were called.
+case "$1" in
+  start)
+	echo -n "Starting High-Availability services: "
+	daemon $HAINIT
+	echo
+	touch /var/lock/subsys/heartbeat
+	;;
+  stop)
+
+	echo -n "Stopping High-Availability services: "
+	ShutDown
+	echo
+	rm -f /var/lock/subsys/heartbeat
+	;;
+  status)
+	status heartbeat
+	;;
+
+  restart|reload)
+	ShutDown
+	daemon $HAINIT
+	;;
+  *)
+	echo "Usage: ha {start|stop|status|restart|reload}"
+	exit 1
+esac
+
+exit 0

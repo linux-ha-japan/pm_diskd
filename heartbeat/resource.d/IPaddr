@@ -1,0 +1,270 @@
+#
+#	$Id: IPaddr,v 1.1 1999/09/23 15:31:24 alanr Exp $
+#
+#	This script manages IP alias IP addresses
+#
+#	It can add an IP alias, or remove one.
+#
+#	usage: $0 ip-address {start|stop|status}
+#
+#	The "start" arg adds an IP alias.
+#
+#	Surprisingly, the "stop" arg removes one.	:-)
+#
+#
+. /etc/ha.d/shellfuncs
+
+IFCONFIG=/sbin/ifconfig
+ROUTE=/sbin/route
+SENDARP=$HA_BIN/send_arp
+FINDIF=$HA_BIN/findif
+USAGE="usage: $0 ip-address {start|stop|status}";
+
+#
+#	Find out which alias serves the given IP address
+#	The argument is an IP address, and its output
+#	is an aliased interface name (e.g., "eth0:0").
+#
+find_interface() {
+
+  ipaddr=$1;
+  $IFCONFIG |
+  while read ifname linkstuff
+  do
+    read inet addr junk
+    while
+      read line && [ "X$line" != "X" ]
+    do
+      : Nothing
+    done
+    case $ifname in
+      *:*)	;;
+      *)	continue;;
+    esac
+    case $addr in
+      addr:$ipaddr)	echo $ifname; return;;
+    esac
+  done
+}
+
+
+#
+#	Remove the IP alias for the requested IP address...
+#	
+ip_stop() {
+  BASEIP=`echo $1 | sed s'%/.*%%'`
+  IF=`find_interface $BASEIP`
+  if
+    [ -z "$IF" ]
+  then
+    : Requested interface not in use
+    exit 0
+  fi
+
+  if
+    [ -x $HA_RCDIR/local_giveip ]
+  then
+    $HA_RCDIR/local_giveip $*
+  fi
+
+#
+#	The next bit of code is borrowed from Horms' fake code...
+#	and can be inferred from the IP-Aliasing mini-HOWTO
+#
+
+  $ROUTE del -host $BASEIP
+  $IFCONFIG $IF down
+  ha_log "IP Address $BASEIP released"
+}
+
+
+#
+#	Find an unused interface/alias name for us to use for new IP alias
+#	The argument is an IP address, and the output
+#	is an aliased interface name (e.g., "eth0:0").
+#
+find_free_interface() {
+  ipaddr=$1;
+  if
+    NICINFO=`$FINDIF $ipaddr`
+  then
+    : OK
+  else
+    lrc=$?
+    ha_log "ERROR: unable to find an interface for $ipaddr"
+    return $?
+  fi
+  nicname=`echo "$NICINFO" | cut -f1`
+  nicinfo=`echo "$NICINFO" | cut -f2-`
+  if
+    [ $nicname = "" ]
+  then
+    ha_log "ERROR: no interface found for $ipaddr"
+    return 1;
+  fi
+
+  IFLIST=`$IFCONFIG | grep "^$nicname:[0-9]" | sed 's% .*%%'`
+  IFLIST=" `echo $IFLIST` "
+
+  for j in 0 1 2 3 4 5 6 7
+  do
+    case $IFLIST in
+      *" "$nicname:$j" "*)	;;
+      *)			echo "$nicname:$j	$nicinfo"
+      				return 0;;
+    esac
+  done
+  return 1
+}
+
+
+#
+#	Add an IP alias for the requested IP address...
+#
+#	It could be that we already have taken it, in which case it should
+#	do nothing.
+#
+
+ip_start() {
+#
+#	Do we already service this IP address?
+#
+  if
+    $IFCONFIG | grep "inet addr:$1" >/dev/null 2>&1
+  then
+    exit 0	# We already own this IP address
+  fi
+
+  IFINFO=`find_free_interface $1`
+  IF=`echo "$IFINFO" | cut -f1`
+  IFEXTRA=`echo "$IFINFO" | cut -f2-`
+  BASEIP=`echo $1 | sed s'%/.*%%'`
+
+  if
+    [ -x $HA_RCDIR/local_takeip ]
+  then
+    $HA_RCDIR/local_takeip $*
+  fi
+  
+#
+#	The remaining code in this function taken from FAKE, by horms
+#
+
+  ha_log "INFO: ifconfig $IF $BASEIP $IFEXTRA"
+  $IFCONFIG $IF $BASEIP $IFEXTRA
+
+  $ROUTE add -host $BASEIP dev $IF
+
+  TARGET_INTERFACE=`echo $IF | sed 's%:.*%%'`
+
+  MACADDR=$($IFCONFIG $TARGET_INTERFACE  | \
+      fgrep $TARGET_INTERFACE | \
+      sed \
+      's/^.*HWaddr \(..\):\(..\):\(..\):\(..\):\(..\):\(..\).*$/\1\2\3\4\5\6/')
+  
+  if [ "${MACADDR:=NULL}" = "NULL" ]; then
+      ha_log "Could not locate obtain hardware address for $TARGET_INTERFACE"
+  fi
+ 
+  ha_log "Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
+
+  for j in 1 2 3 4 5
+  do
+   $SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff \
+     || ha_log "ERROR: Could not send gratuitous arp"
+     sleep 2
+  done
+}
+
+ip_status() {
+  BASEIP=`echo $1 | sed s'%/.*%%'`
+  if
+    $IFCONFIG | grep "inet addr:$BASEIP" >/dev/null 2>&1
+  then
+    echo "running"
+  else
+    echo "stopped"
+  fi
+}
+
+usage() {
+  echo $USAGE >&2
+}
+
+#
+#	Add or remove IP alias for the given IP address...
+#
+
+if
+  [ $# -eq 1 ]
+then
+  case $1 in
+    info)	cat <<-!INFO
+	Abstract=IP address takeover
+	Argument=IP address OR IP address/broadcast address OR IP address/broadcast address/netmaskbits
+	Description:
+	An IPaddr resource is an IP address which is to be taken over by \\
+	the owning node.  An argument is required, and is of this form:
+	    nnn.nnn.nnn.nnn/bbb.bbb.bbb.bbb
+	Where nnn.nnn.nnn.nnn is the IP address to be taken over, and\\
+	bbb.bbb.bbb.bbb is the broadcast address to be used with this address.
+
+	Since IPaddr is the "default" resource type, it is not necessary\\
+	to prefix the IP address by "IPaddr::".
+	This allows IPaddr::192.2.4.63 to be abbreviated as 192.2.4.63.
+	!INFO
+	exit 0;;
+  esac
+fi
+if
+  [ $# -ne 2 ]
+then
+  usage
+  exit 1
+fi
+
+case $2 in
+  start)	ip_start $1;;
+  stop)		ip_stop $1;;
+  status)	ip_status $1;;
+  *)		usage
+  		exit 1
+		;;
+esac
+#
+#
+# $Log: IPaddr,v $
+# Revision 1.1  1999/09/23 15:31:24  alanr
+# Initial revision
+#
+# Revision 1.11  1999/09/12 06:56:53  alanr
+# Fixed the bugs that kept addresses w/netmasks and broadcast addresses from working.
+#
+# Revision 1.10  1999/09/08 03:47:18  alanr
+# fixed things up so that send_arp doesn't just assume eth0 as the ethernet interface...
+#
+# Revision 1.9  1999/08/22 04:49:42  alanr
+# Fixed a stupid syntax error.  Wonder how it got in here?
+#
+# Revision 1.8  1999/08/21 05:43:38  alanr
+# added "info" argument to support GUI help screens, etc.
+#
+# Revision 1.7  1999/08/17 18:09:16  alanr
+# More message changes.
+#
+# Revision 1.6  1999/08/17 18:04:31  alanr
+# Minor message changes for Thomas' code.
+#
+# Revision 1.5  1999/08/17 17:57:07  alanr
+# Put in Thomas Hepper's fix to make it obey netmasks and broadcast addrs
+# from base interface.
+#
+# Revision 1.4  1999/08/17 05:00:44  alanr
+# added a dumb extra #
+#
+# Revision 1.3  1999/08/17 04:57:57  alanr
+# Added RCS keywords, and bug fix from Thomas Hepper
+# th@ant.han.de to fix some kind of problem associated with PPP configs.
+#
+#
+#

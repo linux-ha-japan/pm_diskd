@@ -1,0 +1,73 @@
+#	$Id: Makefile,v 1.1 1999/09/23 15:31:24 alanr Exp $
+#
+#	Makefile for making High-Availability Linux documents
+#
+#
+PKG=heartbeat
+VERS=test!
+
+#	This defaults DESTDIR to "/"
+#	Debian wants things to start with DESTDIR,
+#	but Red Hat starts them with RPM_BUILD_ROOT	(sigh...)
+#
+DESTDIR=
+BRROOTDIR=$(RPM_BUILD_ROOT)/$(DESTDIR)
+#
+DOCDIR=$(BRROOTDIR)/usr/doc/$(PKG)
+
+HTML2TXT = lynx -dump
+INSTALL = install
+
+MADEDOCS =			\
+	ChangeLog		\
+	HardwareGuide		\
+	GettingStarted		\
+	Requirements
+
+DOCFILES =			\
+	$(MADEDOCS)		\
+	AUTHORS			\
+	COPYING			\
+	ChangeLog		\
+	HardwareGuide.html	\
+	GettingStarted.html	\
+	Requirements.html	\
+	README			\
+	ha.cf			\
+	haresources
+
+SPECSRC = ../Specfile
+
+all: $(DOCFILES)
+
+rh-all: all
+
+ChangeLog:	$(SPECSRC)
+	rm -fr ChangeLog
+	sed -e '1,/^%changelog/d' -e '/^%/,$$d' <$(SPECSRC) >ChangeLog
+	chmod 444 ChangeLog
+
+HardwareGuide: HardwareGuide.html
+	$(HTML2TXT) HardwareGuide.html >HardwareGuide
+
+GettingStarted: GettingStarted.html
+	$(HTML2TXT) GettingStarted.html >GettingStarted
+
+Requirements: Requirements.html
+	$(HTML2TXT) Requirements.html >Requirements
+
+
+install: all $(DOCFILES)
+	$(INSTALL) -m 644 $(DOCFILES) $(DOCDIR)
+	$(INSTALL) -m 644 ../proc-ha/proc_ha.c $(DOCDIR)
+
+rh-install: install
+
+install_bin: all
+rh-install_bin: install_bin
+
+clean:
+	rm -f core *.o *.swp .*.swp
+
+pristene: clean
+	rm -f $(MADEDOCS)

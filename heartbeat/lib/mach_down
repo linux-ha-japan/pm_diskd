@@ -1,0 +1,16 @@
+#
+#	This script will only work for a two machine setup...
+#	More than that and you need to vote, or something...
+#
+#
+. /etc/ha.d/shellfuncs
+
+: Now running $0: $*
+
+mdown=$1;	#	The name of the downed machine...
+
+for groupkey in `$HA_BIN/ResourceManager listkeys $mdown`
+do
+  ha_log "Taking over resource group $groupkey"
+  $HA_BIN/ResourceManager takegroup $groupkey
+done

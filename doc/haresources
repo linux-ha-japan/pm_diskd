@@ -1,0 +1,97 @@
+#
+#	This is a list of resources that move from machine to machine as
+#	nodes go down and come up in the cluster.  Do not include
+#	"administrative" or fixed IP addresses in this file.
+#	
+#	We refer to this file when we're coming up, and when a machine is being
+#	taken over after going down.
+#
+#	You need to make this right for your installation, then install it in
+#	/etc/ha.d
+#
+#	These resources in this file are either IP addresses, or the name
+#	of scripts to run to "start" or "stop" the given resource.
+#
+#	The format is like this:
+#
+#node-name resource1 resource2 ... resourceN
+#
+#	If the resource name contains an :: in the middle of it, the
+#	part after the :: is passed to the resource script as an argument.
+#
+#	In the case of IP addresses, the resource script name IPaddr is
+#	implied.
+#
+#	For example, the IP address 135.9.8.7 could also be represented
+#	as IPaddr::135.9.8.7
+#
+#	THIS IS IMPORTANT!!     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+#
+#	The given IP address is directed to an interface which has a route
+#	to the given address.  This means you have to have a net route
+#	set up outside of the High-Availability structure.  We don't set it
+#	up here -- we key off of it.
+#
+#	The broadcast address for the IP alias that is created to support
+#	an IP address defaults to the highest address on the subnet.
+#
+#	The netmask for the interface that is brought up on this IP address
+#	defaults to the same netmask as the route that it selected in
+#	in the step above.
+#
+#	If you want to specify that this IP address is to be brought up
+#	on a subnet with a netmask of 255.255.255.0, you would specify
+#	this as IPaddr::135.9.8.7/8 .  
+#
+#	If you wished to tell it that the broadcast address for this subnet
+#	was 135.9.8.210, then you would specify that this way:
+#		IPaddr::135.9.8.7/8/135.9.8.210
+#
+#	The IP addresses you list in this file are called "service" addresses,
+#	since they're they're the publicly advertised addresses that clients
+#	use to get at highly available services.
+#
+#	For a hot/standby (non load-sharing) 2-node system with only
+#	a single service address, 
+#	you will probably only put one system name and one IP address in here.
+#	The name you give the address to is the name of the default "hot"
+#	system.
+#
+#	Where the nodename is the name of the node which "normally" owns the
+#	resource.  If this machine is up, it will always have the resource
+#	it is shown as owning.
+#
+#	The string you put in for nodename must match the uname -n name
+#	of your machine.  Depending on how you have it administered, it could
+#	be a short name or a FQDN.
+#
+#-------------------------------------------------------------------
+#
+#	Simple case: One service address, default subnet and netmask
+#		No servers that go up and down with the IP address
+#
+#just.linux-ha.org	135.9.216.110
+#
+#-------------------------------------------------------------------
+#
+#	Assuming the adminstrative addresses are on the same subnet...
+#	A little more complex case: One service address, default subnet
+#	and netmask, and you want to start and stop http when you get
+#	the IP address...
+#
+#just.linux-ha.org	135.9.216.110 http
+#-------------------------------------------------------------------
+#
+#	A little more complex case: Three service addresses, default subnet
+#	and netmask, and you want to start and stop http when you get
+#	the IP address...
+#
+#just.linux-ha.org	135.9.216.110 135.9.215.111 135.9.216.112 httpd
+#-------------------------------------------------------------------
+#
+#	One service address, with funny subnet and bcast addr
+#		Stop and start httpd service with the subnet address
+#
+#just.linux-ha.org	135.9.216.3/4/135.9.216.12 httpd
+#
+#-------------------------------------------------------------------

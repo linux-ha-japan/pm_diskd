@@ -1,0 +1,256 @@
+#
+#	$Id: ResourceManager,v 1.1 1999/09/23 15:31:24 alanr Exp $
+#
+#	New haresources format:
+#
+#	machine resource resource resource resource
+#
+#	Where a resource can be an IP address or a scriptname, or a scriptname
+#	and single argument.
+#
+#	When it's a scriptname with an argument, the argument is connected to
+#	the scriptname with "::".  Another way of expressing an IP address is
+#	via IPaddr::ip-address, since the script name IPaddr is the one assumed
+#	for resources which are spelled like an IP address.
+#
+#	As an illustration, the following two lines are identical in effect:
+#
+#	node1	123.45.67.89 httpd
+#	node1	IPaddr::123.45.67.89 httpd
+#
+#	Note:  The first resource on the line must be unique in the haresources
+#	file.  Maybe I should add a resource type called Unique which can
+#	put on the front of a line to meet this requirement.
+#
+#
+
+# set -x
+: 
+: 
+: ==================== Starting ResourceManager $* ==========================
+trap ': exiting $0; exit' 0
+HA_DIR=/etc/ha.d
+HA_FUNCS=$HA_DIR/shellfuncs
+export HA_DIR HA_FUNCS
+INITD=/etc/rc.d/init.d
+USAGE="usage: $0 listkeys machine | takegroup key | givegroup key|status resource";
+. $HA_FUNCS
+
+isip() {
+  case $1 in
+    [0-9]*.[0-9]*.[0-9]*.[0-9]*)	true;;
+    *)					false;;
+  esac
+}
+
+reverseargs() {
+  L=""
+  for arg in $*
+  do
+    case $L in
+      ?*)	L="$arg $L";;
+      "")	L=$arg;;
+    esac
+  done
+  echo $L
+}
+
+#
+#	Remove comments and extra blanks from haresources
+#	translate all white space into single blanks.  Each line ends with
+#	a blank, making parsing it easier for dumb shell scripts.
+#
+ipres() {
+  if
+    [ $# -lt 1 ]
+  then
+    arg='.'
+  else
+    arg=$1
+  fi
+  cat $HA_DIR/haresources |
+	sed -e 's%#.*%%' -e 's%$% %' -e 's%[	 ][	 ]*% %' 	\
+		-e 's%^ %%' 						|
+  	egrep "$arg"
+}
+
+ipresline() {
+	ipres " $1 "
+}
+
+KeyResources() {
+	ipres "^$1 "  | cut -d' ' -f2
+}
+
+canonname() {
+  if
+    isip $1
+  then
+    echo "IPaddr::$1"
+  else
+    echo $1
+  fi
+}
+
+resource2script() {
+  case `canonname $1` in
+    *::*)	echo $1 | sed 's%::.*%%'
+		;;
+    *)		echo $1;;
+  esac
+}
+
+resource2arg() {
+  case `canonname $1` in
+    *::*)	echo $1 | sed 's%[^:]*::%%'
+		;;
+  esac
+}
+
+scriptpath() {
+  script=`canonname $1`
+  script=`resource2script $script`
+  for dir in $HA_RESOURCEDIR $INITD
+  do
+    if
+      [ -f $dir/$script -a -x $dir/$script ]
+    then
+      echo $dir/$script;
+      return 0;
+    fi
+  done
+  ha_log "ERROR: Cannot locate resource script $script"
+  false
+}
+
+we_own_resource() {
+  arg=`resource2arg $1`
+  spath=`scriptpath $1`;
+
+  case `$spath $arg status` in
+    *[Rr]unning*)	return 0;;
+    *)			return 1;;
+  esac
+}
+
+
+doscript() {
+  script=`resource2script $1`
+  arg=`resource2arg $1`
+
+  spath=`scriptpath $script`
+  if
+    [ -f "$spath" -a -x "$spath" ]
+  then
+    ha_log "INFO: Running $spath $arg $2"
+    ha_debug "Starting $spath $arg $2"
+    $spath $arg "$2" 2>>$HA_DEBUGLOG
+    RC=$?
+    ha_debug "$spath $arg $2 done. RC=$RC"
+    case $RC in
+      0);;
+      *) ha_log "WARNING: Return code $RC from $spath";;
+    esac
+    return 0;
+  fi
+  ha_log "ERROR: Cannot locate resource script $script"
+  return 1;
+}
+
+
+# Arguments are: nodename resource1 resource2 ...
+giveupresourcegroup() {
+  if
+    we_own_resource $2
+  then
+    : We own the resource.  Give it up!
+  else
+    return 0;  # Nothing to give up
+  fi
+
+  ha_log "Releasing resource group: $*"
+  shift
+  for j in $*
+  do
+    doscript $j stop >>$HA_DEBUGLOG 2>&1
+  done
+}
+
+# Arguments are: nodename resource1 resource2 ...
+acquireresourcegroup() {
+  if
+    we_own_resource $2
+  then
+    return 0; # We already have it.
+  fi
+
+  ha_log "Acquiring resource group: $*"
+  shift
+  for j in `reverseargs $*`
+  do
+    doscript $j start
+  done
+}
+
+#
+#	We may be given a resource to give up that we don't own...
+#
+GiveUpGroup() {
+  #	Get the list of resources we've been requested to give up...
+  haresources=`ipresline $1`
+  if
+    [ ! -z "$haresources" ]
+  then
+    giveupresourcegroup $haresources
+  fi
+}
+
+TakeGroup() {
+  #	Get the list of resources we've been requested to take...
+  haresources=`ipresline $1`
+  if
+    [ ! -z "$haresources" ]
+  then
+    acquireresourcegroup $haresources
+  fi
+}
+
+case $1 in
+  listkeys)	KeyResources "$2";;
+
+  status)	doscript $2 status;;
+
+  givegroup)	GiveUpGroup $2 >>$HA_DEBUGLOG 2>&1 ;;
+  
+  takegroup)	TakeGroup $2 >>$HA_DEBUGLOG 2>&1 ;;
+  *)		echo "$USAGE\n" >&2
+		exit 1;;
+esac
+
+#
+#	$Log: ResourceManager,v $
+#	Revision 1.1  1999/09/23 15:31:24  alanr
+#	Initial revision
+#
+#	Revision 1.7  1999/09/01 05:32:12  alanr
+#	Put in a fix from Gregor Howey <ghowey@bremer-nachrichten.de>
+#	where Gregor found that I had stripped off the ::resourceid
+#	part of a string resulting in some bad calls later on.
+#
+#	It looks like he either always used IPaddr:xxx.yy.zzz or he actually
+#	read the code and understood it.  Amazing!
+#
+#	Revision 1.6  1999/08/17 13:25:08  alanr
+#	more comment changes.
+#
+#	Revision 1.5  1999/08/17 13:22:47  alanr
+#	Fixed up comments on the format of the ipresources file.
+#
+#	Revision 1.4  1999/08/17 13:17:05  alanr
+#	fixed up white space.
+#
+#	Revision 1.3  1999/08/17 13:16:07  alanr
+#	Tidied up logging when running resource scripts.
+#	Also added log messages.
+#
+#

@@ -1,0 +1,8 @@
+	Alan Robertson <alanr@henge.com>
+	Volker Wiegand <Volker.Wiegand@suse.de>
+	Rudy Pawul <rpawul@iso-ne.com>
+
+Code for the following pieces borrowed from code by:
+	Tom Vogt <tom@lemuria.org>	(udp code)
+	Horms <horms@zip.com.au>	(takeover code)
+	yuri volobuev <volobuev@t1.chem.umn.edu> (send_arp.c)
