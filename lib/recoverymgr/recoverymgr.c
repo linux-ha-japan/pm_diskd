@@ -59,10 +59,9 @@ recoverymgr_getrc(void)
 
 	struct IPC_MESSAGE * msg;
 
-	while (!comm->ops->is_message_pending(comm)) {
-		;
-	}
-	comm->ops->resume_io(comm);
+	/* Wait for a message... */
+	comm->ops->waitin(comm);
+
 	if (comm->ops->recv(comm, &msg) != IPC_OK) {
 		perror("Receive failure:");
 		return errno;
