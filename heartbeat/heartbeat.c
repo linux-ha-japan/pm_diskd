@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.3 1999/09/26 22:00:02 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.4 1999/09/27 04:14:42 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -361,7 +361,7 @@ init_config(const char * cfgfile)
 		,	config->deadtime_interval, config->heartbeat_interval);
 		ha_error(msg);
 		++errcount;
-	}		
+	}
 	return(errcount ? HA_FAIL : HA_OK);
 }
 
@@ -736,11 +736,12 @@ int
 set_auth(const char * value)
 {
 	FILE *	f;
-	char	buf[MAXLINE], errmsg[MAXLINE];
+	char	buf[MAXLINE];
 	char	method[MAXLINE];
 	char	key[MAXLINE];
 	int	i;
-	int	rc;
+	int	src;
+	int	rc = HA_OK;
 	int	authnum;
 	struct stat keyfilestat;
 	authnum = atoi(value);
@@ -765,43 +766,69 @@ set_auth(const char * value)
 		}
 
 		key[0] = EOS;
-		if (((rc=sscanf(buf, "%d%s%s", &i, method, key)) == 3)
-		||	(rc == 2 && (strcmp(method, "crc") == 0))) {
-			ha_log(LOG_DEBUG
-			,	"Found authentication method [%s]"
-			,	 method);
+		if ((src=sscanf(buf, "%d%s%s", &i, method, key)) >= 2) {
 
-			
+			char *	cpkey;
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"Found authentication method [%s]"
+				,	 method);
+			}
+
+			if ((i < 0) || (i >= MAXAUTH)) {
+				ha_log(LOG_ERR, "Invalid authnum [%d] in "
+				KEYFILE);
+				rc = HA_FAIL;
+				continue;
+			}
+
 			if ((at = findauth(method)) == NULL) {
-				ha_log(LOG_INFO, "Invalid authtype [%s]"
+				ha_log(LOG_ERR, "Invalid authtype [%s]"
 				,	method);
+				rc = HA_FAIL;
+				continue;
 			}
-			if ((i > 0) && (i < MAXAUTH)) {
-				char *	cpkey;
-				cpkey =	malloc(strlen(key)+1);
-				if (cpkey == NULL) {
-					ha_log(LOG_ERR
-					,	"Out of memory for authkey");
-					return(HA_FAIL);
-				}
-				strcpy(cpkey, key);
-				config->auth_config[i].key = cpkey;
-				config->auth_config[i].auth = at;
-				if (i == authnum) {
-					config->authnum = i;
-				     config->authmethod=config->auth_config+i;
-				}
+
+			if (strlen(key) > 0 && !at->needskey) {
+				ha_log(LOG_INFO
+				,	"Auth method [%s] doesn't use a key"
+				,	method);
+				rc = HA_FAIL;
 			}
+			if (strlen(key) == 0 && at->needskey) {
+				ha_log(LOG_ERR
+				,	"Auth method [%s] requires a key"
+				,	method);
+				rc = HA_FAIL;
+			}
+
+			cpkey =	malloc(strlen(key)+1);
+			if (cpkey == NULL) {
+				ha_log(LOG_ERR, "Out of memory for authkey");
+				return(HA_FAIL);
+			}
+			strcpy(cpkey, key);
+			config->auth_config[i].key = cpkey;
+			config->auth_config[i].auth = at;
+			if (i == authnum) {
+				config->authnum = i;
+				config->authmethod = config->auth_config+i;
+			}
+		}else{
+			ha_log(LOG_ERR, "Auth line [%s] is invalid."
+			,	buf);
+			rc = HA_FAIL;
 		}
 	}
 
-
 	fclose(f);
-	sprintf(errmsg
-	,	"Key number [%s] not found in keyfile [%s] - cannot start"
-	,	value, KEYFILE);
-	ha_error(errmsg);
-	return(HA_FAIL);
+	if (!config->authmethod) {
+		ha_log(LOG_ERR
+		,	"Key number [%s] not found in keyfile [%s]"
+		" - cannot start", value, KEYFILE);
+		rc = HA_FAIL;
+	}
+	return(rc);
 }
 
 /* Set the keepalive time */
@@ -921,7 +948,7 @@ int
 set_facility(const char * value)
 {
 	int		i;
-	
+
 	for(i = 0; facilitynames[i].c_name != NULL; ++i) {
 		if(strcmp(value, facilitynames[i].c_name) == 0) {
 			config->log_facility = facilitynames[i].c_val;
@@ -1530,7 +1557,7 @@ debug_sig(int sig)
 			}
 			break;
 	}
-	ha_log(LOG_NOTICE, "debug now set to %d [pid %d]", debug, getpid());
+	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, getpid());
 	if (curproc) {
 		const char *	ct;
 
@@ -1544,7 +1571,7 @@ debug_sig(int sig)
 			default:		ct = "huh?";		break;
 		}
 
-		ha_log(LOG_INFO, "MSG info: %ld/%ld age %ld [pid%d/%s]"
+		ha_log(LOG_DEBUG, "MSG info: %ld/%ld age %ld [pid%d/%s]"
 		,	curproc->allocmsgs, curproc->totalmsgs
 		,	time(NULL) - curproc->lastmsg, curproc->pid, ct);
 	}
@@ -2103,7 +2130,7 @@ void
 dump_msg(const struct ha_msg *msg)
 {
 	char *	s = msg2string(msg);
-	ha_log(LOG_INFO, "Message dump: %s", s);
+	ha_log(LOG_DEBUG, "Message dump: %s", s);
 	free(s);
 }
 
@@ -2323,6 +2350,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.4  1999/09/27 04:14:42  alanr
+ * We now allow multiple strings, and the code for logging seems to also be working...  Thanks Guyscd ..
+ *
  * Revision 1.3  1999/09/26 22:00:02  alanr
  * Allow multiple auth strings in auth file... (I hope?)
  *

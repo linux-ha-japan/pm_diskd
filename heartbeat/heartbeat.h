@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.3 1999/09/26 22:00:15 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.4 1999/09/27 04:14:54 alanr Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -151,6 +151,7 @@ struct auth_type {
 	const char *	authname;
 	const unsigned char *	(*auth)(const struct auth_info * authinfo
 	,	const char *data);
+	int		needskey;
 };
 
 
