@@ -282,7 +282,7 @@ api_signoff(const struct ha_msg* msg, struct ha_msg* resp
 			ha_log(LOG_DEBUG, "Signing client %ld off"
 			,	(long) client->pid);
 		}
-		api_remove_client(client, "signoff");
+		api_remove_client(client, API_SIGNOFF);
 		return I_API_IGN;
 }
 
@@ -781,7 +781,7 @@ api_send_client_status(client_proc_t* client, const char * status
 		ha_log(LOG_ERR, "api_send_client_status: "
 			"cannot send message to cluster");
 	}
-	if (strcmp(status, "leave") == 0) {
+	if (strcmp(status, LEAVESTATUS) == 0) {
 		/* Make sure they know they're signed off... */
 		api_send_client_msg(client, msg);
 	}
@@ -948,7 +948,7 @@ api_remove_client(client_proc_t* req, const char * reason)
 	}
 	req->beingremoved = 1;
 
-	api_send_client_status(req, "leave", reason);
+	api_send_client_status(req, LEAVESTATUS, reason);
 
 	--total_client_count;
 
@@ -1137,7 +1137,7 @@ api_add_client(struct ha_msg* msg)
 	if (minfd < 0 || fifoifd < minfd) {
 		minfd = fifoifd;
 	}
-	api_send_client_status(client, "join", "signon");
+	api_send_client_status(client, JOINSTATUS, API_SIGNON);
 	return 1;
 }
 

@@ -3099,7 +3099,7 @@ ccm_handle_hbapiclstat(ccm_info_t *info,
 	}
 
 	assert(status);
-	if(strncmp(status, "join", 5) == 0) {
+	if(strncmp(status, JOINSTATUS, 5) == 0) {
 		cl_log(LOG_DEBUG, "ignoring join "
 		"message from orig=%s", orig);
 		return NULL;

@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.18 2002/09/12 12:36:09 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.19 2002/09/13 05:38:34 horms Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -135,6 +135,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.18 2002/09/12 12:36:
 #define	ACTIVESTATUS	"active"	/* fully functional, and all links are up */
 #define	DEADSTATUS	"dead"		/* Status of non-working link or machine */
 #define	PINGSTATUS	"ping"		/* Status of a working ping node */
+#define	JOINSTATUS	"join"		/* Status when an api client joins */
+#define	LEAVESTATUS	"leave"		/* Status when an api client leaves */
 #define	LINKUP		"up"		/* The status assigned to a working link */
 #define	LOADAVG		"/proc/loadavg"
 #define	PIDFILE		VAR_RUN_D "/heartbeat.pid"
