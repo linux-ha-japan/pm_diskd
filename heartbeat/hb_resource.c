@@ -1064,7 +1064,8 @@ send_stonith_msg(const char *nodename, const char *result)
 }
 
 #define	STANDBY_INIT_TO_MS	10000L		/* ms timeout for initial reply */
-#define	HB_STANDBY_RSC_TO_MS	1200000L	/* resource handling timeout (ms)*/
+#define	HB_STANDBY_RSC_TO_MS	60L*(60L*1000L)	/* resource handling timeout */
+						/* (An hour in ms)*/
 
 void
 ask_for_resources(struct ha_msg *msg)
@@ -1076,7 +1077,9 @@ ask_for_resources(struct ha_msg *msg)
 	longclock_t 	now = time_longclock();
 	int		message_ignored = 0;
 	const enum standby	orig_standby = going_standby;
-	longclock_t	standby_rsc_to = msto_longclock(HB_STANDBY_RSC_TO_MS);
+	const longclock_t	standby_rsc_to
+	=			msto_longclock(HB_STANDBY_RSC_TO_MS);
+	const longclock_t	init_to =  msto_longclock(STANDBY_INIT_TO_MS);
 
 	if (!nice_failback) {
 		ha_log(LOG_INFO
@@ -1129,8 +1132,6 @@ ask_for_resources(struct ha_msg *msg)
 			return;
 		}
 		if (strcasecmp(info, "me") == 0) {
-			longclock_t	init_to = msto_longclock(STANDBY_INIT_TO_MS);
-			standby_running = add_longclock(now, init_to);
 
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG
@@ -1145,6 +1146,7 @@ ask_for_resources(struct ha_msg *msg)
 					,	"i_hold_resources: %d"
 					,	procinfo->i_hold_resources);
 				}
+				standby_running = add_longclock(now, init_to);
 				going_standby = ME;
 			}else{
 				if (ANYDEBUG) {
@@ -1155,6 +1157,8 @@ ask_for_resources(struct ha_msg *msg)
 				/* Other node wants to go standby */
 				going_standby = OTHER;
 				send_standby_msg(going_standby);
+				standby_running = add_longclock(now
+				,	standby_rsc_to);
 			}
 		}else{
 			message_ignored = 1;
@@ -1725,6 +1729,13 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.14  2003/03/05 16:51:08  alan
+ * Fixed a problem reported by Paul Porcelli and others.
+ *
+ * The problem is that the standby function used the wrong timeout on the receiving
+ * end of the resources, so that if it took more than 10 seconds to release a resource
+ * that it wouldn't work - because the receiving end timed out.
+ *
  * Revision 1.13  2003/02/07 08:37:16  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.
