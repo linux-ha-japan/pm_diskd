@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.13 2001/10/24 20:46:28 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.14 2001/10/25 14:17:28 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -350,13 +350,13 @@ isauthentic(const struct ha_msg * m)
 	
 	if (authtoken == NULL
 	||	sscanf(authtoken, "%d %s", &authwhich, authstring) != 2) {
-		ha_error("Bad/invalid auth token");
+		ha_log(LOG_WARNING, "Bad/invalid auth token");
 		return(0);
 	}
 	which = config->auth_config + authwhich;
 
 	if (authwhich < 0 || authwhich >= MAXAUTH || which->auth == NULL) {
-		ha_log(LOG_ERR
+		ha_log(LOG_WARNING
 		,	"Invalid authentication type [%d] in message!"
 		,	authwhich);
 		return(0);
@@ -364,7 +364,7 @@ isauthentic(const struct ha_msg * m)
 		
 	
 	if (!which->auth->auth(which, msgbody, authbuf, DIMOF(authbuf))) {
-		ha_error("Cannot check message authentication");
+		ha_log(LOG_ERR, "Failed to compute message authentication");
 		return(0);
 	}
 	if (strcmp(authstring, authbuf) == 0) {
@@ -467,6 +467,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.14  2001/10/25 14:17:28  alan
+ * Changed a few of the errors into warnings.
+ *
  * Revision 1.13  2001/10/24 20:46:28  alan
  * A large number of patches.  They are in these categories:
  * 	Fixes from Matt Soffen
