@@ -1,10 +1,10 @@
 /*
- *	Stonith module for WTI Remote Power Controllers (RPC-10M device)
+ *	Stonith module for WTI Remote Power Controllers (RPS-10M device)
  *
  *      Original code from baytech.c by
  *	Copyright (c) 2000 Alan Robertson <alanr@unix.sh>
  *
- *      Modifications for WTI RPC10
+ *      Modifications for WTI RPS10
  *	Copyright (c) 2000 Computer Generation Incorporated
  *               Eric Z. Ayers <eric.ayers@compgen.com>
  *
