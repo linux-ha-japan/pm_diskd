@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.4 2002/03/14 15:29:12 alan Exp $
+# $Id: LinuxSCSI.in,v 1.5 2002/03/14 15:30:06 alan Exp $
 # 
 # LinuxSCSI
 #
@@ -84,14 +84,15 @@ usage() {
 	The order in which you bring up LinuxSCSI resources determines which
 	SCSI device they show up as on Linux.  If you have two SCSI devices
 	in different resource groups they will be brought up asyncronously
-	resulting in indeterminate device name assignments.
+	resulting in indeterminate device name assignments.  This usually
+	happens in an active-active configuration.
 	
 	To solve this you probably should use LVM or EVMS to manage these
 	volumes.  LVM and EVMS solve this problem for you by labels they
 	keep in the volumes.  If you don't use a reasonable volume manager,
 	then you'll have to mount by UUID.
 
-	$Id: LinuxSCSI.in,v 1.4 2002/03/14 15:29:12 alan Exp $
+	$Id: LinuxSCSI.in,v 1.5 2002/03/14 15:30:06 alan Exp $
 	!
   exit 1
 }
