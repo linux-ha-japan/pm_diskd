@@ -261,6 +261,8 @@ class HBipResource(HBResource):
 #
 #   A little test code...
 #
+#   Which you are advised to completely ignore...
+#
 if __name__ == '__main__':
 
 
