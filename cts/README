@@ -22,7 +22,9 @@ a copy of on the test exerciser machine*.  These are the necessary files:
 Note that wherever machine names are mentioned in these configuration files,
 they must match the machines' `uname -n` name.  This may or may not match
 the machines' FQDN (fully qualified domain name) - it depends on how
-you (and your OS) have named the machines.
+you (and your OS) have named the machines.  It helps a lot in tracking
+problems if the three machines' clocks are closely synchronized.  xntpd
+does this, but you can do it by hand if you want.
 
 Make sure the at service is enabled on the test cluster machines.
 (this is normally the 'atd' service started by /etc/init.d/atd).
