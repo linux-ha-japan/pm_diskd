@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.14 1999/10/11 05:18:03 alanr Exp $
+#	$Id: Specfile,v 1.15 1999/10/12 16:40:46 alanr Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -26,8 +26,6 @@ It implements the following kinds of heartbeats:
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>,
      and Guenther Thomsen <thomsen@cs.tu-berlin.de>
-
-     0.4.5 (this version) IS NOT RELEASED YET!!!
 
 + Version 0.4.5
   + Mijta Sarp added a new feature to authenticate heartbeat packets
