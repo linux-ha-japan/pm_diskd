@@ -21,4 +21,4 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 harddir			= $(sysconfdir)/ha.d/resource.d
 
-hard_SCRIPTS		= IPaddr AudibleAlarm Raid1 Filesystem MailTo
+hard_SCRIPTS		= IPaddr AudibleAlarm Raid1 Filesystem MailTo WinPopup
