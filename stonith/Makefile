@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.16 2001/01/16 21:49:24 alan Exp $
+#	$Id: Makefile,v 1.17 2001/02/22 10:29:44 lars Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -58,13 +58,14 @@ CFLAGS=-g 				\
 
 STONITH = stonith
 
+MEATWARE = meatclient
 
 ARFILE = libstonith.a
 SHLIB  = libstonith.so
 
 S_OBJLIST =	stonith.o
 
-MODULES = null.o apcsmart.o
+MODULES = null.o apcsmart.o meatware.o rps10.o nw_rpc100s.o baytech.o
 
 S_HDRS    =	expect.h stonith.h
 
@@ -77,7 +78,7 @@ INCDIR = $(BUILD_ROOT)/usr/include
 
 CFLAGS := $(CFLAGS) -DSTONITH_MODULES='"$(MODDIR)"'
 
-BINCMDS = $(STONITH)
+BINCMDS = $(STONITH) $(MEATWARE)
 
 LIBFILES = $(ARFILE) $(SHLIB)
 
@@ -85,7 +86,7 @@ LIBFILES = $(ARFILE) $(SHLIB)
 # If you want the VA Linux Cluster stonith module (VACM) installed, 
 # uncomment the following line.  You must have the vacmclient library 
 #VACM_STONITH = vacm_stonith.so 
-PRODUCTS = $(BINCMDS) $(LIBS) baytech.so rps10.so nw_rpc100s.so $(VACM_STONITH)
+PRODUCTS = $(BINCMDS) $(LIBS) baytech.so meatware.so rps10.so nw_rpc100s.so $(VACM_STONITH)
 
 INCFILES = stonith.h
 
@@ -102,6 +103,9 @@ rps10.so:	rps10.o expect.o
 nw_rpc100s.so:	nw_rpc100s.o expect.o
 	$(CC) -shared -o $@ $^
 
+meatware.so:	meatware.o expect.o
+	$(CC) -shared -o $@ $^
+
 vacm_stonith.so: vacm_stonith.o
 	$(CC) -shared -o $@ $^ -lvacmclient
 
@@ -116,6 +120,9 @@ $(SHLIB): $(ARFILE)
 
 $(STONITH): $(ARFILE) main.o
 	$(CC) main.o $(ARFILE) $(LIBDL) $(LIBINTL) -o stonith
+
+$(MEATWARE):
+	$(CC) meatclient.c -o meatclient
 
 $(S_OBJLIST) : $(S_HDRS)
 
