@@ -20,7 +20,6 @@
 MAINTAINERCLEANFILES    = Makefile.in
 
 INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
-			-I$(top_builddir)/stonith -I$(top_srcdir)/stonith \
 			-I$(top_builddir)/linux-ha -I$(top_srcdir)/linux-ha \
 			-I$(top_builddir)/libltdl -I$(top_srcdir)/libltdl \
                         -I$(top_builddir) -I$(top_srcdir)
@@ -68,6 +67,7 @@ heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
 			module.c ha_if.h hb_api.h hb_api_core.h \
                         hb_md5.h hb_module.h hb_proc.h hb_sha1.h lock.h \
                         setproctitle.c setproctitle.h test.h
+#heartbeat_LDADD	= $(top_builddir)/lib/stonith/libstonith.la \
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
 			$(top_builddir)/replace/libreplace.la	\
 			$(top_builddir)/lib/pils/libpils.la	\
@@ -79,20 +79,22 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlopen self
 
 send_arp_SOURCES	= send_arp.c
-send_arp_CFLAGS	 	= @LIBNETDEFINES@
+send_arp_CFLAGS		= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
 send_arp_LDADD	 	= @LIBNETLIBS@
 
-send_arp.o: $(send_arp_SOURCES)
-	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(send_arp_SOURCES) \
-		-o $$old_pwd/$@ $(CPPFLAGS) $(send_arp_CFLAGS) )
+#I didn't seem to need these lines.  Let me know if you do ;-)
+#send_arp.o: $(send_arp_SOURCES)
+#	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(send_arp_SOURCES) \
+#		-o $$old_pwd/$@  $(send_arp_CFLAGS) )
 
 get_hw_addr_SOURCES	= get_hw_addr.c
-get_hw_addr_CFLAGS	 	= @LIBNETDEFINES@
+get_hw_addr_CFLAGS	 	= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
 get_hw_addr_LDADD	 	= @LIBNETLIBS@
 
-get_hw_addr.o: $(get_hw_addr_SOURCES)
-	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(get_hw_addr_SOURCES) \
-		-o $$old_pwd/$@ $(CPPFLAGS) $(get_hw_addr_CFLAGS) )
+#I didn't seem to need these lines.  Let me know if you do ;-)
+#get_hw_addr.o: $(get_hw_addr_SOURCES)
+#	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(get_hw_addr_SOURCES) \
+#		-o $$old_pwd/$@ $(get_hw_addr_CFLAGS) )
 
 findif_SOURCES		= findif.c
 findif_LDADD		=$(top_builddir)/replace/libreplace.la
