@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.235 2003/01/08 21:17:39 msoffen Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.236 2003/01/16 00:49:46 msoffen Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -316,7 +316,8 @@ static int			status_pipe[2];	/* The Master status pipe */
 #define REREAD_CONFIG_SIG		0x0040UL
 #define FALSE_ALARM_SIG			0x0080UL
 
-struct sys_config *	config = NULL;
+struct sys_config  	config_init_value;
+struct sys_config *	config  = &config_init_value;
 struct node_info *	curnode = NULL;
 
 volatile struct pstat_shm *		procinfo = NULL;
@@ -3889,6 +3890,11 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.236  2003/01/16 00:49:46  msoffen
+ * Created static variable instead of "run time" allocation for config variable
+ * becuase on Solaris the variable wasn't being created with proper memory
+ * alignment.
+ *
  * Revision 1.235  2003/01/08 21:17:39  msoffen
  * Made changes to allow compiling with -Wtraditional to work.
  *

@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.73 2003/01/08 21:17:39 msoffen Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.74 2003/01/16 00:49:47 msoffen Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -120,6 +120,7 @@ extern const char *			cmdname;
 extern int				parse_only;
 extern struct hb_media*			sysmedia[MAXMEDIA];
 extern struct sys_config *		config;
+extern struct sys_config  		config_init_value;
 extern int				verbose;
 extern volatile struct pstat_shm *	procinfo;
 extern volatile struct process_info *	curproc;
@@ -171,8 +172,9 @@ init_config(const char * cfgfile)
  *	'Twould be good to move this to a shared memory segment
  *	Then we could share this information with others
  */
-	config = (struct sys_config *)ha_calloc(1
-	,	sizeof(struct sys_config));
+	/* config = (struct sys_config *)ha_calloc(1
+	,	sizeof(struct sys_config)); */
+	config = &config_init_value;
 	if (config == NULL) {
 		ha_log(LOG_ERR, "Heartbeat not started: "
 			"Out of memory during configuration");
@@ -231,7 +233,7 @@ init_config(const char * cfgfile)
 	if ((curnode = lookup_node(u.nodename)) == NULL) {
 #if defined(MITJA)
 		ha_log(LOG_NOTICE, "%s", msg);
-		add_node(u.nodename, NORMALNODE);
+		add_normal_node(u.nodename);
 		curnode = lookup_node(u.nodename);
 		ha_log(LOG_NOTICE, "Current node [%s] added to configuration"
 		,	u.nodename);
@@ -1392,6 +1394,11 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.74  2003/01/16 00:49:47  msoffen
+ * Created static variable instead of "run time" allocation for config variable
+ * becuase on Solaris the variable wasn't being created with proper memory
+ * alignment.
+ *
  * Revision 1.73  2003/01/08 21:17:39  msoffen
  * Made changes to allow compiling with -Wtraditional to work.
  *
