@@ -50,13 +50,14 @@ fi
 #	
 #	Ignore this request if we don't own this resource
 #
-case `$RSCMGR status $IPADDR` in
-	#	Red Hat:	running
-	#	SuSE:		OK
-  *[Rr]unning*|OK)	;;
-  *)		exit 0;;
-esac
-  
+if
+  $RSCMGR status $IPADDR
+then
+  : We have resource $IPADDR
+else
+  exit 0
+fi
+
 
 if
   [ -x $HA_RCDIR/local_giveip ]
