@@ -99,8 +99,8 @@ initialize_llm(mbr_private_t *mem, struct IPC_MESSAGE *msg)
 	mem->llm = (ccm_llm_t *)g_malloc(len);
 	memcpy(mem->llm, msg->msg_body, len);
 
-	mem->bornon = g_hash_table_new(g_direct_hash, 
-				g_direct_equal);
+	mem->bornon = g_hash_table_new(g_int_hash, 
+				g_int_equal);
 
 	numnodes = CLLM_GET_NODECOUNT(mem->llm);
 	mem->cookie = NULL;
@@ -162,9 +162,9 @@ recv_bornon_message(mbr_private_t *private)
 	for (i = 0 ; i < n; i++) {
 		assert(bornon[i].index <= numnodes);
 		g_hash_table_insert(private->bornon, 
-				(gpointer)CLLM_GET_UUID(private->llm, 
-						bornon[i].index),
-				(gpointer)(bornon[i].bornon+1));
+				GINT_TO_POINTER(CLLM_GET_UUID(private->llm, 
+						bornon[i].index)),
+				GINT_TO_POINTER(bornon[i].bornon+1));
 	}
 	msg->msg_done(msg);
 	return;
@@ -225,8 +225,8 @@ get_new_membership(mbr_private_t *private,
 
 		OC_EV_SET_NODEID(newmbr,j,uuid);
 
-		born = (int)g_hash_table_lookup(private->bornon, 
-				(gpointer)mbrinfo->member[i]);
+		born = GPOINTER_TO_INT(g_hash_table_lookup(private->bornon, 
+				GINT_TO_POINTER(mbrinfo->member[i])));
 
 		/* if there is already a born entry for the
 		 * node, use it. Otherwise create a born entry
@@ -236,8 +236,8 @@ get_new_membership(mbr_private_t *private,
 			OC_EV_SET_BORN(newmbr,j,(born-1));
 		} else {
 			g_hash_table_insert(private->bornon, 
-					(gpointer)uuid,
-					(gpointer)trans);
+					GINT_TO_POINTER(uuid),
+					GINT_TO_POINTER(trans));
 			OC_EV_SET_BORN(newmbr,j,trans);
 		}
 		j++;
@@ -262,8 +262,8 @@ get_new_membership(mbr_private_t *private,
 				in_index++;
 				OC_EV_INC_N_IN(newmbr);
 				g_hash_table_insert(private->bornon, 
-					(gpointer)(OC_EV_GET_NODEID(newmbr,i)), 
-					(gpointer)(trans+1));
+					GINT_TO_POINTER(OC_EV_GET_NODEID(newmbr,i)), 
+					GINT_TO_POINTER(trans+1));
 			}
 		}
 
@@ -275,7 +275,7 @@ get_new_membership(mbr_private_t *private,
 				out_index++;
 				OC_EV_INC_N_OUT(newmbr);
 				g_hash_table_remove(private->bornon, 
-					(gpointer)OC_EV_GET_NODEID(oldmbr, i));
+					GINT_TO_POINTER(OC_EV_GET_NODEID(oldmbr, i)));
 				/* remove the born entry for this node */
 			}
 		}
