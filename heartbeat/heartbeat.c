@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.64 2000/06/15 14:24:31 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.65 2000/06/17 12:09:10 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -485,7 +485,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.64 2000/06/15 14:24:31 alan Exp $$' | sort -u"
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.65 2000/06/17 12:09:10 alan Exp $$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -2459,18 +2459,14 @@ req_our_resources()
 	}
 	if (rsc_count == 0) {
 		ha_log(LOG_INFO, "No local resources [%s]", cmd);
-		if (nice_failback) {
-			send_resources_held(NO_RESOURCES, 0);
-		}
 	}else {
-		if (nice_failback) {
-			send_resources_held(LOCAL_RESOURCES, 0);
-		}
-
 		if (ANYDEBUG) {
 			ha_log(LOG_INFO, "%d local resources from [%s]"
 			,	rsc_count, cmd);
 		}
+	}
+	if (nice_failback) {
+		send_resources_held(LOCAL_RESOURCES, 0);
 	}
 	exit(0);
 }
@@ -3494,6 +3490,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.65  2000/06/17 12:09:10  alan
+ * Fixed the problem when one side or the other has no local resources.
+ * Before it whined incessantly about being no one holding local resources.
+ * Now, it thinks it owns local resources even if there aren't any.
+ * (sort of like being the king of nothing).
+ *
  * Revision 1.64  2000/06/15 14:24:31  alan
  * Changed the version #.  Minor comment changes.
  *

@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.47 2000/06/15 13:34:58 jacob Exp $
+#	$Id: Specfile,v 1.48 2000/06/17 12:09:10 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -40,6 +40,7 @@ It implements the following kinds of heartbeats:
   + Changed the default port number to our official IANA port number (694)
   + Regularized more messages, eliminated some redundant ones.
   + Print the version of heartbeat when starting.
+  + Print exhaustive version info when starting with debug on.
   + Hosts now have 3 statuses {down, up, active} active means that it knows
 	that all its links are operational, and it's safe to send cluster
 	messages
