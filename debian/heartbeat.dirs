@@ -1,8 +1,12 @@
 etc/ha.d
 etc/ha.d/conf
+etc/ha.d/rc.d
 etc/ha.d/resource.d
 etc/init.d
 etc/ha.d/rc.d
 usr/lib/heartbeat
+usr/lib/heartbeat/plugins
 var/lock/subsys
 var/run
+var/lib/heartbeat/
+

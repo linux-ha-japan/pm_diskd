@@ -24,6 +24,8 @@ set -e
 
 case "$1" in
     configure)
+        ldconfig
+
 	if grep -q '^haclient:' /etc/group
 	then
 		adduser --system --group --no-create-home \
