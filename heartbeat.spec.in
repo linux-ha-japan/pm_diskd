@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.26 2002/07/30 12:21:08 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.27 2002/07/30 15:54:07 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -122,7 +122,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Fixed serious (but trivial) bug in the process tracking code which caused
 	it to exit heartbeat - this occured repeatably for STONITH operations.
   + Write a 'v' to the watchdog device to tell it not to reboot us when
-  	we close the device.
+	we close the device.
   + Various ldirectord fixes due to Horms
   + Minor patch from Lorn Kay to deal with loopback interfaces which might
 	have been put in by LVS direct routing
@@ -461,6 +461,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 @sysconfdir@/ha.d/conf
 @libdir@/heartbeat
 @libdir@/libhbclient.*
+@libdir@/libccmclient.*
 @libdir@/libpils.*
 @libdir@/libplumb.*
 @libdir@/libapphb.*
@@ -470,9 +471,12 @@ install -m 644 rc.config.heartbeat $TEMPL
 @localstatedir@/adm/fillup-templates/rc.config.heartbeat
 %dir @localstatedir@/lib/@HEARTBEATPKG@
 %attr (600, root, root)       @localstatedir@/lib/@HEARTBEATPKG@/fifo
-%attr (750, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api
+%dir %attr (750, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api
 %attr (620, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/register
+%attr (755, @CCMUSER@, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/ccm
 %attr (1770, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/casual
+%attr (200, @CCMUSER@, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api/ccm.req
+%attr (600, @CCMUSER@, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api/ccm.rsp
 %doc @mandir@/man8/heartbeat.8*
 %doc doc/AUTHORS 
 %doc doc/COPYING 
@@ -546,6 +550,21 @@ else
     : OK we were able to add group @APIGROUP@
   else
     usr/sbin/groupadd @APIGROUP@
+  fi
+fi
+
+if
+  grep '^@CCMUSER@:' etc/passwd >/dev/null
+then
+  : OK user @CCMUSER@ already present
+else
+  USEROPT="-g @APIGROUP@"
+  if
+    usr/sbin/useradd $USEROPT @CCMUSER@ 2>/dev/null
+  then
+    : OK we were able to add user @CCMUSER@
+  else
+    usr/sbin/useradd @CCMUSER@
   fi
 fi
 #

@@ -62,7 +62,7 @@ MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
 
 SUBDIRS                 = libltdl doc debian replace include lib \
                         @XPERIMENTALDIRS@ ldirectord stonith heartbeat \
-                        cts linux-ha
+                        cts linux-ha membership
 
 rpm:		dist
 		$(RPM) $(RPMFLAGS) $(TARFILE) </dev/null;
