@@ -37,19 +37,26 @@ than 8).&nbsp; What's the best way?</a></li>
 a good idea, is there really a drawback to using two ethernet connections?</a></li>
    <li> <a href="#nice_failback">What is a difference between normal and nice
 failback ?</a></li>
-   <li> <a href="#firewall">How to use heartbeat with ipchains firewall ?</a></li>
+   <li> <a href="#firewall">How to use heartbeat with ipchains firewall?</a></li>
+   <li> <a href="#nolocalheartbeat">I got this message
+	<tt>ERROR: No local heartbeat. Forcing shutdown</tt>
+	and then heartbeat shut itself down for no reason at all!</a>
+	</li>
    <li> <a href="#heavy_load">How to tune heartbeat on heavily loaded system
-to avoid                       split-brain?</a></li>
-   <li><a href="serialerr">When heartbeat starts up I get this error message
-in my logs:<br>
-&nbsp; <tt>WARN: process_clustermsg: node [&lt;hostname&gt;] failed authentication</tt></a><a
- href="serialerr"><br>
-What does this mean?</a>   </li>
-   <li> <a href="#authkeys">When I try to start heartbeat i receive message:</a></li>
-   <a href="#authkeys"><tt>"Starting High-Availability services: Heartbeat
-failure [rc=1]. Failed.</tt></a><br>
-   <a href="#authkeys">and there is nothing in any of the log files and do
-messages. What is wrong ?</a> <li> <a href="#multiple_clusters">How to run
+	to avoid split-brain?</a></li>
+   <li><a href="#serialerr">When heartbeat starts up I get this error message
+	in my logs:<br>
+	&nbsp; <tt>WARN: process_clustermsg: node [&lt;hostname&gt;] failed
+	authentication</tt></a><br>
+	<a href="#serialerr">What does this mean?</a>   </li>
+
+    <li><a href="#authkeys">When I try to start heartbeat i receive message:</a>
+	<a href="#authkeys"><tt>"Starting High-Availability services: Heartbeat
+	failure [rc=1]. Failed.</tt></a><br>
+	<a href="#authkeys">and there is nothing in any of the log files and no
+	messages. What is wrong ?</a> <li>
+
+    <a href="#multiple_clusters">How to run
 multiple clusters on same network segment ?</a></li>
    <li> <a href="#CVS">How to get latest CVS version of heartbeat ?</a></li>
    <li> <a href="#other_os">Heartbeat on other OSs.</a></li>
@@ -77,8 +84,8 @@ to use STONITH. &nbsp;Any recommendations?</a><br>
 document to supply useful information in a way that was easily referenced
 and would grow without a lot of work.&nbsp; It's closer to a FAQ than anything
 else.</li>
-  <li><a name="mailinglists"></a>Yes! &nbsp;There are two public mailing
-lists for Linux-HA. &nbsp;You can find out about them by visiting <a
+  <li><a name="mailinglists">Yes! &nbsp;There are two public mailing
+lists for Linux-HA.</a> &nbsp;You can find out about them by visiting <a
  href="http://linux-ha.org/contact/">http://linux-ha.org/contact/</a>.<br>
   </li>
    <li> <a name="what_is_it">HA (High availability Cluster)</a> - This is 
@@ -140,7 +147,7 @@ homepage (www.linuxvirtualserver.org) you can find scripts for adding and
 removing servers from ipvs list.</p>
    </li>
    <li>     
-    <p><a name="ipfail"></a>Yes! &nbsp;Use the ipfail plug-in. &nbsp;For
+    <p><a name="ipfail">Yes! &nbsp;Use the ipfail plug-in.</a> &nbsp;For
 each interface you wish to monitor, specify one or more "ping" nodes in your
 configuration. &nbsp;Each node in your cluster will monitor these ping nodes.
 &nbsp;Should one node detect a failure in one of these ping nodes, it will
@@ -198,25 +205,51 @@ accept incoming and outgoing traffic on 694 UDP port. Add something like
 -j ACCEPT <br>
  /sbin/ipchains -A input -i ethN -p udp -s &lt;source_IP&gt; -d &lt;dest_IP&gt;&nbsp;
 -j ACCEPT</li>
-   <li> <a name="heavy_load">Since the default probably isn't reasonable for
-most linux systems under heavy load</a> (sorry!), here is suggestion: <br>
- Set deadtime to 60 seconds or higher <br>
- Set warntime to whatever you *want* your deadtime to be. <br>
- Run your system under heavy load for a few weeks. <br>
- Look at your logs for the longest time either system went without hearing
-a heartbeat. <br>
- Set your deadtime to 1.5-2 times that amount.&nbsp; Set warntime to that
-amount. <br>
- Continue to monitor logs for warnings about long heartbeat times. If you
-don't do this, you may get "Cluster node ... returning after partition" which
-will cause heartbeat to restart on all machines in the cluster. Adding memory
-to the machine generally helps. Limiting workload on the machine generally
-helps. Some newer versions of heartbeat are a bit better about this than
-previous versions.</li>
-   <li><a name="serialerr"></a>It's common to get a single mangled packet
-on your serial interface when heartbeat starts up. &nbsp;This is an indicator
-that happened. &nbsp;It's harmless in this scenario.<br>
+   <li> <a name="nolocalheartbeat">
+	This can be caused by one of two things:<ul>
+	<li>System under heavy I/O load, or</li>
+	<li>Kernel bug.</li>
+	</ul></a>
+	For how to deal with the first occurrance (heavy load), please read the
+	answer to the <a href="#heavy_load">next FAQ item.</a><p>
+	If your system was not under moderate to heavy load when it
+	got this message, you probably have the kernel bug.
+	The 2.4.18 Linux kernel had a bug in it which would cause it to not
+	schedule heartbeat for very long periods of time when the system was
+	idle, or nearly so.  If this is the case, you need to get a kernel
+	that isn't broken.
+	</li>
+
+   <li> <a name="heavy_load">
+	"No local heartbeat" or "Cluster node returning after partition"
+	under heavy load is typically caused by too small a deadtime interval.
+	</a>
+	Here is suggestion for how to tune deadtime: <br>
+	<ul>
+ 	<li>Set deadtime to 60 seconds or higher </li>
+ 	<li>Set warntime to whatever you *want* your deadtime to be. </li>
+ 	<li>Run your system under heavy load for a few weeks. </li>
+ 	<li> Look at your logs for the longest time either system went
+		without hearing a heartbeat.</li>
+	<li>Set your deadtime to 1.5-2 times that amount.&nbsp;</li>
+	<li>Set warntime to a little less than that amount. </li>
+	<li>Continue to monitor logs for warnings about long heartbeat times.
+		If you don't do this, you may get
+		"Cluster node ... returning after partition"
+		which will cause heartbeat to restart on all machines
+		in the cluster.</li>
+	</ul>
+	Adding memory to the machine generally helps.
+	Limiting workload on the machine generally helps. Newer versions
+	of heartbeat are a bit better about this than
+	pre 1.0 versions.</li>
+
+   <li><a name="serialerr">It's common to get a single mangled packet
+	on your serial interface when heartbeat starts up.</a>
+	&nbsp;This is an indicator that happened. &nbsp;It's harmless in
+	this scenario.<br>
    </li>
+
    <li> <a name="authkeys">It's probably a permissions problem on authkeys.</a>&nbsp;
 It wants it to be read only mode (400, 600 or 700).&nbsp; Depending on where
 and when it discovers the problem, the message will wind up in different
@@ -242,48 +275,63 @@ port 694 (heartbeat default), time to live of 1 (limit multicast to local
 network segment and not propagate through routers), multicast loopback enabled
 (typical).</li>
    <li><a name="CVS">There is a CVS repository for Linux-HA.</a> You can find
-it at cvs.linux-ha.org.&nbsp; Read-only access is via login guest, password
-guest, module name linux-ha. More details are to be found in the a<a
- href="#%20http://lists.community.tummy.com/pipermail/linux-ha-dev/1999-October/000212.html">nnouncement&nbsp;
-email</a>.&nbsp; It is also available through the web using viewcvs at <a
- href="http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/">http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/</a></li>
+	it at cvs.linux-ha.org.&nbsp; Read-only access is via login guest,
+	password guest, module name linux-ha.
+	More details are to be found in the <a
+	href="http://lists.community.tummy.com/pipermail/linux-ha-dev/1999-October/000212.html"
+	>announcement email</a>.&nbsp;
+	It is also available through the web using viewcvs at <a
+ 	href="http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/"
+	>http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/</a></li>
+
    <li> <a name="other_os">Heartbeat is currently being ported to use automake.</a></li>
-   <li><a name="RPM"></a>Due to distribution RPM package name differences,
-this was unavoidable.&nbsp; If you're not using STONITH, use the "--nodeps"
-option with rpm. &nbsp;Otherwise, use the heartbeat source to build your
-own RPMs.&nbsp; You'll have the added dependencies of autoconf &gt;= 2.53
-and libnet (get it from <a href="http://www.packetfactory.net/libnet">http://www.packetfactory.net/libnet</a>).&nbsp; 
-Use the heartbeat source RPM (preferred) or unpack the heartbeat source and
-from the top directory, run "./ConfigureMe rpm".&nbsp; This will build RPMS
-and place them where it's customary for your particular distro. &nbsp;It
-may even tell you if you are missing some other required packages!</li>
-   <li><a name="meatware"></a>You configure a "meatware" STONITH device into
-the ha.cf file. &nbsp;The meatware STONITH device asks the operator to go
-power reset the machine <br>
- which has gone down.&nbsp; When the operator has reset the machine he or
-she then issues a command to tell the meatware STONITH plugin that the reset
-has <br>
- taken place. &nbsp;Heartbeat will wait indefinitely until the operator acknowledges
-the reset has occured. &nbsp;During this time, the resources will not be
-taken over, and nothing will happen.</li>
-  <li><a name="STONITH"></a>STONITH is a form of fencing, and is an acronym
-standing for Shoot The Other Node In The Head. &nbsp;It allows one node in
-the cluster to reset the other. &nbsp;Fencing is essential if you're using
-shared disks, in order to protect the integrity of the disk data. &nbsp;Heartbeat
-supports STONITH fencing, and resources which are self-fencing. &nbsp;You
-need to configure some kind of fencing whenever you have a cluster resource
-which might be permanently damaged if both machines tried to make it active
-at the same time. &nbsp;When in doubt check with the mailing list.<br>
- </li>
-   <li><a name="self_fence"></a>This is not something which heartbeat supports
-directly, however, there are a few kinds of resources which are "self-fencing".&nbsp;
-This means that activating the resource causes it to fence itself off from
-the other node naturally. &nbsp;Since this fencing happens in the resource
-agent, heartbeat doesn't know (and doesn't have to know) about it. &nbsp;Two
-possible hardware candidates are IBM's ServeRAID-4 RAID controllers and ICP
-Vortex RAID controllers - but do your homework!!! &nbsp;When in doubt check
-with the mailing list.<br>
+   <li><a name="RPM">Due to distribution RPM package name differences,
+	this was unavoidable.</a>&nbsp; If you're not using STONITH,
+	use the "--nodeps" option with rpm. &nbsp;Otherwise, use the
+	heartbeat source to build your own RPMs.&nbsp; You'll have the
+	added dependencies of autoconf &gt;= 2.53 and libnet
+	(get it from <a href="http://www.packetfactory.net/libnet"
+	>http://www.packetfactory.net/libnet</a>).&nbsp; 
+	Use the heartbeat source RPM (preferred) or unpack the heartbeat
+	source and from the top directory, run "./ConfigureMe rpm".&nbsp;
+	This will build RPMS and place them where it's customary for your
+	particular distro. &nbsp;It may even tell you if you are missing
+	some other required packages!</li>
+
+   <li><a name="meatware">You configure a "meatware" STONITH device into
+	the ha.cf file.</a> &nbsp;The meatware STONITH device asks the
+	operator to go power reset the machine which has gone down.&nbsp;
+	When the operator has reset the machine he or she then issues a
+	command to tell the meatware STONITH plugin that the reset has
+ 	taken place. &nbsp;Heartbeat will wait indefinitely until
+	the operator acknowledges the reset has occured. &nbsp;During
+	this time, the resources will not be taken over, and
+	nothing will happen.</li>
+
+  <li><a name="STONITH">STONITH is a form of fencing</a>, and is an acronym
+	standing for Shoot The Other Node In The Head. &nbsp;It allows one
+	node in the cluster to reset the other. &nbsp;Fencing is essential
+	if you're using shared disks, in order to protect the integrity of
+	the disk data. &nbsp;Heartbeat supports STONITH fencing, and
+	resources which are self-fencing. &nbsp;You need to configure
+	some kind of fencing whenever you have a cluster resource
+	which might be permanently damaged if both machines tried to make
+	it active at the same time. &nbsp;When in doubt check with the
+	Linux-HA mailing list.<br>
    </li>
+
+   <li><a name="self_fence">This is not something which heartbeat supports
+	directly, however, there are a few kinds of resources which
+	are "self-fencing".&nbsp;</a>
+	This means that activating the resource causes it to fence itself
+	off from the other node naturally. &nbsp;Since this fencing
+	happens in the resource agent, heartbeat doesn't know (and
+	doesn't have to know) about it. &nbsp;Two possible hardware candidates
+	are IBM's ServeRAID-4 RAID controllers and ICP
+	Vortex RAID controllers - but do your homework!!! &nbsp;
+	When in doubt check with the mailing list.<br>
+   </li>
+
    <li> <a name="last_hope">Please be sure that you read all documentation</a>
 and searched mail list archives. If you still can't find a solution you can
 post questions to the mailing list. Please include following:</li>
@@ -315,8 +363,8 @@ each machine you need to send: </p>
     </li>
    
   </ul>
-  <li><a name="patches"></a>We love to get good patches. &nbsp;Here's the
-preferred way:</li>
+  <li><a name="patches">We love to get good patches. &nbsp;Here's the
+preferred way:</a>
   <ul>
     <li>If you have any questions about the patch, please check with the
 linux-ha-dev mailing list for answers before starting.</li>
@@ -327,7 +375,7 @@ linux-ha-dev mailing list for answers before starting.</li>
     <li>Send an email to the linux-ha-dev mailing list with the patch as
 an attachment.<b><tt><br>
       </tt></b></li>
-  </ul>
+  </ul></li>
  
 </ol>
  
