@@ -23,8 +23,6 @@ initddir		= @INITDIR@
 
 initd_SCRIPTS	        = ldirectord
 
-EXTRA_DIST              = ldirectord.in
-
 install-initdSCRIPTS: $(initd_SCRIPTS)
 	@$(NORMAL_INSTALL)
 	$(mkinstalldirs) $(DESTDIR)$(initddir)
