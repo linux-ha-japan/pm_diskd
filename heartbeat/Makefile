@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.31 2000/09/03 22:52:01 marcelo Exp $
+#	$Id: Makefile,v 1.32 2000/09/04 14:26:16 marcelo Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -134,10 +134,10 @@ $(CLIENTSO): $(CLIENTLIB)
 	ld -shared -o $(CLIENTSO) --whole-archive $(CLIENTLIB)
 
 $(COMM_OBJS:.o=.so): $(COMM_OBJS)
-	$(CC) -shared -o $@ $<
+	$(CC) -shared -o $@ $(@:.so=.o)
 
 $(AUTH_OBJS:.o=.so): $(AUTH_OBJS)
-	$(CC) -shared -o $@ $<
+	$(CC) -shared -o $@ $(@:.so=.o)
 
 api_test: api_test.o $(CLIENTLIB)
 	$(CC) $(LDFLAGS) $^ -o api_test
