@@ -40,10 +40,25 @@ static char** MLModTypeListModules(MLModuleType* mtype, int* modcount);
 
 
 void	DelMLModuleUniv(MLModuleUniv*);
+/*
+ *	These DelA* functions primarily called from has_table_foreach, but
+ *	not necessarily, so they have gpointer arguments.  When calling
+ *	them by hand, take special care to pass the right argument types.
+ *
+ *	They all follow the same calling sequence though.  It is:
+ *		String name"*" type object
+ *		"*" type object with the name given by 1st argument
+ *		NULL
+ *
+ *	For example:
+ *		DelAMlModuleType takes
+ *			string name
+ *			MLModuleType* object with the given name.
+ */
 static void	DelAMLModuleType
 (	gpointer modtname	/* Name of this module type */
 ,	gpointer modtype	/* MLModuleType* */
-,	gpointer moduniv	/* Parent MLModuleUniv* */
+,	gpointer notused
 );
 
 static MLModuleType* NewMLModuleType
@@ -51,10 +66,15 @@ static MLModuleType* NewMLModuleType
 ,	const char *	moduletype
 );
 static void	DelMLModuleType(MLModuleType*);
+/*
+ *	These DelA* functions primarily called from has_table_foreach, but
+ *	not necessarily, so they have gpointer arguments.  When calling
+ *	them by hand, take special care to pass the right argument types.
+ */
 static void	DelAMLModule
 (	gpointer modname	/* Name of this module  */
 ,	gpointer module		/* MLModule* */
-,	gpointer modtype	/* Parent MLModuleType* */
+,	gpointer notused
 );
 
 
@@ -73,10 +93,15 @@ static int MLModmodrefcount(MLModuleType* mltype, const char * modulename
 
 static MLPluginUniv*	NewMLPluginUniv(MLModuleUniv*);
 static void		DelMLPluginUniv(MLPluginUniv*);
+/*
+ *	These DelA* functions primarily called from has_table_foreach, but
+ *	not necessarily, so they have gpointer arguments.  When calling
+ *	them by hand, take special care to pass the right argument types.
+ */
 static void		DelAMLPluginType
-(	gpointer typename	/* Name of this plugin type  */
+(	gpointer pitypename	/* Name of this plugin type  */
 ,	gpointer pitype		/* MLPluginType* */
-,	gpointer piuniv		/* Parent MLPluginUniverse* */
+,	gpointer notused
 );
 
 static MLPluginType*	NewMLPluginType
@@ -85,10 +110,15 @@ static MLPluginType*	NewMLPluginType
 ,	void* pieports, void* user_data
 );
 static void		DelMLPluginType(MLPluginType*);
+/*
+ *	These DelA* functions primarily called from has_table_foreach, but
+ *	not necessarily, so they have gpointer arguments.  When calling
+ *	them by hand, take special care to pass the right argument types.
+ */
 static void		DelAMLPlugin
 (	gpointer piname		/* Name of this plugin */
 ,	gpointer module		/* MLPlugin* */
-,	gpointer pitype		/* Parent MLPluginType */
+,	gpointer notused
 );
 
 static MLPlugin*	NewMLPlugin
@@ -262,20 +292,29 @@ DelMLModuleType(MLModuleType*mtype)
 	if (g_hash_table_size(mtype->Modules) > 0) {
 		MLLog(ML_CRIT, "DelMLModuleType: Modules not empty");
 	}
-	g_hash_table_foreach(mtype->Modules, DelAMLModule, mtype->Modules);
+	g_hash_table_foreach(mtype->Modules, DelAMLModule, NULL);
 	g_hash_table_destroy(mtype->Modules);
 	mtype->Modules = NULL;
 	mtype->moduniv = NULL;
 	g_free(mtype);	mtype=NULL;
 }
+/*
+ *	These DelA* functions primarily called from has_table_foreach, 
+ *	so they have gpointer arguments.  This *not necessarily* clause
+ *	is why they do the g_hash_table_lookup_extended call instead of
+ *	just deleting the key.  When called from outside, the key *
+ *	may not be pointing at the key to actually free, but a copy
+ *	of the key.
+ */
 static void
 DelAMLModule	/* IsA GHFunc: required for g_hash_table_foreach() */
 (	gpointer modname	/* Name of this module  */
 ,	gpointer module		/* MLModule* */
-,	gpointer mtype		/* MLModuleType */
+,	gpointer notused	
 )
 {
-	MLModuleType*	Mtype = mtype;
+	MLModule*	Module = module;
+	MLModuleType*	Mtype = Module->moduletype;
 	gpointer	key;
 
 	/* Normally (but not always) called from g_hash_table_forall */
@@ -285,6 +324,8 @@ DelAMLModule	/* IsA GHFunc: required for g_hash_table_foreach() */
 		g_hash_table_remove(Mtype->Modules, key);
 		DelMLModule(module);
 		g_free(key);
+	}else{
+		g_assert_not_reached();
 	}
 }
 
@@ -315,8 +356,7 @@ DelMLModuleUniv(MLModuleUniv* moduniv)
 	if (g_hash_table_size(moduniv->ModuleTypes) > 0) {
 		MLLog(ML_CRIT, "DelMLModuleUniv: ModuleTypes not empty");
 	}
-	g_hash_table_foreach(moduniv->ModuleTypes
-	,	DelAMLModuleType, moduniv->ModuleTypes);
+	g_hash_table_foreach(moduniv->ModuleTypes, DelAMLModuleType, NULL);
 	g_hash_table_destroy(moduniv->ModuleTypes);
 	moduniv->ModuleTypes = NULL;
 	DelMLPluginUniv(moduniv->piuniv);
@@ -325,14 +365,23 @@ DelMLModuleUniv(MLModuleUniv* moduniv)
 	g_free(moduniv);	moduniv=NULL;
 }
 
+/*
+ *	These DelA* functions primarily called from has_table_foreach, 
+ *	so they have gpointer arguments.  This *not necessarily* clause
+ *	is why they do the g_hash_table_lookup_extended call instead of
+ *	just deleting the key.  When called from outside, the key *
+ *	may not be pointing at the key to actually free, but a copy
+ *	of the key.
+ */
 static void	/* IsA GHFunc: required for g_hash_table_foreach() */
 DelAMLModuleType
 (	gpointer modtname	/* Name of this module type */
 ,	gpointer modtype	/* MLModuleType* */
-,	gpointer moduniv	/* MLModuleUniv* */
+,	gpointer notused
 )
 {
-	MLModuleUniv*	Moduinv = moduniv;
+	MLModuleType*	Modtype = modtype;
+	MLModuleUniv*	Moduniv = Modtype->moduniv;
 	gpointer	key;
 
 	/*
@@ -341,10 +390,13 @@ DelAMLModuleType
 	 */
 
 	if (g_hash_table_lookup_extended(Moduniv->ModuleTypes
-	,	modtype, &key, &modtype)) {
+	,	modtname, &key, &modtype)) {
+
 		g_hash_table_remove(Moduniv->ModuleTypes, key);
 		DelMLModuleType(modtype);
 		g_free(key);
+	}else{
+		g_assert_not_reached();
 	}
 }
 
@@ -430,7 +482,7 @@ ml_SetDebugLevel (int level)
 	ModuleDebugLevel = level;
 }
 
-/* Close/shutdown the Module */
+/* Close/shutdown the Module (as best we can...) */
 static void
 ml_close (MLModule* module)
 {
@@ -447,8 +499,8 @@ ml_close (MLModule* module)
 	 * unload our module if we can, and remove ourself from our
 	 * parent...
 	 */
-	 if (module->refcount <= 0) {
-		 DelAMLModule(moduletype, module_name, NULL);
+	 if (module->refcnt <= 0) {
+		 DelAMLModule(module->module_name, module, NULL);
 	 }
 }
 
@@ -526,7 +578,7 @@ DelMLPluginType(MLPluginType*pit)
 	if (g_hash_table_size(pit->plugins) > 0) {
 		MLLog(ML_CRIT, "DelMLPluginType: plugins not empty");
 	}
-	g_hash_table_foreach(pit->plugins, DelAMLPlugin, pit->plugins);
+	g_hash_table_foreach(pit->plugins, DelAMLPlugin, NULL);
 	g_hash_table_destroy(pit->plugins);
 	pit->ud_pi_type = NULL;
 	pit->universe = NULL;
@@ -535,14 +587,23 @@ DelMLPluginType(MLPluginType*pit)
 	g_free(pit); pit = NULL;
 }
 
+/*
+ *	These DelA* functions primarily called from has_table_foreach, 
+ *	so they have gpointer arguments.  This *not necessarily* clause
+ *	is why they do the g_hash_table_lookup_extended call instead of
+ *	just deleting the key.  When called from outside, the key *
+ *	may not be pointing at the key to actually free, but a copy
+ *	of the key.
+ */
 static void	/* IsAGHFunc: required for g_hash_table_foreach() */
 DelAMLPlugin
 (	gpointer piname	/* Name of this plugin */
 ,	gpointer pi	/* MLPlugin* */
-,	gpointer pitype	/* MLPluginType* */
+,	gpointer notused
 )
 {
-	MLPluginType*	Pitype = pitype;
+	MLPlugin*	Pi = pi;
+	MLPluginType*	Pitype = Pi->plugintype;
 	gpointer	key;
 
 	/*
@@ -551,10 +612,12 @@ DelAMLPlugin
 	 */
 
 	if (g_hash_table_lookup_extended(Pitype->plugins
-	,	pitype, &key, &pitype)) {
+	,	piname, &key, &pi)) {
 		g_hash_table_remove(Pitype->plugins, key);
-		DelMLPlugin(pi);
+		DelMLPlugin(Pi);
 		g_free(key);
+	}else{
+		g_assert_not_reached();
 	}
 }
 
@@ -977,23 +1040,44 @@ DelMLPluginUniv(MLPluginUniv* piuniv)
 	if (g_hash_table_size(piuniv->pitypes) > 0) {
 		MLLog(ML_CRIT, "DelMLPluginUniv: pitypes not empty");
 	}
-	g_hash_table_foreach(piuniv->pitypes
-	,	DelAMLPluginType, piuniv->pitypes);
+	g_hash_table_foreach(piuniv->pitypes, DelAMLPluginType, NULL);
 	g_hash_table_destroy(piuniv->pitypes);
 	piuniv->pitypes = NULL;
 	piuniv->moduniv = NULL;
 }
 
+/*
+ *	These DelA* functions primarily called from has_table_foreach, 
+ *	so they have gpointer arguments.  This *not necessarily* clause
+ *	is why they do the g_hash_table_lookup_extended call instead of
+ *	just deleting the key.  When called from outside, the key *
+ *	may not be pointing at the key to actually free, but a copy
+ *	of the key.
+ */
 static void	/* IsA GHFunc: required for g_hash_table_foreach() */
 DelAMLPluginType
 (	gpointer typename	/* Name of this plugin type  */
 ,	gpointer pitype		/* MLPluginType* */
-,	gpointer piuniv		/* MLPluginUniv* */
+,	gpointer notused
 )
 {
-	g_hash_table_remove(hash, typename);
-	g_free(typename);
-	DelMLPluginType(pitype);
+	gpointer	key;
+	MLPluginType*	Pitype = pitype;
+	MLPluginUniv*	Piuniv = Pitype->universe;
+	/*
+	 * This function is usually but not always called by
+	 * g_hash_table_foreach()
+	 */
+
+	if (g_hash_table_lookup_extended(Piuniv->pitypes
+	,	typename, &key, &pitype)) {
+
+		g_hash_table_remove(Piuniv->pitypes, key);
+		DelMLPluginType(pitype);
+		g_free(key);
+	}else{
+		g_assert_not_reached();
+	}
 }
 
 static int
