@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.17 2001/06/04 16:53:39 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.18 2001/06/05 16:43:44 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -22,6 +22,7 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.17 2001/06/04 16:53:39 al
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -468,6 +469,10 @@ module_init(void)
     _module_error = multi_init_error;
     return HA_FAIL;
 }
+#ifdef HAVE_LIBGLIB
+#  define NEWMODULECODE 1
+#endif
+
 #ifdef NEWMODULECODE
 /*
  *	Herein lie many fragments and pieces of the new module loading scheme...
@@ -478,7 +483,6 @@ module_init(void)
  *	This stuff is all pretty cool if we can make it work ;-)
  *
  */
-
 /* Gotta love the glib folks ... whose prototype parameters shadow system functions  */
 #define index _fooIndex
 #define time _fooTime

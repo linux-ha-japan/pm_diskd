@@ -19,8 +19,8 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
-INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
-			-I$(top_builddir)/stonith -I$(top_srcdir)/stonith
+INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include	\
+			-I$(top_builddir)/stonith -I$(top_srcdir)/stonith	\
 			-I$(top_builddir)/libltdl -I$(top_srcdir)/libltdl
 
 hadir			= $(sysconfdir)/ha.d
@@ -71,8 +71,7 @@ heartbeat_LDFLAGS	= @LIBLTDL@ -export-dynamic -dlpreopen force \
 			-dlopen mcast.la \
 			-dlopen md5.la \
 			-dlopen sha1.la \
-			-dlopen crc.la \
-			-lglib
+			-dlopen crc.la
 
 send_arp_SOURCES	= send_arp.c
 
