@@ -137,7 +137,8 @@ AC_DEFUN([LIB_SNMP],
  		    int allow_severity = 1;
  		    int deny_severity = 2;], [],
  		    [SNMP_LIBS="$LIBS"
- 		    SNMP_LIBS_FOUND=yes], 
+ 		    SNMP_LIBS_FOUND=yes
+		    AC_DEFINE([SNMP_NEED_TCPWRAPPER], 1, [Need to include tcpd.h headers]) ], 
  		    [AC_MSG_WARN([UCD-SNMP: "$LIBS" dependency failed, try adding rpms, it will be a mess...])])
  	    else
  		AC_MSG_WARN([UCD-SNMP: no libwrap available, try adding rpms, it will be a mess...])
@@ -161,7 +162,8 @@ AC_DEFUN([LIB_SNMP],
  		    int allow_severity = 1;
  		    int deny_severity = 2;], [],
  		    [SNMP_LIBS="$LIBS"
- 		    SNMP_LIBS_FOUND=yes], 
+ 		    SNMP_LIBS_FOUND=yes
+		    AC_DEFINE([SNMP_NEED_TCPWRAPPER], 1, [Need to include tcpd.h headers]) ], 
  		    [AC_MSG_WARN([UCD-SNMP: "$LIBS" dependency failed!!!])])
  	    fi
  	fi
@@ -197,7 +199,8 @@ AC_DEFUN([LIB_SNMP],
  	    	                 int allow_severity = 1;
  	    	                 int deny_severity = 2;], [],
  	    	                 [ SNMP_LIBS="$LIBS"
- 	    	                   SNMP_LIBS_FOUND=yes ], 
+ 	    	                   SNMP_LIBS_FOUND=yes 
+				   AC_DEFINE([SNMP_NEED_TCPWRAPPER], 1, [Need to include tcpd.h headers]) ], 
  	    	                 [AC_MSG_WARN([NET-SNMP: "$LIBS" dependency failed!!!])])
  	        else
  	    	    AC_MSG_WARN([NET-SNMP: no libwrap available. "$LIBS" dependency failed!!!])
