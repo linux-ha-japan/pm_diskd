@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.218 2002/10/07 19:43:39 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.219 2002/10/08 03:40:37 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -931,7 +931,7 @@ read_child(struct hb_media* mp)
 	make_realtime(-1, -1, 32);
 	curproc->pstat = RUNNING;
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
-	drop_privs(-1, -1);
+	drop_privs(0, 0);	/* Become nobody */
 
 	process_pending_handlers();
 	for (;;) {
@@ -993,7 +993,7 @@ write_child(struct hb_media* mp)
 	siginterrupt(SIGALRM, 1);
 	signal(SIGALRM, ignore_signal);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
-	drop_privs(-1, -1);
+	drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
 
 	for (;;) {
@@ -5970,6 +5970,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.219  2002/10/08 03:40:37  alan
+ * An attempt to fix Matt's problem which appears to be the result of dropping
+ * privileges incorrectly.
+ *
  * Revision 1.218  2002/10/07 19:43:39  alan
  * Put in a change which should allow us to work correctly on FreeBSD
  * with its weird "you can't change your scheduler unless you're root" behavior

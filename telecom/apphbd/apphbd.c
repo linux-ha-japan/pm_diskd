@@ -869,7 +869,7 @@ init_start(const char * watchdogdev)
 	if (watchdogdev) {
 		open_watchdog(watchdogdev);
 	}
-	drop_privs(-1, -1);
+	drop_privs(0, 0); /* Become nobody */
 	g_main_run(mainloop);
 	close_watchdog();
 	wconn->ops->destroy(wconn);
