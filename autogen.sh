@@ -1,43 +1,41 @@
 #!/bin/sh
-
 #
 #	Copyright 2001 horms <horms@vergenet.net>
-#		(mangled by alanr)
+#		(heavily mangled by alanr)
 #
-#	This code is known to work with bash, might have trouble with /bin/sh
-#	on some systems.  Our goal is to not require dragging along anything
+#	Our goal is to not require dragging along anything
 #	more than we need.  If this doesn't work on your system,
 #	(i.e., your /bin/sh is broken) send us a patch.
+#
+#	This code loosely based on the corresponding named script in
+#	enlightenment, and also on the sort-of-standard autoconf
+#	bootstrap script.
+#
 #
 
 # Run this to generate all the initial makefiles, etc.
 
-die() {
-        echo >&2
-        echo "$@" >&2
-        exit 1
-}
-
 srcdir=`dirname $0`
-test -z "$srcdir" && srcdir=.
+if
+  [ X$srcdir = "X" ]
+then
+  srcdir=.
+fi
 
-THEDIR=`pwd` || die "Error running pwd"
-
+set -e
 #
 #	All errors are fatal from here on out...
 #	The shell will complain and exit on any "uncaught" error code.
 #
-#	Uncaught means not in the if-clause of a conditional statement
 #
-set -e
-
-#
-#	And this will ensure sure some kind of error message comes out.
+#	And the trap will ensure sure some kind of error message comes out.
 #
 trap 'echo ""; echo "$0 exiting due to error (sorry!)." >&2' 0
+
+HERE=`pwd`
 cd $srcdir
 
-DIE=0
+RC=0
 
 gnu="ftp://ftp.gnu.org/pub/gnu/"
 
@@ -53,49 +51,44 @@ do
   then
     : OK $pkg is installed
   else
+    RC=$?
     cat <<-!EOF >&2
 
 	You must have $pkg installed to compile the linux-ha package.
 	Download the appropriate package for your system,
 	or get the source tarball at: $URL
 	!EOF
-    DIE=1
   fi
 done
 
-if test "$DIE" -eq 1; then
-	exit 1
-fi
+case $RC in
+  0)	;;
+  *)	exit $RC;;
+esac
 
 if
-  test -z "$*"
+  [ $# -lt 1 ]
 then
   cat <<-!
-	Running ./configure with no arguments.
+	Running $srcdir/configure with no arguments.
 	If you wish to pass any arguments to it, please specify them
 	       on the $0 command line.
 	!
 fi
 
-#	Is CC set in the environment before starting?
-case $CC in
-  xlc)
-    am_opt=--include-deps;;
-esac
-
 aclocal $ACLOCAL_FLAGS
 
-#
-#	Do we really want to ignore missing autoheader?
-#
-(autoheader --version)  < /dev/null > /dev/null 2>&1	\
-&&		autoheader
+if
+  autoheader --version  < /dev/null > /dev/null 2>&1
+then
+  autoheader
+fi
 
 libtoolize --ltdl --force --copy
-automake --add-missing $am_opt
+automake --add-missing --include-deps
 autoconf
 
-cd $THEDIR
+cd $HERE
 
 $srcdir/configure "$@"
 
