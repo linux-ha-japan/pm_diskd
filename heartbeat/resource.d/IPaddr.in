@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.3 2001/06/29 21:23:47 alan Exp $
+#	$Id: IPaddr.in,v 1.4 2001/07/02 17:23:23 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -84,26 +84,10 @@ ip_stop() {
   fi
 
 #
-#	The next bit of code is borrowed from Horms' fake code...
+#	The next bit of code originally borrowed from Horms' fake code...
 #	and can be inferred from the IP-Aliasing mini-HOWTO
 #
 
-#
-#	We deliberately ignore the return code from the route
-#	deletion since the ifconfig should knock the route
-#	down anyway.  We're into completeness, though...
-#
-#
-  case $SYSTYPE in
-	FreeBSD)	CMD="$IFCONFIG $IF delete $BASEIP";;
-	*)		CMD="$IFCONFIG $IF down";;
-  esac
-  ha_log "info: $CMD"
-  $CMD
-  case $? in
-    0) ha_log "info: IP Address $BASEIP released";;
-    *) ha_log "WARN: IP Address $BASEIP NOT released";;
-  esac
 
   case $SYSTYPE in
 	FreeBSD)	CMD="$ROUTE delete $BASEIP";;
@@ -111,6 +95,20 @@ ip_stop() {
   esac
   echo "info: $CMD"
   $CMD
+
+  case $SYSTYPE in
+	FreeBSD)	CMD="$IFCONFIG $IF delete $BASEIP";;
+	*)		CMD="$IFCONFIG $IF down";;
+  esac
+  ha_log "info: $CMD"
+  $CMD
+  rc=$?
+
+  case $rc in
+    0) ha_log "info: IP Address $BASEIP released";;
+    *) ha_log "WARN: IP Address $BASEIP NOT released";;
+  esac
+  return $rc
 }
 
 
@@ -326,6 +324,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.4  2001/07/02 17:23:23  alan
+# Changed the order of the ifdown and route del commands...
+#
 # Revision 1.3  2001/06/29 21:23:47  alan
 # Put in a modified version of Matt Soffen's patch to make
 # IPaddr work under FreeBSD.
