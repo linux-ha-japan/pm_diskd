@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.270 2003/07/03 23:27:19 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.271 2003/07/13 12:43:30 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -390,7 +390,7 @@ static int	process_outbound_packet(struct msg_xmit_hist* msghist
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
 static void	LookForClockJumps(void);
 static void	get_localnodeinfo(void);
-
+static gboolean EmergencyShutdown(gpointer p);
 
 /*
  * Glib Mainloop Source functions...
@@ -1541,8 +1541,8 @@ hb_initiate_shutdown(int quickshutdown)
 	if (!quickshutdown) {
 		procinfo->giveup_resources = TRUE;
 		hb_giveup_resources();
-		/* Allow an hour for resources to be released */
-		Gmain_timeout_add(60*60*1000, hb_mcp_final_shutdown, NULL);
+		/* Do something more drastic in 60 minutes */
+		Gmain_timeout_add(1000*60*60, EmergencyShutdown, NULL);
 		return;
 	}
 	/* Trigger final shutdown. */
@@ -4126,6 +4126,11 @@ get_localnodeinfo(void)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.271  2003/07/13 12:43:30  alan
+ * Changed the recovery code to shut down *un*gracefully if resource
+ * takeover doesn't finish when it should.  This should trigger
+ * a STONITH.
+ *
  * Revision 1.270  2003/07/03 23:27:19  alan
  * Moved #defines for parameter names to a public header file.
  * Added the ability to ask for the heartbeat version info through the API.
