@@ -31,8 +31,7 @@ Licensed under the GNU GPL.
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-import types, string, select, sys, time, re, os, struct
-from os import system
+import types, string, select, sys, time, re, os, struct, os, signal
 from UserDict import UserDict
 from syslog import *
 from popen2 import Popen3
@@ -79,7 +78,7 @@ class RemoteExec:
         count=0;
         rc = 0;
         while count < 3:
-           rc = system(self._cmd(args))
+           rc = os.system(self._cmd(args))
            if rc == 0: return rc
            print "Retrying command %s" % self._cmd(args)
            count=count+1
@@ -110,7 +109,7 @@ class RemoteExec:
         cpstring=self.CpCommand
         for arg in args:
             cpstring = cpstring + " \'" + arg + "\'"
-        return system(cpstring) == 0
+        return os.system(cpstring) == 0
 
 
 
@@ -274,7 +273,7 @@ class ClusterManager(UserDict):
     def TruncLogs(self):
         '''Truncate the log for the cluster manager so we can start clean'''
         if self["LogFileName"] != None:
-            system("cp /dev/null " + self["LogFileName"])
+            os.system("cp /dev/null " + self["LogFileName"])
 
     def StartaCM(self, node):
 
@@ -573,7 +572,7 @@ as they might have been rebooted or crashed for some reason beforehand.
 
     def _IsNodeBooted(self, node):
 	'''Return TRUE if the given node is booted (responds to pings'''
-        return system("ping -nq -c1 -w1 %s >/dev/null 2>&1" % node) == 0
+        return os.system("ping -nq -c1 -w1 %s >/dev/null 2>&1" % node) == 0
 
 
     def _WaitForNodeToComeUp(self, node, Timeout=300):
@@ -637,6 +636,86 @@ as they might have been rebooted or crashed for some reason beforehand.
 
         CM.log("Stopping Cluster Manager on all nodes")
         CM.stopall()
+
+class PingFest(ScenarioComponent):
+    (
+'''PingFest does a flood ping to each node in the cluster from the test machine.
+
+If the LabEnvironment Parameter PingSize is set, it will be used as the size
+of ping packet requested (via the -s option).  If it is not set, it defaults
+to 1024 bytes.
+
+According to the manual page for ping:
+    Outputs packets as fast as they come back or one hundred times per
+    second, whichever is more.  For every ECHO_REQUEST sent a period ``.''
+    is printed, while for every ECHO_REPLY received a backspace is printed.
+    This provides a rapid display of how many packets are being dropped.
+    Only the super-user may use this option.  This can be very hard on a net­
+    work and should be used with caution.            
+
+''' )
+
+    def __init__(self, Env):
+	self.Env = Env
+
+    def IsApplicable(self):
+        '''PingFests are always applicable ;-)
+	'''
+
+        return 1
+
+    def SetUp(self, CM):
+        '''Start the PingFest!'''
+
+        self.PingSize=1024
+        if CM.Env.has_key("PingSize"):
+		self.PingSize=CM.Env["PingSize"]
+
+        CM.log("Starting %d byte flood pings" % self.PingSize)
+
+        self.PingPids=[]
+        for node in CM.Env["nodes"]:
+            self.PingPids.append(self._pingchild(node))
+
+        CM.log("Ping PIDs: " + repr(self.PingPids))
+        return 1
+
+    def TearDown(self, CM):
+        '''Stop it right now!  My ears are pinging!!'''
+
+        for pid in self.PingPids:
+            if pid != None:
+                CM.log("Stopping ping process %d" % pid)
+	        os.kill(pid, signal.SIGKILL)
+
+    def _pingchild(self, node):
+
+        Args = ["ping", "-qfn", "-s", str(self.PingSize), node]
+
+
+        sys.stdin.flush()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        pid = os.fork()
+
+        if pid < 0:
+            self.Env.log("Cannot fork ping child")
+            return None
+        if pid > 0:
+            return pid
+
+
+        # Otherwise, we're the child process.
+
+   
+        os.execvp("ping", Args)
+        self.Env.log("Cannot execvp ping: " + repr(Args))
+        sys.exit(1)
+
+
+        
+        
+	
 
 
 class RandomTests:
@@ -712,7 +791,7 @@ random for the selected number of iterations.
                 if not audit():
                     self.CM.log("Audit " + audit.name() + " Failed.")
                     test.incr("auditfail")
-                    self.Stats["auditfail"] = self.Stats["auditfail"] + 1
+                    self.Stats.incr("auditfail")
 
         self.Scenario.TearDown(self.CM)
 

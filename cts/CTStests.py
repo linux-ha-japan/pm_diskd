@@ -48,7 +48,12 @@ class CTSTest:
 
     def __init__(self, cm):
         #self.name="the unnamed test"
-        self.Stats = {"calls":0, "success":0, "failure":0, "skipped":0}
+        self.Stats = {"calls":0
+	,	"success":0
+	,	"failure":0
+	,	"skipped":0
+	,	"auditfail":0}
+
 #        if not issubclass(cm.__class__, ClusterManager):
 #            raise ValueError("Must be a ClusterManager object")
         self.CM = cm

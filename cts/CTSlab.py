@@ -279,7 +279,7 @@ if __name__ == '__main__':
 
     from CTSaudits import AuditList
     from CTStests import TestList
-    from CTS import RandomTests, Scenario, InitClusterManager
+    from CTS import RandomTests, Scenario, InitClusterManager, PingFest
 
     Environment = CtsLab(["sgi1", "sgi2"])
     #Environment["RandSeed"] = (1,2,3)
@@ -289,7 +289,11 @@ if __name__ == '__main__':
 
     # Your basic start up the world type of test scenario...
 
-    scenario = Scenario([InitClusterManager(Environment)])
+    #scenario = Scenario(
+    #[	InitClusterManager(Environment)
+    #,	PingFest(Environment)])
+    scenario = Scenario(
+    [	InitClusterManager(Environment)])
 
     # Create the Cluster Manager object
 
@@ -302,7 +306,7 @@ if __name__ == '__main__':
     Tests = TestList(cm)
 
     tests = RandomTests(scenario, cm, Tests, Audits)
-    overall, detailed = tests.run(500)
+    overall, detailed = tests.run(5000)
  
     cm.log("****************")
     cm.log("Overall Results:" + repr(overall))
