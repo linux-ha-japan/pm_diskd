@@ -1,7 +1,7 @@
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H
 
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.7 2000/04/12 23:03:49 marcelo Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.8 2000/06/12 06:11:09 alan Exp $";
 #include <stdio.h>
 /*
  *	Intracluster message object (struct ha_msg)
@@ -36,6 +36,11 @@ struct ha_msg {
 #define F_AUTH          "auth"		/* Authentication string */
 #define F_FIRSTSEQ      "firstseq"	/* Lowest seq # to retransmit */
 #define F_LASTSEQ       "lastseq"	/* Highest seq # to retransmit */
+#define F_RESOURCES	"rsc_hold"      /* What resources do we hold? */
+#define F_FROMID	"from_id"	/* from Client id */
+#define F_TOID		"to_id"		/* To client id */
+#define F_PID		"pid"		/* PID of client */
+#define F_ISSTABLE	"isstable"	/* true/false for RESOURCES */
 
 
 #define	T_STATUS	"status"	/* Message type = Status */
@@ -43,6 +48,7 @@ struct ha_msg {
 #define	T_REXMIT	"NS_rexmit"	/* Message type = Retransmit request */
 #define	T_NAKREXMIT	"NS_nak_rexmit"	/* Message type = NAK Re-xmit rqst */
 #define T_STARTING      "starting"      /* Message type = Starting Heartbeat */
+#define T_RESOURCES	"resource"      /* Message type = Resources info */
 
 
 /* Allocate new (empty) message */

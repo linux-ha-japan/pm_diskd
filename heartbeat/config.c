@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.10 2000/05/17 13:01:49 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.11 2000/06/12 06:11:09 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -43,6 +43,7 @@ extern volatile struct pstat_shm *	procinfo;
 extern volatile struct process_info *	curproc;
 extern char *				watchdogdev;
 extern int				nummedia;
+extern int                              nice_failback;
 
 int	islegaldirective(const char *directive);
 int     parse_config(const char * cfgfile, char *nodename);
@@ -153,7 +154,7 @@ init_config(const char * cfgfile)
 			        ha_log(LOG_INFO
 			        ,	"Neither logfile nor "
 				        "logfacility found.");
-			        ha_log(LOG_INFO, "Loging defaulting to " 
+			        ha_log(LOG_INFO, "Logging defaulting to " 
                                                 DEFAULTLOG);
 		        }
                 }
@@ -171,8 +172,11 @@ init_config(const char * cfgfile)
 	        }
         }
 	if (!RestartRequested && errcount == 0 && !parse_only) {
-		ha_log(LOG_INFO, "***********************");
-		ha_log(LOG_INFO, "Configuration validated. Starting heartbeat.");
+		ha_log(LOG_INFO, "**************************");
+		ha_log(LOG_INFO, "Configuration validated. Starting heartbeat %s", VERSION);
+		if (nice_failback) {
+			ha_log(LOG_INFO, "nice_failback is in effect.");
+		}
 	}
 	return(errcount ? HA_FAIL : HA_OK);
 }
@@ -188,6 +192,7 @@ init_config(const char * cfgfile)
 #define	KEY_FACILITY	"logfacility"
 #define	KEY_LOGFILE	"logfile"
 #define	KEY_DBGFILE	"debugfile"
+#define KEY_FAILBACK    "nice_failback"
 
 int add_node(const char *);
 int set_hopfudge(const char *);
@@ -199,6 +204,7 @@ int set_udpport(const char *);
 int set_facility(const char *);
 int set_logfile(const char *);
 int set_dbgfile(const char *);
+int set_nice_failback(const char *);
 
 extern const struct hb_media_fns	ip_media_fns;
 extern const struct hb_media_fns	serial_media_fns;
@@ -228,6 +234,7 @@ struct directive {
 ,	{KEY_FACILITY,  set_facility}
 ,	{KEY_LOGFILE,   set_logfile}
 ,	{KEY_DBGFILE,   set_dbgfile}
+,       {KEY_FAILBACK,  set_nice_failback}
 };
 
 
@@ -526,6 +533,7 @@ add_node(const char * value)
 	strcpy(hip->status, INITSTATUS);
 	strcpy(hip->nodename, value);
 	hip->rmt_lastupdate = 0L;
+	hip->anypacketsyet  = 0;
 	hip->local_lastupdate = times(NULL);
 	hip->track.nmissing = 0;
 	hip->track.last_seq = NOSEQUENCE;
@@ -858,3 +866,15 @@ set_logfile(const char * value)
 	return(HA_OK);
 }
 
+/* sets nice_failback behavior on/off */
+int
+set_nice_failback(const char * value)
+{
+        if(!strcasecmp(value, "on")) {
+                nice_failback = 1;
+        } else {
+                nice_failback = 0;
+        }
+
+        return(HA_OK);
+}

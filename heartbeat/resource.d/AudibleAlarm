@@ -19,10 +19,10 @@ PIDFILE=/var/run/heartbeat-bell
 . /etc/ha.d/shellfuncs
 
 audiablealarm_start () {
-	ha_log "$0: Starting"
+	ha_log "info: $0: Starting"
     	if [ -f $PIDFILE ]; then
         	PID=`head -1 $PIDFILE`
-		ha_log "$0: Appears to already be running, killing [$PID]"
+		ha_log "info: $0: Appears to already be running, killing [$PID]"
 		kill $PID > /dev/null
 	fi
 	while [ 1 ]; do 
@@ -30,17 +30,17 @@ audiablealarm_start () {
 		echo -ne "\a" > /dev/console 
 	done&
 	if ! echo $! >  $PIDFILE; then
-		ha_log "$0: Could not write to pid file \"$PIDFILE\", bailing"
+		ha_log "info: $0: Could not write to pid file \"$PIDFILE\", bailing"
 		kill $!
 		exit 1
 	fi
 }
 
 audiablealarm_stop () {
-	ha_log "$0: Shutting down"
+	ha_log "info: $0: Shutting down"
   	if [ -f $PIDFILE ]; then
 		PID=`head -1 $PIDFILE`
-		ha_log "$0: Appears to already be running, killing [$PID]"
+		ha_log "info: $0: Appears to already be running, killing [$PID]"
 		kill $PID > /dev/null
 		rm $PIDFILE
 	fi

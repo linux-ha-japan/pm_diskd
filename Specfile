@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.41 2000/05/09 04:00:53 alan Exp $
+#	$Id: Specfile,v 1.42 2000/06/12 06:11:09 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -23,7 +23,7 @@ It implements the following kinds of heartbeats:
 
 %changelog
 
-* Thu Apr 27 2000 Alan Robertson <alanr@suse.com>,
+* Sun Jun 11 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
@@ -32,7 +32,16 @@ It implements the following kinds of heartbeats:
      and Horms <horms@vergenet.net>
 
 + Version 0.4.8  BETA series
-  + Made the RPM more SuSE-compatible
+  + Made the order of resource takeover more rational:  Takeover is now
+    left-to-right, and giveup is right-to-left
+  + Changed the default port number to our official IANA port number (694)
+  + Regularized more messages, eliminated som redundant ones.
+  + Print the version of heartbeat when starting.
+  + Hosts now have 3 statuses {down, up, active} active means that it knows
+	that all its links are operational, and it's safe to send cluster
+	messages
+  + Significant revisions to nice_failback (mainly due to lclaudio)
+  + More SuSE-compatibility. Thanks to Friedrich Lobenstock <fl@fl.priv.at>
   + Tidied up logging so it can be to files, to syslog or both (Horms)
   + Tidied up build process (Horms)
   + Updated ldirectord to produce and install a man page and be
@@ -48,8 +57,7 @@ It implements the following kinds of heartbeats:
     as this is where ldirectord's configuration belongs (Horms)
   + Minor startup script tweaks.  Hopefully, we should be able to make core
     files should we crash in the future.  Thanks to Holger Kiehl for diagnosing
-    the problem.
-  + Changed the default port number to our official IANA port number (694)
+    the problem!
   + Fixed the serial locking code so that it unlocks when it shuts down.
   + Lock heartbeat into memory, and raise our priority
 
@@ -239,7 +247,7 @@ It implements the following kinds of heartbeats:
 make
 %install
 rm -rf $RPM_BUILD_ROOT
-BUILD_ROOT=$RPM_BUILD_ROOT make install
+RPM_BUILD=yes BUILD_ROOT=$RPM_BUILD_ROOT make install
 pushd $RPM_BUILD_ROOT/etc/ha.d/resource.d
 ln -s ../../../sbin/ldirectord .
 popd
@@ -249,6 +257,7 @@ popd
 %HADIR%/harc
 %HADIR%/shellfuncs
 %HADIR%/rc.d
+%HADIR%/README.config
 %HADIR%/conf
 %HALIB%
 %HADIR%/resource.d
@@ -260,7 +269,7 @@ popd
 /etc/logrotate.d/ldirectord
 /etc/rc.d/init.d/ldirectord
 /usr/man/man8/ldirectord.8
-%doc %DOCDIR%
+%doc doc/*
 %doc ldirectord/ldirectord.cf
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -304,7 +313,17 @@ then
 fi
 
 # Run heartbeat on startup
-[ -x /sbin/chkconfig ] && /sbin/chkconfig --add heartbeat
+if
+  [ -f /etc/SuSE-release ]
+then
+  RC2=/sbin/init.d/rc2.d
+  rm -f $RC2/S24heartbeat; ln -s ../heartbeat $RC2/S24heartbeat 
+  rm -f $RC2/K40heartbeat; ln -s  ../heartbeat $RC2/K40heartbeat
+elif
+  [ -x /sbin/chkconfig ]
+then
+  /sbin/chkconfig --add heartbeat
+fi
 true
 
 %preun

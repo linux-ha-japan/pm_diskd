@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.4 2000/04/15 22:05:27 horms Exp $
+#	$Id: Makefile,v 1.5 2000/06/12 06:11:09 alan Exp $
 #
 #	Makefile for making High-Availability Linux documents
 #
@@ -70,7 +70,7 @@ install_bin: all
 rh-install_bin: install_bin
 
 clean:
-	rm -f core *.o *.swp .*.swp
+	rm -f core *.o *.swp .*.swp make.out 
 
 pristene: clean
 	rm -f $(MADEDOCS)

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr,v 1.5 1999/12/30 03:18:50 alan Exp $
+#	$Id: IPaddr,v 1.6 2000/06/12 06:11:09 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -78,7 +78,7 @@ ip_stop() {
 
   $ROUTE del -host $BASEIP
   $IFCONFIG $IF down
-  ha_log "IP Address $BASEIP released"
+  ha_log "info: IP Address $BASEIP released"
 }
 
 
@@ -154,7 +154,7 @@ ip_start() {
 #	The remaining code in this function taken from FAKE, by horms
 #
 
-  ha_log "INFO: ifconfig $IF $BASEIP $IFEXTRA"
+  ha_log "info: ifconfig $IF $BASEIP $IFEXTRA"
   $IFCONFIG $IF $BASEIP $IFEXTRA
 
   $ROUTE add -host $BASEIP dev $IF
@@ -167,10 +167,10 @@ ip_start() {
       's/^.*HWaddr \(..\):\(..\):\(..\):\(..\):\(..\):\(..\).*$/\1\2\3\4\5\6/')
   
   if [ "${MACADDR:=NULL}" = "NULL" ]; then
-      ha_log "Could not locate obtain hardware address for $TARGET_INTERFACE"
+      ha_log "ERROR: Could not locate obtain hardware address for $TARGET_INTERFACE"
   fi
  
-  ha_log "Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
+  ha_log "info: Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
 
   for j in 1 2 3 4 5
   do
@@ -238,6 +238,15 @@ esac
 #
 #
 # $Log: IPaddr,v $
+# Revision 1.6  2000/06/12 06:11:09  alan
+# Changed resource takeover order to left-to-right
+# Added new version of nice_failback.  Hopefully it works wonderfully!
+# Regularized some error messages
+# Print the version of heartbeat when starting
+# Hosts now have three statuses {down, up, active}
+# SuSE compatability due to Friedrich Lobenstock and alanr
+# Other minor tweaks, too numerous to mention.
+#
 # Revision 1.5  1999/12/30 03:18:50  alan
 # Put Stefan Salzer's fix on the place he put it in :-)  The same bug appeared
 # twice in the code.  I fixed it in one place, and so did he.  Now

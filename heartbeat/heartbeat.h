@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.23 2000/04/28 21:41:37 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.24 2000/06/12 06:11:09 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -15,6 +15,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.23 2000/04/28 21:41:
 #	define	SETATTR(fd, s)	tcsetattr(fd, TCSAFLUSH, s)
 #	define	FLUSH(fd)	tcflush(fd, TCIOFLUSH)
 #endif
+
 
 #include <limits.h>
 #include <syslog.h>
@@ -82,8 +83,11 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.23 2000/04/28 21:41:
 #define	EOS		'\0'
 #define	COMMENTCHAR	'#'
 #define	STATUS		"STATUS"
-#define	INITSTATUS	"up"
-#define	DEADSTATUS	"dead"
+#define	INITSTATUS	"init"		/* The status of a node we've never heard from */
+#define	UPSTATUS	"up"		/* This means we're listening, but might not be transmitting */
+#define	ACTIVESTATUS	"active"	/* This means we're fully functional, and all links are up */
+#define	DEADSTATUS	"dead"		/* The status assigned to a non-working link or machine */
+#define	LINKUP		"up"		/* The status assigned to a working link */
 #define	LOADAVG		"/proc/loadavg"
 #define	PIDFILE		VAR_RUN_D "/heartbeat.pid"
 #define KEYFILE         HA_D "/authkeys"
@@ -99,6 +103,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.23 2000/04/28 21:41:
 #define LOGFACILITY	"HA_LOGFACILITY"/* Facility to use for logger */
 #define HADIRENV	"HA_DIR"	/* The base HA directory */
 #define HAFUNCENV	"HA_FUNCS"	/* Location of ha shell functions */
+#define HANICEFAILBACK	"HA_NICEFAILBACK"	/* Location of ha shell functions */
 
 
 #define	DEFAULTBAUD	B19200	/* Default serial link speed */
@@ -163,7 +168,8 @@ struct node_info {
 	struct link links[MAXMEDIA];
 	time_t	rmt_lastupdate;		/* node's idea of last update time */
 	unsigned long	status_seqno;	/* Seqno of last status update */
-	clock_t	local_lastupdate;	/* Date of last update in clock_t time */
+	clock_t	local_lastupdate;	/* Date of last update in clock_t time*/
+	int	anypacketsyet;		/* True after reception of 1st pkt */
 	struct seqtrack	track;
 };
 
@@ -243,7 +249,7 @@ enum process_type {
 	PROC_MST_STATUS,
 	PROC_HBREAD,
 	PROC_HBWRITE,
-	PROC_PPP,
+	PROC_PPP
 };
 
 struct process_info {
@@ -289,9 +295,7 @@ extern void		ha_error(const char * msg);
 extern void		ha_assert(const char *s, int line, const char * file);
 extern void		ha_log(int priority, const char * fmt, ...);
 extern void		ha_perror(const char * fmt, ...);
-extern int              send_local_starting(void);
 extern int		send_local_status(void);
-extern int		set_local_status(const char * status);
 extern int		send_cluster_msg(struct ha_msg*msg);
 extern void		cleanexit(int exitcode);
 extern void		check_auth_change(struct sys_config *);
@@ -308,4 +312,4 @@ void*		ha_malloc(size_t size);
 void*		ha_calloc(size_t nmemb, size_t size);
 void		ha_free(void *ptr);
 void		ha_malloc_report(void);
-#endif _HEARTBEAT_H
+#endif /* _HEARTBEAT_H */

@@ -30,6 +30,6 @@ else
   fi
 fi
 
-ha_log "INFO: Running $RCDIR/$1 $*"
+ha_log "info: Running $RCDIR/$1 $*"
 exec $RCDIR/$1 "$@"
 ha_log "ERROR: $0: $RCDIR/$1: cannot execute"

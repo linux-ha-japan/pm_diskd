@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.20 2000/04/27 12:50:20 alan Exp $
+#	$Id: heartbeat.sh,v 1.21 2000/06/12 06:11:09 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -128,27 +128,6 @@ init_watchdog() {
   fi
 } # init_watchdog()
 
-#
-#	Install /proc/ha module, if it's not already installed
-#
-#
-
-init_proc_ha() {
-  if
-    [ ! -d /proc/ha ]
-  then
-    for module in $PROC_HA
-    do
-      if
-        $INSMOD $module
-      then
-        : $PROC_HA Module loaded OK
-        return 0
-      fi
-    done
-  fi
-}
-
 
 #
 #	Start the heartbeat daemon...
@@ -176,9 +155,6 @@ StartHA() {
   then
     #	Create /dev/watchdog and load module if we should
     init_watchdog
-    #	Load /proc/ha module
-    #	NOTE: Current version of proc_ha module kills heartbeat processes!
-    # init_proc_ha
   fi
   rm -f /var/run/ppp.d/*
   if
@@ -197,7 +173,7 @@ StartHA() {
     echo_failure $RC
     if [ ! -z "$ERROR" ]; then
       echo
-      echo .$ERROR
+      echo "$ERROR"
     fi 
     return $RC
   fi
@@ -262,6 +238,15 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.21  2000/06/12 06:11:09  alan
+#  Changed resource takeover order to left-to-right
+#  Added new version of nice_failback.  Hopefully it works wonderfully!
+#  Regularized some error messages
+#  Print the version of heartbeat when starting
+#  Hosts now have three statuses {down, up, active}
+#  SuSE compatability due to Friedrich Lobenstock and alanr
+#  Other minor tweaks, too numerous to mention.
+#
 #  Revision 1.20  2000/04/27 12:50:20  alan
 #  Changed the port number to 694.  Added the pristene target to the ldirectord
 #  Makefile.  Minor tweaks to heartbeat.sh, so that it gives some kind of

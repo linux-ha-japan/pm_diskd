@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.36 2000/05/03 01:49:01 alan Exp $
+#	$Id: Makefile,v 1.37 2000/06/12 06:11:09 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -9,7 +9,7 @@
 #
 #
 PKG=heartbeat
-VERS=0.4.7b
+VERS=0.4.7c
 RPMREL=1
 
 INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
@@ -18,7 +18,7 @@ LOGROTATED=/etc/logrotate.d
 #	Debian wants things to start with DESTDIR,
 #	but Red Hat starts them with RPM_BUILD_ROOT	(sigh...)
 #
-#       When make is called is shuold be run as
+#       When make is called it should be run as
 #       BUILD_ROOT=$VAR make ...
 #
 #       e.g.
@@ -62,18 +62,18 @@ RPMDIR=/usr/src/packages
 RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PKG)-$(VERS)-$(RPMREL).src.rpm
 RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-$(VERS)-$(RPMREL).i386.rpm
 
-.PHONY =  \
-	all \
-	install \
-	handy \
-	clean \
-	pristene \
-	rpmclean \
-	rpm \
-	tar \
-	dist \
-	distclean \
-	tarclean \
+.PHONY =  		\
+	all		\
+	install		\
+	handy		\
+	clean		\
+	pristene	\
+	rpmclean	\
+	rpm		\
+	tar		\
+	dist		\
+	distclean	\
+	tarclean	\
 	clobber
 
 
@@ -82,12 +82,6 @@ all:
 	do 								\
 		$(MAKE_CMD) -C $$j all; 				\
 	done
-	#@if [ -f /etc/redhat-release ];then T=rh-all; else T=all; fi;	\
-	#for j in $(KERNELDIRS);						\
-	#do 								\
-	#	$(MAKE_CMD) -C $$j $$T; 				\
-	#done
-
 
 all_dirs:	bin_dirs
 	[ -d $(DOCDIR) ]  || mkdir -p $(DOCDIR)
@@ -111,25 +105,13 @@ install:	all_dirs
 	@if [ -f /etc/redhat-release ];					\
 	then 								\
 		T=rh-install; else T=install; 				\
-	fi;\
-	#for j in $(KERNELDIRS);						\
-	#do 								\
-	#	$(MAKE_CMD) -C $$j $$T; 				\
-	#done
+	fi;								\
 
 install_bin: bin_dirs
 	@for j in $(NONKERNELDIRS); 					\
 	do 								\
 		$(MAKE_CMD) -C $$j install_bin;				\
 	done
-	#@if [ -f /etc/redhat-release ];					\
-	#then 								\
-	#	T=rh-install_bin; else T=install_bin; 			\
-	#fi 								\
-	#for j in $(KERNELDIRS);						\
-	#do 								\
-	#	$(MAKE_CMD) -C $$j $$T; 				\
-	#done
 
 #	For alanr's development environment...
 #
@@ -145,7 +127,7 @@ clean:	local_clean
 	done
 
 local_clean:
-	rm -f *.o *.swp .*.swp core
+	rm -f *.o *.swp .*.swp core *~ make.out
 	rm -f $(LIBCMDS)
 
 pristene: local_clean rpmclean
@@ -205,8 +187,18 @@ $(SPECFILE):    $(SPECSRC)
 			< $(SPECSRC) > $(SPECFILE)
 
 rpm:            tar $(SPECFILE)
-		$(RPM) $(RPMFLAGS) $(TARFILE)
-		rm -fr /var/tmp/$(PKG)-root
+		@if grep VERSION /etc/SuSE-release >/dev/null 2>&1;then	\
+		  DISTRO=SuSE;						\
+		  RPMSRCDIR=$(DESTDIR)/usr/src/packages/SOURCES;	\
+		  RPMSPECDIR=$(DESTDIR)/usr/src/packages/SPECS;		\
+		else							\
+		  DISTRO=RedHat;					\
+		fi;							\
+		$(RPM) $(RPMFLAGS) $(TARFILE);				\
+		rm -fr /var/tmp/$(PKG)-root;				\
+		echo "##########################################";	\
+		echo "# rpm-package $(VERS) for $$DISTRO is ready";	\
+		echo "##########################################";
 #
 #       Things for making the tar.gz file
 
@@ -218,7 +210,7 @@ $(TARFILE):     tarclean clean $(SPECFILE)
 		mkdir -p $(OURDIR)
 		find . -print | \
 			egrep -v \
-			"^./($(OURDIR)(/.*)?||.*tar\.gz|(.*/)?\.#.*)$$" | \
+			"^./($(OURDIR)(/.*)?||.*tar\.gz|(.*/)?\.#.*)$$|CVS" | \
 			cpio -pdm --quiet $(OURDIR)
 		$(TAR)  -cf - $(OURDIR) | gzip - > $(TARFILE)
 		rm -fr $(OURDIR)
@@ -231,6 +223,10 @@ distclean:	tarclean
 
 tarclean:
 		rm -fr $(OURDIR) $(TARFILE)
+		@for j in $(BUILDDIRS);			\
+		do					\
+			$(MAKE_CMD) -C $$j pristene;	\
+		done
 
 
 clobber:	tarclean rpmclean clean

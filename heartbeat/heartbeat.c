@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.50 2000/05/27 07:43:06 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.51 2000/06/12 06:11:09 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -112,17 +112,88 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.50 2000/05/27 07:43:
  *		For ttys ONLY:
  *			copying to tty write pipes (incrementing hop count and
  *				filtering out "ring wraparounds")
- *	Wish List:
+ *
+ ****** Wish List: *************************************************************************************
+ *	[not necessarily in priority order]
+ *
+ *	Heartbeat API:
+ *		This is currently being worked.  It would allow application programs to attach to
+ *		heartbeat and get status notices from it, and allow them to send and receive messages
+ *		to/from the cluster as well.  This would allow us to move all the resource
+ *		management stuff to a cluster manager, where it belongs ;-)
+ *
+ *	Fuzzy heartbeat timing
+ *		Right now, the code works in such a way that it systematically gets everyone
+ *		heartbeating on the same time intervals, so that they happen at precisely the same time.
+ *		This isn't too good for non-switched ethernet (CSMA/CD) environments, where it generates
+ *		gobs of collisions, packet losses and retransmissions.  It's especially bad if everyone's
+ *		clocks are in sync, which of course, every good system administrator strives to do ;-)
+ *
+ *		This is due to Alan Cox who pointed out section 3.3 "Timers" in RFC 1058,
+ *		in which it states:
+ *
+ *       	  "It is undesirable for the update messages to become synchronized,
+ *        	   since it can lead to unnecessary collisions on broadcast networks."
+ *
+ *		In particular, on Linux, if you set your all the clocks in your cluster
+ *		via NTP (as you should), and heartbeat every second, then all the
+ *		machines in the world will all try and heartbeat at precisely the same
+ *		time, because alarm(2) wakes up on even second boundaries, which
+ *		combined with the use of NTP (recommended), will systematically cause
+ *		LOTS of unnecessary collisions.
+ *
+ *		Martin Lichtin suggests:
+ *          	Could you skew the heartbeats, based on the interface IP#?
+ *		Probably want to use select(2) to wake up more precisely.
+ *
+ *		AlanR replied:
+ *		I've thought about using setitimer(2), which would probably be slightly
+ *		more compatible with the way the code is currently written.
+ *
+ *		I thought that perhaps I could set each machine to a different interval
+ *		in a +- 0.25 second range.  For example, one machine might heartbeat at
+ *		0.75 second interval, and another at a 1.25 second interval.  The
+ *		tendency would be then for the timers to wander across second
+ *		boundaries, and even if they started out in sync, they would be unlikely
+ *		to stay in sync.
+ *		[but in retrospect, I'm not 100% sure about this]
+ *
+ *		This would keep me from having to generate a random number for every
+ *		single heartbeat as the RFC suggests.
+ *
+ *		Of course, there are only 100 ticks/second, so if the clocks get closely
+ *		synchronized, you can only have 100 different times to heartbeat.  I
+ *		suppose if you have something like 50-100 nodes, you ought to use a
+ *		switch, and not a hub, and this would likely eliminate the problems.
+ *
+ *	Ping heartbeating:
+ *		A hub, switch, or router can act as a cluster quorum device if it we're willing
+ *		to ping it (and it's willing to answer).  It would be handy to just give it the same API
+ *		treatment as any other cluster "node".
+ *
+ *	Multicast heartbeats
+ *		We really need to add UDP/IP multicast to our suite of heartbeat types.  Fundamentally,
+ *		cluster communications are perhaps best thought of as multicast in nature.  Broadcast
+ *		(like we do now) is basically a degenerate multicast case.  One of the pieces of code
+ *		listed on the linux-ha web site does multicast heartbeats.  Perhaps we could just borrow
+ *		the correct parts from them.
+ *
+ *	Unicast heartbeats
+ *		Some applications of heartbeat have certain machines which are not really full members of
+ *		the cluster, but which would like to participate in the heartbeat API.  Although they
+ *		could theoretically use multicast, there are practical barriers to doing so.  This is NOT
+ *		intended to replace multicast/broadcast heartbeats for the entire cluster, but to allow
+ *		one or two machines to join the cluster in a unicast mode.
  *
  *	Nearest Neighbor heartbeating (? maybe?)
- *		This should replace the current policy of full-ring heartbeats
+ *		This is a candidate to replace the current policy of full-ring heartbeats
  *		In this policy, each machine only heartbeats to it's nearest
  *		neighbors.  The nearest neighbors only forward on status CHANGES
  *		to their neighbors.  This means that the total ring traffic
  *		in the non-error case is reduced to the same as a 3-node
  *		cluster.  This is a huge improvement.  It probably means that
- *		19200 is fast enough for almost any size network.
- *		Non-heartbeat admin traffic is forwarded to all members of the
+ *		19200 would be fast enough for almost any size network.
+ *		Non-heartbeat admin traffic would need to be forwarded to all members of the
  *		ring as it was before.
  *
  *	IrDA heartbeats
@@ -131,6 +202,14 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.50 2000/05/27 07:43:
  *		The role of an ethernet hub is replaced by a mirror, which
  *		is less likely to fail.  But if it does, it might mean
  *		seven years of bad luck :-)
+ *		The idea would be to make a bracket with the IrDA transceivers on them all
+ *		facing the same way, then mount the bracket with the transceivers all facing
+ *		the mirror.  Then each of the transceivers would be able to "see" each other.
+ *
+ *		I do kind of wonder if the kernel's IrDA stacks would be up to so much contention
+ *		as it seems unlikely that they'd ever been tested in such a stressful environment.
+ *		But, it seems really cool to me, and it only takes one port per machine rather
+ *		than two like does for serial rings.
  *
  */
 
@@ -166,16 +245,50 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.50 2000/05/27 07:43:
 
 #define OPTARGS		"dkrRsv"
 
-#define	KEEPIT	0
-#define	DROPIT	1 
-#define DUPLICATE	2
+/*
+ *	This next set of defines is for the types of packets that come through heartbeat.
+ *
+ *	Any given packet behaves like an enumeration (should only have one bit on), but the options
+ *	from client software treat them more like a set (bit field), with more than one at a time
+ *	being on.  Normally the client only requests KEEPIT packets, but for debugging may want to
+ *	ask to see the others too.
+ */
+#define	KEEPIT		1	/* Keep this packet */
+#define	DROPIT		2	/* Ignore this packet: bad seqno or not to us or something  */
+#define DUPLICATE	4	/* This is a duplicate packet */
 
+#define	ALLTREATMENTS	(KEEPIT|DROPIT|DUPLICATE)
+#define	DEBUGTREATMENTS	(DROPIT|DUPLICATE)
+#define	DEFAULTREATMENT	(KEEPIT)
+
+/*
+ *	Note that the _RSC defines below are bit fields!
+ */
+#define NO_RESOURCES		"none"
+#define NO_RSC			0
+
+#define LOCAL_RESOURCES		"local"
+#define LOCAL_RSC		1
+
+#define FOREIGN_RESOURCES	"foreign"
+#define	FOREIGN_RSC		2
+
+#define ALL_RSC			(LOCAL_RSC|FOREIGN_RSC)
+#define ALL_RESOURCES		"all"
+
+const char *		rsc_msg[] =	{NO_RESOURCES, LOCAL_RESOURCES,
+        				 FOREIGN_RESOURCES, ALL_RESOURCES};
 int		verbose = 0;
 
 const char *	cmdname = "heartbeat";
 const char **	Argv = NULL;
 int		Argc = -1;
 int		debug = 0;
+int 		nice_failback = 0;
+int		i_hold_resources = NO_RSC;
+int		other_holds_resources = NO_RSC;
+int		other_is_stable = 0; /* F_ISSTABLE */
+int		takeover_in_progress = 0;
 int		RestartRequested = 0;
 int		WeAreRestarting = 0;
 int		killrunninghb = 0;
@@ -195,11 +308,11 @@ int			nummedia = 0;
 int			status_pipe[2];	/* The Master status pipe */
 
 const char *ha_log_priority[8] = {
-	"emerg",
-	"alert",
-	"crit",
-	"error",
-	"warn",
+	"EMERG",
+	"ALERT",
+	"CRIT",
+	"ERROR",
+	"WARN",
 	"notice",
 	"info",
 	"debug"
@@ -226,6 +339,7 @@ char *	ha_timestamp(void);
 int	add_option(const char *	option, const char * value);
 int	add_node(const char * value);
 int   	parse_authfile(void);
+int 	encode_resources(const char *p);
 void	init_watchdog(void);
 void	tickle_watchdog(void);
 void	usage(void);
@@ -237,7 +351,13 @@ void	ding(int sig);
 void	AlarmUhOh(int sig);
 void	dump_proc_stats(volatile struct process_info * proc);
 void	dump_all_proc_stats(void);
-void	check_node_timeouts(void);
+void	check_for_timeouts(void);
+void	check_comm_isup(void);
+int	send_resources_held(const char *str, int stable);
+int	send_local_starting(void);
+int	send_local_status(void);
+int	set_local_status(const char * status);
+void	process_resources(struct ha_msg* msg, struct node_info * thisnode);
 void	request_msg_rexmit(struct node_info *, unsigned long lowseq, unsigned long hiseq);
 void	check_rexmit_reqs(void);
 void	mark_node_dead(struct node_info* hip);
@@ -255,7 +375,7 @@ void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 void	init_xmit_hist (struct msg_xmit_hist * hist);
 void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
 void	nak_rexmit(int seqno, const char * reason);
-void	req_our_resources(void);
+void	req_our_resources(int stablestate);
 void	giveup_resources(void);
 void	make_realtime(void);
 void	make_normaltime(void);
@@ -276,7 +396,14 @@ int	send_status_now = 1;	/* Send initial status immediately */
 int	dump_stats_now = 0;
 int	parse_only = 0;
 
-#define	ADDPROC(pid)	{if (pid > 0 && pid != -1) {processes[num_procs] = (pid); ++num_procs;};}
+enum comm_state {
+	COMM_STARTING,
+	COMM_LINKSUP
+};
+enum comm_state	heartbeat_comm_state = COMM_STARTING;
+
+#define	ADDPROC(pid)				\
+	{if (pid > 0 && pid != -1){processes[num_procs] = (pid); ++num_procs;};}
 
 
 void
@@ -381,7 +508,8 @@ ha_log(int priority, const char * fmt, ...)
 	va_end(ap);
 
 	if (config && config->log_facility >= 0) {
-		syslog(priority, "%s", buf);
+		syslog(priority, "%s: %s"
+		,	ha_log_priority[LOG_PRI(priority)], buf);
 		return;
 	}
 
@@ -389,16 +517,13 @@ ha_log(int priority, const char * fmt, ...)
 		if (priority == LOG_DEBUG) {
                         if (config->use_dbgfile) {
                                 fn = config->dbgfile;
-                        }
-                        else {
+                        }else{
                                 return;
                         }
-                }
-                else {
+                }else{
                         if (config->use_logfile) {
                                 fn = config->logfile;
-                        }
-                        else {
+                        }else{
                                 return;
                         }
                 }
@@ -651,7 +776,7 @@ make_realtime()
 			,	"scheduler priority set to %d", HB_STATIC_PRIO);
 		}
 	}
-	
+
 #endif
 
 #ifdef MCL_FUTURE
@@ -861,6 +986,13 @@ send_to_all_media(char * smsg, int len)
 	}
 }
 
+
+/*
+ *	This code has gotten out of hand.
+ *	It was simple, but now has grown various functions that shouldn't
+ *	be here in the main body of the code.  We're trying to migrate some of them out over time.
+ */
+
 /* The master status process */
 void
 master_status_process(void)
@@ -868,13 +1000,13 @@ master_status_process(void)
 	struct node_info *	thisnode;
 	FILE *			f = fdopen(status_pipe[P_READFD], "r");
 	struct ha_msg *		msg = NULL;
-	int			resources_requested_yet = 0;
 	time_t			lastnow = 0L;
-	char	iface[MAXIFACELEN];
-	struct	link *lnk;
+	char			iface[MAXIFACELEN];
+	struct	link *		lnk;
 
 	init_status_alarm();
 	init_watchdog();
+	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
 	clearerr(f);
 
@@ -885,17 +1017,49 @@ master_status_process(void)
 		const char *	ts;
 		const char *	type;
 
+
 		if (send_status_now) {
+#if 0
+		/*
+		 * Don't think we need this code at this point in time.
+		 */
+			static int	resources_timer = 0;
+					/* Used to avoid multiple resource requests */
+			static int 	send_starting_now = 1;
+#endif
 			send_status_now = 0;
 			send_local_status();
+
+
+#if 0
+			if (heartbeat_comm_state == COMM_LINKSUP
+			&&	nice_failback) {
+				if (send_starting_now) {
+					send_local_starting();
+				}
+				if (resources_timer) {
+					/* After 10 secs we can request
+					 * resources again...
+					 */
+					/* Of course, this doesn't measure
+					 * seconds, or anything like them.
+					 * Because it may go around once every
+					 * 5 seconds, or it might be 3 times
+					 * a second, if we have multiple links.
+					 * I think this code is broken.
+					 */
+					resources_timer--;
+				}
+			}
+#endif
 		}
 		if (dump_stats_now) {
 			dump_stats_now = 0;
 			dump_all_proc_stats();
 		}
 
-		/* Scan nodes to see if any have timed out */
-		check_node_timeouts();
+		/* Scan nodes and links to see if any have timed out */
+		check_for_timeouts();
 
 		/* Check to see we need to resend any rexmit requests... */
 		check_rexmit_reqs();
@@ -907,13 +1071,16 @@ master_status_process(void)
 			send_local_status();
 			init_status_alarm();
 		}
+
+		check_comm_isup();
+
 		lastnow = now;
 
 		*iface = EOS;
 
 		msg = if_msgfromstream(f, iface);
 
-		/* This may be caused by SIGALRM */
+		/* This can be caused by SIGALRM */
 		if (msg == NULL) {
 			continue;
 		}
@@ -934,7 +1101,7 @@ master_status_process(void)
 			ha_log(LOG_DEBUG
 			,       "master_status_process: node [%s]"
 			" failed authentication", from);
-			if (DEBUGPKT) {
+			if (ANYDEBUG) {
 				ha_log_message(msg);
 			}
 			continue;
@@ -943,16 +1110,22 @@ master_status_process(void)
 			,       "master_status_process: node [%s] auth  ok"
 			,	from);
 		}
-		/* If a node isn't in the configfile but */
+
 
 		thisnode = lookup_node(from);
 		if (thisnode == NULL) {
 #if defined(MITJA)
-			ha_log(LOG_WARN
+			/* If a node isn't in the configfile, add it... */
+			ha_log(LOG_WARNING
 			,   "master_status_process: new node [%s] in message"
 			,	from);
 			add_node(from);
+			thisnode = lookup_node(from);
+			if (thisnode == NULL) {
+				continue;
+			}
 #else
+			/* If a node isn't in the configfile - whine */
 			ha_log(LOG_ERR
 			,   "master_status_process: bad node [%s] in message"
 			,	from);
@@ -967,69 +1140,17 @@ master_status_process(void)
 				continue;
 			}
 		}
+		thisnode->anypacketsyet = 1;
+		check_comm_isup();
 
-		/*
-		 * Request our resources after a (PPP-induced) delay.
-		 * If we have PPP as our only link this delay might have
-		 * to be 7 or 8 seconds.  Otherwise the needed delay is
-		 * small.  We go ahead if we have any pkt from elsewhere, or
-		 * or 10 seconds have elapsed.  If we have a packet that came
-		 * in from somewhere else, then cluster comm is working...
-		 *
-		 */
-	
-		if (!WeAreRestarting && !resources_requested_yet
-		&&	(thisnode != curnode || (now-starttime) > RQSTDELAY)) {
-				resources_requested_yet=1;
-				req_our_resources();
-		}
-
-		if (!strcasecmp(type,NOSEQ_PREFIX T_STARTING)) {
-			continue;
-		}
 
 		lnk = lookup_iface(thisnode, iface);
 
 		/* Is this message a duplicate, or destined for someone else? */
 
 		switch (should_drop_message(thisnode, msg, iface)) {
-			const char *	status;
-			const char *	cseq;
-			long		seqno;
 
 			case DUPLICATE:
-
-			if (!lnk) continue;
-
-			sscanf(ts, "%lx", &msgtime);
-			status = ha_msg_value(msg, F_STATUS);
-			if (status == NULL)  {
-				ha_log(LOG_ERR, "master_status_process (duplicate): "
-				"status update without "
-				F_STATUS " field");
-				continue;
-			}
-			if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
-				if (sscanf(cseq, "%lx", &seqno) != 1
-				||	seqno <= 0) {
-					continue;
-				}
-			}
-
-			/* Do we already have a newer status? */
-			if (msgtime < lnk->rmt_lastupdate) { 
-				continue;
-			}
-
-			lnk->rmt_lastupdate = msgtime;
-
-			thisnode->local_lastupdate = lnk->lastupdate = times(NULL);
-
-			if (strcasecmp(lnk->status, status) != 0) {
-				ha_log(LOG_INFO, "node %s -- link %s: status %s"
-				, thisnode->nodename, lnk->name, status);
-				strcpy(lnk->status, status);
-			}
 			heartbeat_monitor(msg, DUPLICATE, iface);
 			continue;
 
@@ -1040,13 +1161,24 @@ master_status_process(void)
 		} 
 
 		thisnode->track.last_iface = iface;
- 
-		/* Is this a status update message? */
+
+		if (heartbeat_comm_state == COMM_LINKSUP) {
+			/*
+			 * process_resources() will deal with T_STARTING
+			 * and T_RESOURCES messages appropriately.
+			 */
+			process_resources(msg, thisnode);
+		}
+
+		if (strcasecmp(type, T_STARTING) == 0 || strcasecmp(type, T_RESOURCES) == 0) {
+			continue;
+		}
+
+		/* Is this a status update (i.e., "heartbeat") message? */
 		if (strcasecmp(type, T_STATUS) == 0) {
 			const char *	status;
 			const char *	cseq;
 			long		seqno;
-
 
 			sscanf(ts, "%lx", &msgtime);
 			status = ha_msg_value(msg, F_STATUS);
@@ -1083,21 +1215,22 @@ master_status_process(void)
 			/* Is the node status the same? */
 			if (strcasecmp(thisnode->status, status) != 0) {
 				ha_log(LOG_INFO
-				,	"node %s: status %s"
+				,	"Node %s: status %s"
 				,	thisnode->nodename
 				,	status);
 				notify_world(msg, thisnode->status);
 				strcpy(thisnode->status, status);
 			}
 
-			/* Is the link status the same? */
+			/* Is this message from a link which was down? */
+			/* Should we ignore msgs from ourselves? */
 			if (lnk) {
-				if (strcasecmp(lnk->status, status) != 0) {
+				if (strcasecmp(lnk->status, LINKUP) != 0) {
+					strcpy(lnk->status, LINKUP);
 					ha_log(LOG_INFO
-					,	"node %s -- link %s: status %s"
+					,	"Link %s:%s: status %s"
 					,	thisnode->nodename
-					,	lnk->name, status);
-					strcpy(lnk->status, status);
+					,	lnk->name, lnk->status);
 				}
 			}
 
@@ -1114,6 +1247,272 @@ master_status_process(void)
 		}else{
 			notify_world(msg, thisnode->status);
 			heartbeat_monitor(msg, KEEPIT, iface);
+		}
+	}
+}
+
+
+/*
+ * Here starts the nice_failback thing. The main purpouse of
+ * nice_failback is to create a controlled failback. This
+ * means that when the primary comes back from an outage it
+ * stays quiet and acts as a secondary/backup server.
+ * There are some more comments about it in nice_failback.txt
+ */
+
+/*
+ * At this point nice failback deals with two nodes and is
+ * temporary. The new version using the API is comming soon!
+ *
+ * This piece of code treats five different situations:
+ *
+ * 1. Node1 is starting and Node2 is down (or vice-versa)
+ *    Take the resources. req_our_resources(), mark_node_dead()
+ *
+ * 2. Node1 and Node2 are starting at the same time
+ *    Let both machines req_our_resources().
+ *
+ * 3. Node1 is starting and Node2 holds no resources
+ *    Just like #2
+ *
+ * 4. Node1 is starting and Node2 has (his) local resources
+ *    Let's ask for our local resources. req_our_resources()
+ *
+ * 5. Node1 is starting and Node2 has both local and foreign
+ *	resources (all resources)
+ *    Do nothing :)
+ *
+ */
+
+enum rsc_state {
+	R_INIT,			/* Links not up yet */
+	R_STARTING,		/* Links up, start message issued */
+	R_BOTHSTARTING,		/* Links up, start msg received & issued  */
+	R_RSCRCVD,		/* Resource Message received */
+	R_STABLE		/* Local resources acquired, too... */
+};
+
+#define	UPD_RSC(cur, up)	((up == NO_RSC) ? NO_RSC : ((up)|(cur)))
+
+void
+process_resources(struct ha_msg* msg, struct node_info * thisnode)
+{
+	static int		resources_requested_yet = 0;
+	static enum rsc_state	rstate = R_INIT;
+	static clock_t		local_takeover = 0L;
+
+	const char *		type;
+	clock_t			now = times(NULL);
+	enum rsc_state		newrstate = rstate;
+
+	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
+		return;
+	}
+
+	if (!nice_failback) {
+		/* Original ("normal") starting behavior */
+		if (!WeAreRestarting && !resources_requested_yet) {
+			resources_requested_yet=1;
+			req_our_resources(rstate == R_STABLE);
+		}
+		return;
+	}
+
+	/* Otherwise, we're in the nice_failback case */
+
+	if (rstate == R_INIT && heartbeat_comm_state == COMM_LINKSUP) {
+		send_local_starting();
+		newrstate = rstate = R_STARTING;
+	}
+
+	/*
+	 * Deal with T_STARTING messages coming from the other side.
+	 *
+	 * These messages are a request for resource usage information. 
+	 * The appropriate reply is a T_RESOURCES message.
+	 */
+
+	 if (strcasecmp(type, T_STARTING) == 0 && (thisnode != curnode)) {
+
+		switch(rstate) {
+
+		case R_RSCRCVD:
+		case R_STABLE:
+			break;
+		case R_STARTING:
+			newrstate = R_BOTHSTARTING;
+			/* ??? req_our_resources(); ??? */
+			break;
+
+		default:
+			ha_log(LOG_ERR, T_STARTING " message in state %d"
+			,	rstate);
+			return;
+
+		}
+		other_is_stable = 0;
+		if (takeover_in_progress) {
+			ha_log(LOG_WARNING
+			,	"T_STARTING received during takeover.");
+			/* Does it matter? */
+			if ((i_hold_resources & FOREIGN_RSC) == 0) {
+				/* OOPS!  It matters! */
+				i_hold_resources |= FOREIGN_RSC;
+				ha_log(LOG_WARNING
+				,	"Fudging i_hold_resources!");
+			}
+		}
+		send_resources_held(rsc_msg[i_hold_resources]
+		,	newrstate == R_STABLE);
+	}
+
+	/* Manage resource related messages... */
+
+	if (strcasecmp(type, T_RESOURCES) == 0) {
+		const char *p;
+		int n;
+		/*
+		 * There are four possible resource answers:
+		 *
+		 * "I don't hold any resources"			NO_RSC
+		 * "I hold only LOCAL resources"		LOCAL_RSC
+		 * "I hold only FOREIGN resources"		FOREIGN_RSC
+		 * "I hold ALL resources" (local+foreign)	ALL_RSC
+		 */
+
+		p=ha_msg_value(msg, F_RESOURCES);
+		if (p == NULL) {
+			ha_log(LOG_ERR
+			,	T_RESOURCES " message without " F_RESOURCES
+			" field.");
+			return;
+		}
+
+		switch (rstate) {
+
+		case R_BOTHSTARTING:
+		case R_STARTING:	newrstate = R_RSCRCVD;
+		case R_RSCRCVD:
+		case R_STABLE:
+					break;
+
+		default:		ha_log(LOG_ERR,	T_RESOURCES 
+					" message in state %d", rstate);
+					return;
+		}
+
+		n = encode_resources(p);
+		if (thisnode != curnode) {
+			const char *	f_stable;
+			if ((f_stable = ha_msg_value(msg, F_ISSTABLE)) != NULL
+			&&	strcmp(f_stable, "1") == 0) {
+				other_is_stable = 1;
+				ha_log(LOG_INFO, "remote resource"
+				" transition completed.");
+			}else if (f_stable != NULL) {
+				other_is_stable = 0;
+			}
+			/*
+			 * This T_RESOURCES message is from the other side.
+			 */
+			other_holds_resources=UPD_RSC(other_holds_resources,n);
+			if (rstate != R_BOTHSTARTING) {
+				/* I wonder if there's a timing hole here? */
+				newrstate = R_STABLE;
+				ha_log(LOG_INFO
+				,	"local resource transition completed.");
+				req_our_resources(newrstate == R_STABLE);
+			}
+		}else{
+			const char *	comment = ha_msg_value(msg, F_COMMENT);
+			/*
+			 * This T_RESOURCES message is from us.  It be from the
+			 * "mach_down" script or our own response to the other
+			 * side's T_STARTING message.  The mach_down script
+			 * sets the info (F_COMMENT) field to "mach_down".
+			 *
+			 * We do this so the audits work cleanly AND we can
+			 * avoid a potential race condition.  See the code near
+			 * the message "Fudging i_hold_resources!"
+			 *
+			 * Also, we could now time how long a takeover is
+			 * taking to occur, and complain if it takes "too long"
+			 * 	[ whatever *that* means ]
+			 */
+			i_hold_resources = UPD_RSC(i_hold_resources, n);
+
+			if (comment && strcmp(comment, "mach_down") == 0) {
+				ha_log(LOG_INFO
+				,	"mach_down takeover complete.");
+				takeover_in_progress = 0;
+				other_is_stable = 1;
+			}
+		}
+	}
+
+	if (!WeAreRestarting) {
+		if (rstate == R_RSCRCVD && now > local_takeover) {
+			newrstate = R_STABLE;
+			ha_log(LOG_INFO,"local resource transition completed.");
+			req_our_resources(newrstate == R_STABLE);
+		}
+	}
+
+	rstate = newrstate;
+
+	if (newrstate == R_RSCRCVD && local_takeover == 0L) {
+		local_takeover = now + (CLK_TCK * RQSTDELAY);
+	}
+
+
+	/* Real code ends here */
+	/*******************************************************
+	 *	Look for for duplicated or orphaned resources
+	 *******************************************************/
+
+	/*
+	 *	Do both nodes own our local resources?
+	 */
+
+	if ((i_hold_resources & LOCAL_RSC) != 0
+	&&	(other_holds_resources & FOREIGN_RSC) != 0) {
+		ha_log(LOG_ERR, "Both machines own our resources!");
+	}
+
+	/*
+	 *	Do both nodes own foreign resources?
+	 */
+
+	if ((other_holds_resources & LOCAL_RSC) != 0
+	&&	(i_hold_resources & FOREIGN_RSC) != 0) {
+		ha_log(LOG_ERR, "Both machines own foreign resources!");
+	}
+
+	/*
+	 *	Look for orphaned resources...
+	 *
+	 *	This audit may fail for a few seconds after the other machine
+	 *	goes down until we take over their resources.  It seems pretty
+	 *	hard to get this just right.
+	 */
+
+	if (newrstate == R_STABLE && other_is_stable) {
+		/*
+		 *	Does someone own our local resources?
+		 */
+
+		if ((i_hold_resources & LOCAL_RSC) == 0
+		&&	(other_holds_resources & FOREIGN_RSC) == 0) {
+			ha_log(LOG_ERR, "No one owns our local resources!");
+		}
+
+		/*
+		 *	Does someone own the foreign resources?
+		 */
+
+		if ((other_holds_resources & LOCAL_RSC) == 0
+		&&	(i_hold_resources & FOREIGN_RSC) == 0) {
+			ha_log(LOG_ERR, "No one owns foreign resources!");
 		}
 	}
 }
@@ -1207,6 +1606,9 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 					setenv(ename, msg->values[j], 1);
 				}
 				setenv(OLDSTATUS, ostatus, 1);
+				if (nice_failback) {
+					setenv(HANICEFAILBACK, "yes", 1);
+				}
 				execv(RCSCRIPT, (char **)argv);
 
 				ha_log(LOG_ERR, "cannot exec %s", RCSCRIPT);
@@ -1324,7 +1726,7 @@ restart_heartbeat(void)
 	 */
 	ha_log(LOG_INFO, "Restarting heartbeat.");
 
-	
+
 	getrlimit(RLIMIT_NOFILE, &oflimits);
 	alarm(0);
 	sleep(1);
@@ -1412,7 +1814,7 @@ ding(int sig)
 	time_t		now = time(NULL);
 	signal(SIGALRM, ding);
 
-	if (debug) {
+	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Ding!");
 	}
 
@@ -1440,9 +1842,9 @@ AlarmUhOh(int sig)
 	}
 }
 
-/* See if any nodes have timed out */
+/* See if any nodes or links have timed out */
 void
-check_node_timeouts(void)
+check_for_timeouts(void)
 {
 	clock_t	now = times(NULL);
 	struct node_info *	hip;
@@ -1494,8 +1896,38 @@ check_node_timeouts(void)
 		}
 	}
 }
-	
-/* Set our local status to the given value, and send it out*/
+
+/*
+ * The anypktsyet field in the node structure gets set to TRUE whenever we
+ * either hear from a node, or we declare it dead, and issue a fake "dead"
+ * status packet.
+ */
+
+void
+check_comm_isup(void)
+{
+	struct node_info *	hip;
+	int	j;
+	int	heardfromcount = 0;
+
+	if (heartbeat_comm_state == COMM_LINKSUP) {
+		return;
+	}
+	for (j=0; j < config->nodecount; ++j) {
+		hip= &config->nodes[j];
+
+		if (hip->anypacketsyet) {
+			++heardfromcount;
+		}
+	}
+
+	if (heardfromcount >= config->nodecount) {
+		heartbeat_comm_state = COMM_LINKSUP;
+		set_local_status(ACTIVESTATUS);
+	}
+}
+
+/* Set our local status to the given value, and send it out */
 int
 set_local_status(const char * newstatus)
 {
@@ -1503,6 +1935,7 @@ set_local_status(const char * newstatus)
 	&&	strlen(newstatus) > 1 && strlen(newstatus) < STATUSLENG) {
 		strcpy(curnode->status, newstatus);
 		send_local_status();
+		ha_log(LOG_INFO, "Local status now set to: '%s'", newstatus);
 		return(HA_OK);
 	}
 	return(HA_FAIL);
@@ -1511,8 +1944,9 @@ set_local_status(const char * newstatus)
 int
 send_cluster_msg(struct ha_msg* msg)
 {
-	char *	smsg;
+	char *		smsg;
 	const char *	type;
+	int		rc = HA_OK;
 
 	if (msg == NULL || (type = ha_msg_value(msg, F_TYPE)) == NULL) {
 		ha_perror("Invalid message in send_cluster_msg");
@@ -1527,6 +1961,7 @@ send_cluster_msg(struct ha_msg* msg)
 	{
 	        int     ffd = open(FIFONAME, O_WRONLY);
 		int	length;
+		int	wrc;
 
 		if (ffd < 0) {
 			ha_free(smsg);
@@ -1534,13 +1969,100 @@ send_cluster_msg(struct ha_msg* msg)
 		}
 
 		length=strlen(smsg);
-		write(ffd, smsg, length);
+		if ((wrc = write(ffd, smsg, length)) != length) {
+			ha_perror("cannot write message to FIFO! [rc=%d]", wrc);
+			rc = HA_FAIL;
+		}
 		close(ffd);
+
 	}
 	ha_free(smsg);
 
-	return(HA_OK);
+	return(rc);
 }
+
+
+/* Translates the resources_held string into an integer */
+int
+encode_resources(const char *p)
+{
+	int i;
+
+	for (i=0; i < DIMOF(rsc_msg); i++) {
+		if (strcmp(rsc_msg[i], p) == 0) {
+			return i;
+			break;
+		}
+	}
+	ha_log(LOG_ERR, "encode_resources: bad resource type [%s]", p);
+	return 0;
+}
+
+
+/* Send the "I hold resources" or "I don't hold" resource messages */
+int
+send_resources_held(const char *str, int stable)
+{
+        struct ha_msg * m;
+        int             rc;
+        char            timestamp[16];
+
+        sprintf(timestamp, "%lx", time(NULL));
+
+	if (ANYDEBUG) {
+        	ha_log(LOG_DEBUG, "Sending hold resources msg: %s", str);
+	}
+        if ((m=ha_msg_new(0)) == NULL) {
+                ha_log(LOG_ERR, "Cannot send local starting msg");
+                return(HA_FAIL);
+        }
+        if ((ha_msg_add(m, F_TYPE, T_RESOURCES) == HA_FAIL) 
+        ||  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
+        ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL) 
+        ||  (ha_msg_add(m, F_RESOURCES, str) == HA_FAIL)
+        ||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) == HA_FAIL)) {
+                ha_log(LOG_ERR, "send_resources_held: Cannot create local msg");
+                rc = HA_FAIL;
+        }else{
+                rc = send_cluster_msg(m);
+        }
+
+        ha_msg_del(m);
+        return(rc);
+}
+
+
+/* Send the starting msg out to the cluster */
+int
+send_local_starting(void)
+{
+        struct ha_msg * m;
+        int             rc;
+        char            timestamp[16];
+
+        sprintf(timestamp, "%lx", time(NULL));
+
+	if (ANYDEBUG) {
+        	ha_log(LOG_DEBUG, "Sending local starting msg");
+	}
+        if ((m=ha_msg_new(0)) == NULL) {
+                ha_log(LOG_ERR, "Cannot send local starting msg");
+                return(HA_FAIL);
+        }
+        if ((ha_msg_add(m, F_TYPE, T_STARTING) == HA_FAIL) 
+        ||  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
+        ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)) {
+                ha_log(LOG_ERR, "send_local_starting: "
+                "Cannot create local starting msg");
+                rc = HA_FAIL;
+        }else{
+                rc = send_cluster_msg(m);
+        }
+
+        ha_msg_del(m);
+        return(rc);
+}
+
 
 /* Send our local status out to the cluster */
 int
@@ -1575,8 +2097,10 @@ void
 mark_link_dead(struct node_info *hip, struct link *lnk)
 {
 	/* FIXME: Do something useful */
-	ha_log(LOG_ERR, "Link %s:%s DEAD.", hip->nodename, lnk->name);
-	strcpy(lnk->status, "dead");
+	/* We need to send out a message that the API can capture */
+	strcpy(lnk->status, DEADSTATUS);
+	ha_log(LOG_WARNING, "Link %s:%s %s.", hip->nodename
+	,	lnk->name, lnk->status);
 }
 
 /* Mark the given node dead */
@@ -1607,12 +2131,25 @@ mark_node_dead(struct node_info *hip)
 
 	heartbeat_monitor(hmsg, KEEPIT, "<internal>");
 	notify_world(hmsg, hip->status);
-	strcpy(hip->status, "dead");
+	strcpy(hip->status, DEADSTATUS);
 	if (hip == curnode) {
+		/* We may die too soon for this to actually be received */
+		/* But, we tried ;-) */
+		send_resources_held(NO_RESOURCES, 0);
 		/* Uh, oh... we're dead! */
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
+	}else{
+		if (nice_failback) {
+			other_holds_resources = NO_RSC;
+			other_is_stable = 0;	/* Until mach_down completes */
+			takeover_in_progress = 1;
+			/* case 1 - part 1 */
+			/* part 2 is done by the mach_down script... */
+			req_our_resources(1);
+		}
 	}
+	hip->anypacketsyet = 1;
 	ha_msg_del(hmsg);
 }
 
@@ -1621,6 +2158,7 @@ struct fieldname_map {
 	const char *	from;
 	const char *	to;
 };
+
 struct fieldname_map fmap [] = {
 	{F_SEQ,		NULL},		/* Drop sequence number */
 	{F_TTL,		NULL},
@@ -1737,7 +2275,7 @@ heartbeat_monitor(struct ha_msg * msg, int msgtype, const char * iface)
 }
 
 void
-req_our_resources()
+req_our_resources(int stablestate)
 {
 	FILE *	rkeys;
 	char	cmd[MAXLINE];
@@ -1747,6 +2285,18 @@ req_our_resources()
 	int	rc;
 	int	rsc_count = 0;
 
+	if (nice_failback) {
+
+		if ((other_holds_resources & FOREIGN_RSC) != 0
+		||	(i_hold_resources & LOCAL_RSC) != 0) {
+
+			/* Someone already owns our resources */
+			return;
+		}
+
+		i_hold_resources |= LOCAL_RSC;
+		send_resources_held(rsc_msg[i_hold_resources], stablestate);
+	}
 
 	/* We need to fork so we can make child procs not real time */
 	switch(fork()) {
@@ -1802,9 +2352,18 @@ req_our_resources()
 	}
 	if (rsc_count == 0) {
 		ha_log(LOG_INFO, "No local resources [%s]", cmd);
-	}else if (ANYDEBUG) {
-		ha_log(LOG_INFO, "%d local resources from [%s]"
-		,	rsc_count, cmd);
+		if (nice_failback) {
+			send_resources_held(NO_RESOURCES, stablestate);
+		}
+	}else {
+		if (nice_failback) {
+			send_resources_held(LOCAL_RESOURCES, stablestate);
+		}
+
+		if (ANYDEBUG) {
+			ha_log(LOG_INFO, "%d local resources from [%s]"
+			,	rsc_count, cmd);
+		}
 	}
 	exit(0);
 }
@@ -1832,7 +2391,7 @@ giveup_resources()
 		case 0:		/* Child */
 				break;
 	}
-	
+
 	make_normaltime();
 	signal(SIGCHLD, SIG_DFL);
 	ha_log(LOG_INFO, "Giving up all HA resources.");
@@ -1859,6 +2418,10 @@ giveup_resources()
 	}
 	pclose(rkeys);
 	ha_log(LOG_INFO, "All HA resources relinquished.");
+	if (nice_failback) {
+		send_resources_held(NO_RESOURCES, 1);
+	}
+
 	exit(0);
 }
 
@@ -1976,7 +2539,7 @@ main(int argc, const char ** argv)
 			,	"ERROR: Heartbeat not currently running.\n");
 			cleanexit(1);
 		}
-			
+
 		if (kill(running_hb_pid, SIGTERM) >= 0) {
 			/* Wait for the running heartbeat to die */
 			alarm(0);
@@ -2304,8 +2867,6 @@ should_ring_copy_msg(struct ha_msg *m)
  *	do for now...
  */
 #define	SEQGAP	100	/* A heuristic number */
-#define KEEPIT  0
-#define DROPIT  1
 
 /*
  *	Should we ignore this packet, or pay attention to it?
@@ -2431,7 +2992,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 
 			/* Swallow up found packets */
 			while (t->nmissing > 0
-			&&	t->seqmissing[t->nmissing-1] == NOSEQUENCE) {	
+			&&	t->seqmissing[t->nmissing-1] == NOSEQUENCE) {
 				t->nmissing --;
 			}
 			if (t->nmissing == 0) {
@@ -2655,7 +3216,9 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			/* Found it!	Let's send it again! */
 			firstslot = msgslot -1;
 			foundit=1;
-			ha_log(LOG_INFO, "Retransmitting pkt %d", thisseq);
+			if (ANYDEBUG) {
+				ha_log(LOG_INFO, "Retransmitting pkt %d", thisseq);
+			}
 			if (DEBUGPKT) {
 				ha_log_message(hist->msgq[msgslot]);
 			}
@@ -2672,7 +3235,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 		if (!foundit) {
 			nak_rexmit(thisseq, "seqno not found");
 		}
-NextReXmit:
+NextReXmit:/* Loop again */;
 	}
 }
 void
@@ -2763,6 +3326,15 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.51  2000/06/12 06:11:09  alan
+ * Changed resource takeover order to left-to-right
+ * Added new version of nice_failback.  Hopefully it works wonderfully!
+ * Regularized some error messages
+ * Print the version of heartbeat when starting
+ * Hosts now have three statuses {down, up, active}
+ * SuSE compatability due to Friedrich Lobenstock and alanr
+ * Other minor tweaks, too numerous to mention.
+ *
  * Revision 1.50  2000/05/27 07:43:06  alan
  * Added code to set signal(SIGCHLD, SIG_DFL) in 3 places.  Fix due to lclaudio and Fabio Olive Leite
  *
@@ -2809,7 +3381,7 @@ setenv(const char *name, const char * value, int why)
  * Tidied up the output from heartbeat.sh (/etc/rc.d/init.d/heartbeat)
  * on Redhat 6.2
  *
- * Loging to syslog if a facility is specified in ha.cf is instead of
+ * Logging to syslog if a facility is specified in ha.cf is instead of
  * rather than as well as file logging as per instructions in ha.cf
  *
  * Fixed a small bug in shellfunctions that caused logs to syslog

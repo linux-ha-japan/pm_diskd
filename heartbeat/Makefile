@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.16 2000/04/26 07:06:12 horms Exp $
+#	$Id: Makefile,v 1.17 2000/06/12 06:11:09 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -43,8 +43,8 @@ MAKE  	= make
 
 
 #
-#	(We like warnings!  Unfortunately, Linux's /usr/include/socketbits.h
-#	has an error that prohibits turning on -pedantic-errors)
+#	(We like warnings!  Unfortunately, several Linux header files have errors that prohibit
+#	 turning on -pedantic-errors)
 #
 CFLAGS=-g 				\
 	$(OPTFLAGS)			\
@@ -57,6 +57,7 @@ CFLAGS=-g 				\
 	-Wwrite-strings			\
 	-Werror				\
 	-I.				\
+	-DVERSION='"$(VERS)"'		\
 	-DHA_D='"$(B_HA)"'		\
 	-DHALIB='"$(B_HALIB)"'		\
 	-DVAR_RUN_D='"$(B_VARRUN)"'	\
@@ -66,15 +67,15 @@ CFLAGS=-g 				\
 #	-Wtraditional
 
 HEARTBEAT = heartbeat
-H_OBJLIST = 	heartbeat.o \
-		config.o \
-		serial.o \
-		udp.o \
-		ppp-udp.o \
-		ha_msg.o \
-		auth.o \
-		md5.o \
-		sha1.o \
+H_OBJLIST = 	heartbeat.o	\
+		config.o	\
+		serial.o	\
+		udp.o		\
+		ppp-udp.o	\
+		ha_msg.o	\
+		auth.o		\
+		md5.o		\
+		sha1.o		\
 		ha_malloc.o
 H_HDRS    = heartbeat.h ha_msg.h
 LIBS=
@@ -98,7 +99,7 @@ LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 RESOURCECMDS= resource.d/IPaddr resource.d/AudibleAlarm
 
 RCCMDS = rc.d/ip-request rc.d/ip-request-resp rc.d/status
-ROOTFILES = harc shellfuncs
+ROOTFILES = harc shellfuncs README.config
 
 SPECSRC = Specfile
 
@@ -132,7 +133,7 @@ install_bin: all
 		$(INSTALL) -cm 644 heartbeat.logrotate $(LOGROTATESCRIPT)
 
 clean:	
-	rm -f *.o *.swp .*.swp core
+	rm -f *.o *.swp .*.swp core make.out
 	rm -f $(LIBCMDS)
 
 pristene: clean
