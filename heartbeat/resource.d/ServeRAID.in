@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.14 2003/04/18 16:46:16 alan Exp $
+# $Id: ServeRAID.in,v 1.15 2003/05/02 14:13:38 alan Exp $
 # 
 # ServeRAID
 #
@@ -49,6 +49,19 @@
 #	At this time, the ServeRAID clustering solution only works with
 #	RAID 1 setups.  It does NOT support RAID 5.
 #
+#	Note that this script requires ServeRAID software version 6.x or
+#	later.
+#
+#	As of this writing (5/2/2003) you can download the CD image for this
+#	software here:
+#
+#		ftp://ftp.pc.ibm.com/pub/pccbbs/bp_server/01r0539.iso
+#
+#	Note that this verison may be replaced by a newer one at some
+#	time in the future.
+#
+#
+#
 #
 # An example usage in /etc/ha.d/haresources: 
 #       node1  10.0.0.170 ServeRAID::1::1
@@ -88,7 +101,7 @@ usage() {
 	You will need at least version 6 (~April 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.14 2003/04/18 16:46:16 alan Exp $
+	$Id: ServeRAID.in,v 1.15 2003/05/02 14:13:38 alan Exp $
 	!
   exit 1
 }
