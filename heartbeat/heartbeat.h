@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.5 1999/09/29 03:22:23 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.6 1999/10/02 18:12:09 alanr Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -44,6 +44,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.5 1999/09/29 03:22:2
 #define	MAXMEDIA	12
 #define	MAXNODE		100
 #define	MAXPROCS	((MAXNODE*2)+2)
+
+#define	FIFOMODE	0600
 
 #define	HA_FAIL		0
 #define	HA_OK		1
@@ -252,9 +254,9 @@ extern int			udpport;
 
 /* Generally useful exportable HA heartbeat routines... */
 extern void		ha_error(const char * msg);
-extern void		ha_perror(const char * msg);
 extern void		ha_assert(const char *s, int line, const char * file);
 extern void		ha_log(int priority, const char * fmt, ...);
+extern void		ha_perror(const char * fmt, ...);
 extern int		send_local_status(void);
 extern int		set_local_status(const char * status);
 extern int		send_cluster_msg(struct ha_msg*msg);

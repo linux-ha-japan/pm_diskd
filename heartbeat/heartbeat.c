@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.6 1999/09/30 05:40:37 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.7 1999/10/02 18:12:08 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1056,21 +1056,6 @@ ha_error(const char *	msg)
 	ha_log(LOG_ERR, msg);
 }
 
-/* Equally unsophisticated HA-logging function */
-void
-ha_perror(const char *	msg)
-{
-	const char *	err;
-	char	errornumber[16];
-
-	if (errno < 0 || errno >= sys_nerr) {
-		sprintf(errornumber, "error %d\n", errno);
-		err = errornumber;
-	}else{
-		err = sys_errlist[errno];
-	}
-	ha_log(LOG_ERR, err);
-}
 
 /* HA-logging function */
 void
@@ -1103,6 +1088,28 @@ ha_log(int priority, const char * fmt, ...)
 	va_end(ap);
 }
 
+void
+ha_perror(const char * fmt, ...)
+{
+	const char *	err;
+	char	errornumber[16];
+
+	va_list ap;
+	char buf[MAXLINE];
+
+	if (errno < 0 || errno >= sys_nerr) {
+		sprintf(errornumber, "error %d\n", errno);
+		err = errornumber;
+	}else{
+		err = sys_errlist[errno];
+	}
+	va_start(ap, fmt);
+	vsnprintf(buf, MAXLINE, fmt, ap);
+	va_end(ap);
+
+	ha_log(LOG_ERR, "%s: %s", buf, err);
+
+}
 
 /*
  *	This routine starts everything up and kicks off the heartbeat
@@ -1130,6 +1137,14 @@ initialize_heartbeat()
 	int		ourproc = 0;
 
 	localdie = NULL;
+
+	if (stat(FIFONAME, &buf) < 0) {
+		ha_log(LOG_ERR, "Creating FIFO %s.", FIFONAME);
+		if (mkfifo(FIFONAME, FIFOMODE) < 0) {
+			ha_perror("Cannot make fifo %s.", FIFONAME);
+			return(HA_FAIL);
+		}
+	}
 
 	if (stat(FIFONAME, &buf) < 0) {
 		ha_log(LOG_ERR, "FIFO %s does not exist", FIFONAME);
@@ -1269,7 +1284,6 @@ void
 read_child(struct hb_media* mp)
 {
 	int	msglen;
-	char	msg[MAXLINE];
 	int	rc;
 	int	statusfd = status_pipe[P_WRITEFD];
 	for (;;) {
@@ -1296,12 +1310,10 @@ read_child(struct hb_media* mp)
 				if (errno != EINTR
 				||	(rc=write(statusfd, sm, msglen))
 				!=	msglen)  {
-					sprintf(msg
-					,	"Write failure [%d/%d] %s"
+					ha_perror("Write failure [%d/%d] %s"
 					,	rc
 					,	errno
 					,	"to status pipe");
-					ha_perror(msg);
 				}
 			}
 			free(sm);
@@ -1322,10 +1334,8 @@ write_child(struct hb_media* mp)
 			continue;
 		}
 		if (mp->vf->write(mp, msgp) != HA_OK) {
-			char msg[MAXLINE];
-			sprintf(msg, "write failure on %s %s."
+			ha_perror("write failure on %s %s."
 			,	mp->vf->type, mp->name);
-			ha_perror(msg);
 		}
 		ha_msg_del(msgp);
 	}
@@ -2429,6 +2439,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.7  1999/10/02 18:12:08  alanr
+ * Create fifo in heartbeat.c and change ha_perror() to  a var args thing...
+ *
  * Revision 1.6  1999/09/30 05:40:37  alanr
  * Thomas Hepper's fixes
  *
