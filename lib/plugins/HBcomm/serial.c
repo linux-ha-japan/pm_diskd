@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.18 2002/04/24 12:11:40 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.19 2002/06/16 06:11:26 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -6,22 +6,22 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.18 2002/04/24 12:11:40 ala
  * The basic facilities for round-robin (ring) heartbeats are
  * contained within.
  *
- *
  * Copyright (C) 1999, 2000, 2001 Alan Robertson <alanr@unix.sh>
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  * 
- * This program is distributed in the hope that it will be useful,
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
  */
 
 #include <portability.h>
@@ -49,6 +49,8 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.18 2002/04/24 12:11:40 ala
 #define PIL_PLUGINTYPE_S	HB_COMM_TYPE_S
 #define PIL_PLUGIN		serial
 #define PIL_PLUGIN_S		"serial"
+#define PIL_PLUGINLICENSE	LICENSE_LGPL
+#define PIL_PLUGINLICENSEURL	URL_LGPL
 #include <pils/plugin.h>
 
 
@@ -129,6 +131,8 @@ static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
 
 #define LOG	PluginImports->log
+#define MALLOC	PluginImports->alloc
+#define FREE	PluginImports->mfree
 
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
@@ -166,7 +170,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 static int
 serial_mtype (char **buffer) { 
 	
-	*buffer = ha_malloc((strlen("serial") * sizeof(char)) + 1);
+	*buffer = MALLOC((strlen("serial") * sizeof(char)) + 1);
 
 	strcpy(*buffer, "serial");
 
@@ -178,7 +182,7 @@ serial_descr (char **buffer) {
 
 	const char *str = "serial ring";	
 
-	*buffer = ha_malloc((strlen(str) * sizeof(char)) + 1);
+	*buffer = MALLOC((strlen(str) * sizeof(char)) + 1);
 
 	strcpy(*buffer, str);
 
@@ -244,10 +248,11 @@ serial_new (const char * port)
 		return(NULL);
 	}
 
-	ret = MALLOCT(struct hb_media);
+	ret = (struct hb_media*)MALLOC(sizeof(struct hb_media));
 	if (ret != NULL) {
 		struct serial_private * sp;
-		sp = MALLOCT(struct serial_private);
+		sp = (struct serial_private*)
+			MALLOC(sizeof(struct serial_private));
 		if (sp != NULL)  {
 			/*
 			 * This implies we have to process the "new"
@@ -256,13 +261,13 @@ serial_new (const char * port)
 			 */
 			sp->next = lastserialport;
 			lastserialport=ret;
-			sp->ttyname = (char *)ha_malloc(strlen(port)+1);
+			sp->ttyname = (char *)MALLOC(strlen(port)+1);
 			sp->consecutive_errors = 0;
 			strcpy(sp->ttyname, port);
 			ret->name = sp->ttyname;
 			ret->pd = sp;
 		}else{
-			ha_free(ret);
+			FREE(ret);
 			ret = NULL;
 			LOG(PIL_CRIT, "Out of memory (private serial data)");
 		}
@@ -628,6 +633,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.19  2002/06/16 06:11:26  alan
+ * Put in a couple of changes to the PILS interfaces
+ *  - exported license information (name, URL)
+ *  - imported malloc/free
+ *
  * Revision 1.18  2002/04/24 12:11:40  alan
  * updated the copyright date.
  *

@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.15 2002/06/16 03:42:53 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.16 2002/06/16 06:11:26 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -51,6 +51,8 @@ static const char _bcast_Id [] = "$Id: bcast.c,v 1.15 2002/06/16 03:42:53 alan E
 #define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
 #define PIL_PLUGIN              bcast
 #define PIL_PLUGIN_S            "bcast"
+#define PIL_PLUGINLICENSE 	LICENSE_GPL
+#define PIL_PLUGINLICENSEURL 	URL_GPL
 #include <pils/plugin.h>
 
 struct ip_private {
@@ -126,6 +128,8 @@ static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
 
 #define LOG	PluginImports->log
+#define MALLOC	PluginImports->alloc
+#define FREE	PluginImports->mfree
 
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
@@ -158,7 +162,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 static int 
 bcast_mtype(char** buffer) { 
 	
-	*buffer = ha_malloc(sizeof(PIL_PLUGIN_S));
+	*buffer = MALLOC(sizeof(PIL_PLUGIN_S));
 
 	strcpy(*buffer, PIL_PLUGIN_S);
 
@@ -170,7 +174,7 @@ bcast_descr(char **buffer) {
 
 	const char* str = "UDP/IP broadcast";	
 
-	*buffer = ha_malloc((strlen(str) * sizeof(char)) + 1);
+	*buffer = MALLOC((strlen(str) * sizeof(char)) + 1);
 
 	strcpy(*buffer, str);
 
@@ -239,11 +243,11 @@ bcast_new(const char * intf)
 		,	intf);
 		return(NULL);
 	}
-	ret = MALLOCT(struct hb_media);
+	ret = (struct hb_media*) MALLOC(sizeof(struct hb_media));
 	if (ret != NULL) {
 		char * name;
 		ret->pd = (void*)ipi;
-		name = ha_malloc(strlen(intf)+1);
+		name = MALLOC(strlen(intf)+1);
 		strcpy(name, intf);
 		ret->name = name;
 		ret->wpipe[0] = 0;
@@ -252,8 +256,8 @@ bcast_new(const char * intf)
 			ha_log(LOG_DEBUG, "bcast_new: returning ret (%s)", ret->name);
 		}
 	}else{
-		ha_free(ipi->interface);
-		ha_free(ipi);
+		FREE(ipi->interface);
+		FREE(ipi);
 		if (DEBUGPKT) {
 			ha_log(LOG_DEBUG, "bcast_new: ret was NULL");
 		}
@@ -630,16 +634,16 @@ new_ip_interface(const char * ifn, int port)
 	 * structure with the information we've gotten.
 	 */
 
-	ep = MALLOCT(struct ip_private);
+	ep = (struct ip_private *)MALLOC(sizeof(struct ip_private));
 	if (ep == NULL)  {
 		return(NULL);
 	}
 
 	ep->bcast = broadaddr;
 
-	ep->interface = (char *)ha_malloc(strlen(ifn)+1);
+	ep->interface = (char *)MALLOC(strlen(ifn)+1);
 	if(ep->interface == NULL) {
-		ha_free(ep);
+		FREE(ep);
 		return(NULL);
 	}
 	strcpy(ep->interface, ifn);
@@ -764,6 +768,11 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.16  2002/06/16 06:11:26  alan
+ * Put in a couple of changes to the PILS interfaces
+ *  - exported license information (name, URL)
+ *  - imported malloc/free
+ *
  * Revision 1.15  2002/06/16 03:42:53  alan
  * Incorporated code from Stéphane Billiart to add a unicast heartbeat capability
  * to heartbeat.

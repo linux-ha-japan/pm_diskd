@@ -1,6 +1,6 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.1 2002/06/16 03:42:53 alan Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.2 2002/06/16 06:11:26 alan Exp $";
 /*
- * Adapted from the UDP broadcast heartbeat udp.c by Stéphane Billiart
+ * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
  * (c) 2002  Stéphane Billiart <stephane@reefedge.com>
  * (c) 2002  Alan Robertson <alanr@unix.sh>
@@ -39,11 +39,10 @@ static const char _ucast_Id [] = "$Id: ucast.c,v 1.1 2002/06/16 03:42:53 alan Ex
 #define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
 #define PIL_PLUGIN              ucast
 #define PIL_PLUGIN_S            "ucast"
+#define PIL_PLUGINLICENSE	LICENSE_LGPL
+#define PIL_PLUGINLICENSEURL	URL_LGPL
 #include <pils/plugin.h>
 
-#if 0
-#include "ha_if.h"
-#endif
 
 #if defined(SO_BINDTODEVICE)
 #	include <net/if.h>
@@ -124,6 +123,8 @@ static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
 
 #define LOG	PluginImports->log
+#define MALLOC	PluginImports->alloc
+#define FREE	PluginImports->mfree
 
 PIL_rc PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
 
@@ -199,7 +200,7 @@ ucast_parse (const char* line)
 STATIC int
 ucast_mtype (char** buffer) { 
 	
-	*buffer = ha_malloc((strlen(PIL_PLUGIN_S) * sizeof(char)) + 1);
+	*buffer = MALLOC((strlen(PIL_PLUGIN_S) * sizeof(char)) + 1);
 
 	strcpy(*buffer, PIL_PLUGIN_S);
 
@@ -211,7 +212,7 @@ ucast_descr (char **buffer) {
 
 	const char* str = "UDP/IP unicast";	
 
-	*buffer = ha_malloc((strlen(str) * sizeof(char)) + 1);
+	*buffer = MALLOC((strlen(str) * sizeof(char)) + 1);
 
 	strcpy(*buffer, str);
 
@@ -260,17 +261,17 @@ ucast_new(const char * intf, const char *addr)
 		ha_error(msg);
 		return(NULL);
 	}
-	ret = MALLOCT(struct hb_media);
+	ret = (struct hb_media*)MALLOC(sizeof(struct hb_media));
 	if (ret != NULL) {
 		char * name;
 		ret->pd = (void*)ipi;
-		name = ha_malloc(strlen(intf)+1);
+		name = MALLOC(strlen(intf)+1);
 		strcpy(name, intf);
 		ret->name = name;
 
 	}else{
-		ha_free(ipi->interface);
-		ha_free(ipi);
+		FREE(ipi->interface);
+		FREE(ipi);
 	}
 	return(ret);
 }
@@ -562,16 +563,16 @@ new_ip_interface(const char * ifn, const char *hbaddr, int port)
 	 * structure with the information we've gotten.
 	 */
 
-	ep = MALLOCT(struct ip_private);
+	ep = (struct ip_private*) MALLOC(sizeof(struct ip_private));
 	if (ep == NULL)  {
 		return(NULL);
 	}
 
 	ep->heartaddr = heartadr;
 
-	ep->interface = (char *)ha_malloc(strlen(ifn)+1);
+	ep->interface = (char *)MALLOC(strlen(ifn)+1);
 	if(ep->interface == NULL) {
-		ha_free(ep);
+		FREE(ep);
 		return(NULL);
 	}
 	strcpy(ep->interface, ifn);

@@ -7,6 +7,8 @@
 #define PIL_PLUGIN		crc
 #define PIL_PLUGINTYPE_S	"HBauth"
 #define PIL_PLUGIN_S		"crc"
+#define PIL_PLUGINLICENSE	LICENSE_LGPL
+#define PIL_PLUGINLICENSEURL	URL_LGPL
 #include <pils/plugin.h>
 
 static int crc_auth_calc(const struct HBauth_info *

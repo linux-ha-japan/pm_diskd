@@ -34,6 +34,8 @@
 #define PIL_PLUGINTYPE_S	"InterfaceMgr"
 #define	PIL_PLUGIN		generic
 #define PIL_PLUGIN_S		"generic"
+#define PIL_PLUGINLICENSE	LICENSE_LGPL
+#define PIL_PLUGINLICENSEURL	URL_LGPL
 
 /* We are an interface manager... */
 #define ENABLE_PLUGIN_MANAGER_PRIVATE

@@ -27,6 +27,8 @@ A million repetitions of "a"
 #define PIL_PLUGINTYPE_S	"HBauth"
 #define PIL_PLUGIN		sha1
 #define PIL_PLUGIN_S		"sha1"
+#define PIL_PLUGINLICENSE	LICENSE_PUBDOM
+#define PIL_PLUGINLICENSEURL	URL_PUBDOM
 #include <pils/plugin.h>
 
 

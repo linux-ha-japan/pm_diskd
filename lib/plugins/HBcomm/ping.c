@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.5 2002/05/01 23:50:35 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.6 2002/06/16 06:11:26 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -13,19 +13,20 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.5 2002/05/01 23:50:35 alan Exp $
  * make you think you have quorum when you don't during a cluster partition.
  * The danger in that seems small, but you never know ;-)
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  * 
- * This program is distributed in the hope that it will be useful,
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.  
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
  */
 
 #include <portability.h>
@@ -80,6 +81,8 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.5 2002/05/01 23:50:35 alan Exp $
 #define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
 #define PIL_PLUGIN              ping
 #define PIL_PLUGIN_S            "ping"
+#define PIL_PLUGINLICENSE	LICENSE_LGPL
+#define PIL_PLUGINLICENSEURL	URL_LGPL
 #include <pils/plugin.h>
 
 
@@ -155,6 +158,8 @@ static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
 
 #define LOG	PluginImports->log
+#define MALLOC	PluginImports->alloc
+#define FREE	PluginImports->mfree
 
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
@@ -185,7 +190,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 static int
 ping_mtype(char **buffer) { 
 	
-	*buffer = ha_malloc((strlen("ping") * sizeof(char)) + 1);
+	*buffer = MALLOC((strlen("ping") * sizeof(char)) + 1);
 
 	strcpy(*buffer, "ping");
 
@@ -197,7 +202,7 @@ ping_descr(char **buffer) {
 
 	const char *str = "ping membership";	
 
-	*buffer = ha_malloc((strlen(str) * sizeof(char)) + 1);
+	*buffer = MALLOC((strlen(str) * sizeof(char)) + 1);
 
 	strcpy(*buffer, str);
 
@@ -218,7 +223,8 @@ new_ping_interface(const char * host)
 	struct ping_private*	ppi;
 	struct sockaddr_in *to;
 
-	if ((ppi = MALLOCT(struct ping_private)) == NULL) {
+	if ((ppi = (struct ping_private*)MALLOC(sizeof(struct ping_private)))
+	== NULL) {
 		return NULL;
 	}
 	memset(ppi, 0, sizeof (*ppi));
@@ -234,7 +240,7 @@ new_ping_interface(const char * host)
 		hep = gethostbyname(host);
 		if (hep == NULL) {
 			LOG(PIL_CRIT, "unknown host: %s: %s", host, strerror(errno));
-			ha_free(ppi); ppi = NULL;
+			FREE(ppi); ppi = NULL;
 			return NULL;
 		}
 		ppi->addr.sin_family = hep->h_addrtype;
@@ -259,17 +265,17 @@ ping_new(const char * host)
 		return(NULL);
 	}
 
-	ret = MALLOCT(struct hb_media);
+	ret = (struct hb_media *) MALLOC(sizeof(struct hb_media));
 	if (ret != NULL) {
 		char * name;
 		ret->pd = (void*)ipi;
-		name = ha_malloc(strlen(host)+1);
+		name = MALLOC(strlen(host)+1);
 		strcpy(name, host);
 		ret->name = name;
 		add_node(host, PINGNODE);
 
 	}else{
-		ha_free(ipi); ipi = NULL;
+		FREE(ipi); ipi = NULL;
 	}
 	return(ret);
 }
@@ -436,7 +442,7 @@ ping_write(struct hb_media* mp, struct ha_msg * msg)
 
 	pktsize = size + ICMP_HDR_SZ;
 
-	if ((icmp_pkt = ha_malloc(size + ICMP_HDR_SZ)) == NULL) {
+	if ((icmp_pkt = MALLOC(size + ICMP_HDR_SZ)) == NULL) {
 		LOG(PIL_CRIT, "out of memory");
 		ha_free(pkt);
 		return HA_FAIL;
@@ -460,7 +466,7 @@ ping_write(struct hb_media* mp, struct ha_msg * msg)
 	,	(struct sockaddr *)&ei->addr
 	,	sizeof(struct sockaddr))) != pktsize) {
 		LOG(PIL_CRIT, "Error sending packet: %s", strerror(errno));
-		ha_free(icmp_pkt);
+		FREE(icmp_pkt);
 		return(HA_FAIL);
 	}
 
@@ -471,7 +477,7 @@ ping_write(struct hb_media* mp, struct ha_msg * msg)
 	if (DEBUGPKTCONT) {
 		LOG(PIL_DEBUG, pkt);
    	}
-	ha_free(icmp_pkt);
+	FREE(icmp_pkt);
 	return HA_OK;
 }
 

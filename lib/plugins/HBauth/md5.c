@@ -29,6 +29,8 @@
 #define PIL_PLUGIN		md5
 #define PIL_PLUGINTYPE_S	"HBauth"
 #define PIL_PLUGIN_S		"md5"
+#define PIL_PLUGINLICENSE	LICENSE_PUBDOM
+#define PIL_PLUGINLICENSEURL	URL_PUBDOM
 #include <pils/plugin.h>
 
 

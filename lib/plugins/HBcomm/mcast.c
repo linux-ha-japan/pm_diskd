@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.6 2002/05/01 23:50:35 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.7 2002/06/16 06:11:26 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -47,6 +47,8 @@ static const char _mcast_Id [] = "$Id: mcast.c,v 1.6 2002/05/01 23:50:35 alan Ex
 #define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
 #define PIL_PLUGIN              mcast
 #define PIL_PLUGIN_S            "mcast"
+#define PIL_PLUGINLICENSE	LICENSE_GPL
+#define PIL_PLUGINLICENSEURL	URL_GPL
 #include <pils/plugin.h>
 #include <heartbeat.h>
 
@@ -120,6 +122,8 @@ static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
 
 #define LOG	PluginImports->log
+#define MALLOC	PluginImports->alloc
+#define FREE	PluginImports->mfree
 
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
@@ -174,7 +178,7 @@ static int
 mcast_mtype(char** buffer)
 { 
 	
-	*buffer = ha_malloc(sizeof(PIL_PLUGIN_S));
+	*buffer = MALLOC(sizeof(PIL_PLUGIN_S));
 
 	strcpy(*buffer, PIL_PLUGIN_S);
 
@@ -187,7 +191,7 @@ mcast_descr(char **buffer)
 
 	const char str[] = "UDP/IP multicast";	
 
-	*buffer = ha_malloc(sizeof(str));
+	*buffer = MALLOC(sizeof(str));
 
 	strcpy(*buffer, str);
 
@@ -331,17 +335,17 @@ mcast_new(const char * intf, const char *mcast, u_short port,
 			 intf, mcast, port, ttl, loop);
 		return(NULL);
 	}
-	ret = MALLOCT(struct hb_media);
+	ret = (struct hb_media*) MALLOC(sizeof(struct hb_media));
 	if (ret != NULL) {
 		char * name;
 		ret->pd = (void*)mcp;
-		name = ha_malloc(strlen(intf)+1);
+		name = MALLOC(strlen(intf)+1);
 		strcpy(name, intf);
 		ret->name = name;
 
 	}else{
-		ha_free(mcp->interface);
-		ha_free(mcp);
+		FREE(mcp->interface);
+		FREE(mcp);
 	}
 	return(ret);
 }
@@ -605,9 +609,9 @@ new_mcast_private(const char *ifn, const char *mcast, u_short port,
 		return NULL;
 	}
 
-	mcp->interface = (char *)ha_malloc(strlen(ifn)+1);
+	mcp->interface = (char *)MALLOC(strlen(ifn)+1);
 	if(mcp->interface == NULL) {
-		ha_free(mcp);
+		FREE(mcp);
 		return NULL;
 	}
 	strcpy(mcp->interface, ifn);
@@ -615,8 +619,8 @@ new_mcast_private(const char *ifn, const char *mcast, u_short port,
 	/* Set up multicast address */
 
 	if (inet_pton(AF_INET, mcast, (void *)&mcp->mcast) <= 0) {
-		ha_free(mcp->interface);
-		ha_free(mcp);
+		FREE(mcp->interface);
+		FREE(mcp);
 		return NULL;
 	}
 
@@ -814,6 +818,11 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.7  2002/06/16 06:11:26  alan
+ * Put in a couple of changes to the PILS interfaces
+ *  - exported license information (name, URL)
+ *  - imported malloc/free
+ *
  * Revision 1.6  2002/05/01 23:50:35  alan
  * Put in some comments about how the code avoids potential buffer overruns.
  *
