@@ -76,6 +76,7 @@
 #include <clplumbing/longclock.h>
 #include <clplumbing/ipc.h>
 #include <clplumbing/Gmain_timeout.h>
+#include <clplumbing/GSource.h>
 #include <clplumbing/apphb_cs.h>
 #include <clplumbing/cl_log.h>
 #include <clplumbing/cl_poll.h>
@@ -111,14 +112,12 @@ struct apphb_client {
 	uid_t			uid;		/* application UID */
 	gid_t			gid;		/* application GID */
 	guint			timerid;	/* timer source id */
-	guint			sourceid;	/* message source id */
 	long			timerms;	/* heartbeat timeout in ms */
 	longclock_t		lasthb;		/* Last HB time */
 	long			warnms;		/* heartbeat warntime in ms */
 	gboolean		missinghb;	/* True if missing a hb */
-	struct IPC_CHANNEL*	ch;		/* client comm channel */
-	GPollFD*		ifd;		/* ifd for poll */
-	GPollFD*		ofd;		/* ofd for poll */
+	GCHSource*		source;
+	IPC_Channel*		ch;
 	struct IPC_MESSAGE	rcmsg;		/* return code msg */
 	struct apphb_rc		rc;		/* last return code */
 	gboolean		deleteme;	/* Delete after next call */
@@ -176,7 +175,7 @@ static gboolean open_watchdog(const char * dev);
 static void tickle_watchdog(void);
 static void close_watchdog(void);
 
-void apphb_client_remove(apphb_client_t* client);
+static void apphb_client_remove(gpointer client);
 static void apphb_putrc(apphb_client_t* client, int rc);
 static gboolean	apphb_timer_popped(gpointer data);
 static gboolean	tickle_watchdog_timer(gpointer data);
@@ -187,31 +186,13 @@ static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
 void apphb_process_msg(apphb_client_t* client, void* msg,  int length);
 static gboolean authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
 
-/* gmainloop "event source" functions for client communication */
-static gboolean apphb_prepare(gpointer src, GTimeVal*now, gint*timeout
-,	gpointer user);
-static gboolean apphb_check(gpointer src, GTimeVal*now, gpointer user);
-static gboolean apphb_dispatch(gpointer src, GTimeVal*now, gpointer user);
+/* "event source" functions for client communication */
+static gboolean apphb_dispatch(IPC_Channel* src, gpointer user);
 
-static GSourceFuncs apphb_eventsource = {
-	apphb_prepare,
-	apphb_check,
-	apphb_dispatch,
-	NULL
-};
 
-/* gmainloop "event source" functions for new client connections */
-static gboolean apphb_new_prepare(gpointer src, GTimeVal*now, gint*timeout
-,	gpointer user);
-static gboolean apphb_new_check(gpointer src, GTimeVal*now, gpointer user);
-static gboolean apphb_new_dispatch(gpointer src, GTimeVal*now, gpointer user);
+/* "event source" functions for new client connections */
+static gboolean apphb_new_dispatch(IPC_Channel* src, gpointer user);
 
-static GSourceFuncs apphb_connsource = {
-	apphb_new_prepare,
-	apphb_new_check,
-	apphb_new_dispatch,
-	NULL
-};
 
 /* Send return code from current operation back to client... */
 static void
@@ -238,67 +219,27 @@ apphb_timer_popped(gpointer data)
 	return FALSE;
 }
 
-/* gmainloop "event source" prepare function */
-static gboolean
-apphb_prepare(gpointer Src, GTimeVal*now, gint*timeout, gpointer Client)
-{
-	apphb_client_t*		client  = Client;
-
-	/*
-	 * We set deleteme instead of deleting clients immediately because
-	 * we sometimes send replies back, and the prepare() function is
-	 * a safe time to delete a client.
-	 */
-	if (client->deleteme) {
-		/* Today is a good day to die! */
-		apphb_client_remove(client);
-		return FALSE;
-	}
-	if (debug >= DBGDETAIL) {
-		 cl_log(LOG_DEBUG, "apphb_prepare: client: %ld\n"
-		,	(long)client->pid);
-	}
-	return FALSE;
-}
-
-/* gmainloop "event source" check function */
-static gboolean
-apphb_check(gpointer Src, GTimeVal*now, gpointer Client)
-{
-	GPollFD*		src = Src;
-	apphb_client_t*		client  = Client;
-
-
-	if (debug >= DBGDETAIL) {
-		cl_log(LOG_DEBUG, "apphb_check: client: %ld, revents: 0x%x"
-		,	(long)client->pid, src->revents);
-	}
-	client->ch->ops->resume_io(client->ch);
-
-	return src->revents != 0
-	||	client->ch->ops->is_message_pending(client->ch);
-}
 
 /* gmainloop "event source" dispatch function */
 static gboolean
-apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
+apphb_dispatch(IPC_Channel* src, gpointer Client)
 {
-	GPollFD*		src = Src;
 	apphb_client_t*		client  = Client;
 
 	if (debug >= DBGDETAIL) {
-		cl_log(LOG_DEBUG, "apphb_dispatch: client: %ld, revents: 0x%x"
-		,	(long)client->pid, src->revents);
+		cl_log(LOG_DEBUG, "apphb_dispatch: client: %ld"
+		,	(long)client->pid);
 	}
-	if (src->revents & G_IO_HUP) {
+	/* FIXME!!!! ??? */
+	if (client->ch->ch_status == IPC_DISCONNECT) {
 		apphb_notify(client, APPHB_HUP);
 		client->deleteme = TRUE;
-		return TRUE;
+		return FALSE;
 	}
 
-	client->ch->ops->resume_io(client->ch);
+	while (!client->deleteme
+	&&	client->ch->ops->is_message_pending(client->ch)) {
 
-	while (!client->deleteme && client->ch->ops->is_message_pending(client->ch)) {
 		if (client->ch->ch_status == IPC_DISCONNECT) {
 			client->deleteme = TRUE;
 		}else{
@@ -307,7 +248,8 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 			}
 		}
 	}
-	return TRUE;
+
+	return !client->deleteme;
 }
 #define	DEFAULT_TO	(10*60*1000)
 
@@ -316,11 +258,6 @@ static apphb_client_t*
 apphb_client_new(struct IPC_CHANNEL* ch)
 {
 	apphb_client_t*	ret;
-
-	int	rdfd;
-	int	wrfd;
-	int	wrflags = G_IO_OUT|G_IO_NVAL;
-	int	rdflags = G_IO_IN |G_IO_NVAL | G_IO_PRI | G_IO_HUP;
 
 	ret = g_new(apphb_client_t, 1);
 
@@ -342,30 +279,15 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 	ret->rcmsg.msg_private = NULL;
 	ret->rc.rc = 0;
 
-	/* Prepare GPollFDs to give g_main_add_poll() */
-
-	wrfd = ch->ops->get_send_select_fd(ch);
-	rdfd = ch->ops->get_recv_select_fd(ch);
-
-	if (rdfd == wrfd) {
-		/* We only need to poll one FD */
-		/* FIXME: We ought to handle output blocking */
-#if 0
-		rdflags |= wrflags;
-#endif
-		wrflags = 0;
-		ret->ofd = NULL;
-	}else{
-		/* We have to poll both FDs separately */
-		ret->ofd = g_new(GPollFD, 1);
-		ret->ofd->fd = wrfd;
-		ret->ofd->events = wrflags;
-		g_main_add_poll(ret->ofd, G_PRIORITY_DEFAULT);
+	/* FIXME?? Should last arg be NULL?? */
+	ret->source = G_main_add_IPC_Channel(G_PRIORITY_DEFAULT
+	,	ch, FALSE, apphb_dispatch, (gpointer)ret
+	,	apphb_client_remove);
+	if (!ret->source) {
+		memset(ret, 0, sizeof(*ret));
+		ret=NULL;
+		return ret;
 	}
-	ret->ifd = g_new(GPollFD, 1);
-	ret->ifd->fd = rdfd;
-	ret->ifd->events = rdflags;
-	g_main_add_poll(ret->ifd, G_PRIORITY_DEFAULT);
 
 	/* Set timer for this client... */
 	ret->timerid = Gmain_timeout_add(DEFAULT_TO, apphb_timer_popped, ret);
@@ -374,8 +296,6 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 	ret->lasthb = time_longclock();
 
 	/* Set up "real" input message source for this client */
-	ret->sourceid = g_source_add(G_PRIORITY_HIGH, FALSE
-	,	&apphb_eventsource, ret->ifd, ret, NULL);
 	return ret;
 }
 
@@ -446,40 +366,20 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 
 /* Shut down the requested client */
 void
-apphb_client_remove(apphb_client_t* client)
+apphb_client_remove(gpointer Client)
 {
+	apphb_client_t* client = Client;
+	cl_log(LOG_INFO, "apphb_client_remove: client: %ld\n"
+	,	(long)client->pid);
 	if (debug >= DBGMIN) {
 		cl_log(LOG_DEBUG, "apphb_client_remove: client: %ld\n"
 		,	(long)client->pid);
-	}
-	if (client->sourceid) {
-		g_source_remove(client->sourceid);
-		client->sourceid=0;
 	}
 	if (client->timerid) {
 		g_source_remove(client->timerid);
 		client->timerid=0;
 	}
-	if (client->ifd) {
-		g_main_remove_poll(client->ifd);
-		if (!usenormalpoll) {
-			cl_poll_ignore(client->ifd->fd);
-		}
-		g_free(client->ifd);
-		client->ifd=NULL;
-	}
-	if (client->ofd) {
-		g_main_remove_poll(client->ofd);
-		if (!usenormalpoll) {
-			cl_poll_ignore(client->ofd->fd);
-		}
-		g_free(client->ofd);
-		client->ofd=NULL;
-	}
-	if (client->ch) {
-		client->ch->ops->destroy(client->ch);
-		client->ch = NULL;
-	}
+	G_main_del_IPC_Channel(client->source);
 	g_free(client->appname);
 	g_free(client->appinst);
 	memset(client, 0, sizeof(*client));
@@ -646,51 +546,21 @@ apphb_process_msg(apphb_client_t* client, void* Msg,  int length)
 	}
 }
 
-/* gmainloop client connection source "prepare" function */
-static gboolean
-apphb_new_prepare(gpointer src, GTimeVal*now, gint*timeout
-,	gpointer user)
-{
-	if (debug >= DBGDETAIL) {
-		cl_log(LOG_DEBUG, "apphb_new_prepare");
-	}
-	return FALSE;
-}
-
-/* gmainloop client connection source "check" function */
-static gboolean
-apphb_new_check(gpointer Src, GTimeVal*now, gpointer user)
-{
-	GPollFD*	src = Src;
-	if (debug >= DBGDETAIL) {
-		cl_log(LOG_DEBUG, "apphb_new_check: revents: 0x%x"
-		,	src->revents);
-	}
-	return src->revents != 0;
-}
 
 /* gmainloop client connection "dispatch" function */
 /* This is where we accept connections from a new client */
 static gboolean
-apphb_new_dispatch(gpointer Src, GTimeVal*now, gpointer user)
+apphb_new_dispatch(IPC_Channel* src, gpointer user)
 {
-	struct IPC_WAIT_CONNECTION*		conn = user;
-	struct IPC_CHANNEL*			newchan;
-	GPollFD*				src = Src;
 
-	if (debug >= DBGMIN) {
-		cl_log(LOG_DEBUG, "apphb_new_dispatch: revents: 0x%x"
-		,	src->revents);
-	}
-	newchan = conn->ops->accept_connection(conn, NULL);
-	if (newchan != NULL) {
+	if (src != NULL) {
 		/* This sets up comm channel w/client
 		 * Ignoring the result value is OK, because
 		 * the client registers itself w/event system.
 		 */
-		(void)apphb_client_new(newchan);
+		(void)apphb_client_new(src);
 	}else{
-		perror("accept_connection failed!");
+		cl_perror("accept_connection failed!");
 	}
 	return TRUE;
 }
@@ -754,7 +624,7 @@ extern pid_t getsid(pid_t);
  */
 GMainLoop*	mainloop = NULL;
 
-#define OPTARGS	"sSrRwdl:n:"
+#define OPTARGS	"sSrRwdkln:"
 int
 main(int argc, char ** argv)
 {
@@ -796,6 +666,7 @@ main(int argc, char ** argv)
 
 			case 'd':		/* Debug */
 			debug += 1;
+			break;
 		}
 	}
 
@@ -826,9 +697,6 @@ init_start(const char * watchdogdev)
 	struct IPC_WAIT_CONNECTION*	wconn;
 	GHashTable*	wconnattrs;
 
-	int		wcfd;
-	GPollFD		pollfd;
-	
 
 	make_daemon();
 	/* Create a "waiting for connection" object */
@@ -844,16 +712,10 @@ init_start(const char * watchdogdev)
 		exit(1);
 	}
 
-	/* Set up GPollFD to watch for new connection events... */
-	wcfd = wconn->ops->get_select_fd(wconn);
-	pollfd.fd = wcfd;
-	pollfd.events = G_IO_IN | G_IO_NVAL | G_IO_PRI | G_IO_HUP;
-	pollfd.revents = 0;
-	g_main_add_poll(&pollfd, G_PRIORITY_DEFAULT);
 
 	/* Create a source to handle new connection requests */
-	g_source_add(G_PRIORITY_HIGH, FALSE
-	,	&apphb_connsource, &pollfd, wconn, NULL);
+	G_main_add_IPC_WaitConnection(G_PRIORITY_HIGH, wconn
+	,	NULL, FALSE, apphb_new_dispatch, wconn, NULL);
 
 	if (!usenormalpoll) {
 		g_main_set_poll_func(cl_glibpoll);
