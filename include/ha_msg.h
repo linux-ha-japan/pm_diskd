@@ -22,7 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.7 2002/10/30 21:30:30 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.8 2002/10/30 22:25:40 ram Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 
@@ -70,6 +70,8 @@ struct ha_msg {
 #define F_APIREQ	"reqtype"	/* API request type for "hbapi" */
 #define F_APIRESULT	"result"	/* API request result code */
 #define F_IFNAME	"ifname"	/* Interface name */
+#define F_DEADTIME	"deadtime"	/* Dead time interval in milliseconds */
+#define F_KEEPALIVE	"keepalive"	/* Keep alive time interval in milliseconds */
 
 	/* Message types */
 #define	T_STATUS	"status"	/* Status (heartbeat) */

@@ -225,6 +225,17 @@ struct llc_ops {
 
 	int (*setfmode)(ll_cluster_t*, int mode);
 
+/*
+ *	Return heartbeat's deadtime
+ */
+	const long (*get_deadtime)(ll_cluster_t *);
+
+
+/*
+ *	Return heartbeat's keepalive time
+ */
+	const long (*get_keepalive)(ll_cluster_t *);
+
 	const char * (*errmsg)(ll_cluster_t*);
 };
 
