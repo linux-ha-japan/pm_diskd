@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.197 2002/08/09 15:11:20 msoffen Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.198 2002/08/10 02:21:11 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -135,7 +135,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.197 2002/08/09 15:11
  *	Heartbeat API conversion to unix domain sockets:
  *		We ought to convert to UNIX domain sockets because we get
  *		better verification of the user, and we would get notified when
- *		they die.
+ *		they die.  This would use the now-written IPC libary.
  *
  *	Fuzzy heartbeat timing
  *		Right now, the code works in such a way that it systematically
@@ -185,25 +185,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.197 2002/08/09 15:11
  *		times to heartbeat.  I suppose if you have something like
  *		50-100 nodes, you ought to use a switch, and not a hub, and
  *		this would likely eliminate the problems.
- *
- *	Multicast heartbeats
- *		We really need to add UDP/IP multicast to our suite of
- *		heartbeat types.  Fundamentally, cluster communications are
- *		perhaps best thought of as multicast in nature.  Broadcast
- *		(like we do now) is basically a degenerate multicast case.
- *		One of the pieces of code listed on the linux-ha web site
- *		does multicast heartbeats.  Perhaps we could just borrow
- *		the correct parts from them.
- *
- *	Unicast heartbeats
- *		Some applications of heartbeat have certain machines which are
- *		not really full members of the cluster, but which would like
- *		to participate in the heartbeat API.  Although they
- *		could theoretically use multicast, there are practical barriers
- *		to doing so.  This is NOT intended to replace
- *		multicast/broadcast heartbeats for the entire cluster, but
- *		to allow one or two machines to join the cluster in a unicast
- *		mode.
  *
  *	Nearest Neighbor heartbeating (? maybe?)
  *		This is a candidate to replace the current policy of full-ring
@@ -281,14 +262,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.197 2002/08/09 15:11
 #include "setproctitle.h"
 
 #define OPTARGS		"dkMrRsvlC:"
-
-#if HAVE_SIGIGNORE 
-#	if !defined(linux)
-#		define IGNORESIG(s) sigignore(s)
-#	endif
-#else
-#	define IGNORESIG(s) (signal((s), SIG_IGN))
-#endif
 
 
 /*
@@ -1207,7 +1180,7 @@ write_child(struct hb_media* mp)
 	curproc->pstat = RUNNING;
 
 	for (;;) {
-		struct ha_msg * msgp = if_msgfromstream(ourfp, NULL);
+		struct ha_msg * msgp = msgfromstream(ourfp);
 
 		if (pending_handlers) {
 			process_pending_handlers();
@@ -1372,7 +1345,6 @@ send_to_all_media(char * smsg, int len)
 			return;
 		}
 	}
-
 	/* Send the message to all our heartbeat interfaces */
 	for (j=0; j < nummedia; ++j) {
 		int	wrc;
@@ -1525,14 +1497,16 @@ master_status_process(void)
 		cleanexit(1);
 	}
 
-	if ((regfd = open(API_REGFIFO, O_RDWR)) < 0) {
+	if ((regfd = open(API_REGFIFO, O_RDONLY|O_NDELAY)) < 0) {
 		ha_log(LOG_ERR
-		,	"master_status_process: Can't open " API_REGFIFO);
+		,	"master_status_process: Can't open " API_REGFIFO
+		" errno = %d", errno);
 		cleanexit(1);
 	}
+	(void)open(API_REGFIFO, O_WRONLY);
 	if (DEBUGPKT) {
 		ha_log(LOG_DEBUG
-		, "master_status_process: opened socket %d for REGISTER :%s"
+		, "master_status_process: opened FIFO %d for REGISTER: %s"
 		,	regfd, API_REGFIFO);
 	}
 
@@ -1581,7 +1555,7 @@ master_status_process(void)
 	,	&ClusterMsgGFD,	f, NULL);
 
 	APIRegistrationGFD.fd = regfd;
-	APIRegistrationGFD.events = G_IO_IN|G_IO_HUP|G_IO_ERR;
+	APIRegistrationGFD.events = G_IO_IN;
 	g_main_add_poll(&APIRegistrationGFD, G_PRIORITY_LOW);
 	g_source_add(G_PRIORITY_LOW, FALSE, &APIregistration_input_SourceFuncs
 	,	&APIRegistrationGFD, regfifo, NULL);
@@ -5730,10 +5704,14 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 				ha_log(LOG_INFO, "Retransmitting pkt %lu"
 				,	thisseq);
 			}
+			smsg = msg2string(hist->msgq[msgslot]);
+
 			if (DEBUGPKT) {
 				ha_log_message(hist->msgq[msgslot]);
-			}
-			smsg = msg2string(hist->msgq[msgslot]);
+				ha_log(LOG_INFO
+				,	"Rexmit STRING conversion: [%s]"
+				,	smsg);
+	 		}
 
 			/* If it didn't convert, throw original message away */
 			if (smsg != NULL) {
@@ -6093,6 +6071,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.198  2002/08/10 02:21:11  alan
+ * Moved the SIGIGNORE stuff to the common portability.h file
+ * Added a OpenBSD fix - we used to open a FIFO as O_RDWR.  Now we open
+ * it twice instead.
+ *
  * Revision 1.197  2002/08/09 15:11:20  msoffen
  * Same change as apphb/apphbd.c (for the sigignore fix).
  *
