@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.11 2003/01/30 15:07:29 lars Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.12 2003/01/31 16:42:15 msoffen Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -45,6 +45,7 @@ static const char _ucast_Id [] = "$Id: ucast.c,v 1.11 2003/01/30 15:07:29 lars E
 #ifndef HAVE_INET_ATON
 	extern  int     inet_aton(const char *, struct in_addr *);
 #endif
+#include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #if defined(SO_BINDTODEVICE)
