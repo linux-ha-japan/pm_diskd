@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.16 2001/05/11 14:55:06 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.17 2001/06/12 17:05:47 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -221,13 +221,18 @@ ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 	for (j=0; j < msg->nfields; ++j) {
 		if (strcmp(name, msg->names[j]) == 0) {
 			char *	newv = ha_malloc(strlen(value)+1);
+			int	newlen;
+			int	sizediff = 0;
 			if (newv == NULL) {
 				ha_error("ha_msg_mod: out of memory");
 				return(HA_FAIL);
 			}
 			ha_free(msg->values[j]);
 			msg->values[j] = newv;
-			msg->vlens[j] = strlen(value);
+			newlen = strlen(value);
+			sizediff = newlen - msg->vlens[j];
+			msg->stringlen += sizediff;
+			msg->vlens[j] = newlen;
 			strcpy(newv, value);
 			return(HA_OK);
 		}
@@ -407,6 +412,13 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.17  2001/06/12 17:05:47  alan
+ * Fixed bug reported by Emily Ratliff <ratliff@austin.ibm.com>
+ * In ha_msg_mod() the code fails to update the stringlen value for
+ * fields modified by the input parameters.
+ * This could potentially cause a crash.
+ * Thanks to Emily for reporting this bug!
+ *
  * Revision 1.16  2001/05/11 14:55:06  alan
  * Followed David Lee's suggestion about splitting out all the heartbeat process
  * management stuff into a separate header file...
