@@ -22,16 +22,25 @@
 /* Init stop priority */
 #undef HB_INITSTOPPRI
 
+/* Define to 1 if you have the `alphasort' function. */
+#undef HA_HAVE_ALPHASORT
+
+/* Define to 1 if you have the `inet_pton' function. */
+#undef HA_HAVE_INET_PTON
+
+/* Define to 1 if you have the `scandir' function. */
+#undef HA_HAVE_SCANDIR
+
+/* Define to 1 if you have the `setenv' function. */
+#undef HA_HAVE_SETENV
+
+/* Define to 1 if you have the `strerror' function. */
+#undef HA_HAVE_STRERROR
+
 /* heartbeat rc script directory */
 #undef HB_RC_DIR
 
 /* heartbeat logging socket */
 #undef HA_LOGDAEMON_IPC
-
-#define HA_HAVE_SCANDIR @HA_HAVE_SCANDIR@
-
-#define HA_LOGDAEMON_IPC "@HA_LOGDAEMON_IPC@"
-
-#define HB_RC_DIR "@HB_RC_DIR@"
 
 #endif /* _HA_CONFIG_H */
