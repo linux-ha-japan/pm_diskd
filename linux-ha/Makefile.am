@@ -20,7 +20,7 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in ha_config.h
 
-EXTRADIST = ha_config.h.in
+EXTRA_DIST = ha_config.h.in
 
 includedir=$(base_includedir)/linux-ha
 
