@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr,v 1.4 1999/12/23 03:28:21 alan Exp $
+#	$Id: IPaddr,v 1.5 1999/12/30 03:18:50 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -183,7 +183,7 @@ ip_start() {
 ip_status() {
   BASEIP=`echo $1 | sed s'%/.*%%'`
   if
-    $IFCONFIG | grep "inet addr:$BASEIP" >/dev/null 2>&1
+    $IFCONFIG | grep "inet addr:$BASEIP " >/dev/null 2>&1
   then
     echo "running"
   else
@@ -238,6 +238,11 @@ esac
 #
 #
 # $Log: IPaddr,v $
+# Revision 1.5  1999/12/30 03:18:50  alan
+# Put Stefan Salzer's fix on the place he put it in :-)  The same bug appeared
+# twice in the code.  I fixed it in one place, and so did he.  Now
+# it looks like they're both fixed.
+#
 # Revision 1.4  1999/12/23 03:28:21  alan
 # Put in Stefan Salzer's fix to IPaddr to make it not confuse
 # x.y.z.1 with x.y.z.11 or similar...
