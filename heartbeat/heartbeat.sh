@@ -1,13 +1,12 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.12 1999/10/19 01:56:51 alan Exp $
+#	$Id: heartbeat.sh,v 1.13 1999/10/19 13:55:36 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
 # Author:       Alan Robertson	<alanr@henge.com>
 #
-#		Parts are patterned after some Red Hat examples, but now
-#		it should run (except for status) under SuSE also...
+#		it should run under SuSE and Debian also...
 #
 # chkconfig: - 25 40
 # description: Startup script high-availability services.
@@ -269,6 +268,11 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.13  1999/10/19 13:55:36  alan
+#  Changed comments about being red hat compatible
+#  Also, changed heartbeat.c to be both SuSE and Red Hat compatible in it's -s
+#  output
+#
 #  Revision 1.12  1999/10/19 01:56:51  alan
 #  Removed the sleep between shutdown and startup, since that's now in
 #  heartbeat itself.

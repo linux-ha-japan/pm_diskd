@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.22 1999/10/19 01:55:54 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.23 1999/10/19 13:55:36 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -2309,13 +2309,14 @@ main(int argc, const char ** argv)
 
 	/*
 	 *	Report status of heartbeat processes, etc.
+	 *	We report in both Red Hat and SuSE formats...
 	 */
 	if (rpt_hb_status) {
 
 		if (running_hb_pid < 0) {
-			printf("%s is stopped.\n", cmdname);
+			printf("%s is stopped. No process\n", cmdname);
 		}else{
-			printf("%s [pid %d et al] is running...\n"
+			printf("%s OK [pid %d et al] is running...\n"
 			,	cmdname, running_hb_pid);
 		}
 		cleanexit(0);
@@ -2825,6 +2826,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.23  1999/10/19 13:55:36  alan
+ * Changed comments about being red hat compatible
+ * Also, changed heartbeat.c to be both SuSE and Red Hat compatible in it's -s
+ * output
+ *
  * Revision 1.22  1999/10/19 01:55:54  alan
  * Put in code to make the -k option loop until the killed heartbeat stops running.
  *
