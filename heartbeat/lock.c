@@ -30,6 +30,14 @@
  * space, space, space, space, one, two, three, zero, and newline.
  * Then, anything wishing to use /dev/cua0 can read the lock file and act
  * accordingly (all locks in /var/lock should be world-readable).
+ *
+ *
+ * PERMISSIONS NOTE:
+ * Different linux distributions set the mode of the lock directory differently
+ * Any process which wants to create lock files must have write permissions
+ * on TTY_LOCK_D (probably /var/lock).  For things like the heartbeat API
+ * code, this may mean allowing the uid of the processes that use this API
+ * to join group uucp, or making the binaries setgid to uucp.
  */
 
 #define	DEVDIR	"/dev/"
