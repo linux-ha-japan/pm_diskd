@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.64 2000/12/04 21:43:12 alan Exp $
+#	$Id: Makefile,v 1.65 2000/12/05 15:28:46 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -48,10 +48,14 @@ B_FIFO=$(B_VARRUN)/heartbeat-fifo
 B_HAPPP=$(B_VARRUN)/ppp.d
 #
 # For FreeBSD
-LIBDL = -lintl
-# For Linux (and OpenBSD?)
+LIBDL =
+LIBINTL = -lintl
+
+# For Linux
 LIBDL = -ldl
-VARS=MAKE="$(MAKE)" PKG=$(PKG) VERS=$(VERS) APIGID=$(APIGID) APIGROUP=$(APIGROUP) LIBDL="$(LIBDL)"
+LIBINTL =
+
+VARS=MAKE="$(MAKE)" PKG=$(PKG) VERS=$(VERS) APIGID=$(APIGID) APIGROUP=$(APIGROUP) LIBDL="$(LIBDL)" LIBINTL="$(LIBINTL)"
 MAKE=make
 MAKE_CMD = $(MAKE) $(VARS)
 

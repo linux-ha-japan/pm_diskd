@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.42 2000/11/25 13:46:54 alan Exp $
+#	$Id: Makefile,v 1.43 2000/12/05 15:28:46 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -39,6 +39,13 @@ AUTH_MODULES_DIR=$(HALIB)/modules/auth/
 APIGID=60
 APIGROUP=haclient
 
+
+# For FreeBSD
+LIBDL =
+LIBINTL = -lintl
+# For Linux
+LIBDL = -ldl
+LIBINTL =
 
 # Can't include the Build Root as a part of the compilation process
 B_HA=$(DESTDIR)/etc/ha.d
@@ -81,7 +88,7 @@ CFLAGS=-g 				\
 
 LDFLAGS = -fident
 
-SHAREDFLAGS = -ldl -rdynamic
+SHAREDFLAGS = $(LIBDL) $(LIBINTL)  -rdynamic
 
 HEARTBEAT = heartbeat
 H_OBJLIST = 	heartbeat.o		\
@@ -135,7 +142,7 @@ SPECSRC = Specfile
 all: $(PRODUCTS)
 
 $(HEARTBEAT): $(H_OBJLIST) $(H_HDRS) $(HBLIBS)
-	$(CC) $(SHAREDFLAGS) $(LDFLAGS) $(H_OBJLIST) $(HBLIBS) -o $@
+	$(CC) $(LDFLAGS) $(H_OBJLIST) $(SHAREDFLAGS) $(HBLIBS) -o $@
 
 $(CLIENTLIB): $(CLIENTOBJS)
 	ar rc $(CLIENTLIB) $(CLIENTOBJS)

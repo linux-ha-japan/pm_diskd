@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.12 2000/12/04 21:40:15 alan Exp $
+#	$Id: Makefile,v 1.13 2000/12/05 15:28:46 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -25,10 +25,13 @@ LOGROTATED=/etc/logrotate.d
 HTML2TXT = lynx -dump
 INSTALL = install
 MAKE  	= make
+
 # For FreeBSD
-LIBDL = -lintl
-# For Linux (and OpenBSD?)
+LIBDL =
+LIBINTL = -lintl
+# For Linux
 LIBDL = -ldl
+LIBINTL =
 
 # ld -shared --whole-archive
 
@@ -104,7 +107,7 @@ $(SHLIB): $(ARFILE)
 	ld -shared -o $(SHLIB) --whole-archive $(ARFILE)
 
 $(STONITH): $(ARFILE) main.o
-	$(CC) $(LIBDL) main.o $(ARFILE) -o stonith
+	$(CC) main.o $(ARFILE) $(LIBDL) $(LIBINTL) -o stonith
 
 $(S_OBJLIST) : $(S_HDRS)
 
