@@ -35,7 +35,7 @@ COMMONLIBS		= $(top_builddir)/lib/clplumbing/libplumb.la	\
 LIBRT 			= @LIBRT@
 CFLAGS			= @CFLAGS@	\
 			-DPIDFILE='"$(PIDFILE)"'
-			-DVAR_LIB_D='"$(havarlibdir)"'
+
 
 ## binary progs
 halib_PROGRAMS		= apphbd apphbtest
@@ -46,6 +46,7 @@ apphbd_SOURCES	= apphbd.c
 #
 #	We don't really need libpils/libltdl (yet...)
 #
+apphbd_CFLAGS		= -DHA_VARLIBDIR='"@HA_VARLIBDIR@"'
 apphbd_LDADD		= $(COMMONLIBS) 				\
 			$(top_builddir)/lib/pils/libpils.la		\
 			$(top_builddir)/libltdl/libltdlc.la 		\
@@ -58,6 +59,7 @@ apphbd_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 
 ## SOURCES
 apphbtest_SOURCES	= apphbtest.c
+apphbtest_CFLAGS	= -DHA_VARLIBDIR='"@HA_VARLIBDIR@"'
 apphbtest_LDADD		= $(COMMONLIBS) 				\
 			$(top_builddir)/lib/apphb/libapphb.la
 			$(top_builddir)/replace/libreplace.la
