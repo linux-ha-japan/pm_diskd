@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.35 2003/04/18 06:09:46 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.36 2003/05/30 15:22:11 kevin Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -289,7 +289,7 @@ STATIC	const char *
 ha_msg_timestamp(void)
 {
 	static char ts[32];
-	sprintf(ts, "%lx", time(NULL));
+	sprintf(ts, TIME_X, (TIME_T)time(NULL));
 	return(ts);
 }
 
@@ -366,6 +366,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.36  2003/05/30 15:22:11  kevin
+ * Fix building on OpenBSD
+ *
  * Revision 1.35  2003/04/18 06:09:46  alan
  * Fixed an off-by-one error in writing messages to the FIFO.
  * Also got rid of some now-unused functions, and fixed a minor glitch in BasicSanitCheck.
