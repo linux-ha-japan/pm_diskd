@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.247 2003/03/29 02:48:44 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.248 2003/04/14 15:44:10 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -823,7 +823,7 @@ read_child(struct hb_media* mp)
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 32);
+	cl_make_realtime(-1, hb_realtime_prio, 32, 32);
 	curproc->pstat = RUNNING;
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
 	drop_privs(0, 0);	/* Become nobody */
@@ -883,7 +883,7 @@ write_child(struct hb_media* mp)
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 32);
+	cl_make_realtime(-1, hb_realtime_prio, 32, 32);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
 	drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
@@ -928,7 +928,7 @@ fifo_child(IPC_Channel* chan)
 	}
 	fifoofd = open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
 
-	cl_make_realtime(-1, hb_realtime_prio, 32);
+	cl_make_realtime(-1, hb_realtime_prio, 32, 32);
 	set_proc_title("%s: fifo reader", cmdname);
 	drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
@@ -1003,7 +1003,7 @@ control_process(IPC_Channel* fifoipc)
 			"hb_signal_set_control_process(): Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 32);
+	cl_make_realtime(-1, hb_realtime_prio, 32, 32);
 	set_proc_title("%s: control process", cmdname);
 //	setmsrepeattimer(10);
 	/*
@@ -1235,7 +1235,7 @@ master_status_process(void)
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 64);
+	cl_make_realtime(-1, hb_realtime_prio, 32, 64);
 	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
 	set_proc_title("%s: master status process", cmdname);
@@ -4025,6 +4025,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.248  2003/04/14 15:44:10  alan
+ * Added the now-required extra parameter to calls to cl_make_realtime().
+ *
  * Revision 1.247  2003/03/29 02:48:44  alan
  * More small changes on the road to restructuring heartbeat processees.
  *
