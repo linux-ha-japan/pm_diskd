@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.2 1999/09/26 14:01:01 alanr Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.3 1999/09/26 21:59:58 alanr Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -442,7 +442,7 @@ add_msg_auth(struct ha_msg * m)
 {
 	char	msgbody[MAXMSG];
 	char	authstring[MAXLINE];
-	char *	authtoken;
+	const char *	authtoken;
 	char *	bp = msgbody;
 	int	j;
 
@@ -459,11 +459,14 @@ add_msg_auth(struct ha_msg * m)
 	}
 
 
-	if ((authtoken = calc_cksum(config->authmethod, config->keystr,msgbody))
+	if ((authtoken
+	=	config->authmethod->auth->auth(config->authmethod, msgbody))
 	==	NULL) {
 		ha_log(LOG_ERR, authstring
 		,	"Cannot compute message authentication [%s/%s/%s]"
-		,	config->authmethod, config->keystr, msgbody);
+		,	config->authmethod->auth->authname
+		,	config->authmethod->key
+		,	msgbody);
 		return(HA_FAIL);
 	}
 
@@ -479,10 +482,11 @@ isauthentic(const struct ha_msg * m)
 {
 	char	msgbody[MAXMSG];
 	char	authstring[MAXLINE];
-	char *	authtoken;
+	const char *	authtoken;
 	char *	bp = msgbody;
 	int	j;
 	int	authwhich = 0;
+	struct auth_info*	which;
 	
 	if (m->stringlen >= sizeof(msgbody)) {
 		return(0);
@@ -509,13 +513,17 @@ isauthentic(const struct ha_msg * m)
 		ha_error("Bad/invalid auth token");
 		return(0);
 	}
-	if (authwhich != config->authnum) {
-		ha_error("Wrong authentication type!");
+	which = config->auth_config + authwhich;
+
+	if (authwhich < 0 || authwhich >= MAXAUTH || which->auth == NULL) {
+		ha_log(LOG_ERR
+		,	"Invalid authentication type [%d] in message!"
+		,	authwhich);
 		return(0);
 	}
 		
-	if ((authtoken = calc_cksum(config->authmethod, config->keystr,msgbody))
-	==	NULL) {
+	
+	if ((authtoken = which->auth->auth(which, msgbody)) == NULL) {
 		ha_error("Cannot check message authentication");
 		return(0);
 	}
@@ -610,6 +618,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.3  1999/09/26 21:59:58  alanr
+ * Allow multiple auth strings in auth file... (I hope?)
+ *
  * Revision 1.2  1999/09/26 14:01:01  alanr
  * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
  *

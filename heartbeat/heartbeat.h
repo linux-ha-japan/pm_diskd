@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.2 1999/09/26 14:01:12 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.3 1999/09/26 22:00:15 alanr Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -142,6 +142,20 @@ struct node_info {
 	struct seqtrack	track;
 };
 
+struct auth_info {
+	struct auth_type *	auth;
+	const char *		key;
+};
+
+struct auth_type {
+	const char *	authname;
+	const unsigned char *	(*auth)(const struct auth_info * authinfo
+	,	const char *data);
+};
+
+
+#define MAXAUTH	16
+
 struct sys_config {
 	int	format_vers;		/* Version of this info */
 	int	nodecount;		/* Number of nodes in cluster */
@@ -152,9 +166,9 @@ struct sys_config {
 	char    logfile[PATH_MAX];	/* path to log file, if any */
 	char	dbgfile[PATH_MAX];	/* path to debug file, if any */
 	struct node_info	nodes[MAXNODE];
-	char    keystr[MAXLINE];
-	int     authnum;
-	char    authmethod[MAXLINE];
+	int	authnum;
+	struct auth_info auth_config[MAXAUTH];
+	struct auth_info *authmethod;
 };
 
 
@@ -207,6 +221,7 @@ struct process_info {
 	time_t			lastmsg;
 };
 
+
 /* This figure contains a couple of probably unnecessary fudge factors */
 #define	MXPROCS	((PAGE_SIZE-2*sizeof(int))/sizeof(struct process_info)-1)
 
@@ -242,4 +257,5 @@ extern void		cleanexit(int exitcode);
 extern void		(*localdie)(void);
 extern int		should_ring_copy_msg(struct ha_msg* m);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
+struct auth_type *	findauth(const char * type);
 #endif

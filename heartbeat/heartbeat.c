@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.2 1999/09/26 14:01:05 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.3 1999/09/26 22:00:02 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -311,9 +311,6 @@ init_config(const char * cfgfile)
 	config->deadtime_interval = 5;
 	config->hopfudge = 1;
 	config->log_facility = -1;
-	config->authnum = 0;
-	config->authmethod[0] = EOS;
-	config->keystr[0] = EOS;
 
 	uname(&u);
 	curnode = NULL;
@@ -341,7 +338,7 @@ init_config(const char * cfgfile)
 		ha_error("no nodes defined");
 		++errcount;
 	}
-	if (strlen(config->authmethod) <= 0) {
+	if (config->authmethod == NULL) {
 		ha_error("No authentication specified.");
 		++errcount;
 	}
@@ -738,44 +735,66 @@ set_hopfudge(const char * value)
 int
 set_auth(const char * value)
 {
-	FILE * f;
-	char buf[MAXLINE], errmsg[MAXLINE];
-	int i;
+	FILE *	f;
+	char	buf[MAXLINE], errmsg[MAXLINE];
+	char	method[MAXLINE];
+	char	key[MAXLINE];
+	int	i;
+	int	rc;
+	int	authnum;
 	struct stat keyfilestat;
-	config->authnum = atoi(value);
+	authnum = atoi(value);
 
 	if ((f = fopen(KEYFILE, "r")) == NULL) {
-		sprintf(errmsg, "No keyfile [%s] found. Using plain crc."
+		ha_log(LOG_ERR, "Cannot open keyfile [%s].  Stop."
 		,	KEYFILE);
-		strcpy(config->authmethod, "crc");
-		ha_error(errmsg);
-		return(HA_OK);
+		return(HA_FAIL);
 	}
 
 	if (stat(KEYFILE, &keyfilestat) < 0
 	||	keyfilestat.st_mode & (S_IROTH | S_IRGRP)) {
-		sprintf(errmsg, "ERROR: Bad permissions on keyfile"
+		ha_log(LOG_ERR, "Bad permissions on keyfile"
 		" [%s], 600 recommended.", KEYFILE);
-		ha_error(errmsg);
-		exit(1);
+		return(HA_FAIL);
 	}
 
 	while(fgets(buf, MAXLINE, f) != NULL) {
+		struct auth_type *	at;
 		if (*buf == COMMENTCHAR) {
 			continue;
 		}
 
-		if (sscanf(buf, "%d%s%s", &i, config->authmethod
-		,	config->keystr) == 3
-		&&	i == config->authnum) {
-
+		key[0] = EOS;
+		if (((rc=sscanf(buf, "%d%s%s", &i, method, key)) == 3)
+		||	(rc == 2 && (strcmp(method, "crc") == 0))) {
 			ha_log(LOG_DEBUG
-			,	"Using authentication method [%s]"
-			,	 config->authmethod);
-			fclose(f);
-			return(HA_OK);
+			,	"Found authentication method [%s]"
+			,	 method);
+
+			
+			if ((at = findauth(method)) == NULL) {
+				ha_log(LOG_INFO, "Invalid authtype [%s]"
+				,	method);
+			}
+			if ((i > 0) && (i < MAXAUTH)) {
+				char *	cpkey;
+				cpkey =	malloc(strlen(key)+1);
+				if (cpkey == NULL) {
+					ha_log(LOG_ERR
+					,	"Out of memory for authkey");
+					return(HA_FAIL);
+				}
+				strcpy(cpkey, key);
+				config->auth_config[i].key = cpkey;
+				config->auth_config[i].auth = at;
+				if (i == authnum) {
+					config->authnum = i;
+				     config->authmethod=config->auth_config+i;
+				}
+			}
 		}
 	}
+
 
 	fclose(f);
 	sprintf(errmsg
@@ -2304,6 +2323,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.3  1999/09/26 22:00:02  alanr
+ * Allow multiple auth strings in auth file... (I hope?)
+ *
  * Revision 1.2  1999/09/26 14:01:05  alanr
  * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
  *
