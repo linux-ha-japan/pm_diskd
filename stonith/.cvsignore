@@ -1,9 +1,0 @@
-Makefile.in
-Makefile
-stonith
-meatclient
-*.la
-*.lo
-.deps
-.libs
-.*.swp
