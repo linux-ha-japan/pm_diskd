@@ -278,9 +278,11 @@ parse_authfile(void)
 	}
 	return(rc);
 }
-#endif
 /*
  * $Log: auth.c,v $
+ * Revision 1.7  2001/07/18 20:44:55  alan
+ * Removed extra #endif somehow added during last delta...
+ *
  * Revision 1.6  2001/07/18 15:36:33  alan
  * Put in Emily Ratliff's fix of adding a missing parameter to an ha_log() call.
  *
