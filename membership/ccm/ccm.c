@@ -160,12 +160,12 @@ typedef struct ccm_info_s {
 					info->ccm_transition_major = 0
 #define		CCM_RESET_MINORTRANS(info) 	\
 					info->ccm_transition_minor = 0
-#define		CCM_SET_STATE(info, state) 	\
+#define		CCM_SET_STATE(info, istate) 	\
 		{  \
 			if(global_debug) \
-				cl_log(LOG_DEBUG,"state=%d",state); \
-			info->ccm_node_state = state; \
-			if(state==CCM_STATE_JOINING) \
+				cl_log(LOG_DEBUG,"state=%d",(istate)); \
+			info->ccm_node_state = (istate); \
+			if((istate)==CCM_STATE_JOINING) \
 				client_influx(); \
 		}
 
