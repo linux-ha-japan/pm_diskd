@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.28 2001/06/24 05:42:25 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.29 2001/07/17 15:00:04 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -38,6 +38,7 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.28 2001/06/24 05:42:25 al
 #include "heartbeat.h"
 #include <ha_msg.h>
 #include <hb_module.h>
+#include <pils/generic.h>
 #include "../libltdl/config.h"
 
 /* BSD wants us to cast the select parameter to scandir */
@@ -53,8 +54,19 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.28 2001/06/24 05:42:25 al
 extern struct hb_media_fns** hbmedia_types;
 extern int num_hb_media_types;
 
-extern struct auth_type** ValidAuths;
-extern int num_auth_types;
+
+PILPluginUniv*	PluginLoadingSystem = NULL;
+GHashTable*	AuthFunctions = NULL;
+GHashTable*	CommFunctions = NULL;
+GHashTable*	StonithFuncs = NULL;
+
+static PILGenericIfMgmtRqst RegistrationRqsts [] =
+{	{"HBauth",	&AuthFunctions,	NULL, NULL, NULL}
+,	{"HBcomm",	&CommFunctions,	NULL, NULL, NULL}
+,	{"stonith",	&StonithFuncs,	NULL, NULL, NULL}
+,	{NULL,		NULL,		NULL, NULL, NULL}
+};
+
 
 
 static const char *module_error (void);
@@ -309,126 +321,6 @@ comm_module_init(void)
 }
 
 
-int
-auth_module_init() 
-{ 
-	struct symbol_str auth_symbols[NR_AUTH_FNS]; 
-	int a, n;
-	struct dirent **namelist;
-	
-	strcpy(auth_symbols[0].name, "hb_auth_calc");
-	auth_symbols[0].mandatory = 1;
-	
-	strcpy(auth_symbols[1].name, "hb_auth_atype");
-	auth_symbols[1].mandatory = 1;
-	
-	strcpy(auth_symbols[2].name, "hb_auth_nkey");
-	auth_symbols[2].mandatory = 1;
-
-	if (DEBUGMODULE) {
-		ha_log(LOG_DEBUG
-		,	"Scanning directory %s for modules."
-		,	AUTH_MODULE_DIR);
-	}
-	n = scandir(AUTH_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
-
-	if (DEBUGMODULE) {
-		ha_log(LOG_DEBUG
-		,	"scandir on %s returned %d."
-		,	AUTH_MODULE_DIR, n);
-	}
-	if (n < 0) { 
-		ha_log(LOG_ERR, "%s: scandir failed", __FUNCTION__);
-		return (HA_FAIL);
-	}
-	
-	for (a = 0; a < n; a++) {
-		char *mod_path         = NULL; 
-		struct auth_type* auth;
-		int			pathlen;
-		int ret;
-		
-		pathlen = (strlen(AUTH_MODULE_DIR) +
-		      strlen(namelist[a]->d_name) + 2) * sizeof(char);
-
-		mod_path = (char *) ha_malloc(pathlen);
-
-		if (!mod_path) { 
-			ha_log(LOG_ERR, "%s: Failed to alloc module path"
-			,	__FUNCTION__);
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			}
-			return(HA_FAIL);
-		}
-
-		snprintf(mod_path, pathlen, "%s/%s", AUTH_MODULE_DIR
-		,	namelist[a]->d_name);
-		
-		auth = MALLOCT(struct auth_type);
-		
-		if (auth == NULL) { 
-			ha_log(LOG_ERR, "%s: auth_type alloc failed"
-			,	__FUNCTION__);
-			ha_free(mod_path);
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
-			return(HA_FAIL);
-		}
-
-		if ((auth->dlhandler = lt_dlopen(mod_path)) == NULL) {
-			ha_log(LOG_ERR, "%s: dlopen failed", __FUNCTION__);
-			ha_free(mod_path);
-			ha_free(auth);
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
-			return(HA_FAIL);
-		}
-		
-		if (DEBUGMODULE) {
-			ha_log(LOG_DEBUG
-			,	"Loading authentication module %s:"
-			,	namelist[a]->d_name);
-		}
-		ret = generic_symbol_load(namelist[a]->d_name
-		,	auth_symbols, NR_AUTH_FNS
-		,	auth->dlhandler);
-
-		auth->auth = auth_symbols[0].function;
-		auth->atype = auth_symbols[1].function;
-		auth->needskey = auth_symbols[2].function;
-
-		if (ret == HA_FAIL) {
-			ha_free(mod_path); mod_path = NULL;
-			ha_free(auth); auth=NULL;
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-				namelist[a]=NULL;
-			} 
-			return ret;
-		}
-		
-		ValidAuths[num_auth_types] = auth;
-		num_auth_types++;
-		
-		auth->authname_len = auth->atype(&auth->authname);
-		auth->ref = 0;
-		
-		ha_free(mod_path);
-		mod_path = NULL;
-	}
-	
-	for (a=0; a < n; a++) {
-		free(namelist[a]);
-		namelist[a] = NULL;
-	} 
-	
-	return(HA_OK);
-
-}
-
 int 
 module_init(void)
 { 
@@ -438,10 +330,11 @@ module_init(void)
     (void)_module_c_Id;
     (void)_heartbeat_h_Id;
     (void)_ha_msg_h_Id;
-    (void)module_error();
+    (void)module_error;
 
     /* perform the init only once */
     if (!initialised) {
+	    PIL_rc	rc;
 	/* initialize libltdl's list of preloaded modules */
 	LTDL_SET_PRELOADED_SYMBOLS();
 
@@ -450,14 +343,28 @@ module_init(void)
 
 	/* init ltdl */
 	errors = lt_dlinit();
+	if ((PluginLoadingSystem = NewPILPluginUniv(HA_MODULE_D)) == NULL) {
+	    return(HA_FAIL);
+	}
+	 PILSetDebugLevel(PluginLoadingSystem, NULL, NULL, 10);
+	
+
+	if ((rc = PILLoadPlugin(PluginLoadingSystem, "InterfaceMgr", "generic"
+	,	&RegistrationRqsts)) != PIL_OK) {
+	
+		ha_log(LOG_ERR
+		,	"ERROR: cannot load generic interface manager plugin"
+	       " [%s/%s]: %s"
+	      	,	"InterfaceMgr", "generic"
+		,	PIL_strerror(rc));
+		return HA_FAIL;
+	}
+	PILSetDebugLevel(PluginLoadingSystem, "InterfaceMgr", "generic", 10);
 
 	if (comm_module_init() == HA_FAIL) {
 	    return(HA_FAIL);
 	}
 
-	if (auth_module_init() == HA_FAIL) {
-	    return(HA_FAIL);
-	}
 
 	/* init completed */
 	++initialised;

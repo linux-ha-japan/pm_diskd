@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.56 2001/06/24 05:42:25 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.57 2001/07/17 15:00:04 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -45,7 +45,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.56 2001/06/24 05:42:
 #include <time.h>
 #include <sys/times.h>
 #include <netinet/in.h>
-
+#include <HBauth.h>
 #include <ha_msg.h>
 #include <stonith.h>
 #include <ltdl.h>
@@ -229,23 +229,6 @@ struct node_info {
 	struct seqtrack	track;
 };
 
-struct auth_info {
-	struct auth_type *	auth;
-	char *			key;
-};
-
-struct auth_type {
-	int	ref;
-	char *	authname;
-	int authname_len;
-	const unsigned char *	(*auth)(const struct auth_info * authinfo
-	,	const char *data);
-	int		(*needskey) (void); 
-	int		(*atype)(char **buffer);
-	lt_dlhandle	dlhandler;
-};
-
-#define NR_AUTH_FNS 3 /* number of functions in auth_type struct */
 
 #define MAXAUTH	16
 
@@ -270,9 +253,9 @@ struct sys_config {
 	unsigned long	generation;	/* Heartbeat generation # */
 	int	authnum;
 	Stonith*	stonith;	/* Stonith method: WE NEED A LIST TO SUPPORT MULTIPLE STONITH DEVICES PER NODE -EZA */
-	struct auth_info* authmethod;	/* auth_config[authnum] */
+	struct HBauth_info* authmethod;	/* auth_config[authnum] */
 	struct node_info  nodes[MAXNODE];
-	struct auth_info  auth_config[MAXAUTH];
+	struct HBauth_info  auth_config[MAXAUTH];
 };
 
 
@@ -286,6 +269,8 @@ struct hb_media {
 		 *	(for status changes and ring passthrough).
 		 */
 };
+
+int parse_authfile(void);
 
 struct hb_media_fns {
 	int	ref;
@@ -345,7 +330,6 @@ extern void		(*localdie)(void);
 extern int		should_ring_copy_msg(struct ha_msg* m);
 extern int		add_msg_auth(struct ha_msg * msg);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
-struct auth_type *	findauth(const char * type);
 struct node_info *	lookup_node(const char *);
 struct link * lookup_iface(struct node_info * hip, const char *iface);
 struct link *  iface_lookup_node(const char *);

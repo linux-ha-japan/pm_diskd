@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.39 2001/06/28 04:24:14 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.40 2001/07/17 15:00:04 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -54,13 +54,11 @@ extern int				parse_only;
 extern struct hb_media*			sysmedia[MAXMEDIA];
 extern struct sys_config *		config;
 extern struct node_info *		curnode;
-extern struct auth_type **		ValidAuths;
 extern int				verbose;
 extern volatile struct pstat_shm *	procinfo;
 extern volatile struct process_info *	curproc;
 extern char *				watchdogdev;
 extern int				nummedia;
-extern int				num_auth_types;
 extern int                              nice_failback;
 extern clock_t				hb_warn_ticks;
 
@@ -99,7 +97,7 @@ int
 init_config(const char * cfgfile)
 {
 	struct utsname	u;
-	int	errcount = 0, rem = 0, j;
+	int	errcount = 0;
 
 	/* This may be dumb.  I'll decide later */
 	(void)_heartbeat_c_Id;	/* Make warning go away */
@@ -220,33 +218,6 @@ init_config(const char * cfgfile)
 		}
 	}
 	
-	for (j=0; j < num_hb_media_types; ++j) {
-		if (hbmedia_types[j]->ref == 0)  {
-			dlclose(hbmedia_types[j]->dlhandler); 
-			ha_free(hbmedia_types[j]->type);
-			ha_free(hbmedia_types[j]->description);
-			ha_free(hbmedia_types[j]);
-			hbmedia_types[j] = NULL;
-			rem++;
-		}
-	}
-
-	num_hb_media_types -= rem;
-
-	rem = 0;
-
-	for (j=0; j < num_auth_types; ++j) {
-		if (ValidAuths[j]->ref == 0)  {
-			dlclose(ValidAuths[j]->dlhandler); 
-			ha_free(ValidAuths[j]->authname);
-			ha_free(ValidAuths[j]);
-			ValidAuths[j] = NULL;
-			rem++;
-		}
-	}
-
-	num_auth_types =- rem;
-			
 	return(errcount ? HA_FAIL : HA_OK);
 }
 
@@ -698,186 +669,6 @@ add_normal_node(const char * value)
 }
 
 
-
-/*
- *  Set authentication method and key.
- *  Open and parse the keyfile.
- */
-
-int
-parse_authfile(void)
-{
-	FILE *		f;
-	char		buf[MAXLINE];
-	char		method[MAXLINE];
-	char		key[MAXLINE];
-	int		i;
-	int		src;
-	int		rc = HA_OK;
-	int		authnum = -1;
-	struct stat	keyfilestat;
-	int		j;
-
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
-		,	"Beginning authentication parsing");
-	}
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
-		,	"%d total authentication methods", MAXAUTH);
-	}
-	if ((f = fopen(KEYFILE, "r")) == NULL) {
-		ha_log(LOG_ERR, "Cannot open keyfile [%s].  Stop."
-		,	KEYFILE);
-		return(HA_FAIL);
-	}
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Keyfile opened");
-	}
-
-	if (fstat(fileno(f), &keyfilestat) < 0
-	||	keyfilestat.st_mode & (S_IROTH | S_IRGRP)) {
-		ha_log(LOG_ERR, "Bad permissions on keyfile"
-		" [%s], 600 recommended.", KEYFILE);
-		fclose(f);
-		return(HA_FAIL);
-	}
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Keyfile perms OK");
-	}
-	config->auth_time = keyfilestat.st_mtime;
-
-	/* Allow for us to reread the file without restarting... */
-	config->authmethod = NULL;
-	config->authnum = -1;
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
-		,	"%d total authentication methods", MAXAUTH);
-	}
-	for (j=0; j < MAXAUTH; ++j) {
-		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG
-			,	"Examining authentication method %d", j);
-			if (config->auth_config[j].auth != NULL)
-			{
-				ha_log(LOG_DEBUG
-				,	"Method is: %s", config->auth_config[j]
-				.auth->authname);
-				ha_log(LOG_DEBUG
-				,	"Ref count is: %d"
-				,	config->auth_config[j].auth->ref);
-			}
-			else
-			{
-				ha_log(LOG_DEBUG
-				,	"WARNING: config->auth_config[%d] is NULL. (Problem ?)", j);
-			}
-		}
-		if (config->auth_config[j].key != NULL) {
-			ha_free(config->auth_config[j].key);
-			config->auth_config[j].key=NULL;
-		}
-		config->auth_config[j].auth = NULL;
-	}
-
-	while(fgets(buf, MAXLINE, f) != NULL) {
-		char *	bp = buf;
-		struct auth_type *	at;
-		
-		bp += strspn(bp, WHITESPACE);
-
-		if (*buf == COMMENTCHAR || *buf == EOS) {
-			continue;
-		}
-		if (*buf == 'a') {
-			if ((src=sscanf(bp, "auth %d", &authnum)) != 1) {
-				ha_log(LOG_ERR
-				,	"Invalid auth line [%s] in " KEYFILE
-				,	 buf);
-				rc = HA_FAIL;
-			}
-			continue;
-		}
-
-
-		key[0] = EOS;
-		if ((src=sscanf(bp, "%d%s%s", &i, method, key)) >= 2) {
-
-			char *	cpkey;
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				,	"Found authentication method [%s]"
-				,	 method);
-			}
-
-			if ((i < 0) || (i >= MAXAUTH)) {
-				ha_log(LOG_ERR, "Invalid authnum [%d] in "
-				KEYFILE);
-				rc = HA_FAIL;
-				continue;
-			}
-
-			if ((at = findauth(method)) == NULL) {
-				ha_log(LOG_ERR, "Invalid authtype [%s]"
-				,	method);
-				rc = HA_FAIL;
-				continue;
-			}
-
-			if (strlen(key) > 0 && !at->needskey()) {
-				ha_log(LOG_INFO
-				,	"Auth method [%s] doesn't use a key"
-				,	method);
-				rc = HA_FAIL;
-			}
-			if (strlen(key) == 0 && at->needskey()) {
-				ha_log(LOG_ERR
-				,	"Auth method [%s] requires a key"
-				,	method);
-				rc = HA_FAIL;
-			}
-
-			cpkey =	ha_malloc(strlen(key)+1);
-			if (cpkey == NULL) {
-				ha_log(LOG_ERR, "Out of memory for authkey");
-				fclose(f);
-				return(HA_FAIL);
-			}
-			strcpy(cpkey, key);
-			config->auth_config[i].key = cpkey;
-			config->auth_config[i].auth = at;
-			config->auth_config[i].auth->ref++;
-
-			if (i == authnum) {
-				config->authnum = i;
-				config->authmethod = config->auth_config+i;
-			}
-		}else if (*bp != EOS) {
-			ha_log(LOG_ERR, "Auth line [%s] is invalid."
-			,	buf);
-			rc = HA_FAIL;
-		}
-	}
-
-	fclose(f);
-	if (!config->authmethod) {
-		if (authnum < 0) {
-			ha_log(LOG_ERR
-			,	"Missing auth directive in keyfile [%s]"
-			,	KEYFILE);
-		}else{
-			ha_log(LOG_ERR
-			,	"Auth Key [%d] not found in keyfile [%s]"
-			,	authnum, KEYFILE);
-		}
-		rc = HA_FAIL;
-	}
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
-		,	"Authentication parsing complete [%d]",  rc);
-	}
-	return(rc);
-}
 
 /* Set the hopfudge variable */
 int

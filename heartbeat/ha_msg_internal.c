@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.9 2001/06/19 13:56:28 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.10 2001/07/17 15:00:04 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -274,7 +274,7 @@ add_msg_auth(struct ha_msg * m)
 {
 	char	msgbody[MAXMSG];
 	char	authstring[MAXLINE];
-	const char *	authtoken;
+	char	authtoken[MAXLINE];
 	char *	bp = msgbody;
 	int	j;
 
@@ -296,12 +296,11 @@ add_msg_auth(struct ha_msg * m)
 	}
 
 
-	if ((authtoken
-	=	config->authmethod->auth->auth(config->authmethod, msgbody))
-	==	NULL) {
+	if (!config->authmethod->auth->auth(config->authmethod, msgbody
+	,	authtoken, DIMOF(authtoken))) {
 		ha_log(LOG_ERR, authstring
 		,	"Cannot compute message authentication [%s/%s/%s]"
-		,	config->authmethod->auth->authname
+		,	config->authmethod->authname
 		,	config->authmethod->key
 		,	msgbody);
 		return(HA_FAIL);
@@ -319,11 +318,12 @@ isauthentic(const struct ha_msg * m)
 {
 	char	msgbody[MAXMSG];
 	char	authstring[MAXLINE];
-	const char *	authtoken = 0;
+	char	authbuf[MAXLINE];
+	const char *	authtoken = NULL;
 	char *	bp = msgbody;
 	int	j;
 	int	authwhich = 0;
-	struct auth_info*	which;
+	struct HBauth_info*	which;
 	
 	if (m->stringlen >= sizeof(msgbody)) {
 		return(0);
@@ -363,11 +363,11 @@ isauthentic(const struct ha_msg * m)
 	}
 		
 	
-	if ((authtoken = which->auth->auth(which, msgbody)) == NULL) {
+	if (!which->auth->auth(which, msgbody, authbuf, DIMOF(authbuf))) {
 		ha_error("Cannot check message authentication");
 		return(0);
 	}
-	if (strcmp(authstring, authtoken) == 0) {
+	if (strcmp(authstring, authbuf) == 0) {
 		if (DEBUGAUTH) {
 			ha_log(LOG_DEBUG, "Packet authenticated");
 		}
@@ -467,6 +467,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.10  2001/07/17 15:00:04  alan
+ * Put in Matt's changes for findif, and committed my changes for the new module loader.
+ * You now have to have glib.
+ *
  * Revision 1.9  2001/06/19 13:56:28  alan
  * FreeBSD portability patch from Matt Soffen.
  * Mainly added #include "portability.h" to lots of files.

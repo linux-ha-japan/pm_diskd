@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.123 2001/07/04 17:00:56 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.124 2001/07/17 15:00:04 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -320,11 +320,9 @@ void		(*localdie)(void);
 struct hb_media*	sysmedia[MAXMEDIA];
 extern struct hb_media_fns** hbmedia_types;
 extern int	num_hb_media_types;
-extern int	num_auth_types;
 int			nummedia = 0;
 int			status_pipe[2];	/* The Master status pipe */
 
-extern struct auth_type** ValidAuths;
 
 const char *ha_log_priority[8] = {
 	"EMERG",
@@ -1823,26 +1821,7 @@ void
 check_auth_change(struct sys_config *conf)
 {
 	if (conf->rereadauth) {
-		int j, rem = 0;
-
-		for (j=0; j < num_auth_types; ++j) {
-			if(ValidAuths[j]) {
-			        lt_dlclose(ValidAuths[j]->dlhandler);
-				ha_free(ValidAuths[j]->authname);
-				ha_free(ValidAuths[j]);
-				ValidAuths[j] = NULL;
-			}
-		}
-
-		num_auth_types = 0;
-
-		if(auth_module_init() == HA_FAIL) { 
-			ha_log(LOG_ERR
-			,	"Authentication modules loading error, exiting.");
-			signal_all(SIGTERM);
-			cleanexit(1);
-		}
-
+		/* parse_authfile() resets 'rereadauth' */
 		if (parse_authfile() != HA_OK) {
 			/* OOPS.  Sayonara. */
 			ha_log(LOG_ERR
@@ -1850,22 +1829,6 @@ check_auth_change(struct sys_config *conf)
 			signal_all(SIGTERM);
 			cleanexit(1);
 		}
-
-		conf->rereadauth = 0;
-
-		for (j=0; j < num_auth_types; ++j) {
-			if(ValidAuths[j]) {
-				if (ValidAuths[j]->ref == 0)  {
-					lt_dlclose(ValidAuths[j]->dlhandler); 
-					ha_free(ValidAuths[j]->authname);
-					ha_free(ValidAuths[j]);
-					ValidAuths[j] = NULL;
-					rem++;
-				}
-			}
-		}
-
-		num_auth_types -= rem;
 	}
 }
 
@@ -2142,7 +2105,7 @@ restart_heartbeat(int quickrestart)
 void
 reread_config_sig(int sig)
 {
-	int	j, rem = 0;
+	int	j;
 
 	signal(sig, reread_config_sig);
 
@@ -2172,28 +2135,10 @@ reread_config_sig(int sig)
 		}
 	}else{ 
 
-		/* We are not the control process, and we received a SIGHUP signal.
-		 * This means configuration file has changed.
+		/*
+		 * We are not the control process, and we received a SIGHUP
+		 * signal.  This means configuration file has changed.
 		 */
-
-		for (j=0; j < num_auth_types; ++j) {
-			if(ValidAuths[j]) {
-				lt_dlclose(ValidAuths[j]->dlhandler);
-				ha_free(ValidAuths[j]->authname);
-				ha_free(ValidAuths[j]);
-				ValidAuths[j] = NULL;
-			}
-		}
-
-		num_auth_types = 0;
-
-		if(auth_module_init() == HA_FAIL) { 
-			ha_log(LOG_ERR
-			,	"Authentication modules loading error, exiting.");
-			signal_all(SIGTERM);
-			cleanexit(1);
-		}
-	
 		if (parse_authfile() != HA_OK) {
 			/* OOPS.  Sayonara. */
 			ha_log(LOG_ERR
@@ -2202,23 +2147,6 @@ reread_config_sig(int sig)
 			cleanexit(1);
 		}
 	
-		config->rereadauth = 0;
-	
-		/* Unload unreferenced modules */
-	
-		for (j=0; j < num_auth_types; ++j) {
-			if(ValidAuths[j]) { 
-				if (ValidAuths[j]->ref == 0)  {
-					lt_dlclose(ValidAuths[j]->dlhandler); 
-					ha_free(ValidAuths[j]->authname);
-					ha_free(ValidAuths[j]);
-					ValidAuths[j] = NULL;
-					rem++;
-				}
-			}
-		}
-	
-		num_auth_types -= rem;
 	}
 
 	ParseTestOpts();
@@ -2969,7 +2897,6 @@ main(int argc, char * argv[])
 	long		running_hb_pid = get_running_hb_pid();
 
 	num_hb_media_types = 0;
-	num_auth_types = 0;
 
 	if ((cmdname = strrchr(argv[0], '/')) != NULL) {
 		++cmdname;
@@ -3032,12 +2959,7 @@ main(int argc, char * argv[])
 		cleanexit(1);
 	}
 	
-	ValidAuths = ha_malloc(sizeof(struct auth_type **));
 
-	if(ValidAuths == NULL) { 
-		ha_log(LOG_ERR, "Allocation of ValidAuths failed.");
-		cleanexit(1);
-	}
 
 	setenv(HADIRENV, HA_D, 1);
 	setenv(DATEFMT, HA_DATEFMT, 1);
@@ -4043,6 +3965,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.124  2001/07/17 15:00:04  alan
+ * Put in Matt's changes for findif, and committed my changes for the new module loader.
+ * You now have to have glib.
+ *
  * Revision 1.123  2001/07/04 17:00:56  alan
  * Put in changes to make the the sequence number updating report failure
  * if close or fsync fails.

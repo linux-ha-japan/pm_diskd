@@ -27,7 +27,6 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 hadir			= $(sysconfdir)/ha.d
 halibdir		= $(libdir)/@HEARTBEATPKG@
 commmoddir		= $(halibdir)/modules/comm
-authmoddir		= $(halibdir)/modules/auth
 havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
 havarrundir		= $(localstatedir)/run/
 apidir		       	= $(havarlibdir)/api
@@ -38,6 +37,10 @@ apireg			= $(havarlibdir)/register
 
 
 CFLAGS			= @CFLAGS@	\
+-DPROCROUTE="\"@PROCROUTE@\"" \
+-DROUTE="\"@ROUTE@ @ROUTEPARM@\"" \
+-DUSE_ROUTE_GET="\"@USE_ROUTE_GET@\"" \
+-DNETSTAT="\"@NETSTAT@ @NETSTATPARM@\"" \
 -DVAR_RUN_D='"$(havarrundir)"'	\
 -DVAR_LIB_D='"$(havarlibdir)"'		\
 -DHA_D='"$(hadir)"'			\
@@ -64,6 +67,7 @@ heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c ha_if.c \
 			module.c
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
 			$(top_builddir)/replace/libreplace.la	\
+			$(top_builddir)/lib/pils/libpils.la	\
 			$(top_builddir)/libltdl/libltdlc.la
 
 heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
@@ -80,7 +84,7 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 send_arp_SOURCES	= send_arp.c
 
 findif_SOURCES		= findif.c
-findif_LDADD		= $(top_builddir)/replace/libreplace.la
+findif_LDADD		=$(top_builddir)/replace/libreplace.la
 
 api_test_SOURCES	= api_test.c
 api_test_LDADD		= libhbclient.la
@@ -105,18 +109,6 @@ udp_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 mcast_la_SOURCES	= mcast.c
 mcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
-
-## authentication modules
-authmod_LTLIBRARIES	= md5.la sha1.la crc.la
-
-md5_la_SOURCES		= md5.c
-md5_la_LDFLAGS		= -export-dynamic -module -avoid-version
-
-sha1_la_SOURCES		= sha1.c
-sha1_la_LDFLAGS		= -export-dynamic -module -avoid-version
-
-crc_la_SOURCES		= crc.c
-crc_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 ## SCRIPTS/DATA
 ha_DATA			= shellfuncs README.config
