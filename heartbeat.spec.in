@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.18 2002/02/15 06:56:22 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.19 2002/03/09 13:46:23 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -407,7 +407,8 @@ if
 then
   rm -rf $RPM_BUILD_ROOT
 fi
-make DESTDIR=$RPM_BUILD_ROOT install-strip
+#make DESTDIR=$RPM_BUILD_ROOT install-strip
+make DESTDIR=$RPM_BUILD_ROOT install
 (
   cd $RPM_BUILD_ROOT@sysconfdir@/ha.d/resource.d
   ln -s @sbindir@/ldirectord ldirectord
