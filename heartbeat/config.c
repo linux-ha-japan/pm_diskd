@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.93 2003/07/03 23:27:19 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.94 2003/07/12 13:14:38 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -1451,6 +1451,7 @@ static int
 set_generation_method(const char * value)
 {
 	if (strcmp(value, "file") == 0) {
+		timebasedgenno = FALSE;
 		return HA_OK;
 	}
 	if (strcmp(value, "time") != 0) {
@@ -1583,6 +1584,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.94  2003/07/12 13:14:38  alan
+ * Very minor change - either a minor bug fix or not needed.
+ *
  * Revision 1.93  2003/07/03 23:27:19  alan
  * Moved #defines for parameter names to a public header file.
  * Added the ability to ask for the heartbeat version info through the API.
