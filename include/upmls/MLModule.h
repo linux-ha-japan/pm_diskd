@@ -317,7 +317,7 @@ typedef struct MLModHandle_s		MLModHandle;
 
 /* The type of a Module Initialization Function */
 typedef ML_rc (*MLModuleInitFun) (MLModule*us
-,		const MLModuleImports* imports
+,		MLModuleImports* imports
 ,		void*	module_user_data);
 
 /*
@@ -355,11 +355,11 @@ struct MLModuleImports_s {
 	ML_rc	(*register_plugin)(MLModule* modinfo
 	,	const char *	plugintype	/* Type of plugin	*/
 	,	const char *	pluginname	/* Name of plugin	*/
-	,	const void*	Ops		/* Info (functions) exported
+	,	void*		Ops		/* Info (functions) exported
 						   by this plugin	*/
 	
 	,	void**		pluginid	/* Plugin id 	(OP)	*/
-	,	const void**	Imports
+	,	void**		Imports
 	,	void*		ud_plugin);	/* plugin user data */
 
 	ML_rc	(*unregister_plugin)(void* pluginid);

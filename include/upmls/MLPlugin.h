@@ -44,8 +44,9 @@ typedef struct MLPluginImports_s	MLPluginImports;
 
 struct MLPlugin_s {
 	MLPluginType*		plugintype;	/* Parent pointer */
+	MLPlugin*		pimanager;	/* Pointer to our PI-PI */
 	char *			pluginname;	/* malloced plugin name */
-	const void*		exports;	/* Exported Functions	*/
+	void*			exports;	/* Exported Functions	*/
 						/* for this plugin	*/
 	void*			ud_plugin;	/* per-plugin user data */
 	int			refcnt;		/* Reference count for module */
@@ -116,17 +117,11 @@ struct MLPluginOps_s{
  */
 
 	/* RegisterPlugin - Returns unique id for plugin or NULL (fail) */
- 	MLPlugin* (*RegisterPlugin)(MLPluginType* pienv
-		,	const char * pluginname, const void * exports
-		,	void *	ud_plugin
-		,	const void**	imports);
+ 	ML_rc (*RegisterPlugin)(MLPlugin* newpi
+		,	void**	imports);
 
-	ML_rc	(*UnRegisterPlugin)(MLPlugin*ipiinfo); /* Unregister PI-PI*/
+	ML_rc	(*UnRegisterPlugin)(MLPlugin*ipiinfo); /* Unregister PI*/
 				/* And destroy MLPlugin object */
-
-	/* Close a Plugin of the type we manage (not a PIPI ...) */
-	ML_rc	(*CloseOurPI)(MLPlugin*pipiinfo, MLPlugin* ourpiinfo);
-
 };
 
 /*
