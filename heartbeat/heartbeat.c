@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.246 2003/03/28 16:49:43 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.247 2003/03/29 02:48:44 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -935,7 +935,6 @@ fifo_child(IPC_Channel* chan)
 
 	for (;;) {
 
-		
 		msg = controlfifo2msg(fifo);
 
 		if (msg) {
@@ -966,6 +965,28 @@ fifo_child(IPC_Channel* chan)
 		}
 	}
 }
+
+/*
+ *	NEW CODE AFTER RESTRUCTURING...
+ *
+ */
+
+static void
+send_control_msg(struct msg_xmit_hist*	msghist, struct ha_msg * msg)
+{
+	(void)send_control_msg;
+
+	if ((msg = add_control_msg_fields(msg)) != NULL) {
+		process_control_packet(msghist, msg);
+	}
+}
+
+/*
+ *	OLD CODE BEFORE RESTRUCTURING...
+ *
+ */
+
+
 
 
 /* The master control process -- reads control fifo, sends msgs to cluster */
@@ -4004,6 +4025,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.247  2003/03/29 02:48:44  alan
+ * More small changes on the road to restructuring heartbeat processees.
+ *
  * Revision 1.246  2003/03/28 16:49:43  alan
  * Removed a memory leak introduced by the previous change.
  *

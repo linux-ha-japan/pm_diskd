@@ -36,7 +36,7 @@
 #include <clplumbing/proctrack.h>
 #include <hb_proc.h>
 
-static const char * _heartbeat_private_h_Id = "$Id: heartbeat_private.h,v 1.3 2002/10/19 16:04:33 alan Exp $";
+static const char * _heartbeat_private_h_Id = "$Id: heartbeat_private.h,v 1.4 2003/03/29 02:48:44 alan Exp $";
 
 extern const char *	cmdname;
 extern int		nice_failback;
@@ -66,4 +66,5 @@ void hb_trigger_restart(int quickrestart);
 void hb_giveup_resources(void);
 void hb_kill_tracked_process(ProcTrack* p, void * data);
 
+struct ha_msg * add_control_msg_fields(struct ha_msg* ret);
 #endif /* _HEARTBEAT_PRIVATE_H */

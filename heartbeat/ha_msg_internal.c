@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.32 2003/02/07 08:37:16 horms Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.33 2003/03/29 02:48:44 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -31,9 +31,11 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.32 2003/02/07 08:
 #include <sys/utsname.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
+#include <heartbeat_private.h>
 
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
+
 
 /* Return the next message found in the stream and copies */
 /* the iface in "iface"  */
@@ -50,6 +52,7 @@ if_msgfromstream(FILE * f, char *iface)
 	(void)_ha_msg_c_Id;
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
+	(void)_heartbeat_private_h_Id;
 	clearerr(f);
 
 	if(!(getsret=fgets(buf, MAXLINE, f))) { 
@@ -209,10 +212,7 @@ controlfifo2msg(FILE * f)
 	char		garbbuf[MAXLINE];
 	const char *	bufmax = buf + sizeof(buf);
 	char *		getsret;
-	const char*	type;
 	struct ha_msg*	ret;
-	int		j;
-	int		noseqno;
 
 
 	garbbuf[0] = '\0';
@@ -257,10 +257,18 @@ controlfifo2msg(FILE * f)
 		ha_log(LOG_DEBUG, "Read in message    : '%s'", garbbuf);
 	}
 
+	return add_control_msg_fields(ret);
+}
+
+struct ha_msg *
+add_control_msg_fields(struct ha_msg* ret)
+{
+	const char *	type;
+	int		j;
+	int		noseqno;
+
 	if ((type = ha_msg_value(ret, F_TYPE)) == NULL) {
 		ha_log(LOG_ERR, "No type (controlfifo2msg): ");
-		ha_log(LOG_DEBUG, "[%s] %ld chars", buf, (long)strlen(buf));
-		ha_log(LOG_DEBUG, "Read in message    : '%s'", garbbuf);
 		ha_log_message(ret);
 		ha_msg_del(ret);
 		return(NULL);
@@ -308,8 +316,7 @@ controlfifo2msg(FILE * f)
 		ha_log(LOG_DEBUG, "controlfifo2msg: packet returned");
 		ha_log_message(ret);
 	}
-
-	return(ret);
+	return ret;
 }
 
 int
@@ -548,6 +555,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.33  2003/03/29 02:48:44  alan
+ * More small changes on the road to restructuring heartbeat processees.
+ *
  * Revision 1.32  2003/02/07 08:37:16  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.
