@@ -6,7 +6,7 @@
 # description: Start and stop ldirectord on non-heartbeat systems
 #              Using the config file /etc/ha.d/ldirectord.cf
 #              
-# processname: ldirectrd
+# processname: ldirectord
 # config: /etc/ha.d/ldirectord.cf
 #
 # Author: Horms <horms@vergenet.net>
