@@ -38,6 +38,7 @@ ConfigureLinux() {
   then
     distro=SuSE
     PACKAGECMD="make rpm"
+    DFLAGS="--with-ucd-snmp-devel=ucdsnmp"
   elif
     [ -f /etc/redhat-release -a -s /etc/redhat-release ] 
   then
