@@ -82,8 +82,6 @@ int		other_holds_resources = HB_NO_RSC;
 int		other_is_stable = 0; /* F_ISSTABLE */
 int		takeover_in_progress = 0;
 enum hb_rsc_state resourcestate = HB_R_INIT;
-enum standby	going_standby;
-
 enum standby	going_standby = NOT;
 longclock_t	standby_running = 0L;
 
@@ -1714,6 +1712,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.6  2002/11/19 19:23:48  lclaudio
+ * Variable going_standby was declared twice in this file. Fixed.
+ *
  * Revision 1.5  2002/11/08 15:49:39  alan
  * Fixed a bug in STONITH for the true cluster partition case.
  * When we came up, and didn't see the other node, we just took over
