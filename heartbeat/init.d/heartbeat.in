@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.20 2002/10/09 18:37:07 msoffen Exp $
+#	$Id: heartbeat.in,v 1.21 2002/10/11 03:13:09 horms Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -307,6 +307,7 @@ case "$1" in
 	sleep $sleeptime
 	sleep 10 # allow resource takeover to complete (hopefully).
 	echo_success
+	Echo
 	StartHA
 	Echo
 	;;
@@ -326,6 +327,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.21  2002/10/11 03:13:09  horms
+#  Minor cleanup of output from a "restart"
+#
 #  Revision 1.20  2002/10/09 18:37:07  msoffen
 #  Left call directly to startstop script instead of the wrapper function.
 #
