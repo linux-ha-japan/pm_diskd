@@ -299,12 +299,15 @@
 
 typedef enum {
 	ML_OK=0,	/* Success */
-	ML_INVAL,	/* Invalid Parameters */
-	ML_BADTYPE,	/* Bad module/plugin type */
-	ML_EXIST,	/* Duplicate Module/Plugin name */
-	ML_OOPS,	/* Internal Error */
-	ML_NOMODULE,	/* No such module or Plugin */
+	ML_INVAL=1,	/* Invalid Parameters */
+	ML_BADTYPE=2,	/* Bad module/plugin type */
+	ML_EXIST=3,	/* Duplicate Module/Plugin name */
+	ML_OOPS=4,	/* Internal Error */
+	ML_NOMODULE=5,	/* No such module or Plugin */
 }ML_rc;			/* Return code from Module fns*/
+
+const char * ML_strerror(ML_rc rc);
+
 
 typedef struct MLModuleImports_s	MLModuleImports;
 typedef struct MLModuleOps_s		MLModuleOps;
@@ -312,8 +315,12 @@ typedef struct MLModule_s		MLModule;
 typedef struct MLModuleUniv_s		MLModuleUniv;
 typedef struct MLModuleType_s		MLModuleType;
 
-typedef struct MLModHandle_s		MLModHandle;
+typedef struct MLPlugin_s		MLPlugin;
+typedef struct MLPluginImports_s	MLPluginImports;
+typedef struct MLPluginUniv_s		MLPluginUniv;
+typedef struct MLPluginType_s		MLPluginType;
 
+typedef ML_rc(*MLPluginFun)(MLPlugin*, void* ud_plugin);
 
 /* The type of a Module Initialization Function */
 typedef ML_rc (*MLModuleInitFun) (MLModule*us
@@ -348,21 +355,38 @@ typedef enum {
  * the functions and capabilities that every module imports when it is loaded.
  */
 
+
 struct MLModuleImports_s {
 	ML_rc	(*register_module)(MLModule* modinfo
 	,	const MLModuleOps* commonops);
 	ML_rc	(*unregister_module)(MLModule* modinfo);
+/*
+ *	A little explanation of the close_func parameter to register_plugin
+ *	is in order.
+ *
+ *	It is an exported operation function, just like the Ops structure.
+ *	However, the Ops vector is exported to applications that
+ *	are using the plugin. Unlike the Ops structure, close_func is
+ *	exported only to the plugin system, since applications shouldn't
+ *	call it directly, but should manage the reference counts for the
+ *	plugins instead.
+ *	The generic plugin system doesn't have any idea how to call
+ *	any functions in the operations vector.  So, it's a separate
+ *	parameter for two good reasons.
+ */
 	ML_rc	(*register_plugin)(MLModule* modinfo
 	,	const char *	plugintype	/* Type of plugin	*/
 	,	const char *	pluginname	/* Name of plugin	*/
 	,	void*		Ops		/* Info (functions) exported
 						   by this plugin	*/
-	
-	,	void**		pluginid	/* Plugin id 	(OP)	*/
+		/* Function to call to shut down this plugin */
+	,	MLPluginFun	close_func
+
+	,	MLPlugin**	pluginid /* Plugin id 	(OP)	*/
 	,	void**		Imports
 	,	void*		ud_plugin);	/* plugin user data */
 
-	ML_rc	(*unregister_plugin)(void* pluginid);
+	ML_rc	(*unregister_plugin)(MLPlugin* pluginid);
 	ML_rc	(*load_module)(MLModuleUniv* universe
 	,	const char * moduletype, const char * modulename
 	,	void*	module_private);
@@ -395,7 +419,8 @@ ML_rc		MLLoadModule(MLModuleUniv* moduniv
 ,		const char *	modulename
 ,		void *		mod_private);
 
-void		MLsetdebuglevel(int level);
+void		MLSetDebugLevel(int level);
+int		MLGetDebugLevel(void);
 
 /* The module/plugin type of a plugin manager */
 

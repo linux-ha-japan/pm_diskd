@@ -26,10 +26,6 @@
  * 
  */
 
-typedef struct MLPluginUniv_s		MLPluginUniv;
-typedef struct MLPluginType_s		MLPluginType;
-typedef struct MLPlugin_s		MLPlugin;
-typedef struct MLPluginImports_s	MLPluginImports;
 
 /*
  *	I'm unsure exactly which of the following structures
@@ -44,10 +40,10 @@ typedef struct MLPluginImports_s	MLPluginImports;
 
 struct MLPlugin_s {
 	MLPluginType*		plugintype;	/* Parent pointer */
-	MLPlugin*		pimanager;	/* Pointer to our PI-PI */
 	char *			pluginname;	/* malloced plugin name */
 	void*			exports;	/* Exported Functions	*/
 						/* for this plugin	*/
+	MLPluginFun		pi_close;	/* Plugin close operation */
 	void*			ud_plugin;	/* per-plugin user data */
 	int			refcnt;		/* Reference count for module */
 };
@@ -56,6 +52,7 @@ struct MLPlugin_s {
  *	we use to track the set of all plugins of a single kind.
  */
 struct MLPluginType_s {
+	char*			typename;	/* Our plugin type name */
 	GHashTable*		plugins;	/* The set of plugins
 						 * of our type.  The 
 						 * "values" are all MLPlugin*
