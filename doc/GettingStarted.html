@@ -203,7 +203,8 @@ is.
 <br><b><i><font color="#FF0000">Note:&nbsp; This file must be the same
 on both nodes!</font></i></b>
 <p>For our example, we'll assume the high availability services are Apache
-and Samba (the IP for the cluster is mandatory!).&nbsp; The haresources
+and Samba.&nbsp; The IP for the cluster is mandatory, and <b>don't configure
+the cluster IP outside of the haresources file!</b>.&nbsp; The haresources
 will need one line:
 <pre>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><tt>linuxha1.linux-ha.org 192.168.85.3 httpd smb</tt></b></pre>
 <tt>So, this line dictates that on startup, have linuxha1 serve the IP
