@@ -395,6 +395,12 @@ ML_rc		MLLoadModule(MLModuleUniv* moduniv
 ,		const char * moduletype
 ,		const char * modulename);
 
+void		MLsetdebuglevel(int level);
+
+/* The module/plugin type of a plugin manager */
+
+#define	PLUGIN_PLUGIN	"Plugin"
+
 #ifdef ENABLE_ML_DEFS_PRIVATE
 /* Probably these should be moved to a different header file */
 
@@ -476,5 +482,6 @@ struct MLModuleUniv_s {
 	struct MLPluginUniv_s*	piuniv; /* Parallel Universe of plugins */
 	MLModuleImports*	imports;
 };
-#endif /* ENABLE_ML_DEFS_PRIVATE */
+
+#  endif /* ENABLE_ML_DEFS_PRIVATE */
 #endif /*UPMLS_MLMODULE_H */

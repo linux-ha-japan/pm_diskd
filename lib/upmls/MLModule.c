@@ -22,7 +22,7 @@
 
 #define MODULESUFFIX	LTDL_SHLIB_EXT
 
-static int	ModuleDebugLevel = 0;
+static int	ModuleDebugLevel = 5;
 
 #define DEBUGMODULE	(ModuleDebugLevel > 0)
 
@@ -33,7 +33,6 @@ static const char * ml_module_name(void);
 static ML_rc PluginPlugin_module_init(MLModuleUniv* univ);
 
 static int ml_GetDebugLevel(void);
-static void ml_SetDebugLevel (int level);
 static void ml_close (MLModule*);
 static char** MLModTypeListModules(MLModuleType* mtype, int* modcount);
 
@@ -50,7 +49,7 @@ void	DelMLModuleUniv(MLModuleUniv*);
  *		NULL
  *
  *	For example:
- *		DelAMlModuleType takes
+ *		DelAMLModuleType takes
  *			string name
  *			MLModuleType* object with the given name.
  */
@@ -141,7 +140,7 @@ static const MLModuleOps ModExports =
 {	ml_module_version
 ,	ml_module_name
 ,	ml_GetDebugLevel
-,	ml_SetDebugLevel
+,	MLsetdebuglevel
 ,	ml_close
 };
 
@@ -477,8 +476,8 @@ ml_GetDebugLevel(void)
 }
 
 /* Set current PiPi debug level */
-static void
-ml_SetDebugLevel (int level)
+void
+MLsetdebuglevel (int level)
 {
 	ModuleDebugLevel = level;
 }
@@ -882,19 +881,44 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 	,	modulename
 	,	LTDL_SHLIB_EXT);
 
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "Module path for [%s] [%s]: [%s]"
+		,	moduletype, modulename, ModulePath);
+	}
+
+	/* Make sure we can read and execute the module file */
+	/* (this test is probably superfluous wrt lt_dlopen) */
+
 	if (access(ModulePath, R_OK|X_OK) != 0) {
-		g_free(ModulePath); ModulePath=NULL;
+		if (DEBUGMODULE) {
+			MLLog(ML_DEBUG, "Module file %s does not exist"
+			,	ModulePath);
+		}
+		DELETE(ModulePath);
 		return ML_NOMODULE;
 	}
+
 	if((mtype=g_hash_table_lookup(universe->ModuleTypes, moduletype))
 	!= NULL) {
 		if ((modinfo = g_hash_table_lookup
 		(	mtype->Modules, modulename)) != NULL) {
-			g_free(ModulePath); ModulePath=NULL;
+
+			if (DEBUGMODULE) {
+				MLLog(ML_DEBUG, "Module %s already loaded"
+				,	ModulePath);
+			}
+			DELETE(ModulePath);
 			return ML_EXIST;
 		}
-
+		if (DEBUGMODULE) {
+			MLLog(ML_DEBUG, "ModuleType %s already present"
+			,	moduletype);
+		}
 	}else{
+		if (DEBUGMODULE) {
+			MLLog(ML_DEBUG, "Creating ModuleType for %s"
+			,	moduletype);
+		}
 		/* Create a new MLModuleType object */
 		mtype = NewMLModuleType(universe, moduletype);
 	}
@@ -902,24 +926,37 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 	g_assert(mtype != NULL);
 
 	/*
-	 * At this point, we have a MlModuleType object and our
+	 * At this point, we have a MLModuleType object and our
 	 * module name is not listed in it.
 	 */
 
 	dlhand = lt_dlopen(ModulePath);
-	g_free(ModulePath); ModulePath=NULL;
+	DELETE(ModulePath);
 
 	if (!dlhand) {
+		if (DEBUGMODULE) {
+			MLLog(ML_DEBUG, "Module %s:%s cannot be dlopen()ed"
+			,	moduletype, modulename);
+		}
 		return ML_NOMODULE;
 	}
 	/* Construct the magic init function symbol name */
 	ModuleSym = g_strdup_printf(ML_FUNC_FMT
 	,	moduletype, modulename);
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "Module %s:%s  init function: %s"
+		,	moduletype, modulename
+		,	ModuleSym);
+	}
 
 	initfun = lt_dlsym(dlhand, ModuleSym);
-	g_free(ModuleSym); ModuleSym=NULL;
+	DELETE(ModuleSym);
 
 	if (initfun == NULL) {
+		if (DEBUGMODULE) {
+			MLLog(ML_DEBUG, "Module %s:%s init function not found"
+			,	moduletype, modulename);
+		}
 		lt_dlclose(dlhand); dlhand=NULL;
 		return ML_NOMODULE;
 	}
@@ -929,6 +966,10 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 	modinfo = NewMLModule(mtype, modulename, dlhand, initfun);
 	g_assert(modinfo != NULL);
 	g_hash_table_insert(mtype->Modules, modinfo->module_name, modinfo);
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "Module %s:%s loaded and constructed."
+		,	moduletype, modulename);
+	}
 
 	return ML_OK;
 }/*MLLoadModule*/
@@ -1018,7 +1059,7 @@ MLRegisterAPlugin(MLModule* modinfo
 	,	Imports);
 	*pluginid = piinfo;
 
-	/* FIXME! need to increment the ref count for plugin type */
+	/* FIXME! need to increment the ref count for the plugin manager */
 	return (piinfo == NULL ? ML_OOPS : ML_OK);
 }
 
@@ -1027,7 +1068,10 @@ NewMLPluginUniv(MLModuleUniv* moduniv)
 {
 	MLPluginUniv*	ret = NEW(MLPluginUniv);
 
+	/* Make the two universes point at each other */
 	ret->moduniv = moduniv;
+	moduniv->piuniv = ret;
+
 	ret->pitypes = g_hash_table_new(g_str_hash, g_str_equal);
 
 	PluginPlugin_module_init(moduniv);
@@ -1076,7 +1120,7 @@ DelAMLPluginType
 
 		g_hash_table_remove(Piuniv->pitypes, key);
 		DelMLPluginType(pitype);
-		g_free(key);
+		DELETE(key);
 	}else{
 		g_assert_not_reached();
 	}

@@ -26,10 +26,6 @@
  * 
  */
 
-/* The type of a plugin manager */
-
-#define	PLUGIN_PLUGIN	"Plugin"
-
 typedef struct MLPluginUniv_s		MLPluginUniv;
 typedef struct MLPluginType_s		MLPluginType;
 typedef struct MLPlugin_s		MLPlugin;

@@ -21,6 +21,7 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 			-I$(top_builddir)/linux-ha -I$(top_srcdir)/linux-ha  \
+			-I$(top_builddir)/libltdl -I$(top_srcdir)/libltdl  \
 			-I$(top_builddir)/lib/upmls -I$(top_srcdir)/lib/upmls
 
 
@@ -31,8 +32,12 @@ pkginclude_HEADERS	= $(top_builddir)/include/upmls/MLModule.h \
 			$(top_builddir)/include/upmls/MLPlugin.h
 
 ## binaries
-sbin_PROGRAMS		= 
+sbin_PROGRAMS		= main
 
+main_SOURCES		= main.c MLModule.c
+
+main_LDADD		= libupmls.la $(top_builddir)/libltdl/libltdlc.la
+main_LDFLAGS		= @LIBADD_DL@ @LIBLTDL@ -export-dynamic -dlpreopen force -dlopen self
 
 ## libraries
 
