@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.10 2002/08/16 14:18:41 msoffen Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.11 2002/09/05 06:12:42 alan Exp $";
 /* 
  * send_arp
  * 
@@ -34,24 +34,46 @@ const static char * _send_arp_c = "$Id: send_arp.c,v 1.10 2002/08/16 14:18:41 ms
 #include <libnet.h>
 #include <syslog.h>
 
-int send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask);
+#ifdef HAVE_LIBNET_1_0_API
+#	define	LTYPE	struct libnet_link_int
+#endif
+#ifdef HAVE_LIBNET_1_1_API
+#	define	LTYPE	libnet_t
+#endif
+
+int send_arp(LTYPE* l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype);
 
 char print_usage[]={"send_arp: sends out custom ARP packet. packetfactory.net\n\
 \tusage: send_arp dev src_ip_addr src_hw_addr targ_ip_addr tar_hw_addr\n\n"};
 
 void convert_macaddr (u_char *macaddr, u_char enet_src[6]);
 
+
+#ifndef LIBNET_ERRBUF_SIZE
+#	define LIBNET_ERRBUF_SIZE 256
+#endif
 int
 main(int argc, char *argv[])
 {
     int c;
-    char errbuf[256];
+    char errbuf[LIBNET_ERRBUF_SIZE];
     char *device = NULL;
     char *macaddr = NULL;
     char *broadcast = NULL;
     char *netmask = NULL;
-    struct libnet_link_int *l;
     u_long ip;
+#ifdef HAVE_LIBNET_1_0_API
+    struct libnet_link_int *l;
+#endif
+
+#ifdef HAVE_LIBNET_1_1_API
+    libnet_t*		l;
+
+    if ((l=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
+	syslog(LOG_ERR, "libnet_init failure:");
+        exit(EXIT_FAILURE);
+    }
+#endif
 
     (void)_send_arp_c;
     if (argc != 6) {
@@ -72,20 +94,33 @@ main(int argc, char *argv[])
     broadcast = argv[4];
     netmask = argv[5];
     
-    if ((ip = libnet_name_resolve(argv[2], 1)) == -1)
-    {
+#ifdef HAVE_LIBNET_1_0_API
+    if ((ip = libnet_name_resolve(argv[2], 1)) == -1) {
         syslog(LOG_ERR, "Cannot resolve IP address\n");
         exit(EXIT_FAILURE);
     }
 
     l = libnet_open_link_interface(device, errbuf);
-    if (!l)
-    {
+    if (!l) {
         syslog(LOG_ERR, "libnet_open_link_interface: %s\n", errbuf);
         exit(EXIT_FAILURE);
     }
+#endif
 
-    c = send_arp(l, ip, device, macaddr, broadcast, netmask);
+#ifdef HAVE_LIBNET_1_1_API
+    if ((ip = libnet_name2addr4(l, argv[2], 1)) == -1) {
+        syslog(LOG_ERR, "Cannot resolve IP address\n");
+        exit(EXIT_FAILURE);
+    }
+#endif
+
+/*
+ * We need to send both a broadcast ARP request as well as the ARP response we
+ * were already sending.  All the interesting research work for this fix was
+ * done by Masaki Hasegawa <masaki-h@pp.iij4u.or.jp> and his colleagues.
+ */
+    c = send_arp(l, ip, device, macaddr, broadcast, netmask, ARPOP_REQUEST);
+    c = send_arp(l, ip, device, macaddr, broadcast, netmask, ARPOP_REPLY);
     printf("\n");
     return (c == -1 ? EXIT_FAILURE : EXIT_SUCCESS);
 }
@@ -97,8 +132,7 @@ void convert_macaddr (u_char *macaddr, u_char enet_src[6])
 	u_char bits[3];
 
 	pos = 0;
-	for (i = 0; i < 6; i++)
-	{
+	for (i = 0; i < 6; i++) {
 	    bits[0] = macaddr[pos++];
 	    bits[1] = macaddr[pos++];
 	    bits[2] = '\0';
@@ -108,8 +142,9 @@ void convert_macaddr (u_char *macaddr, u_char enet_src[6])
 
 }
 
+#ifdef HAVE_LIBNET_1_0_API
 int
-send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask)
+send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype)
 {
     int n;
     u_char *buf;
@@ -117,8 +152,7 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
     u_char enet_dst[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 
-    if (libnet_init_packet(LIBNET_ARP_H + LIBNET_ETH_H, &buf) == -1)
-    {
+    if (libnet_init_packet(LIBNET_ARP_H + LIBNET_ETH_H, &buf) == -1) {
 	syslog(LOG_ERR, "libnet_init_packet memory:");
         exit(EXIT_FAILURE);
     }
@@ -132,17 +166,17 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
     /*
      *  ARP header
      */
-    libnet_build_arp(ARPHRD_ETHER,
-        ETHERTYPE_IP,
-        6,
-        4,
-        ARPOP_REQUEST,
-        enet_src,
-        (u_char *)&ip,
-        enet_dst,
-        (u_char *)&ip,
-        NULL,
-        0,
+    libnet_build_arp(ARPHRD_ETHER,	/* Hardware address type */
+        ETHERTYPE_IP,			/* Protocol address type */
+        6,				/* Hardware address length */
+        4,				/* Protocol address length */
+        arptype,			/* ARP operation */
+        enet_src,			/* Source hardware addr */
+        (u_char *)&ip,			/* Target hardware addr */
+        enet_dst,			/* Destination hw addr */
+        (u_char *)&ip,			/* Target protocol address */
+        NULL,				/* Payload */
+        0,				/* Payload length */
         buf + LIBNET_ETH_H);
 
     n = libnet_write_link_layer(l, device, buf, LIBNET_ARP_H + LIBNET_ETH_H);
@@ -152,9 +186,60 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
     libnet_destroy_packet(&buf);
     return (n);
 }
+#endif /* HAVE_LIBNET_1_0_API */
+
+
+
+
+#ifdef HAVE_LIBNET_1_1_API
+int
+send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype)
+{
+    int n;
+    u_char enet_src[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    u_char enet_dst[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+
+    /* Convert ASCII Mac Address to 6 Hex Digits. */
+    convert_macaddr (macaddr, enet_src);
+
+    /*
+     *  ARP header
+     */
+    libnet_build_arp(ARPHRD_ETHER,	/* hardware address type */
+        ETHERTYPE_IP,	/* protocol address type */
+        6,		/* Hardware address length */
+        4,		/* protocol address length */
+        arptype,	/* ARP operation type */
+        enet_src,	/* sender Hardware address */
+        (u_char *)&ip,	/* sender protocol address */
+        enet_dst,	/* target hardware address */
+        (u_char *)&ip,	/* target protocol address */
+        NULL,		/* Payload */
+        0,		/* Length of payload */
+	lntag,		/* libnet context pointer */
+	0		/* packet id */
+	);
+
+    /* Ethernet header */
+    libnet_build_ethernet(enet_dst, enet_src, ETHERTYPE_ARP, NULL, 0
+    ,	lntag, 0);
+
+    n = libnet_write(lntag);
+    libnet_clear_packet(lntag);
+
+    syslog(LOG_ERR, ".");
+
+    return (n);
+}
+#endif /* HAVE_LIBNET_1_1_API */
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.11  2002/09/05 06:12:42  alan
+ * Put in code to recover a bug fix from Japan, plus
+ * make the code hopefully work with both the old and new libnet APIs.
+ *
  * Revision 1.10  2002/08/16 14:18:41  msoffen
  * Changes to get IP takeover working properly on OpenBSD
  * Changed how *BSD deletes an alias.
