@@ -46,6 +46,7 @@ logfacility	local0
 #deadtime 10
 #
 #	warntime: how long before issuing "late heartbeat" warning?
+#	See the FAQ for how to use warntime to tune deadtime.
 #
 #warntime 5
 #
