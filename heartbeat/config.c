@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.82 2003/05/22 05:17:42 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.83 2003/05/23 05:39:46 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -196,7 +196,6 @@ str_to_boolean(const char * s, int * ret)
 		*ret = FALSE;
 		return HA_OK;
 	}
-	ha_log(LOG_ERR, "Illegal boolean value [%s]", s);
 	return HA_FAIL;
 }
 
@@ -337,6 +336,15 @@ init_config(const char * cfgfile)
 		++errcount;
 	}
 
+	if (!nice_failback) {
+		ha_log(LOG_WARNING
+		,	"Deprecated 'legacy' auto_failback option selected.");
+		ha_log(LOG_WARNING
+		,	"Please convert to 'auto_failback on'.");
+		ha_log(LOG_WARNING
+		,	"See documentation for conversion details.");
+	}
+
 	if (*(config->logfile) == EOS) {
                  if (config->log_facility > 0) {
                         /* 
@@ -373,9 +381,6 @@ init_config(const char * cfgfile)
 		ha_log(LOG_INFO, "**************************");
 		ha_log(LOG_INFO, "Configuration validated."
 		" Starting heartbeat %s", VERSION);
-		if (nice_failback) {
-			ha_log(LOG_INFO, "nice_failback is in effect.");
-		}
 	}
 	for (j=0; j < config->nodecount; ++j) {
 		config->nodes[j].has_resources = DoManageResources;
@@ -1130,15 +1135,30 @@ set_logfile(const char * value)
 static int
 set_nice_failback(const char * value)
 {
-	return str_to_boolean(value, &nice_failback);
+
+	cl_log(LOG_ERR, "nice_failback flag is obsolete."
+	". Use auto_failback {on, off, legacy} instead.");
+	cl_log(LOG_INFO, "See documentation for details.");
+	
+	return HA_FAIL;
 }
 
 /* sets auto_failback behavior on/off */
 static int
 set_auto_failback(const char * value)
 {
-	nice_failback = TRUE;
-	return str_to_boolean(value, &auto_failback);
+	int	rc;
+	rc = str_to_boolean(value, &auto_failback);
+	if (rc == HA_FAIL) {
+		if (strcasecmp(value, "legacy") == 0) {
+			nice_failback = FALSE;
+			auto_failback = FALSE;
+			rc = HA_OK;
+		}
+	}else{
+		nice_failback = TRUE;
+	}
+	return rc;
 }
 
 /*
@@ -1523,6 +1543,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.83  2003/05/23 05:39:46  alan
+ * Changed the options for auto_failback to be a ternary value,
+ * and made nice_failback obsolete.
+ *
  * Revision 1.82  2003/05/22 05:17:42  alan
  * Added the auto_failback option to heartbeat.
  *
