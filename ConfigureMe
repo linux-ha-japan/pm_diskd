@@ -145,11 +145,12 @@ echo ""
 echo "Configure flags for $CFENV: $FLAGS"
 
 cmd=`echo $1 | lcase`
+shift
 
 case $cmd in
-  cf|conf|configure)		Run ./bootstrap $FLAGS;;
-  make|build)			Run ./bootstrap $FLAGS && Run gmake;;
-  install)			Run ./bootstrap $FLAGS && Run gmake install;;
-  pkg|package|rpm|deb|dpkg)	Run ./bootstrap $FLAGS && PackageItUp;;
+  cf|conf|configure)		Run ./bootstrap $FLAGS $@;;
+  make|build)			Run ./bootstrap $FLAGS $@ && Run gmake;;
+  install)			Run ./bootstrap $FLAGS $@ && Run gmake install;;
+  pkg|package|rpm|deb|dpkg)	Run ./bootstrap $FLAGS $@ && PackageItUp;;
   *)				Usage;;
 esac
