@@ -1668,7 +1668,8 @@ ProcessAnAPIRequest(client_proc_t*	client)
 		}
 
 		/* Interrupted read? */
-		if (ferror(client->input_fifo) && errno == EINTR) {
+		if (ferror(client->input_fifo)
+		&&	(errno == EINTR || errno == EAGAIN)) {
 			clearerr(client->input_fifo);
 			return;
 		}
