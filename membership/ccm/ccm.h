@@ -82,12 +82,12 @@ unsigned int version_get_nresp(ccm_version_t *);
 			changed change it also in ccmlib.h */
 
 typedef struct NodeList_s {
-		int  NodeUuid;  /* a cluster unique id for the node */
+		uint  NodeUuid;  /* a cluster unique id for the node */
 		char NodeID[NODEIDSIZE];
 		char Status[STATUSSIZE];
 } NodeList_t;
 typedef struct llm_info_s { /* information about low level membership info */
-	int	   llm_nodeCount; //number of nodes in the cluster 
+	uint	   llm_nodeCount; //number of nodes in the cluster 
 	int	   llm_mynode;	 //index of mynode
 	NodeList_t llm_nodes[MAXNODE];  //information of each node
 } llm_info_t;
@@ -147,7 +147,7 @@ typedef struct update_s {
 
 typedef struct ccm_update_s {
 	int	leader;
-	int	nodeCount;
+	uint	nodeCount;
 	longclock_t  inittime;
 	update_t update[MAXNODE];
 	GSList *cl_head; // a linked list of cached cluster leader 
@@ -181,7 +181,7 @@ int update_am_i_leader(ccm_update_t *, llm_info_t *);
 int update_can_be_leader(ccm_update_t *,  llm_info_t *llm, const char *, int );
 char * update_get_cl_name(ccm_update_t *, llm_info_t *);
 void * update_initlink(ccm_update_t *);
-char * update_next_link(ccm_update_t *, llm_info_t *, void *, int *);
+char * update_next_link(ccm_update_t *, llm_info_t *, void *, uint *);
 void update_freelink(ccm_update_t *, void *);
 int update_get_next_uuid(ccm_update_t *, llm_info_t *, int *);
 int update_strcreate(ccm_update_t *, char **, llm_info_t *);

@@ -28,7 +28,7 @@
 int
 llm_get_active_nodecount(llm_info_t *llm)
 {
-	int count=0, i;
+	uint count=0, i;
 	for ( i = 0 ; i < LLM_GET_NODECOUNT(llm) ; i++ ) {
 		if(strncmp(LLM_GET_STATUS(llm, i), "active", STATUSSIZE) == 0) {
 			count++;
@@ -43,9 +43,9 @@ llm_get_active_nodecount(llm_info_t *llm)
 gboolean
 llm_only_active_node(llm_info_t *llm)
 {
-	int  i;
+	uint  i;
 	for ( i = 0 ; i < LLM_GET_NODECOUNT(llm) ; i++ ) {
-		if(i == LLM_GET_MYNODE(llm)) continue;
+		if(i == (uint)LLM_GET_MYNODE(llm)) continue;
 		if(strncmp(LLM_GET_STATUS(llm, i), 
 			STONITHSTATUS, STATUSSIZE) != 0) {
 			return FALSE;

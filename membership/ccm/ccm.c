@@ -924,7 +924,7 @@ ccm_memlist_changed(ccm_info_t *info,
 {
 	int nodeCount, i;
 	llm_info_t *llm;
-	int indx, uuid;
+	uint indx, uuid;
 		
 		
 	/* go through the membership list */
@@ -946,7 +946,7 @@ ccm_fill_memlist(ccm_info_t *info,
 	const unsigned char *bitmap)
 {
 	llm_info_t *llm;
-	int i, uuid;
+	uint i, uuid;
 
 	llm = CCM_GET_LLM(info);
 	CCM_RESET_MEMBERSHIP(info);
@@ -1136,7 +1136,7 @@ static void
 ccm_compute_and_send_final_memlist(ll_cluster_t *hb, ccm_info_t *info)
 {
 	unsigned char *bitmap;
-	int maxtrans;
+	uint maxtrans;
 	char *string;
 	char *cookie = NULL;
 	int numBytes;
@@ -1634,7 +1634,7 @@ ccm_send_cl_reply(ll_cluster_t *hb, ccm_info_t *info)
 	int ret=FALSE, bitmap_strlen;
 	char *memlist, *cl, *cl_tmp;
 	void *cltrack;
-	int  trans;
+	uint  trans;
 	/*
         * Get the name of the cluster leader
 	*/
@@ -1656,19 +1656,6 @@ ccm_send_cl_reply(ll_cluster_t *hb, ccm_info_t *info)
 			if(ccm_already_joined(info) && 
 				CCM_GET_MAJORTRANS(info) != trans){
 				cl_log(LOG_INFO, "evicted");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
-				cl_log(LOG_INFO, "********");
 				ccm_reset(info);
 				return FALSE;
 			}
@@ -1899,7 +1886,8 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 			ccm_info_t *info)
 {
 	const char *orig, *proto, *cookie, *trans, *clsize;
-	int trans_val, proto_val, clsize_val;
+	uint trans_val;
+        int  proto_val, clsize_val;
 	int try;
 
 	/* who sent this message */
@@ -2072,7 +2060,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 			ccm_info_t *info)
 {
 	const char *orig,  *trans, *uptime;
-	int  trans_majorval,trans_minorval=0, uptime_val;
+	uint  trans_majorval,trans_minorval=0, uptime_val;
 
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
 		cl_log(LOG_WARNING, "ccm_state_joined: received message "
@@ -2221,7 +2209,8 @@ ccm_state_sent_memlistreq(enum ccm_type ccm_msg_type,
 			ccm_info_t *info)
 {
 	const char *orig,  *trans, *memlist, *uptime;
-	int   trans_minorval=0, trans_majorval=0, trans_maxval=0, uptime_val;
+	uint   trans_minorval=0, trans_majorval=0, trans_maxval=0;
+        uint    uptime_val;
 
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
 		cl_log(LOG_WARNING, "ccm_state_sent_memlistreq: received message "
@@ -2488,8 +2477,10 @@ ccm_state_memlist_res(enum ccm_type ccm_msg_type,
 		ccm_info_t *info)
 {
 	const char *orig,  *trans, *uptime, *memlist, *cookie, *cl;
-	int   trans_majorval=0, trans_minorval=0, trans_maxval=0,uptime_val;
-	int  curr_major, curr_minor, indx;
+	uint   trans_majorval=0, trans_minorval=0, trans_maxval=0;
+	uint    uptime_val;
+	uint  curr_major, curr_minor;
+	int   indx;
 
 
 
@@ -2818,7 +2809,8 @@ ccm_state_joining(enum ccm_type ccm_msg_type,
 		ccm_info_t *info)
 {
 	const char *orig,  *trans, *uptime;
-	int   trans_majorval=0, trans_minorval=0, uptime_val;
+	uint   trans_majorval=0, trans_minorval=0;
+        uint	uptime_val;
 
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
 		cl_log(LOG_WARNING, "ccm_state_joining: received message "

@@ -63,10 +63,10 @@ typedef struct ccm_born_s {
 } ccm_born_t;
 
 typedef struct ccm_llm_s { /* information about low level membership info */
-	int	   n; 		//number of nodes in the cluster 
+	uint	   n; 		//number of nodes in the cluster 
 	int	   mynode;	 //index of mynode
 	struct  node_s {
-		int  Uuid;  /* a cluster unique id for the node */
+		uint  Uuid;  /* a cluster unique id for the node */
 		char Id[NODEIDSIZE];
 	} node[0];
 } ccm_llm_t;

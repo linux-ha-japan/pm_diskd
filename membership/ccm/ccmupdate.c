@@ -101,7 +101,7 @@ update_initlink(ccm_update_t *tab)
 // return name of the cluster leader in the next element in the list.
 //
 char *
-update_next_link(ccm_update_t *tab, llm_info_t *llm, void *tr, int *trans)
+update_next_link(ccm_update_t *tab, llm_info_t *llm, void *tr, uint *trans)
 {
 	leader_info_t *node;
 	GSList **track = (GSList **)tr;
@@ -184,8 +184,8 @@ update_any(ccm_update_t *tab)
 // given two members return the leader.
 //
 //
-static int
-update_compute_leader(ccm_update_t *tab, int j, llm_info_t *llm)
+static uint
+update_compute_leader(ccm_update_t *tab, uint j, llm_info_t *llm)
 {
 	update_t *entry1, *entry2;
 	int value;
@@ -228,7 +228,7 @@ leader_str :
 static int
 update_find_leader(ccm_update_t *tab, llm_info_t *llm) 
 {
-	int i, leader, j;
+	uint i, leader, j;
 
 	for ( i = 0 ; i < LLM_GET_NODECOUNT(llm); i++ ){
 		if (UPDATE_GET_INDEX(tab, i) != -1) break;
@@ -253,7 +253,8 @@ update_get_index(ccm_update_t *tab,
 		llm_info_t *llm,
 		const char *orig)
 {
-	int i, j;
+	int i;
+	uint j;
 
 	i = llm_get_index(llm, orig);
 	if ( i == -1 ) return -1;
@@ -272,8 +273,8 @@ update_get_uptime(ccm_update_t *tab,
 		llm_info_t *llm,
 		int idx)
 {
-	int count=0;
-	int i,j;
+	uint count=0, j;
+	int i;
 
 	for ( j = 0 ; j < LLM_GET_NODECOUNT(llm); j++ ){
 		i = UPDATE_GET_INDEX(tab,j);
@@ -314,7 +315,8 @@ update_add(ccm_update_t *tab,
 			     joined*/,
 		gboolean leader_flag /* should the leader be recomputed? */)
 {
-	int i,j;
+	int i;
+	uint j;
 
 	/* find the location of the hostname in the llm table */
 	i = llm_get_index(llm, orig);
@@ -446,9 +448,9 @@ update_get_cl_name(ccm_update_t *tab,
 int
 update_get_next_uuid(ccm_update_t *tab, llm_info_t *llm, int *lastindex)
 {
-	int indx;
+	uint indx;
 
-	if (*lastindex < -1 || *lastindex >= LLM_GET_NODECOUNT(llm)) {
+	if (*lastindex < -1 || *lastindex >= (int)LLM_GET_NODECOUNT(llm)) {
 			return -1;
 	}
 
@@ -473,7 +475,8 @@ update_strcreate(ccm_update_t *tab,
 		char **memlist,
 		llm_info_t *llm)
 {
-	int i, indx, uuid;
+	uint i, uuid;
+	int	indx;
 	unsigned char *bitmap;
 	int str_len;
 
