@@ -25,19 +25,24 @@
 #include <syslog.h>
 #include "stonith.h"
 
-#define	OPTIONS	"F:p:t:sSlLv"
+#define	OPTIONS	"F:p:t:sSlLvh"
 
-void usage(const char * cmd);
+void usage(const char * cmd, int exit_status);
 
 void
-usage(const char * cmd)
+usage(const char * cmd, int exit_status)
 {
-	fprintf(stderr, "usage: %s [-sSlLv] "
+	FILE *stream;
+
+	stream=(exit_status)?stderr:stdout;
+
+	fprintf(stream, "usage: %s [-sSlLvh] "
 	"[-t devicetype] "
 	"[-F options-file] "
 	"[-p stonith-parameters] "
 	"nodename\n", cmd);
-	exit(1);
+
+	exit(exit_status);
 }
 
 int
@@ -71,6 +76,9 @@ main(int argc, char** argv)
 	while ((c = getopt(argc, argv, OPTIONS)) != -1) {
 		switch(c) {
 		case 'F':	optfile = optarg;
+				break;
+
+		case 'h':	usage(cmdname, 0);
 				break;
 
 		case 'l':	++listhosts;
@@ -108,7 +116,7 @@ main(int argc, char** argv)
 	}
 
 	if (errors) {
-		usage(cmdname);
+		usage(cmdname, 1);
 	}
 
 	if (listtypes) {

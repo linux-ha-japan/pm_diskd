@@ -1,9 +1,15 @@
-heartbeat (0.4.8-1) unstable; urgency=low
+heartbeat (0.4.9-1) unstable; urgency=low
+
+  * Updated for 0.4.9
+
+ -- Simon Horman <horms@vergenet.net>  Sat, 07 Apr 2001 18:03:12 -0700
+ 
+heartbeat (0.4.8-2) unstable; urgency=low
 
   * Split ldirectord and stonith into separate packages
   * Fixed Man page so it refers to HTML documenation
 
- -- Horms <horms@vergenet.net>  Fri, 22 Dec 2000 05:05:05 -0500
+ -- Simon Horman <horms@vergenet.net>  Fri, 22 Dec 2000 05:05:05 -0500
 
 heartbeat (0.4.8-1) unstable; urgency=low
 

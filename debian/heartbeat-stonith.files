@@ -6,3 +6,4 @@ usr/lib/stonith/null.so
 usr/lib/stonith/nw_rpc100s.so
 usr/lib/stonith/rps10.so
 usr/sbin/stonith
+usr/share/man/man8/stonith.8.gz
