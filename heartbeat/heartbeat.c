@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.152 2001/10/23 04:19:24 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.153 2001/10/23 05:40:41 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -404,7 +404,7 @@ void	dump_proc_stats(volatile struct process_info * proc);
 void	dump_all_proc_stats(void);
 void	check_for_timeouts(void);
 void	check_comm_isup(void);
-int	send_resources_held(const char *str, int stable);
+int	send_resources_held(const char *str, int stable, const char * comment);
 int	send_standby_msg(enum standby state);
 int	send_local_starting(void);
 int	send_local_status(void);
@@ -1791,6 +1791,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 		case R_RSCRCVD:
 		case R_STABLE:
+		case R_SHUTDOWN:
 			break;
 		case R_STARTING:
 			newrstate = R_BOTHSTARTING;
@@ -1809,7 +1810,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			,	"T_STARTING received during takeover.");
 		}
 		send_resources_held(rsc_msg[i_hold_resources]
-		,	rstate == R_STABLE);
+		,	rstate == R_STABLE, NULL);
 	}
 
 	/* Manage resource related messages... */
@@ -1874,20 +1875,22 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 			if (rstate != R_STABLE && other_is_stable) {
 				ha_log(LOG_INFO
-				,	"local resource transition completed."
+				,	"remote resource transition completed."
 				);
 				req_our_resources(0);
 				newrstate = R_STABLE;
 				send_resources_held(rsc_msg[i_hold_resources]
-				,	1);
+				,	1, NULL);
 			}
 		}else{
 			const char *	comment = ha_msg_value(msg, F_COMMENT);
+
 			/*
 			 * This T_RESOURCES message is from us.  It might be
 			 * from the "mach_down" script or our own response to
 			 * the other side's T_STARTING message.  The mach_down
 			 * script sets the info (F_COMMENT) field to "mach_down"
+			 * We set it to "shutdown" in giveup_resources().
 			 *
 			 * We do this so the audits work cleanly AND we can
 			 * avoid a potential race condition.
@@ -1899,12 +1902,16 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 				/* Probably unnecessary */
 			i_hold_resources = UPD_RSC(i_hold_resources, n);
 
-			if (comment && strcmp(comment, "mach_down") == 0) {
-				ha_log(LOG_INFO
-				,	"mach_down takeover complete.");
-				takeover_in_progress = 0;
-				/* Probably unnecessary */
-				other_is_stable = 1;
+			if (comment) {
+				if (strcmp(comment, "mach_down") == 0) {
+					ha_log(LOG_INFO
+					,	"mach_down takeover complete.");
+					takeover_in_progress = 0;
+					/* Probably unnecessary */
+					other_is_stable = 1;
+				}else if (strcmp(comment, "shutdown") == 0) {
+					rstate = newrstate = R_SHUTDOWN;
+				}
 			}
 		}
 	}
@@ -1921,7 +1928,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		newrstate = R_STABLE;
 		req_our_resources(0);
 		ha_log(LOG_INFO,"local resource transition completed.");
-		send_resources_held(rsc_msg[i_hold_resources], 1);
+		send_resources_held(rsc_msg[i_hold_resources], 1, NULL);
 	}
 
 	if (rstate != newrstate) {
@@ -2697,10 +2704,10 @@ encode_resources(const char *p)
 
 /* Send the "I hold resources" or "I don't hold" resource messages */
 int
-send_resources_held(const char *str, int stable)
+send_resources_held(const char *str, int stable, const char * comment)
 {
 	struct ha_msg * m;
-	int		rc;
+	int		rc = HA_OK;
 	char		timestamp[16];
 
 	if (!nice_failback) {
@@ -2720,7 +2727,10 @@ send_resources_held(const char *str, int stable)
 	||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) != HA_OK)) {
 		ha_log(LOG_ERR, "send_resources_held: Cannot create local msg");
 		rc = HA_FAIL;
-	}else{
+	}else if (comment) {
+		rc = ha_msg_add(m, F_COMMENT, comment);
+	}
+	if (rc == HA_OK) {
 		rc = send_cluster_msg(m);
 	}
 
@@ -2887,7 +2897,7 @@ mark_node_dead(struct node_info *hip, enum deadreason reason)
 	if (hip == curnode) {
 		/* We may die too soon for this to actually be received */
 		/* But, we tried ;-) */
-		send_resources_held(NO_RESOURCES, 1);
+		send_resources_held(NO_RESOURCES, 1, NULL);
 		/* Uh, oh... we're dead! */
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
@@ -3141,7 +3151,7 @@ req_our_resources(int getthemanyway)
 			,	rsc_count, cmd);
 		}
 	}
-	send_resources_held(LOCAL_RESOURCES, 0);
+	send_resources_held(LOCAL_RESOURCES, 0, NULL);
 	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
 }
@@ -3186,7 +3196,7 @@ go_standby(enum standby who)
 		 * happens if it gets out of order is that we get
 		 * a funky warning message (or maybe two).
 		 */
-		send_resources_held(rsc_msg[i_hold_resources], 0);
+		send_resources_held(rsc_msg[i_hold_resources], 0, "standby");
 	}
 	/*
 	 *	We could do this ourselves fairly easily...
@@ -3248,7 +3258,7 @@ giveup_resources(int dummy)
 
 	i_hold_resources = NO_RSC;
 	if (nice_failback) {
-		send_resources_held(rsc_msg[i_hold_resources], 0);
+		send_resources_held(rsc_msg[i_hold_resources], 0, "shutdown");
 	}
 	if (shutdown_in_progress) {
 		ha_log(LOG_INFO, "Heartbeat shutdown already underway.");
@@ -3528,7 +3538,7 @@ main(int argc, char * argv[], char * envp[])
 			if (CurrentStatus == NULL) {
 				/* From !nice_failback to nice_failback */
 				i_hold_resources = LOCAL_RSC;
-				send_resources_held(rsc_msg[LOCAL_RSC],1);
+				send_resources_held(rsc_msg[LOCAL_RSC],1, NULL);
 				ha_log(LOG_INFO, "restart: assuming LOCAL_RSC");
 			}else{
 				/* From nice_failback to nice_failback */
@@ -3644,7 +3654,6 @@ signal_all(int sig)
 
 	if (sig == SIGTERM) {
 		IGNORESIG(SIGTERM);
-		ha_log(LOG_DEBUG, "pid %d: ignoring SIGTERM", us);
 		make_normaltime();
 	}
 
@@ -4619,7 +4628,7 @@ ask_for_resources(struct ha_msg *msg)
 				,	"Other node completed standby"
 				" takeover.");
 			}
-			send_resources_held(rsc_msg[i_hold_resources], 1);
+			send_resources_held(rsc_msg[i_hold_resources], 1, NULL);
 			going_standby = NOT;
 		}else{
 			message_ignored = 1;
@@ -4648,6 +4657,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.153  2001/10/23 05:40:41  alan
+ * Put in code to make the management of the audit periods work a little
+ * more neatly.
+ *
  * Revision 1.152  2001/10/23 04:19:24  alan
  * Put in code so that a "stop" really stops heartbeat (again).
  *
