@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.82 2001/01/22 12:22:09 eric Exp $
+#	$Id: Specfile,v 1.83 2001/02/05 04:54:52 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -335,8 +335,10 @@ machine. It's simple and reliable, albeit admittedly brutal.
 %build
 make
 %install
-if [ "${RPM_BUILD_ROOT}" != "/" ]; then
-	rm -rf $RPM_BUILD_ROOT
+if
+  [ -z "${RPM_BUILD_ROOT}"  -a "${RPM_BUILD_ROOT}" != "/" ]
+then
+  rm -rf $RPM_BUILD_ROOT
 fi
 RPM_BUILD=yes BUILD_ROOT=$RPM_BUILD_ROOT make install
 (
