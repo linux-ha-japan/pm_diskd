@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.21 2002/08/10 02:10:24 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.22 2002/09/13 05:24:13 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -225,10 +225,16 @@ controlfifo2msg(FILE * f)
 	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
 	&&	strcmp(buf, MSG_END) != 0) {
 
+		if (buf[0] == EOS) {
+			continue;
+		}
+
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
 			ha_error("NV failure (controlfifo2msg):");
-			ha_log(LOG_INFO, "%s", buf);
+			ha_log(LOG_INFO, "[%s] %d chars", buf, strlen(buf));
+			ha_log(LOG_INFO, "First char: 0x%02x"
+			,	(unsigned int)buf[0]);
 			ha_msg_del(ret);
 			return(NULL);
 		}
@@ -521,6 +527,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.22  2002/09/13 05:24:13  alan
+ * Put in some debugging code for Matt Soffen in FreeBSD.
+ *
  * Revision 1.21  2002/08/10 02:10:24  alan
  * Changed it so that it's impossible to get an extra newline in the output
  * from /proc/loadavg regardless of what the kernel gives us...
