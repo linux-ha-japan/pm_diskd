@@ -17,6 +17,12 @@ What gives?</a></li>
   <li> <a href="#what_is_it">What is a cluster?</a></li>
   <li> <a href="#res_scr">What is a resource script ?</a></li>
   <li> <a href="#mon">How to monitor various resources ?</a></li>
+  <li>If my one of my ethernet connections goes away (cable severence,
+NIC failure, locusts), but my current primary node (the one with the
+services) is otherwise fine, no one can get to my services and I want
+to fail them over to my other cluster node. &nbsp;Is there a way to do
+this?<br>
+  </li>
   <li> <a href="#nettools">Every time my machine releases an IP alias,
 it loses the whole interface (i.e. eth0)!&nbsp; How do I fix this?</a></li>
   <li> <a href="#manyIPs">I want a lot of IP addresses as resources
@@ -43,8 +49,8 @@ to run multiple clusters on same network segment ?</a></li>
 RPMs, they complain of dependencies from packages I already have
 installed!&nbsp; Now what?</a></li>
   <li><a href="#meatware">I don't want heartbeat to fail over the
-cluster automatically. &nbsp;How can I require human confirmation
-before failing over?</a></li>
+cluster automatically. &nbsp;How can I require human confirmation before
+failing over?</a></li>
   <li><a href="#self_fence">I want to use a shared disk, but I don't
 want to use STONITH. &nbsp;Any recommendations?</a><br>
   </li>
@@ -58,8 +64,8 @@ want to use STONITH. &nbsp;Any recommendations?</a><br>
 easily referenced and would grow without a lot of work.&nbsp; It's
 closer to a FAQ than anything else.</li>
   <li> <a name="what_is_it">HA (High availability Cluster)</a> - This is
-a cluster that allows a host (or hosts) to become Highly Available,
-that means if one node goes down (or a service on that node goes down)
+a cluster that allows a host (or hosts) to become Highly Available, that
+means if one node goes down (or a service on that node goes down)
 another node can pick up the service or node and take over from the
 failed machine. <a href="http://www.linux-ha.org">http://linux-ha.org</a> <br>
 Computing Cluster - This is what a Beowulf cluster is. It allows
@@ -73,15 +79,14 @@ All of these sites have howtos etc. on them. For a general overview on
 clustering under Linux, look at the Clustering HOWTO.</li>
   <li> <a name="res_scr">Resource scripts</a> are basically (extended)
 System V init scripts. They have to support stop, start, and status
-operations.&nbsp; In the future we will also add support for a
-"monitor" operation for monitoring services as you requested. The
-IPaddr script implements this new "monitor" operation now (but
-heartbeat doesn't use that function of it). For more info see Resource
-HOWTO.</li>
+operations.&nbsp; In the future we will also add support for a "monitor"
+operation for monitoring services as you requested. The IPaddr script
+implements this new "monitor" operation now (but heartbeat doesn't use
+that function of it). For more info see Resource HOWTO.</li>
   <li> <a name="mon">Heartbeat itself was not designed for monitoring</a>
 various resources. If you need to monitor some resources (for example,
-availability of WWW server) you need some third party software. Mon is
-a reasonable solution. <br>
+availability of WWW server) you need some third party software. Mon is a
+reasonable solution. <br>
 1. Get mon <br>
 http://kernel.org/software/mon/
     <p>2. Get all required modules listed. You can find them at nearest
@@ -90,11 +95,11 @@ with Perl, so i downloaded them from CPAN archive as .tar.gz packages
 and installed them usual way (perl Makefile.pl &amp;&amp; make
 &amp;&amp; make test &amp;&amp; make install). </p>
     <p>3. Mon is software for monitoring different network resources.
-It can ping computers, connect to various ports, monitor WWW, MySQL
-etc. In case of dysfunction of some resources it triggers some scripts. </p>
+It can ping computers, connect to various ports, monitor WWW, MySQL etc.
+In case of dysfunction of some resources it triggers some scripts. </p>
     <p>4. Unpack mon in some directory. Best starting point is README
-file. Complete documentation is in &lt;dir&gt;/doc, where &lt;dir&gt;
-is place where you unpacked mon package. </p>
+file. Complete documentation is in &lt;dir&gt;/doc, where &lt;dir&gt; is
+place where you unpacked mon package. </p>
     <p>5. For a fast start do following steps: <br>
 copy all subdirs found in &lt;dir&gt; to /usr/lib/mon <br>
 create dir /etc/mon <br>
@@ -108,18 +113,40 @@ can find explanation how to use it. <br>
 All alert scripts are placed in /usr/lib/mon/alert.d/. Those are
 scripts triggered in case something went wrong. In case you are using
 ipvs on theirs homepage (www.linuxvirtualserver.org) you can find
-scripts for adding and removing servers from ipvs list. </p>
+scripts for adding and removing servers from ipvs list.</p>
   </li>
-  <li> <a name="nettools">This isn't a problem with heartbeat</a>, but
+  <li>
+    <p><a name="ipfail"></a>Yes! &nbsp;Use the ipfail plug-in.
+&nbsp;For each interface you wish to monitor, specify one or more
+"ping" nodes in your configuration. &nbsp;Each node in your cluster
+will monitor these ping nodes. &nbsp;Should one node detect a failure
+in one of these ping nodes, it will contact the other node in order to
+determine whether it or the ping node has the problem. &nbsp;If the
+cluster node has the problem, it will try to failover its resources (if
+it has any).</p>
+    <p>To use ipfail, you will need to add the following to you
+/etc/ha.d/ha.cf files:<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; respawn hacluster
+/usr/lib/heartbeat/ipfail<br>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; ping &lt;IPaddr1&gt;
+&lt;IPaddr2&gt; ... &lt;IPaddrN&gt;</p>
+    <p>IPaddr1..N are your ping nodes. &nbsp;<span
+ style="font-weight: bold;">NOTE: &nbsp;</span>ipfail requires the
+"nice_failback on" option.<br>
+    </p>
+  </li>
+  <li>
+    <p><a name="nettools">This isn't a problem with heartbeat</a>, but
 rather is caused by various versions of net-tools.&nbsp; Upgrade to the
-most recent version of net-tools and it will go away.&nbsp; You can
-test it with ifconfig manually.</li>
+most recent version of net-tools and it will go away.&nbsp; You can test
+it with ifconfig manually.</p>
+  </li>
   <li> <a name="manyIPs">Instead of failing over many IP addresses,
 just fail over one router address</a>.&nbsp; On your router, do the
 equivalent of "route add -net x.x.x.0/24 gw x.x.x.2", where x.x.x.2 is
 the cluster IP address controlled by heartbeat.&nbsp; Then, make every
-address within x.x.x.0/24 that you wish to failover a permanent alias
-of lo0 on BOTH cluster nodes.&nbsp; This is done via "ifconfig lo:2
+address within x.x.x.0/24 that you wish to failover a permanent alias of
+lo0 on BOTH cluster nodes.&nbsp; This is done via "ifconfig lo:2
 x.x.x.3 netmask 255.255.255.255 -arp" etc....</li>
   <li> <a name="serial">I</a>f anything makes your ethernet / IP stack
 fail, you may lose both connections. You definitely should run the
@@ -129,8 +156,8 @@ In this mode, one of the two machines is designated as the preferred
 provider of a given resource group. If that machine is up, then it will
 always be the provider of every resource group for which it is preferred
 provider. Failovers occur when the preferred provider goes out of
-service, and when it comes back (failback). This mode is required if
-you wish to run an active-active configuration. <br>
+service, and when it comes back (failback). This mode is required if you
+wish to run an active-active configuration. <br>
 Nice failback mode: <br>
 In this mode, there is no natural affinity between a resource group and
 a particular node in the cluster (haresources file notwithstanding).
@@ -140,15 +167,14 @@ machine which is providing a service goes out of service. There is no
 concept of failback in this mode. This mode minimizes service
 interruptions, but cannot run an active-active configuration.</li>
   <li> <a name="firewall">To make heartbeat work with ipchains</a>, you
-must accept incoming and outgoing traffic on 694 UDP port. Add
-something like <br>
+must accept incoming and outgoing traffic on 694 UDP port. Add something
+like <br>
 /sbin/ipchains -A output -i ethN -p udp -s &lt;source_IP&gt; -d
 &lt;dest_IP&gt;&nbsp; -j ACCEPT <br>
 /sbin/ipchains -A input -i ethN -p udp -s &lt;source_IP&gt; -d
 &lt;dest_IP&gt;&nbsp; -j ACCEPT</li>
   <li> <a name="heavy_load">Since the default probably isn't reasonable
-for most linux systems under heavy load</a> (sorry!), here is
-suggestion: <br>
+for most linux systems under heavy load</a> (sorry!), here is suggestion: <br>
 Set deadtime to 60 seconds or higher <br>
 Set warntime to whatever you *want* your deadtime to be. <br>
 Run your system under heavy load for a few weeks. <br>
@@ -159,9 +185,9 @@ that amount. <br>
 Continue to monitor logs for warnings about long heartbeat times. If
 you don't do this, you may get "Cluster node ... returning after
 partition" which will cause heartbeat to restart on all machines in the
-cluster. Adding memory to the machine generally helps. Limiting
-workload on the machine generally helps. Some newer versions of
-heartbeat are a bit better about this than previous versions. </li>
+cluster. Adding memory to the machine generally helps. Limiting workload
+on the machine generally helps. Some newer versions of heartbeat are a
+bit better about this than previous versions. </li>
   <li> <a name="authkeys">It's probably a permissions problem on
 authkeys.</a>&nbsp; It wants it to be read only mode (400, 600 or
 700).&nbsp; Depending on where and when it discovers the problem, the
@@ -175,13 +201,13 @@ But, it tends to be in
 Newer releases are better about also putting out startup messages to
 stderr in addition to whereever you have configured them to go. </li>
   <li> <a name="multiple_clusters">Use multicast</a> and give each its
-own multicast group. If you need to/want to use broadcast, then run
-each cluster on different port numbers.</li>
+own multicast group. If you need to/want to use broadcast, then run each
+cluster on different port numbers.</li>
   <li> <a name="CVS">There is a CVS repository for Linux-HA.</a> You can
 find it at cvs.linux-ha.org.&nbsp; Read-only access is via login guest,
 password guest, module name linux-ha. More details are to be found in
-the announcement&nbsp; email.&nbsp; It is also available through the
-web using viewcvs at <a
+the announcement&nbsp; email.&nbsp; It is also available through the web
+using viewcvs at <a
  href="http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/">http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/</a></li>
   <li> <a name="other_os">Heartbeat is currently being ported to use
 automake.</a></li>
@@ -197,8 +223,8 @@ build RPMS and place them where it's customary for your particular
 distro. &nbsp;It may even tell you if you are missing some other
 required packages!</li>
   <li><a name="meatware"></a>You configure a "meatware" STONITH device
-into the ha.cf file. &nbsp;The meatware STONITH device asks the
-operator to go power reset the machine <br>
+into the ha.cf file. &nbsp;The meatware STONITH device asks the operator
+to go power reset the machine <br>
 which has gone down.&nbsp; When the operator has reset the machine he
 or she then issues a command to tell the meatware STONITH plugin that
 the reset has <br>
@@ -206,11 +232,10 @@ taken place. &nbsp;Heartbeat will wait indefinitely until the operator
 acknowledges the reset has occured. &nbsp;During this time, the
 resources will not be taken over, and nothing will happen.</li>
   <li><a name="self_fence"></a>This is not something which heartbeat
-supports directly, however, there are a few kinds of resources which
-are "self-fencing".&nbsp; This means that activating the resource
-causes it to fence itself off from the other node naturally.
-&nbsp;Since this fencing happens in the resource agent, heartbeat
-doesn't know <br>
+supports directly, however, there are a few kinds of resources which are
+"self-fencing".&nbsp; This means that activating the resource causes it
+to fence itself off from the other node naturally. &nbsp;Since this
+fencing happens in the resource agent, heartbeat doesn't know <br>
 (and doesn't have to know) about it. &nbsp;Two possible hardware
 candidtates are IBM's ServeRAID-4 RAID controllers and ICP Vortex RAID
 controllers - but do your homework!!!<br>
@@ -231,8 +256,8 @@ them as attachments. <br>
 Please don't send "cleaned up" logs.&nbsp; The real logs have more
 information in them than cleaned up versions.&nbsp; Always include at
 least a little irrelevant data before and after the events in question
-so that we know nothing was missed.&nbsp; Don't edit the logs unless
-you really have some super-secret high-security reason for doing so.
+so that we know nothing was missed.&nbsp; Don't edit the logs unless you
+really have some super-secret high-security reason for doing so.
       <p> This means you need to send 6 or 8 files.  Include 6 if your
 debug output goes into the same file as your normal output and 8
 otherwise. For each machine you need to send: </p>
