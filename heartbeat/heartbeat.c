@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.112 2001/05/31 13:50:56 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.113 2001/05/31 16:51:18 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3301,6 +3301,10 @@ make_daemon(void)
 	if (lockfd != NULL) {
 		fprintf(lockfd, "%d\n", pid);
 		fclose(lockfd);
+	}else{
+		fprintf(stderr, "%s: could not create pidfile [%s]\n"
+		,	cmdname, PIDFILE);
+		exit(HA_FAILEXIT);
 	}
 	if (getsid(0) != pid) {
 		if (setsid() < 0) {
@@ -3993,6 +3997,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.113  2001/05/31 16:51:18  alan
+ * Made not being able to create the PID file a fatal error...
+ *
  * Revision 1.112  2001/05/31 13:50:56  alan
  * Moving towards getting modules working.  More debug also...
  *
