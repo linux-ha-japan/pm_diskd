@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.33 1999/11/23 08:50:01 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.34 1999/11/25 20:13:15 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -156,6 +156,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.33 1999/11/23 08:50:
 
 #include <heartbeat.h>
 #include <ha_msg.h>
+#include <test.h>
 
 #define OPTARGS		"dkrRsv"
 
@@ -725,6 +726,13 @@ send_to_all_media(char * smsg, int len)
 {
 	int	j;
 
+	/* Throw away some packets if testing is enabled */
+	if (TESTSEND) {
+		if (TestRand(send_loss_prob)) {
+			return;
+		}
+	}
+
 	/* Send the message to all our heartbeat interfaces */
 	for (j=0; j < nummedia; ++j) {
 		int	wrc;
@@ -830,6 +838,14 @@ master_status_process(void)
 			continue;
 #endif
 		}
+
+		/* Throw away some incoming packets if testing is enabled */
+		if (TESTRCV) {
+			if (thisnode != curnode && TestRand(rcv_loss_prob)) {
+				continue;
+			}
+		}
+
 		/*
 		 * Request our resources after a (PPP-induced) delay.
 		 * If we have PPP as our only link this delay might have
@@ -1179,6 +1195,7 @@ reread_config_sig(int sig)
 			ha_log(LOG_INFO, "Configuration unchanged.");
 		}
 	}
+	ParseTestOpts();
 }
 
 #define	ONEDAY	(24*60*60)
@@ -1765,6 +1782,7 @@ main(int argc, const char ** argv)
 			sprintf(facility, "%d", config->log_facility);
 			setenv(LOGFACILITY, facility, 1);
 		}
+		ParseTestOpts();
 		initialize_heartbeat();
 	}else{
 		ha_log(LOG_ERR, "Configuration error, heartbeat not started.");
@@ -2392,6 +2410,50 @@ nak_rexmit(int seqno, const char * reason)
 	ha_msg_del(msg);
 }
 
+
+void
+ParseTestOpts()
+{
+	const char *	openpath = HA_D "/OnlyForTesting";
+	FILE *	fp;
+	static struct TestParms p;
+	char	name[64];
+	char	value[64];
+
+	if ((fp = fopen(openpath, "r")) == NULL) {
+		if (TestOpts) {
+			ha_log(LOG_INFO, "Test Code Now disabled.");
+		}
+		TestOpts = NULL;
+		return;
+	}
+	TestOpts = &p;
+
+	memset(&p, 0, sizeof(p));
+	p.send_loss_prob = 0;
+	p.rcv_loss_prob = 0;
+
+	ha_log(LOG_INFO, "WARNING: Enabling Test Code");
+
+	while((fscanf(fp, "%[a-zA-Z_]=%s\n", name, value) == 2)) {
+		if (strcmp(name, "rcvloss") == 0) {
+			p.rcv_loss_prob = atof(value);
+			p.enable_rcv_pkt_loss = 1;
+			ha_log(LOG_INFO, "Receive loss probability = %.3f"
+			,	p.rcv_loss_prob);
+		}else if (strcmp(name, "xmitloss") == 0) {
+			p.send_loss_prob = atof(value);
+			p.enable_send_pkt_loss = 1;
+			ha_log(LOG_INFO, "Xmit loss probability = %.3f"
+			,	p.send_loss_prob);
+		}else{
+			ha_log(LOG_INFO, "Cannot recognize test param [%s]"
+			,	name);
+		}
+	}
+	ha_log(LOG_INFO, "WARNING: Above Options Now Enabled.");
+}
+
 #ifdef IRIX
 void
 setenv(const char *name, const char * value, int why)
@@ -2403,6 +2465,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.34  1999/11/25 20:13:15  alan
+ * Minor retransmit updates.  Need to add another source file to CVS, too...
+ * These updates were to allow us to simulate lots of packet losses.
+ *
  * Revision 1.33  1999/11/23 08:50:01  alan
  * Put in the complete basis for the "reliable" packet transport for heartbeat.
  * This include throttling the packet retransmission on both sides, both
