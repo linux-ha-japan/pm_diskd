@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.22 2002/07/27 06:02:21 horms Exp $
+#	$Id: IPaddr.in,v 1.23 2002/07/30 17:33:34 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -293,7 +293,7 @@ find_free_interface() {
   nicname=`echo "$NICINFO" | cut -f1`
   nicinfo=`echo "$NICINFO" | cut -f2-`
   if
-    [ $nicname = "" ]
+    [ "X$nicname" = "X" ]
   then
     ha_log "ERROR: no interface found for $BASEIP"
     return 1;
@@ -512,7 +512,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.22 2002/07/27 06:02:21 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.23 2002/07/30 17:33:34 horms Exp $"
 }
 
 #
@@ -559,6 +559,10 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.23  2002/07/30 17:33:34  horms
+# The old checking for an empty string without putting the suspect
+# variable in quotes trick. Gets 'em every time.
+#
 # Revision 1.22  2002/07/27 06:02:21  horms
 # Lorn Kay's patch for IPaddr to better handle the presance of
 # managed IP addresses being present on a loopback interface.
