@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.98 2001/03/11 06:23:09 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.99 2001/03/16 03:01:12 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3158,7 +3158,8 @@ main(int argc, const char ** argv)
 		setenv(DEBUGFENV, config->dbgfile, 1);
 		if (config->log_facility >= 0) {
 			char	facility[40];
-			sprintf(facility, "%d", config->log_facility);
+			snprintf(facility, sizeof(facility)
+			,	"%s", config->facilityname);
 			setenv(LOGFACILITY, facility, 1);
 		}
 		ParseTestOpts();
@@ -3979,6 +3980,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.99  2001/03/16 03:01:12  alan
+ * Put in a fix to Norbert Steinl's problem with the logger facility
+ * and priority being wrong.
+ *
  * Revision 1.98  2001/03/11 06:23:09  alan
  * Fixed the bug of quitting whenever stats needed to be printed.
  * This bug was reported by Robert_Macaulay@Dell.com.

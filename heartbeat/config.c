@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.27 2001/03/06 21:11:05 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.28 2001/03/16 03:01:12 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -986,6 +986,10 @@ set_facility(const char * value)
 	for(i = 0; facilitynames[i].c_name != NULL; ++i) {
 		if(strcmp(value, facilitynames[i].c_name) == 0) {
 			config->log_facility = facilitynames[i].c_val;
+			strncpy(config->facilityname, value
+			,	sizeof(config->facilityname)-1);
+			config->facilityname[sizeof(config->facilityname)-1]
+			=	EOS;
 			return(HA_OK);
 		}
 	}

@@ -25,7 +25,7 @@ ha_log() {
         then
 	  : logging through syslog
 	  # loglevel is unknown, use 'notice' for now
-          level=notice
+          loglevel=notice
           case "${*}" in
             *ERROR*)	loglevel=err;;
             *WARN*)	loglevel=warning;;
