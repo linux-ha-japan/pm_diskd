@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.74 2000/07/21 13:25:51 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.75 2000/07/21 16:59:38 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -2290,7 +2290,8 @@ mark_node_dead(struct node_info *hip)
 			,	hip->nodename
 			,	s->s_ops->getinfo(s, ST_DEVICEID));
 
-			switch (s->s_ops->reset_req(s, ST_RESET,hip->nodename)){
+			switch (s->s_ops->reset_req(s, ST_GENERIC_RESET
+			,		hip->nodename)){
 
 			case S_OK:
 				ha_log(LOG_INFO
@@ -3464,6 +3465,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.75  2000/07/21 16:59:38  alan
+ * More minor changes to the Stonith API.
+ * I switched from enums to #defines so that people can use #ifdefs if in
+ * the future they want to do so.  In fact, I changed the ONOFF code
+ * in the Baytech module to do just that.  It's convenient that way :-)
+ * I *still* don't define the ON/OFF operation code in the API though :-)
+ *
  * Revision 1.74  2000/07/21 13:25:51  alan
  * Made heartbeat consistent with current Stonith API.
  *

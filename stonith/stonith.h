@@ -41,21 +41,22 @@ typedef struct stonith {
  *	Consequently they assume you've done an openlog() to initialize it
  *	for them.
  */
-enum StonithInfoReq {
-	ST_CONF_FILE_SYNTAX 	= 1,	/* Config file syntax help */
-	ST_CONF_INFO_SYNTAX	= 2,	/* Config string (info) syntax help */
-	ST_DEVICEID		= 3,	/* Device Identification */
-};
 
-enum StonithRequest {
-	ST_RESET		= 1,	/* Reset the machine */
-};
+
+
 
 struct stonith_ops {
 	void (*destroy)			(Stonith*);
 	int (*set_config_file)		(Stonith *, const char   * filename); 
 	int (*set_config_info)		(Stonith *, const char   * confstring); 
-	const char* (*getinfo)		(Stonith*, enum StonithInfoReq);
+/*
+ *	Type of information requested by in the getinfo() call
+ */
+#define	ST_CONF_FILE_SYNTAX	1	/* Config file syntax help */
+#define	ST_CONF_INFO_SYNTAX	2	/* Config string (info) syntax help */
+#define	ST_DEVICEID		3	/* Device Identification */
+
+	const char* (*getinfo)		(Stonith*, int infotype);
 
 	/*
 	 * Must call set_config_info or set_config_file before calling any of
@@ -63,8 +64,13 @@ struct stonith_ops {
 	 */
 
 	int (*status)			(Stonith *s);
-	int (*reset_req)		(Stonith * s, enum StonithRequest
-	,					const char * hostname);
+/*
+ *	Operation requested by reset_req()
+ */
+#define	ST_GENERIC_RESET	1	/* Reset the machine any way you can */
+
+	int (*reset_req)		(Stonith * s, int op, const char * node);
+
 
 	char** (*hostlist)		(Stonith* s);
 					/* Returns list of hosts it supports */

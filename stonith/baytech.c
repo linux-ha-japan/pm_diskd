@@ -105,27 +105,28 @@ static struct Etoken Rebooting[] =	{ {"ebooting selected outlet", 0, 0}
 				,	{"already off.", 2, 0}
 				,	{NULL,0,0}};
 
-static int RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout);
-static int RPC_connect_device(struct BayTech * bt);
-static int RPCLogin(struct BayTech * bt);
-static int RPCNametoOutlet(struct BayTech*, const char * name);
-static int RPCReset(struct BayTech*, int unitnum, const char * rebootid);
-static int RPCScanLine(struct BayTech* bt, int timeout, char * buf, int max);
-static int RPCLogout(struct BayTech * bt);
-static void RPCkillcomm(struct BayTech * bt);
+static int	RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout);
+static int	RPC_connect_device(struct BayTech * bt);
+static int	RPCLogin(struct BayTech * bt);
+static int	RPCNametoOutlet(struct BayTech*, const char * name);
+static int	RPCReset(struct BayTech*, int unitnum, const char * rebootid);
+static int	RPCScanLine(struct BayTech* bt, int timeout, char * buf, int max);
+static int	RPCLogout(struct BayTech * bt);
+static void	RPCkillcomm(struct BayTech * bt);
 
 static int	RPC_set_configfile(Stonith *, const char * cfgname);
 static int	RPC_provide_config_info(Stonith *, const char * info);
 static int	RPC_parse_config_info(struct BayTech* bt, const char * info);
-static const char * RPC_getinfo(Stonith * s, enum StonithInfoReq reqtype);
+static const char *
+		RPC_getinfo(Stonith * s, int InfoType);
 
 static char **	RPClist_hosts(Stonith  *);
 static void	RPCfree_hostlist(char **);
 static int	RPC_status(Stonith * );
-static int	RPC_reset_req(Stonith * s, enum StonithRequest, const char * host);
-static int	RPC_reset_host(Stonith * s, const char * host);
-#ifdef ONOFF
-static int	RPC_onoff(Stonith*, int unitnum, const char * unitid,int turnon);
+static int	RPC_reset_host(Stonith * s, int request, const char * host);
+#if defined(ST_POWERON) && defined(ST_POWEROFF)
+static int	RPC_onoff(struct BayTech*, int unitnum, const char * unitid
+,		int request);
 #endif
 static void	baytech_del(Stonith *);
 Stonith *	__baytech_new(void);
@@ -371,26 +372,15 @@ RPCReset(struct BayTech* bt, int unitnum, const char * rebootid)
 	return(S_OK);
 }
 
-#ifdef ONOFF
+#if defined(ST_POWERON) && defined(ST_POWEROFF)
 static int
-RPC_onoff(Stonith* s, int unitnum, const char * unitid, int turnon)
+RPC_onoff(struct BayTech* bt, int unitnum, const char * unitid, int req)
 {
 	char		unum[32];
-	struct BayTech*	bt;
 
-	const char *	onoff = (turnon ? "on" : "off");
+	const char *	onoff = (req == ST_POWERON ? "on" : "off");
 	int	rc;
 
-	if (!ISBAYTECH(s)) {
-		syslog(LOG_ERR, "invalid argument to RPC_status");
-		return(S_OOPS);
-	}
-	if (!ISCONFIGED(s)) {
-		syslog(LOG_ERR
-		,	"unconfigured stonith object in RPC_status");
-		return(S_OOPS);
-	}
-	bt = (struct BayTech*) s->pinfo;
 
 	if (RPC_connect_device(bt) != S_OK) {
 		return(S_OOPS);
@@ -439,7 +429,7 @@ RPC_onoff(Stonith* s, int unitnum, const char * unitid, int turnon)
 	SEND("MENU\r");
 	return(S_OK);
 }
-#endif /*ONOFF */
+#endif /* defined(ST_POWERON) && defined(ST_POWEROFF) */
 
 /*
  *	Map the given host name into an (AC) Outlet number on the power strip
@@ -508,7 +498,7 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 	return(ret);
 }
 
-int
+static int
 RPC_status(Stonith  *s)
 {
 	struct BayTech*	bt;
@@ -731,27 +721,11 @@ RPC_connect_device(struct BayTech * bt)
 	return(S_OK);
 }
 
-static int
-RPC_reset_req(Stonith * s, enum StonithRequest req, const char * host)
-{
-	if (!ISBAYTECH(s)) {
-		syslog(LOG_ERR, "invalid argument to RPC_reset_host");
-		return(S_OOPS);
-	}
-
-	switch(req) {
-
-		case ST_RESET:
-			return RPC_reset_host(s, host);
-	}
-	return S_INVAL;
-}
-
 /*
  *	Reset the given host on this Stonith device.
  */
 static int
-RPC_reset_host(Stonith * s, const char * host)
+RPC_reset_host(Stonith * s, int request, const char * host)
 {
 	int	rc = 0;
 	int	lorc = 0;
@@ -774,19 +748,31 @@ RPC_reset_host(Stonith * s, const char * host)
 
 	if ((rc = RPCLogin(bt)) != S_OK) {
 		syslog(LOG_ERR, "Cannot log into " DEVICE ".");
-		return(rc);
 	}else{
 		int	noutlet;
 		noutlet = RPCNametoOutlet(bt, host);
 
-		if (noutlet > 0) {
-			return(RPCReset(bt, noutlet, host));
-		}else{
+		if (noutlet < 1) {
 			syslog(LOG_WARNING, "%s %s "
 			"doesn't control host [%s].", bt->idinfo
 			,	bt->unitid, host);
 			RPCkillcomm(bt);
 			return(S_BADHOST);
+		}
+		switch(request) {
+
+#if defined(ST_POWERON) && defined(ST_POWEROFF)
+		case ST_POWERON:
+		case ST_POWEROFF:
+			rc = RPC_onoff(bt, noutlet, host, request);
+			break;
+#endif
+		case ST_GENERIC_RESET:
+			rc = RPCReset(bt, noutlet, host);
+			break;
+		default:
+			rc = S_INVAL;
+			break;
 		}
 	}
 
@@ -845,7 +831,7 @@ RPC_provide_config_info(Stonith* s, const char * info)
 	return(RPC_parse_config_info(bt, info));
 }
 static const char *
-RPC_getinfo(Stonith * s, enum StonithInfoReq reqtype)
+RPC_getinfo(Stonith * s, int reqtype)
 {
 	struct BayTech* bt;
 
@@ -878,7 +864,8 @@ RPC_getinfo(Stonith * s, enum StonithInfoReq reqtype)
  *	Baytech Stonith destructor...
  */
 static void
-baytech_del(Stonith *s) {
+baytech_del(Stonith *s)
+{
 	struct BayTech* bt;
 
 	if (!ISBAYTECH(s)) {
@@ -925,17 +912,15 @@ static struct stonith_ops	BayTech_ops = {
 	RPC_provide_config_info,/* provide_config_info	*/
 	RPC_getinfo,		/* devid		*/
 	RPC_status,		/* status		*/
-	RPC_reset_req,		/* reset_req		*/
-#ifdef ONOFF
-	RPC_onoff,		/* onoff		*/
-#endif
+	RPC_reset_host,		/* reset_req		*/
 	RPClist_hosts,		/* list_hosts		*/
 	RPCfree_hostlist,	/* free_hostlist	*/
 };
 
 /* Create a new BayTech Stonith device.  Too bad this function can't be static */
 Stonith *
-__baytech_new(void) {
+__baytech_new(void)
+{
 	Stonith *	ret;
 	struct BayTech*	bt = MALLOCT(struct BayTech);
 
