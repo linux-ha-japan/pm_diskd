@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.5 1999/10/05 06:00:53 alanr Exp $
+#	$Id: Makefile,v 1.6 1999/10/05 06:17:03 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -48,7 +48,6 @@ CFLAGS=-g 				\
 	-Wmissing-declarations		\
 	-Wstrict-prototypes		\
 	-Wshadow			\
-	-Wtraditional			\
 	-Wpointer-arith			\
 	-Wwrite-strings			\
 	-Werror				\
@@ -58,6 +57,8 @@ CFLAGS=-g 				\
 	-DVAR_RUN_D='"$(B_VARRUN)"'	\
 	-DFIFONAME='"$(B_FIFO)"'	\
 	-DPPP_D='"$(B_HAPPP)"'
+
+#	-Wtraditional
 
 HEARTBEAT = heartbeat
 H_OBJLIST = heartbeat.o serial.o udp.o ppp-udp.o ha_msg.o auth.o md5.o sha1.o

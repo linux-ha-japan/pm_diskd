@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.13 1999/10/05 05:17:34 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.14 1999/10/05 06:17:06 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1427,7 +1427,6 @@ master_status_process(void)
 		const char *	from;
 		const char *	ts;
 		const char *	type;
-		unsigned char * cksum;
 
 		msg = msgfromstream(f);
 
@@ -1437,7 +1436,7 @@ master_status_process(void)
 		}
 		now = time(NULL);
 
-		/* Extract message type, originator, timestamp, cksum and auth*/
+		/* Extract message type, originator, timestamp, auth*/
 		type = ha_msg_value(msg, F_TYPE);
 		from = ha_msg_value(msg, F_ORIG);
 		ts = ha_msg_value(msg, F_TIME);
@@ -1457,8 +1456,8 @@ master_status_process(void)
 			continue;
 		}else if(ANYDEBUG) {
 			ha_log(LOG_DEBUG
-			,       "master_status_process: node [%s] cksum [%s] ok"
-			,	from, cksum);
+			,       "master_status_process: node [%s] auth  ok"
+			,	from);
 		}
 		/* If a node isn't in the configfile but */
 
@@ -2405,9 +2404,10 @@ should_ring_copy_msg(struct ha_msg *m)
 	if ((from = ha_msg_value(m, F_ORIG)) == NULL
 	||	(ttl = ha_msg_value(m, F_TTL)) == NULL) {
 			ha_log(LOG_ERR, "bad packet in should_copy_ring_pkt");
+			return(0);
 	}
 	/* Is this message from us? */
-	if (strcmp(from, us) == 0 || atoi(ttl) <= 0) {
+	if (strcmp(from, us) == 0 || ttl == NULL || atoi(ttl) <= 0) {
 		/* Avoid infinite loops... Ignore this message */
 		return(0);
 	}
@@ -2503,7 +2503,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 				++t->nmissing;
 			}else{
 				int		minmatch = -1;
-				unsigned long	minseq;
+				unsigned long	minseq = INT_MAX;
 				/*
 				 * Replace the lowest numbered missing seqno
 				 * with this one
@@ -2638,6 +2638,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.14  1999/10/05 06:17:06  alanr
+ * Fixed various uninitialized variables
+ *
  * Revision 1.13  1999/10/05 05:17:34  alanr
  * Added -s (status) option to heartbeat, and used it in heartbeat.sh...
  *

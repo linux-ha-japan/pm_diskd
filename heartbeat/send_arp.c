@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.2 1999/09/30 18:34:27 alanr Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.3 1999/10/05 06:17:29 alanr Exp $";
 /* send_arp.c
 
 This program sends out one ARP packet with source/target IP and Ethernet
@@ -134,7 +134,7 @@ if(in_addr->s_addr == -1){
 void get_hw_addr(u_char* buf,char* str){
 
 int i;
-char c,val;
+char c,val = 0;
 
 for(i=0;i<ETH_HW_ADDR_LEN;i++){
         if( !(c = tolower(*str++))) die("Invalid hardware address");
@@ -156,6 +156,9 @@ for(i=0;i<ETH_HW_ADDR_LEN;i++){
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.3  1999/10/05 06:17:29  alanr
+ * Fixed various uninitialized variables
+ *
  * Revision 1.2  1999/09/30 18:34:27  alanr
  * Matt Soffen's FreeBSD changes
  *

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.3 1999/09/30 15:55:12 alanr Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.4 1999/10/05 06:17:30 alanr Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -421,7 +421,7 @@ serial_read(struct hb_media*mp)
 		ha_error("Cannot convert new message to string");
 	}else{
 		struct hb_media*	sp;
-		int			msglen;
+		int			msglen = strlen(newmsg);
 		struct serial_private*	spp;
 		/* Forward message to other port in ring (if any) */
 		for (sp=lastserialport; sp; sp=spp->next) {
@@ -467,7 +467,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.4  1999/10/05 06:17:30  alanr
+ * Fixed various uninitialized variables
+ *
  * Revision 1.3  1999/09/30 15:55:12  alanr
+ *
  * Added Matt Soffen's fix to change devname to serial_device for some kind
  * of FreeBSD compatibility.
  *

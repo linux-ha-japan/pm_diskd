@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.9 1999/10/05 05:43:51 alanr Exp $
+#	$Id: Specfile,v 1.10 1999/10/05 06:17:00 alanr Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -52,6 +52,7 @@ It implements the following kinds of heartbeats:
   + You can send a SIGHUP to heartbeat control process to change authentication
 	parameters without restarting (see -r above :-))
   + Added -s option to report on operational status of "heartbeat"
+  + Fixed a couple of unitialized variables in heartbeat and /proc/ha code
 
 * Thu Sep 16 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>
