@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.148 2001/10/13 09:23:19 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.149 2001/10/13 22:27:15 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3024,7 +3024,6 @@ healed_cluster_partition(struct node_info *t)
 	/* And, it really should work every time... :-) */
 	procinfo->restart_after_shutdown = 1;
 	giveup_resources(0);
-        signal_all(SIGTERM);
 }
 
 struct fieldname_map {
@@ -3662,8 +3661,8 @@ signal_all(int sig)
 				if (procinfo->restart_after_shutdown) {
 					sleep(config->deadtime_interval+1);
 					restart_heartbeat(0);
-                                        return;
                                         /* Not Reached */
+                                        return;
 				}
 			}
 			cleanexit(1);
@@ -4617,6 +4616,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.149  2001/10/13 22:27:15  alan
+ * Removed a superfluous signal_all(SIGTERM)
+ *
  * Revision 1.148  2001/10/13 09:23:19  alan
  * Fixed a bug in the new standby code.
  * It now waits until resources are fully given up before taking them over.
