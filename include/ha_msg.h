@@ -20,7 +20,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.1 2001/08/10 17:22:19 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.2 2002/02/11 22:43:44 alan Exp $";
 #include <stdio.h>
 
 struct ha_msg {
@@ -67,10 +67,12 @@ struct ha_msg {
 	/* Message types */
 #define	T_STATUS	"status"	/* Status (heartbeat) */
 #define	T_IFSTATUS	"ifstat"	/* Interface status */
-#define T_APIREQ	"hbapi-req" 	/* Heartbeat API request */
-#define T_APIRESP	"hbapi-resp" 	/* Heartbeat API response */
+#define T_APIREQ	"hbapi-req"	/* Heartbeat API request */
+#define T_APIRESP	"hbapi-resp"	/* Heartbeat API response */
+#define	T_ASKRESOURCES	"ask_resources"	/* Let other node ask my resources */
 #define	T_STONITH	"stonith"	/* Stonith return code */
-#define T_SHUTDONE	"shutdone"      /* External Shutdown complete */
+#define T_SHUTDONE	"shutdone"	/* External Shutdown complete */
+#define T_APICLISTAT	"hbapi-clstat"	/* Client status notification" */
 
 #define	NOSEQ_PREFIX	"NS_"		/* PREFIX: Give no sequence number    */
 	/* Used for messages which can't be retransmitted		      */
