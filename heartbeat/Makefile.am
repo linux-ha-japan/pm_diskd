@@ -77,6 +77,8 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \
 			-dlopen self
 
+heartbeat_CFLAGS	= $(AM_CFLAGS)
+
 send_arp_SOURCES	= send_arp.c
 send_arp_CFLAGS		= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
 send_arp_LDADD	 	= @LIBNETLIBS@

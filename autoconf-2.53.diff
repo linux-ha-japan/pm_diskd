@@ -19,8 +19,8 @@ diff -u -r1.107 configure.in
 +AC_PREREQ(2.53)
 +
  dnl Initialiase, with sanity check of a unique file in the hierarchy
- AC_REVISION($Revision: 1.1 $) dnl cvs revision
  AC_INIT(heartbeat.spec.in)
+ AC_CONFIG_AUX_DIR(.)
 @@ -840,10 +843,9 @@
  
  dnl for libtool to work LTLIBOJS is needed (currently bug of autoconf)
