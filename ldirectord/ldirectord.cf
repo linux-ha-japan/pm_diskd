@@ -75,6 +75,39 @@ virtual=192.168.6.240:80
 #        #netmask=255.255.255.255
 #        protocol=tcp
 
+#Sample configuration for an smtp virtual service.
+#Fallback setting overides global
+#virtual=192.168.6.240:25
+#        real=192.168.16.3:25 masq
+#        real=192.168.16.5:25 masq
+#        fallback=127.0.0.1:25
+#        service=smtp
+#        scheduler=wlc
+#        persistent=600
+#        protocol=tcp
+
+#Sample configuration for an pop virtual service.
+#Fallback setting overides global
+#virtual=192.168.6.240:110
+#        real=192.168.16.3:110 masq
+#        real=192.168.16.5:110 masq
+#        fallback=127.0.0.1:110
+#        service=pop
+#        scheduler=wlc
+#        persistent=600
+#        protocol=tcp
+
+#Sample configuration for an imap virtual service.
+#Fallback setting overides global
+#virtual=192.168.6.240:143
+#        real=192.168.16.3:143 masq
+#        real=192.168.16.5:143 masq
+#        fallback=127.0.0.1:143
+#        service=imap
+#        scheduler=wlc
+#        persistent=600
+#        protocol=tcp
+
 #Sample configuration for an unsuported protocol
 #The real servers will just be brought up without checking for availability
 #Fallback setting overides global
