@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.15 2002/04/03 20:02:21 alan Exp $
+#	$Id: heartbeat.in,v 1.16 2002/08/12 14:37:53 msoffen Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -244,7 +244,7 @@ StopHA() {
 #	Ask heartbeat to restart.  It will *keep* its resources
 #
 ReloadHA() {
-  echononl "Reloading High-Availability services: "
+  EchoNoNl "Reloading High-Availability services: "
 
   if
     $HA_BIN/heartbeat -r # Restart, and keep your resources
@@ -308,6 +308,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.16  2002/08/12 14:37:53  msoffen
+#  Replaced the last echononl with EchoNoNl.
+#
 #  Revision 1.15  2002/04/03 20:02:21  alan
 #  Made the init starting and stopping priorities into autoconf variables.
 #  They default to 75 and 5 respectively.  They should probably be overridden for
