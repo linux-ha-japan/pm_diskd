@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.8 2001/10/24 20:46:29 alan Exp $
+#	$Id: heartbeat.in,v 1.9 2001/10/25 15:00:27 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -297,7 +297,7 @@ case "$1" in
 	;;
 
   *)
-	Echo "Usage: ha {start|stop|status|restart|reload|force-reload}"
+	Echo "Usage: $0 {start|stop|status|restart|reload|force-reload}"
 	exit 1
 esac
 
@@ -305,6 +305,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.9  2001/10/25 15:00:27  alan
+#  Put in naming patch from Matt Soffen for heartbeat.in
+#
 #  Revision 1.8  2001/10/24 20:46:29  alan
 #  A large number of patches.  They are in these categories:
 #  	Fixes from Matt Soffen
