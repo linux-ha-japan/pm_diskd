@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.11 2002/09/05 06:12:42 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.12 2002/09/12 14:06:18 msoffen Exp $";
 /* 
  * send_arp
  * 
@@ -181,8 +181,6 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
 
     n = libnet_write_link_layer(l, device, buf, LIBNET_ARP_H + LIBNET_ETH_H);
 
-    syslog(LOG_ERR, ".");
-
     libnet_destroy_packet(&buf);
     return (n);
 }
@@ -228,14 +226,16 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
     n = libnet_write(lntag);
     libnet_clear_packet(lntag);
 
-    syslog(LOG_ERR, ".");
-
     return (n);
 }
 #endif /* HAVE_LIBNET_1_1_API */
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.12  2002/09/12 14:06:18  msoffen
+ * Removed a write to stderr of ".", really served no purpose and always ran.
+ * It was a carryover from the old send_arp.c.
+ *
  * Revision 1.11  2002/09/05 06:12:42  alan
  * Put in code to recover a bug fix from Japan, plus
  * make the code hopefully work with both the old and new libnet APIs.
