@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.25 2002/07/08 04:14:12 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.26 2002/08/10 02:13:32 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -150,6 +150,11 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 		return(HA_FAIL);
 	}
 		
+	if (memchr(value, '\n', vallen) != NULL) {
+		ha_log(LOG_ERR
+		,	"ha_msg_nadd: newline in value. name [%s]"
+		" value [%s]", name, value);
+	}
 
 	if ((cpname = ha_malloc(namelen+1)) == NULL) {
 		ha_error("ha_msg_nadd: no memory for string (name)");
@@ -280,9 +285,9 @@ msgfromstream(FILE * f)
 
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
-			ha_error("NV failure (msgfromsteam):");
-			ha_error(buf);
-			ha_msg_del(ret);
+			ha_log(LOG_ERR, "NV failure (msgfromsteam): [%s]"
+			,	buf);
+			ha_msg_del(ret); ret=NULL;
 			return(NULL);
 		}
 	}
@@ -435,6 +440,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.26  2002/08/10 02:13:32  alan
+ * Better error logging when ha_msg functions are given bad name/value pairs.
+ *
  * Revision 1.25  2002/07/08 04:14:12  alan
  * Updated comments in the front of various files.
  * Removed Matt's Solaris fix (which seems to be illegal on Linux).
