@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.27 1999/11/09 06:13:02 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.28 1999/11/09 07:34:54 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1416,16 +1416,18 @@ req_our_resources()
 		return(HA_FAIL);
 	}
 
-	clearerr(rkeys);
 
 	for (;;) {
+		errno = 0;
 		if (fgets(buf, MAXLINE, rkeys) == NULL) {
-			if (ferror(rkeys) && errno == EINTR) {
-				/* Ding!  -- our alarm went off... */
-				clearerr(rkeys);
-				continue;
+			if (ferror(rkeys)) {
+				if (errno == EINTR) {
+					/* Ding!  -- our alarm went off... */
+					clearerr(rkeys);
+					continue;
+				}
+				ha_perror("req_our_resources: fgets failure");
 			}
-			ha_perror("req_our_resources: fgets failure");
 			break;
 		}
 
@@ -2148,6 +2150,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.28  1999/11/09 07:34:54  alan
+ * *Correctly* fixed the problem Thomas Hepper reported.
+ *
  * Revision 1.27  1999/11/09 06:13:02  alan
  * Put in Thomas Hepper's bug fix for the alarm occurring when waiting for
  * resources to be listed during initial startup.
