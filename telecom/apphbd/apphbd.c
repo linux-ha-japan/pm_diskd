@@ -743,7 +743,6 @@ init_status(void)
 	if (pid > 0) {
 		fprintf(stderr, "%s is running [pid: %ld]\n"
 		,	cmdname, pid);
-		exit(1);
 		return 0;
 	}
 	if (anypidfile) {
