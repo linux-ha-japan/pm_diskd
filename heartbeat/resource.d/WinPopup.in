@@ -29,6 +29,7 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 [workstationfile] {start|stop|status}"
+  echo "$Id: WinPopup.in,v 1.2 2002/03/14 04:28:51 alan Exp $"
   exit 1
 }
 

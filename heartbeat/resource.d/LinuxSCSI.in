@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LinuxSCSI.in,v 1.2 2002/03/09 13:47:22 alan Exp $
+# $Id: LinuxSCSI.in,v 1.3 2002/03/14 04:28:51 alan Exp $
 # 
 # LinuxSCSI
 #
@@ -79,6 +79,8 @@ usage() {
 	So, Caveat Emptor, and test this feature thoroughly on
 	your kernel and your configuration with real load on the SCSI
 	bus before using it in production!
+
+	$Id: LinuxSCSI.in,v 1.3 2002/03/14 04:28:51 alan Exp $
 	!
   exit 1
 }

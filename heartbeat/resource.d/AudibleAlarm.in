@@ -71,6 +71,7 @@ case "$1" in
 
   *)
 	echo "Usage: $0 {start|stop|restart|status}"
+	echo "$Id: AudibleAlarm.in,v 1.4 2002/03/14 04:28:51 alan Exp $";
 	exit 1
 esac
 

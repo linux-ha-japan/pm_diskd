@@ -29,6 +29,7 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 <email> [subject] {start|stop|status}"
+  echo "$Id: MailTo.in,v 1.5 2002/03/14 04:28:51 alan Exp $"
   exit 1
 }
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.4 2002/02/15 06:53:16 horms Exp $
+# $Id: Filesystem.in,v 1.5 2002/03/14 04:28:51 alan Exp $
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
@@ -78,6 +78,7 @@ cat <<-EOT;
 	<directory> : the mount point for the filesystem
 	<fstype>    : name of the filesystem type. e.g. ext2
 
+	$Id: Filesystem.in,v 1.5 2002/03/14 04:28:51 alan Exp $
 	EOT
 }
 
