@@ -36,9 +36,11 @@
 #include <hb_api_core.h>
 #include <hb_api.h>
 
-#ifdef sun
-#define LOG_PERROR 0x0 /* Solaris' syslog doesn't allow you to log messages
+#ifndef LOG_PERROR
+#define LOG_PERROR 0x0 /* Some syslogs don't allow you to log messages
                         * to stderr as well as to a log facility */
+			* (Solaris, perhaps others)
+			*/
 #endif /* sun */
 
 /*
@@ -52,7 +54,7 @@ void gotsig(int nsig);
 void
 NodeStatus(const char * node, const char * status, void * private)
 {
-	fprintf(stderr, "Status update: Node %s now has status %s\n"
+	syslog(LOG_NOTICE, "Status update: Node %s now has status %s\n"
 	,	node, status);
 }
 
@@ -60,7 +62,7 @@ void
 LinkStatus(const char * node, const char * lnk, const char * status
 ,	void * private)
 {
-	fprintf(stderr, "Link Status update: Link %s/%s now has status %s\n"
+	syslog(LOG_NOTICE, "Link Status update: Link %s/%s now has status %s\n"
 	,	node, lnk, status);
 }
 
@@ -92,20 +94,20 @@ main(int argc, char ** argv)
 	fprintf(stderr, "PID=%ld\n", (long)getpid());
 	fprintf(stderr, "Signing in with heartbeat\n");
 	if (hb->llc_ops->signon(hb, "ping")!= HA_OK) {
-		fprintf(stderr, "Cannot sign on with heartbeat\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot sign on with heartbeat\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(1);
 	}
 
 	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, NULL) !=HA_OK){
-		fprintf(stderr, "Cannot set node status callback\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot set node status callback\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(2);
 	}
 
 	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, NULL)!=HA_OK){
-		fprintf(stderr, "Cannot set if status callback\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot set if status callback\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(3);
 	}
 
@@ -116,41 +118,41 @@ main(int argc, char ** argv)
 #endif
 	fprintf(stderr, "Setting message filter mode\n");
 	if (hb->llc_ops->setfmode(hb, fmask) != HA_OK) {
-		fprintf(stderr, "Cannot set filter mode\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot set filter mode\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(4);
 	}
 
-	fprintf(stderr, "Starting node walk\n");
+	syslog(LOG_INFO, "Starting node walk\n");
 	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
-		fprintf(stderr, "Cannot start node walk\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot start node walk\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(5);
 	}
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
-		fprintf(stderr, "Cluster node: %s: status: %s\n", node
+		syslog(LOG_INFO, "Cluster node: %s: status: %s\n", node
 		,	hb->llc_ops->node_status(hb, node));
 		if (hb->llc_ops->init_ifwalk(hb, node) != HA_OK) {
-			fprintf(stderr, "Cannot start if walk\n");
-			fprintf(stderr, "REASON: %s\n"
+			syslog(LOG_ERR, "Cannot start if walk\n");
+			syslog(LOG_ERR, "REASON: %s\n"
 			,	hb->llc_ops->errmsg(hb));
 			exit(6);
 		}
 		while ((intf = hb->llc_ops->nextif(hb))) {
-			fprintf(stderr, "\tnode %s: intf: %s ifstatus: %s\n"
+			syslog(LOG_ERR, "\tnode %s: intf: %s ifstatus: %s\n"
 			,	node, intf
 			,	hb->llc_ops->if_status(hb, node, intf));
 		}
 		if (hb->llc_ops->end_ifwalk(hb) != HA_OK) {
-			fprintf(stderr, "Cannot end if walk\n");
-			fprintf(stderr, "REASON: %s\n"
+			syslog(LOG_ERR, "Cannot end if walk\n");
+			syslog(LOG_ERR, "REASON: %s\n"
 			,	hb->llc_ops->errmsg(hb));
 			exit(7);
 		}
 	}
 	if (hb->llc_ops->end_nodewalk(hb) != HA_OK) {
-		fprintf(stderr, "Cannot end node walk\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot end node walk\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(8);
 	}
 
@@ -158,24 +160,24 @@ main(int argc, char ** argv)
 	signal(SIGINT, gotsig);
 
 #if 0
-	fprintf(stderr, "Setting message signal\n");
+	syslog(LOG_INFO, "Setting message signal\n");
 	if (hb->llc_ops->setmsgsignal(hb, 0) != HA_OK) {
-		fprintf(stderr, "Cannot set message signal\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot set message signal\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(9);
 	}
 
 #endif
 	pingreq = ha_msg_new(0);
 	ha_msg_add(pingreq, F_TYPE, "ping");
-	fprintf(stderr, "Sleeping...\n");
+	syslog(LOG_INFO, "Sleeping...\n");
 	sleep(5);
 	if (hb->llc_ops->sendclustermsg(hb, pingreq) == HA_OK) {
-		fprintf(stderr, "Sent ping request to cluster\n");
+		syslog(LOG_ERR, "Sent ping request to cluster\n");
 	}else{
-		fprintf(stderr, "PING request FAIL to cluster\n");
+		syslog(LOG_ERR, "PING request FAIL to cluster\n");
 	}
-	fprintf(stderr, "Waiting for messages...\n");
+	syslog(LOG_ERR, "Waiting for messages...\n");
 	errno = 0;
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
 		const char *	type;
@@ -202,11 +204,11 @@ main(int argc, char ** argv)
 			for (count=0; count < 10; ++count) {
 				if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
 				==	HA_OK) {
-					fprintf(stderr
+					syslog(LOG_INFO
 					,	"Sent ping reply(%d) to [%s]\n"
 					,	count, orig);
 				}else{
-					fprintf(stderr, "PING %d FAIL to [%s]\n"
+					syslog(LOG_ERR, "PING %d FAIL to [%s]\n"
 					,	count, orig);
 				}
 			}
@@ -220,14 +222,13 @@ main(int argc, char ** argv)
 		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 	}
 	if (hb->llc_ops->signoff(hb) != HA_OK) {
-		fprintf(stderr, "Cannot sign off from heartbeat.\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot sign off from heartbeat.\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(10);
 	}
 	if (hb->llc_ops->delete(hb) != HA_OK) {
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
-		fprintf(stderr, "Cannot delete API object.\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "Cannot delete API object.\n");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(11);
 	}
 	return 0;
