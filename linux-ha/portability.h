@@ -20,6 +20,13 @@
 #	define SCANSEL_CAST	/* Nothing */
 #endif
 
+#if	__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
+#define G_GNUC_PRINTF( format_idx, arg_idx )	\
+  __attribute__((format (printf, format_idx, arg_idx)))
+#else	/* !__GNUC__ */
+#define G_GNUC_PRINTF( format_idx, arg_idx )
+#endif	/* !__GNUC__ */
+
 #  ifdef HAVE_CONFIG_H
 #	include <config.h>
 

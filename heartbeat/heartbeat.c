@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.149 2001/10/13 22:27:15 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.150 2001/10/22 04:02:29 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -758,7 +758,7 @@ initialize_heartbeat()
 		ha_perror("Cannot get/increment generation number");
 		return(HA_FAIL);
 	}
-	ha_log(LOG_INFO, "Heartbeat generation: %d", config->generation);
+	ha_log(LOG_INFO, "Heartbeat generation: %lu", config->generation);
 
 	if (stat(FIFONAME, &buf) < 0 ||	!S_ISFIFO(buf.st_mode)) {
 		ha_log(LOG_INFO, "Creating FIFO %s.", FIFONAME);
@@ -1346,12 +1346,6 @@ master_status_process(void)
 
 		/* It might be nice to look for exceptions on the API FIFOs */
 		selret = select(ndesc, &inpset, NULL, &exset, NULL);
-		if (DEBUGPKTCONT) {
-			ha_log(LOG_DEBUG
-			,	"select from socket %d"
-			" (readfds: %d, expectionfds: %d) returned %d"
-			,	ndesc, inpset, exset, selret);
-		}
 		if (selret <= 0) {
 			continue;	/* Timeout */
 		}
@@ -3566,17 +3560,17 @@ main(int argc, char * argv[], char * envp[])
 
 		if (init_config(CONFIG_NAME)&&parse_ha_resources(RESOURCE_CFG)){
 			ha_log(LOG_INFO
-			,	"Signalling heartbeat pid %d to reread"
+			,	"Signalling heartbeat pid %ld to reread"
 			" config files", running_hb_pid);
 	
 			if (kill(running_hb_pid, SIGHUP) >= 0) {
 				cleanexit(0);
 			}
-			ha_perror("Unable to send SIGHUP to pid %d"
+			ha_perror("Unable to send SIGHUP to pid %ld"
 			,	running_hb_pid);
 		}else{
 			ha_log(LOG_INFO
-			,	"Config errors: Heartbeat pid %d NOT restarted"
+			,	"Config errors: Heartbeat pid %ld NOT restarted"
 			,	running_hb_pid);
 		}
 		cleanexit(1);
@@ -3744,8 +3738,8 @@ make_daemon(void)
         sigaddset(&oursigset, SIGHUP);
         sigaddset(&oursigset, SIGTERM);
         if (sigprocmask(SIG_UNBLOCK, &oursigset, NULL) < 0) {
-        fprintf(stderr,
-                "%s: could not unblock SIGHUP and SIGTERM signals\n"
+        	fprintf(stderr
+                ,	"%s: could not unblock SIGHUP and SIGTERM signals\n"
                 ,       cmdname);
         }
 
@@ -3895,7 +3889,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 				return(DROPIT);
 			}
 			
-			ha_log(LOG_ERR , "%s: node %s seq %d"
+			ha_log(LOG_ERR , "%s: node %s seq %ld"
 			,	"Irretrievably lost packet"
 			,	thisnode->nodename, nseq);
 			is_lost_packet(thisnode, nseq);
@@ -3928,7 +3922,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	if (gen < t->generation) {
 		ha_log(LOG_DEBUG
 		,	"should_drop_message: attempted replay attack"
-		" [%s]? [curgen = %d]", thisnode->nodename, t->generation);
+		" [%s]? [curgen = %ld]", thisnode->nodename, t->generation);
 		return(DROPIT);
 
 	}else if (is_status) {
@@ -4282,7 +4276,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			firstslot = msgslot -1;
 			foundit=1;
 			if (ANYDEBUG) {
-				ha_log(LOG_INFO, "Retransmitting pkt %d"
+				ha_log(LOG_INFO, "Retransmitting pkt %lu"
 				,	thisseq);
 			}
 			if (DEBUGPKT) {
@@ -4311,7 +4305,7 @@ nak_rexmit(unsigned long seqno, const char * reason)
 	char	sseqno[32];
 
 	sprintf(sseqno, "%lx", seqno);
-	ha_log(LOG_ERR, "Cannot rexmit pkt %d: %s", seqno, reason);
+	ha_log(LOG_ERR, "Cannot rexmit pkt %lu: %s", seqno, reason);
 
 	if ((msg = ha_msg_new(6)) == NULL) {
 		ha_log(LOG_ERR, "no memory for " T_NAKREXMIT);
@@ -4616,6 +4610,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.150  2001/10/22 04:02:29  alan
+ * Put in a patch to check the arguments to ha_log calls...
+ *
  * Revision 1.149  2001/10/13 22:27:15  alan
  * Removed a superfluous signal_all(SIGTERM)
  *
