@@ -11,6 +11,17 @@
 
 const char * ether_ntoa(struct ether_addr *macaddr);
 
+static void
+hwaddr_to_stdout(unsigned char * addr, int len)
+{
+	int	j;
+
+	for (j=0; j < len; ++j) {
+		printf("%02X", (unsigned)addr[j]);
+	}
+	printf("\n");
+}
+
 #ifdef HAVE_LIBNET_1_0_API
 
 int
@@ -41,7 +52,8 @@ main(int argc, char *argv[])
 		libnet_error(LIBNET_ERR_FATAL, errmess2, err_buf);
 	}
 
-	printf("%s\n", ether_ntoa(mac_address));
+	hwaddr_to_stdout((unsigned char *)mac_address->ether_addr_octet
+	,	sizeof(mac_address->ether_addr_octet));
 
 	exit(0);
 }
@@ -76,7 +88,8 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	printf("%s\n", ether_ntoa((struct ether_addr*)mac_address));
+	hwaddr_to_stdout(mac_address->ether_addr_octet
+	,	sizeof(mac_address->ether_addr_octet));
 
 	exit(0);
 }
