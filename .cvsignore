@@ -1,3 +1,6 @@
 *.spec
 heartbeat*.tar.gz
 build-stamp
+configure
+Makefile.in
+Makefile

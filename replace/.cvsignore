@@ -1,5 +1,5 @@
+.deps
+.libs
 Makefile.in
 Makefile
-stonith
-meatclient
 *.la
