@@ -1400,6 +1400,7 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 
 		if ((client = FDclients[fd]) != NULL) {
 			struct ha_msg*	msg;
+			static int		consecutive_failures = 0;
 
 			/* I'm not sure if this is ever happens... */
 			/* But if it does, we're ready for it ;-) */
@@ -1443,11 +1444,17 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 				 */
 				ha_log(LOG_ERR, "No message from pid %d "
 				,	client->pid);
-				ha_log(LOG_ERR, "Removing client pid %d "
-				,	client->pid);
-				api_remove_client(client);
+				++consecutive_failures;
+				if (consecutive_failures >= 10) {
+					ha_log(LOG_ERR
+					,	"Removing client pid %d "
+					,	client->pid);
+					api_remove_client(client);
+					consecutive_failures = 0;
+				}
 				continue;
 			}
+			consecutive_failures = 0;
 
 			/* Process the API request message... */
 			api_heartbeat_monitor(msg, APICALL, "<api>");
