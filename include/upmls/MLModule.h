@@ -317,7 +317,8 @@ typedef struct MLModHandle_s		MLModHandle;
 
 /* The type of a Module Initialization Function */
 typedef ML_rc (*MLModuleInitFun) (MLModule*us
-,		const MLModuleImports* imports);
+,		const MLModuleImports* imports
+,		void*	module_user_data);
 
 /*
  * struct MLModuleOps_s (typedef MLModuleOps) defines the set of functions
@@ -325,9 +326,7 @@ typedef ML_rc (*MLModuleInitFun) (MLModule*us
  */
 struct MLModuleOps_s {
 	const char*	(*moduleversion) (void);
-	const char*	(*modulename)	 (void);
 	int		(*getdebuglevel) (void);
-
 	void		(*setdebuglevel) (int);
 	void		(*close) (MLModule*);
 };
@@ -365,7 +364,8 @@ struct MLModuleImports_s {
 
 	ML_rc	(*unregister_plugin)(void* pluginid);
 	ML_rc	(*load_module)(MLModuleUniv* universe
-	,	const char * moduletype, const char * modulename);
+	,	const char * moduletype, const char * modulename
+	,	void*	module_private);
 
 	void	(*log)	(MLLogLevel priority, const char * fmt, ...);
 					/* Logging function		*/
@@ -391,8 +391,9 @@ void		MLFreeModuleList(char ** modulelist);
 
 /* Load the requested module */
 ML_rc		MLLoadModule(MLModuleUniv* moduniv
-,		const char * moduletype
-,		const char * modulename);
+,		const char *	moduletype
+,		const char *	modulename
+,		void *		mod_private);
 
 void		MLsetdebuglevel(int level);
 
@@ -447,7 +448,7 @@ struct MLModule_s {
 	MLModuleInitFun	dlinitfun;	/* Initialization function */
 	const MLModuleOps* moduleops;	/* Exported module operations */
 
-	void*		ud_module;	/* Data needed by module-common code*/
+	void*		ud_module;	/* Module-Private data */
 	/* Other stuff goes here ...  (?) */
 };
 

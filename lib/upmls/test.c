@@ -11,30 +11,20 @@
 
 #include <upmls/MLPlugin.h>
  
-/*
- *	These functions are standard exported interfaces from all modules.
- */
-static const char*	Ourmoduleversion(void);
-static const char*	Ourmodulename	(void);
-static int		Ourgetdebuglevel(void);
-static void		Oursetdebuglevel(int);
-static void		Ourclose	(MLModule*);
+ML_MODULE_BOILERPLATE("1.0", DebugFlag, Ourclose)
 
-static MLModuleOps OurModExports =
-{	Ourmoduleversion
-,	Ourmodulename
-,	Ourgetdebuglevel
-,	Oursetdebuglevel
-,	Ourclose
-};
+static void
+Ourclose	(MLModule* us)
+{
+}
 
 /*
  *	Places to store information gotten during registration.
  */
-static const MLModuleImports*	OurModImports;	/* Module Imported functions */
-static MLModule*		OurModule;	/* Pointer to our module info */
-static MLPluginImports*		OurPiImports;	/* Plugin imported functions */
-static MLPlugin*		OurPi;		/* Pointer to our plugin info */
+static const MLModuleImports*	OurModImports;	/* Imported module fcns */
+static MLModule*		OurModule;	/* Our module info */
+static MLPluginImports*		OurPiImports;	/* Plugin imported fcns */
+static MLPlugin*		OurPi;		/* Pointer to plugin info */
 
 /*
  *	Our Plugin Manager interfaces - exported to the universe!
@@ -43,18 +33,26 @@ static MLPlugin*		OurPi;		/* Pointer to our plugin info */
  *
  */
 static MLPluginOps		OurPiOps = {
+	/* FIXME -- put some in here !! */
 };
 
-ML_rc ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports);
+ML_rc ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports, void*);
+
 
 ML_rc
-ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports)
+ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports, void *user_ptr)
 {
 	ML_rc		ret;
+	/*
+	 * Trigger some much-appreciated type checking...
+	 */
+	MLModuleInitFun	fun = ML_MODULE_INIT; (void)fun;
+
+
 	OurModImports = imports;
 	OurModule = us;
- 
 
+	imports->log(ML_DEBUG, "%s: user_ptr = %d", (unsigned long)user_ptr);
 	imports->log(ML_DEBUG, "Registering ourselves as a module");
 	/* Register ourself as a module */
 	imports->register_module(us, &OurModExports);
@@ -69,36 +67,7 @@ ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports)
 	,	(const void**)&OurPiImports
 	,	NULL);
 	imports->log(ML_DEBUG, "Returning %d", ret);
+
 	return ret;
-}
-
-static const char*
-Ourmoduleversion	(void)
-{
-	return "1.0";
-}
-
-static const char*
-Ourmodulename	(void)
-{
-	return "foo";
-}
-
-static int debuglevel = 0;
-static int	
-Ourgetdebuglevel(void)
-{
-	return debuglevel;
-}
-
-static void
-Oursetdebuglevel(int level)
-{
-	debuglevel = level;
-}
-
-static void
-Ourclose	(MLModule* us)
-{
 }
 

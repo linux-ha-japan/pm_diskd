@@ -27,7 +27,6 @@ static int	ModuleDebugLevel = 5;
 #define DEBUGMODULE	(ModuleDebugLevel > 0)
 
 static const char * ml_module_version(void);
-static const char * ml_module_name(void);
 
 
 static ML_rc PluginPlugin_module_init(MLModuleUniv* univ);
@@ -138,7 +137,6 @@ static void close_a_plugin
 
 static const MLModuleOps ModExports =
 {	ml_module_version
-,	ml_module_name
 ,	ml_GetDebugLevel
 ,	MLsetdebuglevel
 ,	ml_close
@@ -470,13 +468,6 @@ ml_module_version(void)
 	return("1.0");
 }
 
-/* Return current PiPi "module" name (not very interesting for us) */
-static const char *
-ml_module_name(void)
-{
-	return(PLUGIN_PLUGIN);
-}
-
 /* Return current PiPi debug level */
 static int
 ml_GetDebugLevel(void)
@@ -709,8 +700,7 @@ pipi_register_plugin(MLPluginType* pitype
 	return ret;
 }
 
-/* Unregister a Plugin Plugin */
-/* Unconditionally unregister a plugin plugin */
+/* Unconditionally unregister a plugin manager (Plugin Plugin) */
 static ML_rc
 pipi_unregister_plugin(MLPlugin* plugin)
 {
@@ -886,7 +876,8 @@ MLLog(MLLogLevel priority, const char * format, ...)
  */
 ML_rc
 MLLoadModule(MLModuleUniv* universe, const char * moduletype
-,	const char * modulename)
+,	const char *	modulename
+,	void*		module_user_data)
 {
 	char * ModulePath;
 	char * ModuleSym;
@@ -999,7 +990,9 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 		MLLog(ML_DEBUG, "Calling init function in module %s/%s."
 		,	moduletype, modulename);
 	}
-	initfun(modinfo, universe->imports);
+	/* Save away the user_data for later */
+	modinfo->ud_module = module_user_data;
+	initfun(modinfo, universe->imports, module_user_data);
 
 	return ML_OK;
 }/*MLLoadModule*/
@@ -1050,7 +1043,7 @@ MLRegisterAPlugin(MLModule* modinfo
 	==	NULL) {
 
 		/* Try to autoload the needed plugin handler */
-		(void)MLLoadModule(moduniv, PLUGIN_PLUGIN, plugintype);
+		(void)MLLoadModule(moduniv, PLUGIN_PLUGIN, plugintype, NULL);
 
 		/* See if the plugin handler loaded like we expect */
 		if ((pitype = g_hash_table_lookup(piuniv->pitypes

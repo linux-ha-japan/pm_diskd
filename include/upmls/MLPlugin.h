@@ -34,9 +34,8 @@ typedef struct MLPluginImports_s	MLPluginImports;
 /*
  *	I'm unsure exactly which of the following structures
  *	are needed to write a plugin, or a plugin manager.
- *
+ *	We'll get that figured out and scope the defintions accordingly...
  */
-
 
 /*
  *	MLPlugin (AKA struct MLPlugin_s) holds the information
@@ -44,8 +43,8 @@ typedef struct MLPluginImports_s	MLPluginImports;
  */
 
 struct MLPlugin_s {
-	MLPluginType*		plugintype;
-	char *			pluginname;
+	MLPluginType*		plugintype;	/* Parent pointer */
+	char *			pluginname;	/* malloced plugin name */
 	const void*		exports;	/* Exported Functions	*/
 						/* for this plugin	*/
 	void*			ud_plugin;	/* per-plugin user data */
@@ -56,14 +55,26 @@ struct MLPlugin_s {
  *	we use to track the set of all plugins of a single kind.
  */
 struct MLPluginType_s {
-	GHashTable*		plugins;
+	GHashTable*		plugins;	/* The set of plugins
+						 * of our type.  The 
+						 * "values" are all MLPlugin*
+						 * objects */
 	void*			ud_pi_type;	/* per-plugin-type user data*/
 	MLPluginUniv*		universe;	/* Pointer to parent (up) */
 	MLPlugin*		pipi_ref;	/* Pointer to our plugin
 						   manager */
 };
+
+/*
+ *	MLPluginUniv (AKA struct MLPluginUniv_s) holds the information
+ *	for all plugins of all types.  From our point of view this is
+ *	our universe ;-)
+ */
+
 struct MLPluginUniv_s{
-	GHashTable*		pitypes;	/* containing
+	GHashTable*		pitypes;	/* 
+						 * Set of Pluign Types
+						 * The values are all
 						 * MLPluginType objects
 						 */
 	struct MLModuleUniv_s*	moduniv;	/* parallel universe of
@@ -117,6 +128,44 @@ struct MLPluginOps_s{
 	ML_rc	(*CloseOurPI)(MLPlugin*pipiinfo, MLPlugin* ourpiinfo);
 
 };
+
+/*
+ *      These functions are standard exported interfaces from all modules.
+ */
+#define ML_MODULE_BOILERPLATE(ModuleVersion, DebugName, CloseName) \
+/*                                                              \
+ * Prototypes for boilerplate functions                         \
+ */                                                             \
+static const char*      Ourmoduleversion(void);                 \
+static int              GetOurDebugLevel(void);                 \
+static void             SetOurDebugLevel(int);                  \
+static void             CloseName(MLModule*);                   \
+                                                                \
+/*                                                              \
+ * Initialize Module Exports structure                          \
+ */                                                             \
+static MLModuleOps OurModExports =                              \
+{       Ourmoduleversion                                        \
+,       GetOurDebugLevel                                        \
+,       SetOurDebugLevel                                        \
+,       CloseName                                               \
+};                                                              \
+/*                                                              \
+ * Definitions of boilerplate functions                         \
+ */                                                             \
+static const char*                                              \
+Ourmoduleversion(void)                                          \
+{ return ModuleVersion; }                                       \
+                                                                \
+static int DebugName = 0;                                       \
+                                                                \
+static int                                                      \
+GetOurDebugLevel(void)                                          \
+{ return DebugName; }                                           \
+                                                                \
+static void                                                     \
+SetOurDebugLevel(int level)                                     \
+{ DebugName = level; }
 
 #endif /*ENABLE_PLUGIN_MANAGER_PRIVATE*/
 
