@@ -20,6 +20,7 @@
  *   homepage: http://www.exploits.org/nut/
  */
 
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -59,13 +60,15 @@
 
 #define MAX_DEVICES		1
 
-#define SERIAL_TIMEOUT	        3	// timeout in sec
-#define SEND_DELAY	        50000	// pause in µs
-#define ENDCHAR		        10	// apc use LF
+#define SERIAL_TIMEOUT		3	/* timeout in sec */
+#define SEND_DELAY		50000	/* in µs */
+#define ENDCHAR			10	/* use LF */
 #define MAX_STRING              512
 #define SHUTDOWN_DELAY		"020"
 #define WAKEUP_DELAY		"000"
-#define SWITCH_TO_NEXT_VAL	"-"	// APC cmd for cycling through the values
+#define SWITCH_TO_NEXT_VAL	"-"	/* APC cmd for cycling through
+					 * the values
+					 */
 
 #define CMD_SMART_MODE          "Y"
 #define RSP_SMART_MODE		"SM"
@@ -81,19 +84,19 @@
 #define CR			13
 
 struct APCDevice {
-    const char *APCid;		// id of object
-    char **hostlist;		// hosts served by the device (only 1)
-    int hostcount;		// number of hosts (1)
-    char *upsdev;		// devicename
-    int upsfd;			// fd for serial port
+    const char *APCid;		/* of object				*/
+    char **hostlist;		/* served by the device (only 1)	*/
+    int hostcount;		/* of hosts (1)				*/
+    char *upsdev;		/*					*/
+    int upsfd;			/* for serial port			*/
 };
 
-// saving old settings
+/* saving old settings */
 static struct termios old_tio;
 static char old_shutdown_delay[MAX_STRING];
 static char old_wakeup_delay[MAX_STRING];
 
-static int f_serialtimeout;	// flag for timeout
+static int f_serialtimeout;	/* flag for timeout */
 static const char *APCid = DEVICE;
 static const char *NOTapcID = "destroyed (APCSmart)";
 
@@ -146,7 +149,69 @@ int APC_init( struct APCDevice *ad );
 void APC_deinit( int upsfd );
 
 /*
- * signal handler for serial port timeouts 
+ *
+ * Portable locking (non-blocking)
+ *
+ * This is a candidate for including in a general portability library.
+ */
+
+static int
+file_lock(int fd)
+{
+	int ret;
+
+#ifdef HAVE_FCNTL
+	struct flock l;
+
+	l.l_type = F_WRLCK;
+	l.l_whence = 0;
+	l.l_start = 0;
+	l.l_len = 0;
+
+	ret = fcntl(fd, F_SETLK, &l);
+	return((ret == -1) ? -1 : 0);
+#else
+#  ifdef HAVE_FLOCK
+	ret = flock(fd, LOCK_EX | LOCK_NB);
+	return(ret);
+
+#  else
+#    error "No locking method (flock, fcntl) is available"
+	return(-1);
+#  endif /* HAVE_FLOCK */
+#endif /* HAVE_FCNTL */
+
+}
+
+static int
+file_unlock(int fd)
+{
+	int ret;
+
+#ifdef HAVE_FCNTL
+	struct flock l;
+
+	l.l_type = F_UNLCK;
+	l.l_whence = 0;
+	l.l_start = 0;
+	l.l_len = 0;
+
+	ret = fcntl(fd, F_SETLK, &l);
+	return((ret == -1) ? -1 : 0);
+#else
+#  ifdef HAVE_FLOCK
+	ret = flock(fd, LOCK_UN);
+	return(ret);
+#  else
+#    error "No unlocking method (flock, fcntl) is available"
+	return(-1);
+#  endif /* HAVE_FLOCK */
+#endif /* HAVE_FCNTL */
+
+}
+
+/*
+ * Signal handler for serial port timeouts 
  */
 
 void
@@ -175,7 +240,7 @@ APC_sh_serial_timeout(int sig)
 }
 
 /*
- * open serial port and set it to b2400 
+ * Open serial port and set it to b2400 
  */
 
 int
@@ -213,7 +278,7 @@ APC_open_serialport(const char *port, speed_t speed)
 	return (f_serialtimeout ? S_TIMEOUT : S_OOPS);
     }
 
-    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+    if (file_lock(fd) != 0) {
 
 #ifdef APC_DEBUG
 	syslog(LOG_DEBUG, "%s: 1st lock failed.", __FUNCTION__);
@@ -255,7 +320,7 @@ APC_open_serialport(const char *port, speed_t speed)
 	return (f_serialtimeout ? S_TIMEOUT : S_OOPS);
     }
 
-    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+    if (file_lock(fd) != 0) {
 
 #ifdef APC_DEBUG
 	syslog(LOG_DEBUG, "%s: 2nd lock failed.", __FUNCTION__);
@@ -283,7 +348,7 @@ APC_open_serialport(const char *port, speed_t speed)
 }
 
 /*
- * close serial port and restore old settings 
+ * Close serial port and restore old settings 
  */
 
 void
@@ -294,7 +359,7 @@ APC_close_serialport(int upsfd)
     syslog(LOG_DEBUG, "%s: called.", __FUNCTION__);
 #endif
 
-    flock(upsfd, LOCK_UN);
+    file_unlock(upsfd);
 
     tcflush(upsfd, TCIFLUSH);
     tcsetattr(upsfd, TCSANOW, &old_tio);
@@ -302,7 +367,7 @@ APC_close_serialport(int upsfd)
 }
 
 /*
- * send a command to the ups 
+ * Send a command to the ups 
  */
 
 int
@@ -327,7 +392,7 @@ APC_send_cmd(int upsfd, const char *cmd)
 }
 
 /*
- * get the response from the ups 
+ * Get the response from the ups 
  */
 
 int
@@ -357,7 +422,7 @@ APC_recv_rsp(int upsfd, char *rsp)
 
 	if (read(upsfd, &inp, 1) == 1) {
 
-	    // shutdown sends only a '*' without LF 
+	    /* shutdown sends only a '*' without LF  */
 	    if ((inp == '*') && (num == 0)) {
 		*p++ = inp;
 		num++;
@@ -389,7 +454,7 @@ APC_recv_rsp(int upsfd, char *rsp)
 }
 
 /*
- *  enter smart mode
+ *  Enter smart mode
  */
 
 int
@@ -413,7 +478,7 @@ APC_enter_smartmode(int upsfd)
 }
 
 /* 
- * set a value in the hardware using the <cmdchar> '-' (repeat) approach
+ * Set a value in the hardware using the <cmdchar> '-' (repeat) approach
  */
 
 int
@@ -427,29 +492,29 @@ APC_set_ups_var(int upsfd, const char *cmd, char *newval)
     syslog(LOG_DEBUG, "%s: called.", __FUNCTION__);
 #endif
 
-    if (((rc = APC_enter_smartmode(upsfd)) != S_OK) || \
-	((rc = APC_send_cmd(upsfd, cmd)) != S_OK) || \
+    if (((rc = APC_enter_smartmode(upsfd)) != S_OK) ||
+	((rc = APC_send_cmd(upsfd, cmd)) != S_OK) ||
 	((rc = APC_recv_rsp(upsfd, orig)) != S_OK))
 	return (rc);
 
     if (strcmp(orig, newval) == 0)
-	return (S_OK);		// already set
+	return (S_OK);		/* already set */
 
     *resp = '\0';
 
     while (strcmp(resp, orig) != 0) {
-	if (((rc = APC_send_cmd(upsfd, SWITCH_TO_NEXT_VAL)) != S_OK) || \
+	if (((rc = APC_send_cmd(upsfd, SWITCH_TO_NEXT_VAL)) != S_OK) ||
 	    ((rc = APC_recv_rsp(upsfd, resp)) != S_OK))
 	    return (rc);
 
-	if (((rc = APC_enter_smartmode(upsfd)) != S_OK) || \
-	    ((rc = APC_send_cmd(upsfd, cmd)) != S_OK) || \
+	if (((rc = APC_enter_smartmode(upsfd)) != S_OK) ||
+	    ((rc = APC_send_cmd(upsfd, cmd)) != S_OK) ||
 	    ((rc = APC_recv_rsp(upsfd, resp)) != S_OK))
 	    return (rc);
 
 	if (strcmp(resp, newval) == 0) {
-	    strcpy(newval, orig);	// return the old value
-	    return (S_OK);	// got it
+	    strcpy(newval, orig);	/* return the old value */
+	    return (S_OK);		/* got it */
 	}
     }
 
@@ -459,7 +524,7 @@ APC_set_ups_var(int upsfd, const char *cmd, char *newval)
 }
 
 /*
- * initialize the ups
+ * Initialize the ups
  */
 
 int
@@ -472,18 +537,18 @@ APC_init( struct APCDevice *ad )
   syslog(LOG_DEBUG, "%s: called.", __FUNCTION__);
 #endif
 
-  // if ad->upsfd == -1 -> dev configured!
+  /* if ad->upsfd == -1 -> dev configured! */
   if(ad->upsfd != -1 ) return( S_OK );
 
-  // open serial port and store the fd in ad->upsfd
+  /* open serial port and store the fd in ad->upsfd */
   if ((upsfd = APC_open_serialport(ad->upsdev, B2400)) == -1)
     return (-1);
 
-  // switch into smart mode
+  /* switch into smart mode */
   if(APC_enter_smartmode(upsfd) != S_OK)
     return( -1 );
 
-  // get the old settings and store them               
+  /* get the old settings and store them */
   strcpy(value, SHUTDOWN_DELAY);
   if (APC_set_ups_var(upsfd, CMD_SHUTDOWN_DELAY, value) != S_OK)
     return (-1);  
@@ -502,7 +567,7 @@ APC_init( struct APCDevice *ad )
 }
 
 /*
- * restore original settings and close the port
+ * Restore original settings and close the port
  */
 
 void
@@ -513,12 +578,12 @@ APC_deinit( int upsfd )
       APC_set_ups_var(upsfd, CMD_SHUTDOWN_DELAY, old_shutdown_delay);
       APC_set_ups_var(upsfd, CMD_WAKEUP_DELAY, old_wakeup_delay);
 
-      // close serial port
+      /* close serial port */
       APC_close_serialport(upsfd);
 }
 
 /*
- * parse config
+ * Parse config
  */
 
 int
@@ -592,11 +657,11 @@ st_status(Stonith * s)
 
     rc = APC_init(ad);
 
-    // get status
-    if (((rc = APC_init( ad ) == S_OK) && \
-	((rc = APC_send_cmd(ad->upsfd, CMD_GET_STATUS)) == S_OK) && \
+    /* get status */
+    if (((rc = APC_init( ad ) == S_OK) &&
+	((rc = APC_send_cmd(ad->upsfd, CMD_GET_STATUS)) == S_OK) &&
 	((rc = APC_recv_rsp(ad->upsfd, resp)) == S_OK)))
-	return (S_OK);		// everything ok.
+	return (S_OK);		/* everything ok. */
 
 #ifdef APC_DEBUG
     syslog(LOG_DEBUG, "%s: failed.", __FUNCTION__);
@@ -712,7 +777,7 @@ st_reset(Stonith * s, int request, const char *host)
 
     ad = (struct APCDevice *) s->pinfo;
 
-    // look through the hostlist
+    /* look through the hostlist */
     hl = ad->hostlist;
 
     while (*hl && !b_found ) {
@@ -723,36 +788,36 @@ st_reset(Stonith * s, int request, const char *host)
         ++hl;
     }
 
-    // host not found in hostlist
+    /* host not found in hostlist */
     if( !b_found ) {
       syslog(LOG_ERR, "%s: host '%s' not in hostlist.", __FUNCTION__, host);
 
       return( S_BADHOST );
     }
 
-    // enter smartmode and get status
-    if (((rc = APC_init(ad)) == S_OK) && \
-	((rc = APC_send_cmd(ad->upsfd, CMD_RESET)) == S_OK) && \
-	((rc = APC_recv_rsp(ad->upsfd, resp)) == S_OK) && \
+    /* enter smartmode and get status */
+    if (((rc = APC_init(ad)) == S_OK) &&
+	((rc = APC_send_cmd(ad->upsfd, CMD_RESET)) == S_OK) &&
+	((rc = APC_recv_rsp(ad->upsfd, resp)) == S_OK) &&
 	(strcmp(resp, RSP_RESET) == 0)) {
 
-	// ok, reset is initiated. ups don't accept any cmds until
-	// reboot -> reboot complete if status cmd accepted
-	// we wait max. 30 sec after shutdown
+	/* ok, reset is initiated. ups don't accept any cmds until */
+	/* reboot -> reboot complete if status cmd accepted */
+	/* we wait max. 30 sec after shutdown */
 
 	sleep(atoi(SHUTDOWN_DELAY));
 
-	// ups should be dead now -> wait for rebirth
+	/* ups should be dead now -> wait for rebirth */
 
 	for (i = 0; i < 10; i++) {
-	    if (((rc = APC_send_cmd(ad->upsfd, CMD_GET_STATUS)) == S_OK) && \
+	    if (((rc = APC_send_cmd(ad->upsfd, CMD_GET_STATUS)) == S_OK) &&
 	        ((rc = APC_recv_rsp(ad->upsfd, resp)) == S_OK))
 		return (S_OK);
 	    sleep(1);
 	}
     }
 
-    // reset failed
+    /* reset failed */
     syslog(LOG_ERR, "%s: resetting host '%s' failed.", __FUNCTION__, host);
 
     return (S_RESETFAIL);
