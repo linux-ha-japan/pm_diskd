@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.193 2002/07/26 22:58:12 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.194 2002/07/30 01:30:13 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -4672,6 +4672,7 @@ main(int argc, char * argv[], char * envp[])
 	|	G_LOG_FLAG_RECURSION	| G_LOG_FLAG_FATAL
 
 	,	ha_glib_msg_handler, NULL);
+	g_log_set_always_fatal((GLogLevelFlags)0);
 
 	tmp_cmdname=strdup(argv[0]);
 	if ((cmdname = strrchr(tmp_cmdname, '/')) != NULL) {
@@ -6064,6 +6065,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.194  2002/07/30 01:30:13  alan
+ * The process tracking code had incorrect/invalid
+ * logging levels specified for process tracking.  Depending
+ * on the values of certain system headers it could cause heartbeat
+ * to exit.  It did so quite repeatedly for STONITH processes.
+ *
  * Revision 1.193  2002/07/26 22:58:12  alan
  * Changed the code to write a 'v' to /dev/watchdog before
  * shutting down, so it will know we mean to shut down.
