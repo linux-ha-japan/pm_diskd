@@ -19,11 +19,12 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+#include <portability.h>
+#include <ccm.h>
 #include <stdlib.h>
 #ifdef HAVE_MALLINFO
 #include <malloc.h>
 #endif
-#include <ccm.h>
 
 //
 // Convert a given string to a bitmap.
