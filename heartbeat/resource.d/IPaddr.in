@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.17 2002/03/21 02:03:00 alan Exp $
+#	$Id: IPaddr.in,v 1.18 2002/04/29 07:32:44 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -36,10 +36,11 @@ SYSTYPE="`uname -s`"
 #	The argument is an IP address, and its output
 #	is an aliased interface name (e.g., "eth0:0").
 #
-find_interface() {
+find_interface_solaris() {
 
   ipaddr=$1;
-  $IFCONFIG $IFCONFIG_A_OPT |
+
+  $IFCONFIG $IFCONFIG_A_OPT | nawk '{if ($0 ~ /.*: / && NR > 1) {print "\n"$0} else {print}}' |
   while read ifname linkstuff
   do
     read inet addr junk
@@ -48,6 +49,9 @@ find_interface() {
     do
       : Nothing
     done
+
+    ha_log "$ipaddr $ifname"
+
     case $ifname in
       *:*)	;;
       *)	continue;;
@@ -57,14 +61,67 @@ find_interface() {
     #  It looks like it always selects the first interface on
     #  a machine.  Yet, we appear to use the results for this case too...
     case $SYSTYPE in
-      *BSD|SunOS)
+      *BSD)
 		ha_log $ifname
 		echo `echo "$ifname" | sed s'%:%%'`
 		return 0;;
+      SunOS)
+		ifname=`echo "$ifname" | sed s'%:$%%'`
+		;;
     esac
+
 
     case $addr in
       addr:$ipaddr)	echo $ifname; return 0;;
+      $ipaddr)	echo $ifname; return 0;;
+    esac
+  done
+  return 1
+}
+
+#
+#	Find out which alias serves the given IP address
+#	The argument is an IP address, and its output
+#	is an aliased interface name (e.g., "eth0:0").
+#
+find_interface() {
+
+  ipaddr=$1;
+
+  $IFCONFIG $IFCONFIG_A_OPT  |
+  while read ifname linkstuff
+  do
+    read inet addr junk
+    while
+      read line && [ "X$line" != "X" ]
+    do
+      : Nothing
+    done
+
+    ha_log "$ipaddr $ifname"
+
+    case $ifname in
+      *:*)	;;
+      *)	continue;;
+    esac
+
+    #  This doesn't look right for a box with multiple NICs.
+    #  It looks like it always selects the first interface on
+    #  a machine.  Yet, we appear to use the results for this case too...
+    case $SYSTYPE in
+      *BSD)
+		ha_log $ifname
+		echo `echo "$ifname" | sed s'%:%%'`
+		return 0;;
+      SunOS)
+		ifname=`echo "$ifname" | sed s'%:$%%'`
+		;;
+    esac
+
+
+    case $addr in
+      addr:$ipaddr)	echo $ifname; return 0;;
+      $ipaddr)	echo $ifname; return 0;;
     esac
   done
   return 1
@@ -109,7 +166,15 @@ ifconfig2sendarp() {
 #
 ip_stop() {
   BASEIP=`echo $1 | sed s'%/.*%%'`
-  IF=`find_interface $BASEIP`
+  case $SYSTYPE in
+	SunOS)
+	 	IF=`find_interface_solaris $BASEIP`
+		;;
+	*)
+	 	IF=`find_interface $BASEIP`
+		;;
+  esac
+
   if
     [ -z "$IF" ]
   then
@@ -130,7 +195,10 @@ ip_stop() {
 
 
   case $SYSTYPE in
-	*BSD|SunOS)
+	SunOS)
+			CMD=""
+			;;
+	*BSD)
 			CMD="$ROUTE delete $BASEIP"
 			;;
 
@@ -142,6 +210,15 @@ ip_stop() {
   $CMD
 
   case $SYSTYPE in
+	SunOS)
+			case `uname -r` in
+				5.8)
+					CMD="$IFCONFIG $IF unplumb"
+					;;
+				*)
+					CMD="$IFCONFIG $IF 0";;
+			esac
+			;;
 	*BSD|SunOS)
 			CMD="$IFCONFIG $IF delete $BASEIP";;
 
@@ -198,13 +275,29 @@ find_free_interface() {
 
   NICBASE="$VLDIR/$nicname"
   touch "$NICBASE"
-  IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | grep "^$nicname:[0-9]" | sed 's% .*%%'`
-  IFLIST=" `echo $IFLIST` "
-
-  j=0
 
   case $SYSTYPE in
-	*BSD|SunOS)
+	SunOS)
+		IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | grep "^$nicname:[0-9]" | sed 's%: .*%%'`
+		;;
+	*)
+		IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | grep "^$nicname:[0-9]" | sed 's% .*%%'`
+		;;
+  esac
+
+  IFLIST=" `echo $IFLIST` "
+
+  case $SYSTYPE in
+       SunOS)
+		j=1
+		;;
+	*)
+		j=0
+		;;
+  esac
+
+  case $SYSTYPE in
+	*BSD)
 		echo $nicname;
 		return 0;;
 
@@ -262,7 +355,7 @@ ip_start() {
   #	leaving us with just ethx
   #
   case $SYSTYPE in
-    *BSD|SunOS)
+    *BSD)
 		IFEXTRA=""
 		;;
     *)
@@ -281,7 +374,18 @@ ip_start() {
 #	The remaining code in this function taken from FAKE, by horms
 #
   case $SYSTYPE in
-    *BSD|SunOS)
+    SunOS)
+		case `uname -r` in
+			5.8)
+				$IFCONFIG $IF plumb
+				CMD="$IFCONFIG $IF inet $BASEIP $IFEXTRA up"
+				;;
+			*)
+				CMD="$IFCONFIG $IF inet $BASEIP $IFEXTRA"
+				;;
+		esac
+		;;
+    *BSD)
 		CMD="$IFCONFIG $IF inet $BASEIP netmask 255.255.255.255 alias"
 							;;
     *)		CMD="$IFCONFIG $IF $BASEIP $IFEXTRA"	;;
@@ -319,8 +423,16 @@ ip_start() {
 
   for j in 1 2 3 4 5
   do
-   $SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff \
+   case $SYSTYPE in
+	SunOS)
+		:
+		;;
+	*)	
+	   ha_log "$SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff"
+	   $SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff \
    ||	ha_log "ERROR: Could not send gratuitous arp"
+		;;
+    esac
      sleep 2
   done &
 }
@@ -358,7 +470,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.17 2002/03/21 02:03:00 alan Exp $"
+  echo "$Id: IPaddr.in,v 1.18 2002/04/29 07:32:44 alan Exp $"
 }
 
 #
@@ -405,6 +517,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.18  2002/04/29 07:32:44  alan
+# Solaris extensions/enhancements from Thomas Hepper for Solaris 2.8
+#
 # Revision 1.17  2002/03/21 02:03:00  alan
 # Added locking to the assignment of interfaces in IPaddr.
 #
