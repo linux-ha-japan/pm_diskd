@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.229 2002/10/30 17:15:42 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.230 2002/11/09 16:44:04 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -224,6 +224,8 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.229 2002/10/30 17:15
 #include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
+#include <grp.h>
+#include <pwd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -2014,6 +2016,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 {
 	struct client_child*	centry = childentry;
 	pid_t			pid;
+	struct passwd*		pwent;
 
 	ha_log(LOG_INFO, "Starting child client %s (%d,%d)"
 	,	centry->command, (int) centry->u_runas
@@ -2065,7 +2068,9 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	,	centry->command, (int) centry->u_runas
 	,	(int) centry->g_runas, (int) getpid());
 
-	if (	setgid(centry->g_runas) < 0
+	if (	(pwent = getpwuid(centry->u_runas)) == NULL
+	||	initgroups(pwent->pw_name, centry->g_runas) < 0
+	||	setgid(centry->g_runas) < 0
 	||	setuid(centry->u_runas) < 0
 	||	CL_SIGINTERRUPT(SIGALRM, 0) < 0) {
 
@@ -3909,6 +3914,9 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.230  2002/11/09 16:44:04  alan
+ * Added supplementary groups to the 'respawn'ed clients.
+ *
  * Revision 1.229  2002/10/30 17:15:42  alan
  * Changed shutdown_restart to occur after a little delay when a cluster parition is discovered.
  * Added a little debugging code turned on at the highest levels of debug.
