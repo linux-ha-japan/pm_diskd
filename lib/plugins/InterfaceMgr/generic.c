@@ -42,7 +42,7 @@
 
 #include <stdio.h>
 
-PIL_PLUGIN_BOILERPLATE("1.0", GenDebugFlag, ClosePlugin)
+PIL_PLUGIN_BOILERPLATE("1.0", GenDebugFlag, CloseGeneralPluginManager)
 
 /*
  * Key is interface type, value is a PILGenericIfMgmtRqst.
@@ -224,7 +224,7 @@ AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
 }
 
 static void
-ClosePlugin(PILPlugin* us)
+CloseGeneralPluginManager(PILPlugin* us)
 {
 	int	count;
 	/*
@@ -302,7 +302,7 @@ RegisterGenIF(PILInterface* intf,  void** imports)
 
 	}else{
 		GenPIImports->log(PIL_WARN
-		,	"UnregisterGenIF: interface type %s not found"
+		,	"RegisterGenIF: interface type %s not found"
 		,	intf->interfacename);
 	}
 	return PIL_INVAL;
@@ -343,7 +343,7 @@ UnregisterGenIF(PILInterface*intf)
 				,	PIL_PLUGIN_S
 				,	ifinfo->callback);
 			}
-			ifinfo->callback(PIL_REGISTER
+			ifinfo->callback(PIL_UNREGISTER
 			,	t->universe->piuniv, intf->interfacename
 			,	t->typename, ifinfo->userptr);
 		}
@@ -355,6 +355,7 @@ UnregisterGenIF(PILInterface*intf)
 		GenPIImports->log(PIL_WARN
 		,	"UnregisterGenIF: interface type %s not found"
 		,	intf->interfacename);
+		return PIL_INVAL;
 	}
 	return PIL_OK;
 }
@@ -373,6 +374,8 @@ CloseGenInterfaceManager(PILInterface*intf, void* info)
 		g_hash_table_remove(MasterTable, key);
 		g_hash_table_destroy((GHashTable*)data);
 		g_free(key);
+	}else{
+		g_assert_not_reached();
 	}
 	return PIL_OK;
 }
