@@ -71,6 +71,8 @@ doatest(void)
 	int	j;
 	int	rc;
 
+	
+	fprintf(stderr, "Sleep 5 (%ld)\n", (long)(getpid()));
 	sleep(5);
 	fprintf(stderr, "Client starting - pid: %ld\n", (long) getpid());
 	rc = apphb_register("test program");

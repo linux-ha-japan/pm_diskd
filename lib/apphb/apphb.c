@@ -111,6 +111,8 @@ apphb_register(const char * appname)
 	strncpy(msg.msgtype, REGISTER, sizeof(msg.msgtype));
 	strncpy(msg.appname, appname, sizeof(msg.appname));
 	msg.pid = getpid();
+	msg.uid = getuid();
+	msg.gid = getgid();
 
 	Msg.msg_body = &msg;
 	Msg.msg_len = sizeof(msg);

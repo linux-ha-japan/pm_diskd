@@ -366,6 +366,9 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 {
 	struct apphb_signupmsg*	msg = Msg;
 	int			namelen = -1;
+	uid_t		uidlist[1];
+	gid_t		gidlist[1];
+	IPC_Auth*	clientauth;
 
 	if (client->appname) {
 		return EEXIST;
@@ -377,11 +380,22 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 		return EINVAL;
 	}
 
-	if (msg->pid < 2 || (kill(msg->pid, 0) < 0 && errno != EPERM)) {
+	if (msg->pid < 2 || (kill(msg->pid, 0) < 0 && errno != EPERM)
+	||	(client->ch->farside_pid != msg->pid)) {
 		return EINVAL;
 	}
 
 	client->pid = msg->pid;
+
+	/* Make sure client is who they claim to be... */
+	uidlist[0] = msg->uid;
+	gidlist[0] = msg->gid;
+	clientauth = ipc_set_auth(uidlist, gidlist, 1, 1);
+	if (client->ch->ops->verify_auth(client->ch, clientauth) != IPC_OK) {
+		ipc_destroy_auth(clientauth);
+		return EINVAL;
+	}
+	ipc_destroy_auth(clientauth);
 	client->appname = g_strdup(msg->appname);
 	return 0;
 }
