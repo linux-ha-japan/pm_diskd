@@ -80,7 +80,7 @@ send_message(ccm_client_t *ccm_client, ccm_ipc_t *msg)
 	while(ipc_client->ops->send(ipc_client, &(msg->ipcmsg)) 
 			== IPC_FAIL){
 		cl_log(LOG_WARNING, "ipc channel blocked");
-		sleep(1);
+		cl_shortsleep();
 	}
 	return;
 }
@@ -90,10 +90,12 @@ send_func(gpointer key, gpointer value, gpointer user_data)
 {
 	ccm_client_t  	   *ccm_client = (ccm_client_t *)value;
 
-	if(evicted_flag){
+	if(evicted_flag) {
 		/*send evicted message*/
-		send_message(ccm_client, ipc_misc_message);
-		ccm_client->ccm_flags = CL_INIT;
+		if(ccm_client->ccm_flags == CL_MEM) {
+			send_message(ccm_client, ipc_misc_message);
+			ccm_client->ccm_flags = CL_INIT;
+		}
 		return;
 	}
 
@@ -203,8 +205,8 @@ flush_func(gpointer key, gpointer value, gpointer user_data)
 	struct IPC_CHANNEL *ipc_client = (struct IPC_CHANNEL *)key;
 	while(ipc_client->ops->is_sending_blocked(ipc_client)) {
 		cl_log(LOG_WARNING, "ipc channel blocked");
-		sleep(1);
-		ipc_client->ops->resume_io(ipc_client);
+		cl_shortsleep();
+		if(ipc_client->ops->resume_io(ipc_client) == IPC_BROKEN) break;
 	}
 }
 
@@ -348,6 +350,9 @@ client_new_mbrship(int n,  int trans, int *member,
 	ipc_born_message->count++;
 	
 	send_all();
+	if(global_verbose) {
+		cl_log(LOG_DEBUG, "membership state: new membership");
+	}
 }
 
 

@@ -3277,7 +3277,7 @@ ccm_handle_shutdone(ccm_info_t *info,
 static int
 ccm_control_process(ccm_info_t *info, ll_cluster_t * hb)
 {
-	struct ha_msg *reply;
+	struct ha_msg *reply, *newreply;
 	const char *type;
 	enum ccm_type ccm_msg_type;
 	const char *orig=NULL;
@@ -3293,19 +3293,23 @@ ccm_control_process(ccm_info_t *info, ll_cluster_t * hb)
 		status = ha_msg_value(reply, F_STATUS);
 		if(strncmp(type, T_APICLISTAT, TYPESTRSIZE) == 0){
 			/* handle ccm status of on other nodes of the cluster */
-			ha_msg_del(reply);
-		       	if((reply = ccm_handle_hbapiclstat(info, orig, status)) 
-					== NULL) {
+		       	if((newreply = ccm_handle_hbapiclstat(info, orig, 
+				status)) == NULL) {
+				ha_msg_del(reply);
 				return 0;
 			}
+			ha_msg_del(reply);
+			reply = newreply;
 		} else if((strncmp(type, T_SHUTDONE, TYPESTRSIZE)) == 0) {
 			/* handle heartbeat shutdown message */
 			cl_log(LOG_DEBUG, "received shutdown orig=%s", orig);
-			ha_msg_del(reply);
-		       	if((reply = ccm_handle_shutdone(info, orig, status)) 
+		       	if((newreply = ccm_handle_shutdone(info, orig, status)) 
 					== NULL) {
+				ha_msg_del(reply);
 				return 1;
 			}
+			ha_msg_del(reply);
+			reply = newreply;
 		} else if((strcasecmp(type, T_STATUS) == 0
 			        || strcasecmp(type, T_NS_STATUS) == 0)) {
 			/* process only messages indicating heartbeat on some */

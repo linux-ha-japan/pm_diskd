@@ -43,6 +43,7 @@
 #include <ipc.h>
 #include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/GSource.h>
+#include <clplumbing/realtime.h>
 #include <base64.h>
 
 #include <ha_config.h>

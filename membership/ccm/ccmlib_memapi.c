@@ -145,6 +145,19 @@ init_bornon(mbr_private_t *private,
 }
 
 
+static void
+reset_bornon(mbr_private_t *private)
+{
+	g_hash_table_destroy(private->bornon);
+	private->bornon = NULL;
+}
+
+static void
+reset_llm(mbr_private_t *private)
+{
+	g_free(private->llm);
+	private->llm = NULL;
+}
 
 static int
 init_llmborn(mbr_private_t *private)
@@ -436,6 +449,14 @@ mem_handle_event(class_t *class)
 		}
 
 		if(ret!=IPC_OK){
+			/* FIXIT. setting it to CCM_EVICTED is not
+			 * correct. However the draft api says nothing
+			 * about this case.
+			 * Proposal:
+			 * Set something like  CCM_LOST_SERVICE here
+			 * and return OC_EV_MS_LOST_SERVICE to the
+			 * client
+			 */
 			type = CCM_EVICTED;
 		} else {
 			type = ((ccm_meminfo_t *)msg->msg_body)->ev;
@@ -564,6 +585,16 @@ mem_handle_event(class_t *class)
 		} else {
 			return FALSE;
 		}
+
+		if(type == CCM_EVICTED) {
+			/* clean up the dynamic information in the 
+			 * private structure 
+			 */
+			reset_llm(private);
+			reset_bornon(private);
+			cookie_unref(private->cookie);
+			private->cookie = NULL;
+ 		}
 	}
 	return TRUE;
 }
