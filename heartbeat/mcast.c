@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.6 2001/05/18 05:59:16 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.7 2001/05/18 15:03:19 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -568,14 +568,29 @@ new_mcast_private(const char *ifn, const char *mcast, u_short port,
 	}
 	strcpy(mcp->interface, ifn);
 
-	/* set up multicast address */
+	/* Set up multicast address */
+
+#ifdef HAVE_INET_ATON
+	/* The proper "modern" function to use is inet_aton */
+
+	if (inet_aton(mcast, &mcp->mcast) == -1) {
+		ha_free(mcp->interface);
+		ha_free(mcp);
+		return NULL;
+	}
+#else
+	/* Oh Well... Fall back to the obsolescent inet_addr function */
+#	ifndef INADDR_NONE
+#		define	INADDR_NONE	((unsigned long int)-1L)
+#	endif
+
 	if ((mcp->mcast.s_addr = inet_addr(mcast)) == INADDR_NONE) {
 		ha_free(mcp->interface);
 		ha_free(mcp);
 		return NULL;
 	}
+#endif /* HAVE_INET_ATON */
 
-	
 	memset(&mcp->addr, 0, sizeof(mcp->addr));	/* zero the struct */
 	mcp->addr.sin_family = AF_INET;		/* host byte order */
 	mcp->addr.sin_port = htons(port);	/* short, network byte order */
@@ -762,6 +777,10 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.7  2001/05/18 15:03:19  alan
+ * Fixed a problem with a missing INADDR_NONE macro, and put back
+ * the inet_aton() call for platforms that have that capability.
+ *
  * Revision 1.6  2001/05/18 05:59:16  alan
  * Put in the latest portability and other fixes from Chris Wright, and reformatted
  * the code so that function names always start on the beginning of a line.
