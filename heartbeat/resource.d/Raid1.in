@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Raid1.in,v 1.1 2001/06/28 12:16:44 alan Exp $
+# $Id: Raid1.in,v 1.2 2001/06/28 20:35:00 alan Exp $
 # 
 # Raid1
 #      Description: Manages a software Raid1 device on a shared storage medium.
@@ -84,7 +84,9 @@
 
 LC_ALL=en; export LC_ALL 
 
-. HB_SYSCONFDIR/ha.d/shellfuncs
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+. @sysconfdir@/ha.d/shellfuncs
 
 
 # Utilities used by this script

@@ -4,7 +4,9 @@
 #	More than that and you need to vote, or something...
 #
 #
-. HB_SYSCONFDIR/ha.d/shellfuncs
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+. @sysconfdir@/ha.d/shellfuncs
 
 : Now running $0: $*
 

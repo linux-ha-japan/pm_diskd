@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager.in,v 1.1 2001/06/28 12:16:44 alan Exp $
+#	$Id: ResourceManager.in,v 1.2 2001/06/28 20:35:00 alan Exp $
 #
 #	New haresources format:
 #
@@ -35,10 +35,12 @@
 : 
 : ==================== Starting ResourceManager $* ==========================
 trap ': exiting $0; exit' 0
-HA_DIR=HB_SYSCONFDIR/ha.d
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+HA_DIR=@sysconfdir@/ha.d
 HA_FUNCS=$HA_DIR/shellfuncs
 export HA_DIR HA_FUNCS
-INITD=HB_SYSCONFDIR/rc.d/init.d
+INITD=@sysconfdir@/rc.d/init.d
 USAGE="usage: $0 listkeys machine | takegroup key | givegroup key|status resource";
 . $HA_FUNCS
 
@@ -317,10 +319,13 @@ esac
 
 #
 #	$Log: ResourceManager.in,v $
+#	Revision 1.2  2001/06/28 20:35:00  alan
+#	Patch from Juri to install our scripts with paths patched appropriately.
+#
 #	Revision 1.1  2001/06/28 12:16:44  alan
 #	Committed the *rest* of Juri Haberland's script patch that I thought I
 #	had already applied :-(.
-#
+#	
 #	Revision 1.10  2001/02/07 07:10:21  alan
 #	Added code to verify that all resources are idle when starting heartbeat.
 #	

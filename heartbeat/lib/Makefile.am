@@ -22,16 +22,4 @@ MAINTAINERCLEANFILES    = Makefile.in
 # subpath for internal bins and scripts
 halibdir		= "$(libdir)/@HEARTBEATPKG@"
 
-halib_PROGRAMS		= mach_down req_resource ResourceManager
-
-mach_down: mach_down.in
-	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' < $< > $@
-	chmod +x $@
-
-ResourceManager: ResourceManager.in
-	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' < $< > $@
-	chmod +x $@
-
-req_resource: req_resource.in
-	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' < $< > $@
-	chmod +x $@
+halib_SCRIPTS		= mach_down req_resource ResourceManager

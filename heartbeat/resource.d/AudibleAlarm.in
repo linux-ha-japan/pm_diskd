@@ -11,12 +11,14 @@
 #
 # Licence: GPL
 
-PIDFILE=HB_LOCALSTATEDIR/run/heartbeat-bell
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+PIDFILE=@localstatedir@/run/heartbeat-bell
 #For testing
 #PIDFILE=/tmp/heartbeat-bell
 
 # Source function library.
-. HB_SYSCONFDIR/ha.d/shellfuncs
+. @sysconfdir@/ha.d/shellfuncs
 
 audiablealarm_start () {
 	ha_log "info: $0: Starting"

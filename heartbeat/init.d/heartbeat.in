@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.1 2001/06/28 14:21:40 alan Exp $
+#	$Id: heartbeat.in,v 1.2 2001/06/28 20:35:00 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -41,7 +41,9 @@ then
   rc_skipped="Skipped."
 fi
 
-HA_DIR=HB_SYSCONFDIR/ha.d; export HA_DIR
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+HA_DIR=@sysconfdir@/ha.d; export HA_DIR
 CONFIG=$HA_DIR/ha.cf
 . $HA_DIR/shellfuncs
 
@@ -184,7 +186,7 @@ StartHA() {
     #	Create /dev/watchdog and load module if we should
     init_watchdog
   fi
-  rm -f HB_LOCALSTATEDIR/run/ppp.d/*
+  rm -f @localstatedir@/run/ppp.d/*
   if
     [  -f $HA_DIR/ipresources -a ! -f $HA_DIR/haresources ]
   then
@@ -288,6 +290,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.2  2001/06/28 20:35:00  alan
+#  Patch from Juri to install our scripts with paths patched appropriately.
+#
 #  Revision 1.1  2001/06/28 14:21:40  alan
 #  Added heartbeat.in and removed 2 Makefile.in's as per Juri Haberland
 #  Ypdated .cvsignore files...

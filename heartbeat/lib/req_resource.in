@@ -11,7 +11,9 @@
 #
 
 # set -x
-HA_DIR=HB_SYSCONFDIR/ha.d; export HA_DIR
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+HA_DIR=@sysconfdir@/ha.d; export HA_DIR
 . $HA_DIR/shellfuncs
 
 # To comply with the new failback stuff the timeout was reduced to 10s.

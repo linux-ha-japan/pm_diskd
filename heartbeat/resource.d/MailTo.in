@@ -20,7 +20,9 @@
 ARGS="$0 $*"
 
 # Source function library.
-. HB_SYSCONFDIR/ha.d/shellfuncs
+prefix=$(prefix)
+exec_prefix=$(prefix)
+. @sysconfdir@/ha.d/shellfuncs
 
 us=`uname -n`
 

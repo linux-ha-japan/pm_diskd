@@ -1,14 +1,17 @@
 #
 #	Set these variables if they're not already set...
 #
-: ${HA_DIR=HB_SYSCONFDIR/ha.d}
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+: ${HA_DIR=@sysconfdir@/ha.d}
 : ${HA_RCDIR=$HA_DIR/rc.d}
 : ${HA_CF=$HA_DIR/ha.cf}
-: ${HA_FIFO=HB_LOCALSTATEDIR/run/heartbeat-fifo}
-: ${HA_BIN=HB_LIBDIR/heartbeat}
+: ${HA_FIFO=@localstatedir@/run/heartbeat-fifo}
+: ${HA_BIN=@libdir@/heartbeat}
 : ${HA_DATEFMT="%Y/%m/%d_%T "}
 : ${HA_RESOURCEDIR=$HA_DIR/resource.d}
-: ${HA_DOCDIR=HB_DATADIR/doc/heartbeat}
+: ${HA_DOCDIR=@datadir@/doc/heartbeat}
 : ${HA_LOGTAG=heartbeat}
 
 export HA_DIR HA_RCDIR HA_FIFO HA_BIN 

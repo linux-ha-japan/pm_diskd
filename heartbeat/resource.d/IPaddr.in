@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.1 2001/06/28 12:16:44 alan Exp $
+#	$Id: IPaddr.in,v 1.2 2001/06/28 20:35:00 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -16,7 +16,9 @@
 
 LC_ALL=en; export LC_ALL # Make ifconfig work in France for David Jules :-)
 
-. HB_SYSCONFDIR/ha.d/shellfuncs
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+. @sysconfdir@/ha.d/shellfuncs
 
 IFCONFIG=/sbin/ifconfig
 ROUTE=/sbin/route
@@ -270,6 +272,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.2  2001/06/28 20:35:00  alan
+# Patch from Juri to install our scripts with paths patched appropriately.
+#
 # Revision 1.1  2001/06/28 12:16:44  alan
 # Committed the *rest* of Juri Haberland's script patch that I thought I
 # had already applied :-(.

@@ -119,19 +119,11 @@ crc_la_SOURCES		= crc.c
 crc_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 ## SCRIPTS/DATA
-ha_DATA			= README.config
+ha_DATA			= shellfuncs README.config
 ha_SCRIPTS		= harc
-ha_PROGRAMS		= shellfuncs
 
 
 ## additional Makefile targets
-shellfuncs: shellfuncs.in
-	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' \
-	-e 's%HB_LOCALSTATEDIR%$(localstatedir)%' \
-	-e 's%HB_DATADIR%$(datadir)%' \
-	-e 's%HB_LIBDIR%$(libdir)%' < $< > $@
-	chmod +x $@
-
 # additional installations not covered normally
 install-exec-local:
 	$(mkinstalldirs) $(DESTDIR)$(havarrundir)
