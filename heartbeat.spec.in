@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.53 2003/02/17 21:09:16 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.54 2003/02/19 17:37:20 alan Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -30,7 +30,7 @@ Summary: Provides a general plugin and interface loading library
 Group: Utilities
 
 %description
-@HB_PKG@ is a basic heartbeat subsystem for Linux-HA.
+@HB_PKG@ is a basic high-availability subsystem for Linux-HA.
 It will run scripts at initialization, and when machines go up or down.
 This version will also perform IP address takeover using gratuitous ARPs.
 It works correctly for a 2-node configuration, and is extensible to larger
