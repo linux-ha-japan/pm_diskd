@@ -682,7 +682,7 @@ oc_ev_memb_class(oc_ev_callback_t  *fn)
 
 	if (!memclass) return NULL;
 
-	private = (mbr_private_t *)g_malloc(sizeof(mbr_private_t));
+	private = (mbr_private_t *)g_malloc0(sizeof(mbr_private_t));
 	if (!private) {
 		g_free(memclass);
 		return NULL;
