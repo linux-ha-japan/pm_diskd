@@ -97,10 +97,10 @@ struct apphb_client {
 	guint			sourceid;	/* message source id */
 	long			timerms;	/* heartbeat timeout in ms */
 	gboolean		missinghb;	/* True if missing a hb */
-	struct OCF_IPC_CHANNEL*	ch;		/* client comm channel */
+	struct IPC_CHANNEL*	ch;		/* client comm channel */
 	GPollFD*		ifd;		/* ifd for poll */
 	GPollFD*		ofd;		/* ofd for poll */
-	struct OCF_IPC_MESSAGE	rcmsg;		/* return code msg */
+	struct IPC_MESSAGE	rcmsg;		/* return code msg */
 	struct apphb_rc		rc;		/* last return code */
 	gboolean		deleteme;	/* Delete after next call */
 };
@@ -123,7 +123,7 @@ static int init_restart(void);
 void apphb_client_remove(apphb_client_t* client);
 static void apphb_putrc(apphb_client_t* client, int rc);
 static gboolean	apphb_timer_popped(gpointer data);
-static apphb_client_t* apphb_client_new(struct OCF_IPC_CHANNEL* ch);
+static apphb_client_t* apphb_client_new(struct IPC_CHANNEL* ch);
 static int apphb_client_register(apphb_client_t* client, void* Msg, int len);
 static void apphb_read_msg(apphb_client_t* client);
 static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
@@ -236,7 +236,7 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 
 /* Create new client (we don't know appname or pid yet) */
 static apphb_client_t*
-apphb_client_new(struct OCF_IPC_CHANNEL* ch)
+apphb_client_new(struct IPC_CHANNEL* ch)
 {
 	apphb_client_t*	ret;
 
@@ -403,7 +403,7 @@ apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
 static void
 apphb_read_msg(apphb_client_t* client)
 {
-	struct OCF_IPC_MESSAGE*	msg = NULL;
+	struct IPC_MESSAGE*	msg = NULL;
 	
 	switch (client->ch->ops->recv(client->ch, &msg)) {
 
@@ -505,8 +505,8 @@ apphb_new_check(gpointer Src, GTimeVal*now, gpointer user)
 static gboolean
 apphb_new_dispatch(gpointer Src, GTimeVal*now, gpointer user)
 {
-	struct OCF_IPC_WAIT_CONNECTION*		conn = user;
-	struct OCF_IPC_CHANNEL*			newchan;
+	struct IPC_WAIT_CONNECTION*		conn = user;
+	struct IPC_CHANNEL*			newchan;
 
 	newchan = conn->ops->accept_connection(conn, NULL);
 	if (newchan != NULL) {
@@ -592,7 +592,7 @@ init_start(void)
 	char		path[] = PATH_ATTR;
 	char		commpath[] = APPHBSOCKPATH;
 
-	struct OCF_IPC_WAIT_CONNECTION*	wconn;
+	struct IPC_WAIT_CONNECTION*	wconn;
 	GHashTable*	wconnattrs;
 
 	int		wcfd;
