@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.16 2000/07/26 05:17:19 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.17 2000/07/31 03:39:40 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -379,6 +379,7 @@ parse_config(const char * cfgfile, char *nodename)
 			struct link *lnk = &config->nodes[i].links[j];
 			lnk->name = sysmedia[j]->name;
 			lnk->lastupdate = cticks;
+			strcpy(lnk->status, DEADSTATUS);
 		}
 	}
 

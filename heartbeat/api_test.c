@@ -41,9 +41,8 @@
  *		match.
  *
  *	You can validate "root" permissions for "sniffing" in a similar way
- *		if you want to.  On the other hand, sniffing these is
- *		no worse than sniffing the ethernet, which you already
- *		assume might happen...
+ *		On the other hand, sniffing these is no worse than sniffing
+ *		the ethernet, which you already assume might happen...
  *
  */
 
@@ -99,6 +98,7 @@ typedef struct llc_private {
 	struct MsgQueue *	firstQdmsg;
 	struct MsgQueue *	lastQdmsg;
 	int			SignedOn;
+	int			iscasual;
 	struct stringlist*	nextnode;
 	struct stringlist*	nextif;
 }llc_private_t;
@@ -244,6 +244,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		OurClientID = OurPid;
 		iscasual = 1;
 	}
+	pi->iscasual = iscasual;
 	directory = (iscasual ? CASUALCLIENTDIR : NAMEDCLIENTDIR);
 
 	snprintf(pi->ReplyFIFOName, sizeof(pi->ReplyFIFOName)
@@ -1390,6 +1391,12 @@ sendclustermsg(ll_cluster_t* lcl, struct ha_msg* msg)
 		ha_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
+	if (pi->iscasual) {
+		ha_log(LOG_ERR, "sendclustermsg: casual client");
+		return HA_FAIL;
+	}
+
+		return HA_FAIL;
 	return(msg2stream(msg, pi->MsgFIFO));
 }
 
@@ -1409,6 +1416,10 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 	pi = (llc_private_t*)lcl->ll_cluster_private;
 	if (!pi->SignedOn) {
 		ha_log(LOG_ERR, "not signed on");
+		return HA_FAIL;
+	}
+	if (pi->iscasual) {
+		ha_log(LOG_ERR, "sendnodemsg: casual client");
 		return HA_FAIL;
 	}
 	if (ha_msg_mod(msg, F_TO, nodename) != HA_OK) {

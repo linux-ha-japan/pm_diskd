@@ -85,7 +85,6 @@
 #endif
 
 void api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface);
-void api_process_request(struct ha_msg *msg);
 void api_process_registration(struct ha_msg *msg);
 void process_api_msgs(fd_set* inputs, fd_set* exceptions);
 int  compute_msp_fdset(fd_set* set, int fd1, int fd2);

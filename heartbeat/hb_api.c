@@ -46,6 +46,7 @@ int		debug_client_count = 0;
 int		total_client_count = 0;
 client_proc_t*	client_list = NULL;
 
+void api_process_request(client_proc_t* client, struct ha_msg *msg);
 static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
 static void api_remove_client(client_proc_t* client);
 static void api_add_client(struct ha_msg* msg);
@@ -128,7 +129,7 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
  * Process an API request message...
  */
 void
-api_process_request(struct ha_msg * msg)
+api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 {
 	const char *	msgtype;
 	const char *	reqtype;
@@ -136,11 +137,42 @@ api_process_request(struct ha_msg * msg)
 	const char *	pid;
 	client_proc_t*	client;
 	struct ha_msg *	resp = NULL;
+	const char *	failreason = NULL;
 
-	if (msg == NULL
-	||	(msgtype = ha_msg_value(msg, F_TYPE)) == NULL
-	||	(reqtype = ha_msg_value(msg, F_APIREQ)) == NULL
-	||	strcmp(msgtype, T_APIREQ) != 0)  {
+	if (msg == NULL || (msgtype = ha_msg_value(msg, F_TYPE)) == NULL) {
+		ha_log(LOG_ERR, "api_process_request: bad message type");
+		return;
+	}
+
+	/* Things that aren't T_APIREQ are general packet xmit requests... */
+	if (strcmp(msgtype, T_APIREQ) != 0) {
+		if (fromclient->iscasual) {
+			ha_log(LOG_ERR, "api_process_request: "
+			"general message from casual client!");
+			/* Bad Client! */
+			api_remove_client(client);
+			return;
+		}
+		if (ha_msg_mod(msg, F_FROMID, fromclient->client_id) != HA_OK) {
+			ha_log(LOG_ERR, "api_process_request: "
+			"cannot add F_FROMID field");
+			return;
+		}
+		/* Is this too restrictive? */
+		if (ha_msg_mod(msg, F_TOID, fromclient->client_id) != HA_OK) {
+			ha_log(LOG_ERR, "api_process_request: "
+			"cannot add F_TOID field");
+			return;
+		}
+		if (send_cluster_msg(msg) != HA_OK) {
+			ha_log(LOG_ERR, "api_process_request: "
+			"cannot forward message to cluster");
+		}
+		return;
+	}
+
+	if (strcmp(msgtype, T_APIREQ) != 0
+	||	(reqtype = ha_msg_value(msg, F_APIREQ)) == NULL) {
 		ha_log(LOG_ERR, "api_process_request: bad message");
 		return;
 	}
@@ -172,6 +204,10 @@ api_process_request(struct ha_msg * msg)
 		ha_log(LOG_ERR, "api_process_request: msg from non-client");
 		return;
 	}
+	if (client != fromclient) {
+		ha_log(LOG_ERR, "Client mismatch! (impersonation?)");
+		return;
+	}
 
 	/* See if this client is (still) properly secured */
 
@@ -197,11 +233,17 @@ api_process_request(struct ha_msg * msg)
 		if ((cfmask = ha_msg_value(msg, F_FILTERMASK)) == NULL
 		||	(sscanf(cfmask, "%x", &mask) != 1)
 		||	(mask&ALLTREATMENTS) == 0) {
+			failreason = "EINVAL";
 			goto bad_req;
 		}
 
 		if ((client->desired_types  & DEBUGTREATMENTS)== 0
 		&&	(mask&DEBUGTREATMENTS) != 0) {
+			/* Only allowed to root and to our uid */
+			if (client->uid != 0 && client->uid != getuid()) {
+				failreason = "EPERM";
+				goto bad_req;
+			}
 			++debug_client_count;
 		}else if ((client->desired_types & DEBUGTREATMENTS) != 0
 		&&	(mask & DEBUGTREATMENTS) == 0) {
@@ -232,6 +274,7 @@ api_process_request(struct ha_msg * msg)
 		if (oursig < 0 || oursig == SIGKILL || oursig == SIGSTOP
 		||	oursig >= 32) {
 			/* These can't be caught (or is a bad signal). */
+			failreason = "EINVAL";
 			goto bad_req;
 		}
 
@@ -284,6 +327,7 @@ api_process_request(struct ha_msg * msg)
 
 		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
 		|| (node = lookup_node(cnode)) == NULL) {
+			failreason = "EINVAL";
 			goto bad_req;
 		}
 		if (ha_msg_add(resp, F_STATUS, node->status) != HA_OK) {
@@ -314,6 +358,7 @@ api_process_request(struct ha_msg * msg)
 
 		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
 		|| (node = lookup_node(cnode)) == NULL) {
+			failreason = "EINVAL";
 			goto bad_req;
 		}
 
@@ -358,11 +403,16 @@ api_process_request(struct ha_msg * msg)
 		||	(node = lookup_node(cnode)) == NULL
 		||	(ciface = ha_msg_value(msg, F_IFNAME)) == NULL
 		||	(iface = lookup_iface(node, ciface)) == NULL) {
+			failreason = "EINVAL";
 			goto bad_req;
 		}
-		if (ha_msg_add(resp, F_STATUS,	iface->status) != HA_OK) {
+		if (ha_msg_mod(resp, F_STATUS,	iface->status) != HA_OK) {
 			ha_log(LOG_ERR
 			,	"api_process_request: cannot add field/9");
+			ha_log_message(resp);
+			ha_log(LOG_ERR
+			,	"name: %s, value: %s (if=%s)"
+			,	F_STATUS, iface->status, ciface);
 			ha_msg_del(resp); resp=NULL;
 			return;
 		}
@@ -389,6 +439,12 @@ bad_req:
 		ha_msg_del(resp);
 		resp=NULL;
 		return;
+	}
+	if (failreason) {
+		if (ha_msg_add(resp, F_COMMENT,	failreason) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add failreason");
+		}
 	}
 	api_send_client_msg(client, resp);
 	ha_msg_del(resp);
@@ -468,6 +524,7 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 {
 	const char	* fifoname;
 	FILE*	f;
+	int	fd;
 
 
 	/* See if this client is (still) properly secured */
@@ -480,15 +537,17 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 
 	fifoname = client_fifo_name(client, 0);
 
-	if ((f=fopen(fifoname, "w")) == NULL) {
+	if ((fd=open(fifoname, O_WRONLY|O_NDELAY)) < 0) {
 		ha_perror("api_send_client: can't open %s", fifoname);
 		api_remove_client(client);
 		return;
 	}
-	if (fcntl(fileno(f), F_SETFL, O_NONBLOCK) < 0) {
-		/* Oh well... Hope we don't actually block ;-) */
-		ha_perror("Cannot set O_NOBLOCK on FD");
+	if ((f = fdopen(fd, "w")) == NULL) {
+		ha_perror("api_send_client: can't fdopen %s", fifoname);
+		api_remove_client(client);
+		return;
 	}
+
 	if (!msg2stream(msg, f)) {
 		ha_log(LOG_ERR, "Cannot send message to client %d"
 		,	client->pid);
@@ -516,16 +575,13 @@ api_remove_client(client_proc_t* req)
 {
 	client_proc_t*	prev = NULL;
 	client_proc_t*	client;
-	char	fifoname[API_FIFO_LEN];
-
-	/* Do a little cleanup */
-	snprintf(fifoname, sizeof(fifoname), API_FIFO_DIR "/%d", req->pid);
-	unlink(fifoname);
 
 	--total_client_count;
 	if ((req->desired_types & DEBUGTREATMENTS) != 0) {
 		--debug_client_count;
 	}
+
+	/* Locate the client data structure in our list */
 
 	for (client=client_list; client != NULL; client=client->next) {
 		if (client->pid == req->pid) {
@@ -537,6 +593,11 @@ api_remove_client(client_proc_t* req)
 				FDclients[fd] = NULL;
 				fclose(client->input_fifo);
 				client->input_fifo = NULL;
+			}
+			/* Clean up after casual clients */
+			if (client->iscasual) {
+				unlink(client_fifo_name(client, 0));
+				unlink(client_fifo_name(client, 1));
 			}
 			if (prev == NULL) {
 				client_list = client->next;
@@ -722,7 +783,9 @@ client_fifo_name(client_proc_t* client, int isrequest)
  *
  *	We deliver messages from named clients to clients in the cluster
  *	which are registered with the same name.  Each named client
- *	also receives the messages it sends.
+ *	also receives the messages it sends.  I could allow them to send
+ *	to any other service that they want, but right now that's overridden.
+ *	We mark each packet with the service name that the packet came from.
  *
  *	A client can only register for a given name if their userid is the
  *	owner of the named FIFO for that name.
@@ -939,7 +1002,7 @@ ClientSecurityIsOK(client_proc_t* client)
 
 
 	/*
-	 * Is this client's request FIFO secure? 
+	 * Check the security of the Client's Request FIFO
 	 */
 
 	fifoname = client_fifo_name(client, 1);
@@ -994,7 +1057,7 @@ ClientSecurityIsOK(client_proc_t* client)
 	}
 
 	/*
-	 * Let's examine the response FIFO...
+	 * Check the security of the Client's Response FIFO
 	 */
 
 	fifoname = client_fifo_name(client, 0);
@@ -1070,7 +1133,6 @@ open_reqfifo(client_proc_t* client)
 
 	/* How about that! */
 	client->uid = s.st_uid;
-ha_log(LOG_ERR, "Opening request FIFO [%s]\n", fifoname);
 	fd = open(fifoname, O_RDONLY|O_NDELAY);
 	if (fd < 0) {
 		return(NULL);
@@ -1137,16 +1199,20 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 	int		fd;
 	client_proc_t*	client;
 
+	/* Loop over the range of file descriptors we have open for clients */
+
 	for (fd=minfd; fd <= maxfd; ++fd) {
 
 		/* Do we have a client on this file descriptor? */
+
 		if ((client = FDclients[fd]) != NULL) {
 			struct ha_msg*	msg;
 			if (FD_ISSET(fd, exceptions)) {
-				ha_log(LOG_INFO, "Exception from client %d"
-				,	client->pid);
 				if (kill(client->pid, 0) < 0
 				&&	errno == ESRCH) {
+					ha_log(LOG_ERR
+					,	"Client pid %d died (exception)"
+					,	client->pid);
 					api_remove_client(client);
 					continue;
 				}
@@ -1155,19 +1221,30 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 				continue;
 			}
 			/* Got a message from 'client' */
-ha_log(LOG_DEBUG, "Got a message from client %d [pid %d] [uid=%d]\n", fd, client->pid, client->uid);
 			if (kill(client->pid, 0) < 0
 			&&	errno == ESRCH) {
-ha_log(LOG_DEBUG, "Client %d [pid %d] [uid=%d] is dead.\n", fd, client->pid, client->uid);
+				ha_log(LOG_ERR
+				,	"Client pid %d died (input)"
+				,	client->pid);
 				api_remove_client(client);
 				continue;
 			}
 
 			if ((msg = msgfromstream(client->input_fifo)) == NULL) {
+				/*
+				 * So far this has always been a bug, but when
+				 * it happens we often go into a loop :-(
+				 * No doubt all those bugs are fixed now ;-)
+				 */
+				ha_log(LOG_ERR, "No message from pid %d "
+				,	client->pid);
+				ha_log(LOG_ERR, "Removing client pid %d "
+				,	client->pid);
+				api_remove_client(client);
 				continue;
 			}
 			api_heartbeat_monitor(msg, APICALL, "<api>");
-			api_process_request(msg);
+			api_process_request(client, msg);
 			ha_msg_del(msg); msg = NULL;
 		}
 	}

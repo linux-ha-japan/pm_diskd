@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.78 2000/07/31 00:05:17 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.79 2000/07/31 03:39:40 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -397,7 +397,6 @@ void	init_xmit_hist (struct msg_xmit_hist * hist);
 void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
 void	process_statusmsg(FILE * f);
 void	process_registermsg(FILE * f);
-void	process_api_msgs(fd_set*, fd_set*);
 void	nak_rexmit(int seqno, const char * reason);
 void	req_our_resources(void);
 void	giveup_resources(void);
@@ -1170,8 +1169,6 @@ master_status_process(void)
 		 */
 		ndesc = compute_msp_fdset(&inpset, fd, regfd);
 		exset = inpset;
-		FD_CLR(fd, &exset);
-		FD_CLR(regfd, &exset);
 
 		/* It might be nice to look for exceptions on the API FIFOs */
 		selret = select(ndesc, &inpset, NULL, &exset, NULL);
@@ -1370,9 +1367,6 @@ ha_log(LOG_DEBUG, "Processing %d API messages", selret);
 				/* Forward to control process */
 				send_cluster_msg(msg);
 			}
-		}else if (strcasecmp(type, T_APIREQ) == 0) {
-			heartbeat_monitor(msg, APICALL, iface);
-			api_process_request(msg);
 		}else{
 			heartbeat_monitor(msg, action, iface);
 			notify_world(msg, thisnode->status);
@@ -3763,6 +3757,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.79  2000/07/31 03:39:40  alan
+ * This is a working version of heartbeat with the API code.
+ * I think it even has a reasonable security policy in it.
+ *
  * Revision 1.78  2000/07/31 00:05:17  alan
  * Put the high-priority stuff back into heartbeat...
  *
