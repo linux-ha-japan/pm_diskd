@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.179 2002/04/13 03:46:52 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.180 2002/04/13 22:45:37 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -266,6 +266,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.179 2002/04/13 03:46
 #	include <sched.h>
 #endif
 
+#include <clplumbing/longclock.h>
 #include <clplumbing/proctrack.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
@@ -443,7 +444,9 @@ int	send_standby_msg(enum standby state);
 int	send_local_starting(void);
 int	send_local_status(const char *);
 int	set_local_status(const char * status);
-void	process_resources(struct ha_msg* msg, struct node_info * thisnode);
+void	process_resources(const char * type, struct ha_msg* msg
+,		struct node_info * thisnode);
+static	void AuditResources(void);
 void	request_msg_rexmit(struct node_info *, unsigned long lowseq
 ,		unsigned long hiseq);
 void	check_rexmit_reqs(void);
@@ -451,6 +454,7 @@ void	mark_node_dead(struct node_info* hip);
 void	takeover_from_node(const char * nodename);
 void	change_link_status(struct node_info* hip, struct link *lnk
 ,		const char * new);
+static	void comm_now_up(void);
 static	void CreateInitialFilter(void);
 static int FilterNotifications(const char * msgtype);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
@@ -1626,50 +1630,30 @@ polled_input_prepare(gpointer source_data, GTimeVal* current_time
 	||	ClockJustJumped;
 }
 
-static clock_t	NextPoll = 0UL;
-static int	NextPollWraps = 0;
-static clock_t	NextPollWrapMax = 0;
+static longclock_t	NextPoll = 0UL;
+static longclock_t	local_takeover_time = 0L;
 
-#define	POLL_INTERVAL	CLK_TCK
+#define	POLL_INTERVAL	250
 
 static gboolean
 polled_input_check(gpointer source_data, GTimeVal* current_time
 ,	gpointer	user_data)
 {
 	struct tms	proforma_tms;
-	clock_t		now = times(&proforma_tms);
+	longclock_t		now = times(&proforma_tms);
 
 	LookForClockJumps();
 
-	return (now < CLK_TCK || now >= NextPoll);
-	if (NextPollWraps) {
-		return now <= NextPollWrapMax;
-	}else{
-		return now >= NextPoll;
-	}
-		
-	return	TRUE;
+	return (cmp_longclock(now, NextPoll) >= 0);
 }
 
 static gboolean
 polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 ,	gpointer	user_data)
 {
-	struct tms	proforma_tms;
-	clock_t		now = times(&proforma_tms);
-	static int	spawned_child_clients = 0;
-	static GTimeVal LastTime = {0L, 0L};
+	longclock_t	now = time_longclock();
 
-	LastTime = *current_time;
-
-	NextPoll = now + POLL_INTERVAL;
-
-	if (NextPoll > now) {
-		NextPollWraps = 0;
-	}else{
-		NextPollWraps = 1;
-		NextPollWrapMax = 100 * POLL_INTERVAL;
-	}
+	NextPoll = add_longclock(now, msto_longclock(POLL_INTERVAL));
 
 	LookForClockJumps();
 
@@ -1696,15 +1680,46 @@ polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 	check_rexmit_reqs();
 
 	/* See if our comm channels are working yet... */
-	check_comm_isup();
-	if (heartbeat_comm_state == COMM_LINKSUP
-	&&	!spawned_child_clients) {
-		spawned_child_clients = 1;
-		g_list_foreach(config->client_list
-		,	start_a_child_client, config->client_children);
+	if (heartbeat_comm_state != COMM_LINKSUP) {
+		check_comm_isup();
 	}
 
+	/* Check for "time to take over local resources */
+	if (nice_failback && resourcestate == R_RSCRCVD
+	&&	cmp_longclock(now, local_takeover_time) > 0) {
+		resourcestate = R_STABLE;
+		req_our_resources(0);
+		ha_log(LOG_INFO,"local resource transition completed.");
+		send_resources_held(rsc_msg[procinfo->i_hold_resources]
+		,	1, NULL);
+		AuditResources();
+	}
+
+
 	return TRUE;
+}
+
+/*
+ *	This should be something the code can register for.
+ *	and a nice set of hooks to call, etc...
+ */
+static void
+comm_now_up()
+{
+	static int	linksupbefore = 0;
+	if (linksupbefore) {
+		return;
+	}
+	linksupbefore = 1;
+
+	/* Update our local status... */
+	send_local_status(ACTIVESTATUS);
+
+	send_local_starting();
+
+	/* Start each of our known child clients */
+	g_list_foreach(config->client_list
+	,	start_a_child_client, config->client_children);
 }
 
 
@@ -1917,7 +1932,7 @@ process_clustermsg(FILE * f)
 
 	if (!isauthentic(msg)) {
 		ha_log(LOG_WARNING
-		,       "process_status_message: node [%s]"
+		,       "process_clustermsg: node [%s]"
 		" failed authentication", from ? from : "?");
 		if (ANYDEBUG) {
 			ha_log_message(msg);
@@ -1925,13 +1940,13 @@ process_clustermsg(FILE * f)
 		goto psm_done;
 	}else if (DEBUGDETAILS) {
 		ha_log(LOG_DEBUG
-		,       "process_status_message: node [%s] auth ok"
+		,       "process_clustermsg: node [%s] auth ok"
 		,	from ? from :"?");
 	}
 
 	if (from == NULL || ts == NULL || type == NULL) {
 		ha_log(LOG_ERR
-		,	"process_status_message: %s: iface %s, from %s"
+		,	"process_clustermsg: %s: iface %s, from %s"
 		,	"missing from/ts/type"
 		,	iface
 		,	(from? from : "<?>"));
@@ -1944,7 +1959,7 @@ process_clustermsg(FILE * f)
 		seqno = 0L;
 		if (strncmp(type, NOSEQ_PREFIX, STRLEN(NOSEQ_PREFIX)) != 0) {
 			ha_log(LOG_ERR
-			,	"process_status_message: %s: iface %s, from %s"
+			,	"process_clustermsg: %s: iface %s, from %s"
 			,	"missing seqno"
 			,	iface
 			,	(from? from : "<?>"));
@@ -1992,7 +2007,10 @@ process_clustermsg(FILE * f)
 		}
 	}
 	thisnode->anypacketsyet = 1;
-	check_comm_isup();
+	/* See if our comm channels are working yet... */
+	if (heartbeat_comm_state != COMM_LINKSUP) {
+		check_comm_isup();
+	}
 
 	lnk = lookup_iface(thisnode, iface);
 
@@ -2028,45 +2046,22 @@ process_clustermsg(FILE * f)
 
 	thisnode->track.last_iface = iface;
 
-	/* Did we get a "shutdown complete" message? */
-	if (strcasecmp(type, T_SHUTDONE) == 0) {
-		if (thisnode == curnode) {
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				,	"Received T_SHUTDONE from ourselves.");
-		    	}
-	    		heartbeat_monitor(msg, action, iface);
-			/* Trigger final shutdown in a second */
-			g_timeout_add(1000, MSPFinalShutdown, NULL);
-		}else{
-			thisnode->has_resources = FALSE;
-			other_is_stable = 0;
-			other_holds_resources= NO_RSC;
 
-		    	ha_log(LOG_INFO
-			,	"Received shutdown notice from '%s'"
-			". Resources being acquired."
-			,	thisnode->nodename);
-			takeover_from_node(thisnode->nodename);
-		}
-	}
+	/*
+	 * FIXME: ALL messages ought to go through a GHashTable
+	 * and get called as functions so it's  easily extensible
+	 * without messing up this logic.  It would be faster, too!
+	 * parameters to these functions should be:
+	 *	type
+	 *	thisnode
+	 *	iface
+	 *	msg
+	 */
 
-	if (strcasecmp(type, T_STARTING) == 0
-	||	strcasecmp(type, T_RESOURCES) == 0) {
-		heartbeat_monitor(msg, action, iface);
-		goto psm_done;
-	}
-
-	/* If someone asked us to turn "standby" mode on... */
-	if (strcasecmp(type, T_ASKRESOURCES) == 0) {
-		/* someone wants to go standby!!! */
-		ask_for_resources(msg);
-		goto psm_done;
-	}
-
-	/* Is this a status update (i.e., "heartbeat") message? */
 	if (strcasecmp(type, T_STATUS) == 0
 	||	strcasecmp(type, T_NS_STATUS) == 0) {
+
+	/* Is this a status update (i.e., "heartbeat") message? */
 		const char *	status;
 
 		status = ha_msg_value(msg, F_STATUS);
@@ -2137,39 +2132,74 @@ process_clustermsg(FILE * f)
 			/* Forward to control process */
 			send_cluster_msg(msg);
 		}
-	}else{
-		heartbeat_monitor(msg, action, iface);
-		/*
-		 * There are some messages we queue for later
-		 * handling...
-                 */
-		if (thisnode != curnode) {
-			if (strcasecmp(type, "ip-request") == 0) {
-				QueueRemoteRscReq(PerformQueuedNotifyWorld
-				,	msg);
-				/* Mama don't let them free my msg! */
-				return;
-			}
-			/* Ignore these - we're shutting down! */
-			if (shutdown_in_progress
-			&&	strcasecmp(type, "ip-request-resp") == 0) {
-				goto psm_done;
-			}
+
+	/* END OF STATUS/ LINK PROTOCOL CODE */
+
+
+	/* Did we get a "shutdown complete" message? */
+
+	}else if (strcasecmp(type, T_SHUTDONE) == 0) {
+		process_resources(type, msg, thisnode);
+	    	heartbeat_monitor(msg, action, iface);
+		if (thisnode == curnode) {
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"Received T_SHUTDONE from ourselves.");
+		    	}
+			/* Trigger final shutdown in a second */
+			g_timeout_add(1000, MSPFinalShutdown, NULL);
+		}else{
+			thisnode->has_resources = FALSE;
+			other_is_stable = 0;
+			other_holds_resources= NO_RSC;
+
+		    	ha_log(LOG_INFO
+			,	"Received shutdown notice from '%s'"
+			". Resources being acquired."
+			,	thisnode->nodename);
+			takeover_from_node(thisnode->nodename);
 		}
-		notify_world(msg, thisnode->status);
-	}
-psm_done:
-	/*
-	 * We want to bring up the resources only if the state has been
-	 * updated.
-	 */
-	if (thisnode && heartbeat_comm_state == COMM_LINKSUP) {
+
+	}else if (strcasecmp(type, T_STARTING) == 0
+	||	strcasecmp(type, T_RESOURCES) == 0) {
 		/*
 		 * process_resources() will deal with T_STARTING
 		 * and T_RESOURCES messages appropriately.
 		 */
-		process_resources(msg, thisnode);
+		heartbeat_monitor(msg, action, iface);
+		process_resources(type, msg, thisnode);
+
+	}else if (strcasecmp(type, T_ASKRESOURCES) == 0) {
+
+		/* someone wants to go standby!!! */
+		heartbeat_monitor(msg, action, iface);
+		ask_for_resources(msg);
+
+	}else	if (strcasecmp(type, T_ASKRELEASE) == 0) {
+		if (thisnode != curnode) {
+			/*
+			 * Queue for later handling...
+			 */
+			QueueRemoteRscReq(PerformQueuedNotifyWorld, msg);
+			/* Mama don't let them free my msg! */
+			return;
+		}
+		heartbeat_monitor(msg, action, iface);
+
+	}else if (strcasecmp(type, T_ACKRELEASE) == 0) {
+
+		/* Ignore this, we're shutting down! */
+		if (shutdown_in_progress) {
+			goto psm_done;
+		}
+		heartbeat_monitor(msg, action, iface);
+		notify_world(msg, thisnode->status);
+	}else{
+		/* None of the above... */
+		heartbeat_monitor(msg, action, iface);
+		notify_world(msg, thisnode->status);
 	}
+psm_done:
 	ha_msg_del(msg);  msg = NULL;
 }
 
@@ -2258,19 +2288,14 @@ process_registermsg(FILE *regfifo)
 #define	UPD_RSC(cur, up)	((up == NO_RSC) ? NO_RSC : ((up)|(cur)))
 
 void
-process_resources(struct ha_msg* msg, struct node_info * thisnode)
+process_resources(const char * type, struct ha_msg* msg, struct node_info * thisnode)
 {
 	static int		resources_requested_yet = 0;
-	static clock_t		local_takeover = 0L;
 
-	const char *		type;
-	struct tms		proforma_tms;
-	clock_t			now = times(&proforma_tms);
 	enum rsc_state		newrstate = resourcestate;
 	int			first_time = 1;
 
-	if ((type = ha_msg_value(msg, F_TYPE)) == NULL
-	||	!DoManageResources) {
+	if (!DoManageResources || heartbeat_comm_state != COMM_LINKSUP) {
 		return;
 	}
 
@@ -2291,10 +2316,6 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		resourcestate = newrstate = R_STABLE;
 	}
 
-	if (resourcestate == R_INIT && heartbeat_comm_state == COMM_LINKSUP) {
-		send_local_starting();
-		newrstate = resourcestate = R_STARTING;
-	}
 
 	/*
 	 * Deal with T_STARTING messages coming from the other side.
@@ -2317,8 +2338,8 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			break;
 
 		default:
-			ha_log(LOG_ERR, T_STARTING " message in state %d"
-			,	resourcestate);
+			ha_log(LOG_ERR, "Received '%s' message in state %d"
+			,	T_STARTING, resourcestate);
 			return;
 
 		}
@@ -2469,14 +2490,6 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		}
 	}
 
-	if (resourcestate == R_RSCRCVD && now > local_takeover) {
-		newrstate = R_STABLE;
-		req_our_resources(0);
-		ha_log(LOG_INFO,"local resource transition completed.");
-		send_resources_held(rsc_msg[procinfo->i_hold_resources]
-		,	1, NULL);
-	}
-
 	if (resourcestate != newrstate) {
 		if (ANYDEBUG) {
 			ha_log(LOG_INFO
@@ -2486,12 +2499,20 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 	resourcestate = newrstate;
 
-	if (newrstate == R_RSCRCVD && local_takeover == 0L) {
-		local_takeover = now + (CLK_TCK * RQSTDELAY);
+	if (resourcestate == R_RSCRCVD && local_takeover_time == 0L) {
+		local_takeover_time =	add_longclock(time_longclock()
+		,	secsto_longclock(RQSTDELAY));
 	}
 
+	AuditResources();
+}
 
-	/* Real code ends here */
+static void
+AuditResources(void)
+{
+	if (!nice_failback) {
+		return;
+	}
 
 	/*******************************************************
 	 *	Look for for duplicated or orphaned resources
@@ -2519,7 +2540,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	 *	If things are stable, look for orphaned resources...
 	 */
 
-	if (newrstate == R_STABLE && other_is_stable
+	if (resourcestate == R_STABLE && other_is_stable
 	&&	!shutdown_in_progress) {
 		/*
 		 *	Does someone own local resources?
@@ -3637,7 +3658,7 @@ check_for_timeouts(void)
 		 * dead interval.
 		 *
 		 * We do this because for some unknown reason sometimes
-		 * the network is slow start working.  Experience indicates that
+		 * the network is slow to start working.  Experience indicates that
 		 * 30 seconds is generally enough.  It would be nice to have a
 		 * better way to detect that the network isn't really working,
 		 * but I don't know any easy way.  Patches are being accepted ;-)
@@ -3718,7 +3739,7 @@ check_comm_isup(void)
 
 	if (heardfromcount >= config->nodecount) {
 		heartbeat_comm_state = COMM_LINKSUP;
-		send_local_status(ACTIVESTATUS);
+		comm_now_up();
 	}
 }
 
@@ -3913,7 +3934,9 @@ send_local_starting(void)
 	int		rc;
 
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Sending local starting msg");
+		ha_log(LOG_DEBUG
+		,	"Sending local starting msg: resourcestate = %d"
+		,	resourcestate);
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
 		ha_log(LOG_ERR, "Cannot send local starting msg");
@@ -3928,6 +3951,7 @@ send_local_starting(void)
 	}
 
 	ha_msg_del(m);
+	resourcestate = R_STARTING;
 	return(rc);
 }
 
@@ -5997,6 +6021,28 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.180  2002/04/13 22:45:37  alan
+ * Changed a little of the code in heartbeat.c to use the new longclock_t
+ * type and functions.  It ought to completely replace the use of
+ * times() *everywhere*
+ *
+ * Reorganized some of the code for handling nice_failback to not all
+ * be in the process_resources() function...
+ *
+ * Moved all the code which is triggered when our links first come up to
+ * a single function, instead of scattered about in several different
+ * places.
+ *
+ * Moved the code to take over local resources out of the process_clustermsg()
+ * function into the poll loop code.  This eliminates calling the
+ * process_resources() function for every packet.
+ *
+ * Moved the resource auditing code out into a separate function so
+ * I could call it in more than one place.
+ *
+ * Moved all the resource handling code in the process_clustermsg() function
+ * to be together, so it's more readable.
+ *
  * Revision 1.179  2002/04/13 03:46:52  alan
  * more signal diddles...
  *
