@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.53 2002/08/01 01:28:16 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.54 2002/08/02 01:31:32 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -216,11 +216,13 @@ This object will be requested each checkinterval seconds on each real
 server.  The string must be inside quotes. Note that this string may be
 overridden by an optional per real-server based request-string.
 
-B<receive = ">I<string to compare>B<">
+B<receive = ">I<regexp to compare>B<">
 
-If the requested result contains this I<string to compare>, the real server
-is declared alive. The string must be inside quotes. Note that this string
-may be overridden by an optional per real-server based receive-string.
+If the requested result contains this I<regexp to compare>, the real server
+is declared alive. The regexp must be inside quotes. Keep in mind that
+regexps are not plain strings and that you need to escape the special
+characters if they should as litterals. Note that this regexp may be
+overridden by an optional per real-server based receive regexp.
 
 B<login = ">I<username>B<">
 
