@@ -9,7 +9,8 @@ Three machines:  one test exerciser and two test cluster machines.
 		mutual IP address takeover
 
 	The test exerciser machine doesn't need to be on the same subnet
-	as the test machines.
+	as the test machines.  Minimal demands are made on the exerciser
+	machine - it just has to stay up during the tests ;-).
 
 Install heartbeat, heartbeat-pils, and heartbeat-stonith on all three
 machines.  Set up the configuration on the cluster machines *and make
@@ -18,16 +19,20 @@ a copy of on the test exerciser machine*.  These are the necessary files:
 	/etc/ha.d/haresources
 	/etc/ha.d/authkeys
 
-Note that wherever machine names are mentioned, they must match the machines'
-`uname -n` name.  This may or may not match the machines' FQDN (fully qualified
-domain name) - it depends on how you (and your OS) have named the machine.
+Note that wherever machine names are mentioned in these configuration files,
+they must match the machines' `uname -n` name.  This may or may not match
+the machines' FQDN (fully qualified domain name) - it depends on how
+you (and your OS) have named the machines.
 
 Make sure the at service is enabled on the test cluster machines.
 (this is normally the 'atd' service started by /etc/init.d/atd).
 This doesn't mean just start it, it means enable it to start on every boot into
 your default init state (probably either 3 or 5).  Enabling it for both state
-3 and 5 is a good choice.
+3 and 5 is a good minimum.  We don't need this in production - just for these
+tests.
 
+Make sure all your filesystems are journalling filesystems (/boot can be
+ext2 if you want)...  This means jfs, ext3, or reiserfs.
 
 Here's what you need to do to run CTS
 
@@ -52,7 +57,8 @@ If you don't do this, then things will look fine until you run the STONITH
 test - and it will always fail...
 
 The test software is called cts and is in the (surprise!) cts directory.
-It's in the tarball, but not installed anywhere.
+It's in the tarball, and (for later versions) is installed in
+/usr/lib/heartbeat/cts.
 
 The cts system consists of the following files:
 CM_fs.py        - ignore this - it's for failsafe
@@ -62,7 +68,7 @@ CTSaudits.py    - performs audits at the end of each test
 CTSlab.py       - defines the "lab" (test) environment
 CTStests.py     - contains the definitions of the tests
 
-I think you'll only need to modify the CTSlab.py file...
+You'll only need to modify the CTSlab.py file...
 
 There's a line in the Stonith class for performing a stonith in your lab
 environment.  You'll need to use the ssh stonith type. 
@@ -78,8 +84,8 @@ This line of code:
     overall, detailed = tests.run(5000)
 
 tells it to run 5000 tests chosen at random from the default list of tests.
-In my environment, each test averages something like 2 minutes.  This means
-that the sequence will take around a week to run.
+In my environment, each test averages something like 1-2 minutes.  This means
+that the sequence will take the better part of a week to run.
 
 This default list comes from this statement:
         Tests = TestList(cm)
@@ -133,7 +139,8 @@ local7.*                                @testmonitor-machine
 	the "-r" option On SuSE Linux you need to change /etc/rc.config
 	to put have this line for SYSLOGD_PARAMS:
 	If you're on a recent version of SuSE/UL, this parameter has
-	moved into /etc/sysconfig/syslog
+	moved into /etc/sysconfig/syslog.  You'll have to restart syslog
+	after putting these parameters into effect.
 
 SYSLOGD_PARAMS="-r"
 
