@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.30 2000/11/25 13:07:44 alan Exp $
+#	$Id: heartbeat.sh,v 1.31 2000/12/20 16:54:41 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -226,8 +226,8 @@ StopHA() {
 #
 #	Ask heartbeat to restart.  It will *keep* its resources
 #
-RestartHA() {
-  echo -n "Restarting High-Availability services: "
+ReloadHA() {
+  echo -n "Reloading High-Availability services: "
 
   if
     $HA_BIN/heartbeat -r # Restart, and keep your resources
@@ -264,8 +264,13 @@ case "$1" in
 	RC=$?
 	;;
 
-  restart|reload)
-	RestartHA
+  restart)
+	StopHA
+	StartHA
+	;;
+
+  reload)
+	ReloadHA
 	RC=$?
 	;;
 
@@ -278,6 +283,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.31  2000/12/20 16:54:41  alan
+#  Changed "restart" in heartbeat to actually do a stop followed by a start.
+#  Reload still does the no-failover reload operation.
+#
 #  Revision 1.30  2000/11/25 13:07:44  alan
 #  Fixed a minor bug in the heartbeat startup script for SuSE.
 #  Replaced the makefile with a correct version after it was slammed with
