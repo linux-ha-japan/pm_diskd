@@ -21,7 +21,8 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 			-I$(top_builddir)/linux-ha -I$(top_srcdir)/linux-ha  \
-			-I$(top_builddir)/stonith -I$(top_srcdir)/stonith \
+			-I$(top_builddir)/include/stonith \
+			-I$(top_srcdir)/include/stonith \
                         -I$(top_builddir) -I$(top_srcdir)
 
 logrotatedir		= $(sysconfdir)/logrotate.d

@@ -6,6 +6,7 @@
 */
 /*
  *	Stonith module for WTI Network Power Switch Devices (NPS-xxx)
+ *	Also supports the WTI Telnet Power Switch Devices (TPS-xxx)
  *
  *  Copyright 2001 Mission Critical Linux, Inc.
  *  author: mike ledoux <mwl@mclinux.com>
@@ -50,7 +51,7 @@
 /*
  * Version string that is filled in by CVS
  */
-static const char *version __attribute__ ((unused)) = "$Revision: 1.5 $"; 
+static const char *version __attribute__ ((unused)) = "$Revision: 1.6 $"; 
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,6 +73,7 @@ static const char *version __attribute__ ((unused)) = "$Revision: 1.5 $";
 
 /*
  *	I have a NPS-110.  This code has been tested with this switch.
+ *	(Tested with NPS-230 and TPS-2 by lmb)
  */
 
 struct WTINPS {
@@ -125,12 +127,12 @@ static const char * NOTnpsid = "Hey, dummy this has been destroyed (WTINPS)";
  *	Network Power Switch
  */
 
-#define WTINPSSTR	"Network Power Switch"
+#define WTINPSSTR	" Power Switch"
 
 static struct Etoken EscapeChar[] =	{ {"Escape character is '^]'.", 0, 0}
 					,	{NULL,0,0}};
 static struct Etoken password[] =	{ {"Password:", 0, 0} ,{NULL,0,0}};
-static struct Etoken Prompt[] =	{ {"NPS>", 0, 0} ,{NULL,0,0}};
+static struct Etoken Prompt[] =	{ {"PS>", 0, 0} ,{NULL,0,0}};
 static struct Etoken LoginOK[] =	{ {WTINPSSTR, 0, 0}
                     , {"Invalid password", 1, 0} ,{NULL,0,0}};
 static struct Etoken Separator[] =	{ {"-----+", 0, 0} ,{NULL,0,0}};
@@ -299,7 +301,7 @@ NPSLogout(struct WTINPS* nps)
 	
 	/* Send "/h" help command and expect back prompt */
 	//SEND("/h\r");
-	/* Expect "NPS>" */
+	/* Expect "PS>" */
 	rc = NPSLookFor(nps, Prompt, 5);
 
 	/* "/x" is Logout, "/x,y" auto-confirms */
@@ -334,7 +336,7 @@ NPSReset(struct WTINPS* nps, char * outlets, const char * rebootid)
 
 	/* Send "/h" help command and expect back prompt */
 	SEND("/h\r");
-	/* Expect "NPS>" */
+	/* Expect "PS>" */
 	EXPECT(Prompt, 5);
 	
 	/* Send REBOOT command for given outlets */
@@ -357,7 +359,7 @@ NPSReset(struct WTINPS* nps, char * outlets, const char * rebootid)
 	}
 	syslog(LOG_INFO, _("Host %s being rebooted."), rebootid);
 
-	/* Expect "NPS>" */
+	/* Expect "PS>" */
 	if (NPSLookFor(nps, Prompt, 10) < 0) {
 		return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
@@ -385,7 +387,7 @@ NPS_onoff(struct WTINPS* nps, int outlets, const char * unitid, int req)
        
 	/* Send "/h" help command and expect prompt back */
 	SEND("/h\r");
-	/* Expect "NPS>" */
+	/* Expect "PS>" */
 	EXPECT(Prompt, 5);
 
 	/* Send ON/OFF command for given outlet */
@@ -429,7 +431,7 @@ NPSNametoOutlet(struct WTINPS* nps, const char * name, char **outlets)
 	
         strncpy(*outlets, "", left);
         left = left - 1;        /* ensure terminating '\0' */
-  	/* Expect "NPS>" */
+  	/* Expect "PS>" */
   	EXPECT(Prompt, 5);
 	
   	/* The status command output contains mapping of hosts to outlets */ 
@@ -493,7 +495,7 @@ st_status(Stonith  *s)
 
 	/* Send "/h" help command and expect back prompt */
 	SEND("/h\r");
-	/* Expect "NPS>" */
+	/* Expect "PS>" */
 	EXPECT(Prompt, 5);
 
 	return(NPSLogout(nps));
@@ -532,7 +534,7 @@ st_hostlist(Stonith  *s)
 		return(NULL);
 	}
 	
-	/* Expect "NPS>" */
+	/* Expect "PS>" */
 	NULLEXPECT(Prompt, 5);
 	
 	/* The status command output contains mapping of hosts to outlets */
