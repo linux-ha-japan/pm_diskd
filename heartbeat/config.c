@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.56 2002/02/10 23:09:25 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.57 2002/02/11 22:31:34 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -37,6 +37,7 @@ const static char * _heartbeat_c_Id = "$Id: config.c,v 1.56 2002/02/10 23:09:25 
 #include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <netdb.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
@@ -113,7 +114,8 @@ init_config(const char * cfgfile)
  *	'Twould be good to move this to a shared memory segment
  *	Then we could share this information with others
  */
-	config = (struct sys_config *)ha_calloc(1, sizeof(struct sys_config));
+	config = (struct sys_config *)ha_calloc(1
+	,	sizeof(struct sys_config));
 	if (config == NULL) {
 		ha_log(LOG_ERR, "Heartbeat not started: "
 			"Out of memory during configuration");
@@ -127,6 +129,7 @@ init_config(const char * cfgfile)
 	config->log_facility = -1;
 	config->client_children = g_hash_table_new(g_direct_hash
 	,	g_direct_equal);
+	config->client_list = NULL;
 
 	uname(&u);
 	curnode = NULL;
@@ -252,6 +255,7 @@ init_config(const char * cfgfile)
 #define KEY_FAILBACK	"nice_failback"
 #define KEY_STONITH	"stonith"
 #define KEY_STONITHHOST "stonith_host"
+#define KEY_CLIENT_CHILD "respawn"
 
 int add_normal_node(const char *);
 int set_hopfudge(const char *);
@@ -268,6 +272,7 @@ int set_nice_failback(const char *);
 int set_warntime_interval(const char *);
 int set_stonith_info(const char *);
 int set_stonith_host_info(const char *);
+int add_client_child(const char *);
 
 struct directive {
 	const char * name;
@@ -295,6 +300,7 @@ static const struct WholeLineDirective {
 {
 	{KEY_STONITH,  	   set_stonith_info},
 	{KEY_STONITHHOST,  set_stonith_host_info}
+,	{KEY_CLIENT_CHILD,  add_client_child}
 };
 
 /*
@@ -1226,14 +1232,98 @@ set_stonith_host_info(const char * value)
 		
 
 		default:
-			ha_log(LOG_ERR, "Unknown Stonith config error parsing [%s] [%d]"
+			ha_log(LOG_ERR
+			,	"Unknown Stonith config error parsing [%s] [%d]"
 			,	evp, rc);
 			break;
 	}
 	return(HA_FAIL);
 }
+int
+add_client_child(const char * directive)
+{
+	struct client_child*	child;
+	const char *		uidp;
+	const char *		cmdp;
+	char			chuid[64];
+	int			uidlen;
+	int			cmdlen;
+	char*			command;
+	struct passwd*		pw;
+
+	ha_log(LOG_INFO, "respawn directive: %s", directive);
+
+	/* Skip over initial white space, so we can get the uid */
+	uidp = directive;
+	uidp += strspn(uidp, WHITESPACE);
+	uidlen = strcspn(uidp, WHITESPACE);
+
+	cmdp = uidp + uidlen+1;
+
+	/* Skip over white space, find the command */
+	cmdp += strspn(cmdp, WHITESPACE);
+	cmdlen = strcspn(cmdp, WHITESPACE);
+	
+	if (uidlen >= sizeof(chuid)) {
+		ha_log(LOG_ERR
+		,	"UID specified for client child is too long");
+		return HA_FAIL;
+	}
+	memcpy(chuid, uidp, uidlen);
+	chuid[uidlen] = EOS;
+
+	if ((pw = getpwnam(chuid)) == NULL) {
+		ha_log(LOG_ERR
+		,	"Invalid uid [%s] specified for client child"
+		,	chuid);
+		return HA_FAIL;
+	}
+
+	if (*cmdp != '/') {
+		ha_log(LOG_ERR
+		,	"Client child command [%s] is not full pathname"
+		,	cmdp);
+		return HA_FAIL;
+	}
+
+	command = ha_malloc(cmdlen+1);
+	if (command == NULL) {
+		ha_log(LOG_ERR, "Out of memory in add_client_child");
+		return HA_FAIL;
+	}
+	memcpy(command, cmdp, cmdlen);
+	command[cmdlen] = EOS;
+
+	if (access(command, X_OK|F_OK) < 0) {
+		ha_log(LOG_ERR
+		,	"Client child command [%s] is not executable"
+		,	command);
+		ha_free(command); command=NULL;
+		return HA_FAIL;
+	}
+
+ 	child = MALLOCT(struct client_child);
+	if (child == NULL) {
+		ha_log(LOG_ERR, "Out of memory in add_client_child");
+		ha_free(command); command=NULL;
+		return HA_FAIL;
+	}
+	memset(child, 0, sizeof(*child));
+	child->respawn = 1;
+	child->u_runas = pw->pw_uid;
+	child->g_runas = pw->pw_gid;
+	child->command = command;
+	config->client_list = g_list_append(config->client_list, child);
+
+	return HA_OK;
+}
 /*
  * $Log: config.c,v $
+ * Revision 1.57  2002/02/11 22:31:34  alan
+ * Added a new option ('l') to make heartbeat run at low priority.
+ * Added support for a new capability - to start and stop client
+ * 	processes together with heartbeat itself.
+ *
  * Revision 1.56  2002/02/10 23:09:25  alan
  * Added a little initial code to support starting client
  * programs when we start, and shutting them down when we stop.

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.161 2002/02/10 23:09:25 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.162 2002/02/11 22:31:34 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -276,7 +276,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.161 2002/02/10 23:09
 
 #include "setproctitle.h"
 
-#define OPTARGS		"dkMrRsvC:"
+#define OPTARGS		"dkMrRsvlC:"
 
 #define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
 
@@ -316,6 +316,7 @@ int		RestartRequested = 0;
 int		WeAreRestarting = 0;
 int		killrunninghb = 0;
 int		rpt_hb_status = 0;
+int		RunAtLowPrio = 0;
 int		DoManageResources = 1;
 int		childpid = -1;
 char *		watchdogdev = NULL;
@@ -443,6 +444,9 @@ int	IncrGeneration(unsigned long * generation);
 void	ask_for_resources(struct ha_msg *msg);
 void	process_control_packet(struct msg_xmit_hist* msghist
 ,	struct ha_msg * msg);
+static void	start_a_child_client(gpointer childentry, gpointer pidtable);
+static void	kill_a_child_client(gpointer ppid
+,			gpointer childentry, gpointer unused);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -454,11 +458,12 @@ void master_status_process(void);		/* The real biggie */
 	void setenv(const char *name, const char * value, int);
 #endif
 
-pid_t	processes[MAXPROCS];
-pid_t	master_status_pid;
-int	send_status_now = 1;	/* Send initial status immediately */
-int	dump_stats_now = 0;
-int	parse_only = 0;
+pid_t		processes[MAXPROCS];
+pid_t		master_status_pid;
+int		send_status_now = 1;	/* Send initial status immediately */
+int		dump_stats_now = 0;
+int		parse_only = 0;
+static int	shutdown_in_progress = 0;
 
 enum comm_state {
 	COMM_STARTING,
@@ -951,6 +956,7 @@ void
 make_realtime()
 {
 
+
 #ifdef SCHED_RR
 #	define HB_SCHED_POLICY	SCHED_RR
 #endif
@@ -959,6 +965,10 @@ make_realtime()
 	struct sched_param	sp;
 	int			staticp;
 
+	if (RunAtLowPrio) {
+		ha_log(LOG_INFO, "Request to set high priority ignored.");
+		return;
+	}
 	if (ANYDEBUG) {
 		ha_log(LOG_INFO, "Setting process %d to realtime", getpid());
 	}
@@ -1249,6 +1259,7 @@ master_status_process(void)
 	int			allstarted;
 	int			j;
 	int			ClockJustJumped = 0;
+	int			spawned_child_clients = 0;
 
 	init_status_alarm();
 	init_watchdog();
@@ -1358,6 +1369,12 @@ master_status_process(void)
 
 		/* See if our comm channels are working yet... */
 		check_comm_isup();
+		if (heartbeat_comm_state == COMM_LINKSUP
+		&&	!spawned_child_clients) {
+			spawned_child_clients = 1;
+			g_list_foreach(config->client_list
+			,	start_a_child_client, config->client_children);
+		}
 
 		lastnow = now;
 
@@ -2184,22 +2201,196 @@ reaper_action(void)
 	pid_t	pid;
 
 	while((pid=wait3(&status, WNOHANG, NULL)) > 0) {
-		struct client_child*	child;
-		ha_log(LOG_INFO, "Child %d terminated", pid);
-		/* Remove them  from client table (if present) */
+		struct client_child*	child = NULL;
+		int			deathbysig=0;
+		int			signo=0;
+		int			deathbyexit=0;
+		int			exitcode=0;
+		int			didcoredump=0;
+
+		if (WIFEXITED(status)) {
+			deathbyexit=1;
+			exitcode = WEXITSTATUS(status);
+		}else if (WIFSIGNALED(status)) {
+			deathbysig=1;
+			signo = WTERMSIG(status);
+		}
+#ifdef WCOREDUMP
+		if (WCOREDUMP(status)) {
+			didcoredump=1;
+		}
+#endif
+		child = g_hash_table_lookup(config->client_children
+		,	GINT_TO_POINTER(pid));
+
+		/* Report Anything but a normal exit */
+		if (!(deathbyexit && exitcode == 0)) {
+			const char * pidname = (child ? child->command : "");
+
+			if (child && deathbyexit) {
+				ha_log(LOG_WARNING
+				,	"Child %d %s exited with rc %d"
+				,	pid, pidname, exitcode);
+			}else if (deathbysig) {
+				ha_log(LOG_ERR
+				,	"Child %d %s killed by signal %d"
+				,	pid, pidname, signo);
+			}
+		}
+		if (didcoredump) {
+			ha_log(LOG_ERR
+			,	"Exiting child %d dumped core", pid);
+		}
+			
+		/* If they're in the API client table, remove them... */
+
 		api_remove_client_pid(pid, "died");
+
+		/* Are they one of our "managed" client processes? */
+
 		if ((child = g_hash_table_lookup(config->client_children
 		,	GINT_TO_POINTER(pid)))) {
+			ha_log(LOG_ERR
+			,	"%d is a managed client [%s %d]", pid
+			,	child->command, child->pid);
+
 			g_hash_table_remove(config->client_children
 			,	GINT_TO_POINTER(pid));
 			child->pid = 0;
-			/* FIXME: Respawn them unless shutting down */
-			ha_free(child);
-			;
+
+			/* If they exit 100 we won't restart them */
+
+			if (child->respawn && !shutdown_in_progress
+			&&	exitcode != 100) {
+				struct tms	proforma_tms;
+				clock_t		now = times(&proforma_tms);
+				clock_t		minticks = CLK_TCK * 30;
+				++child->respawncount;
+
+				if ((now - child->lastrespawn) < minticks) {
+					++child->shortrcount;
+				}else{
+					child->shortrcount = 0;
+				}
+				if (child->shortrcount > 10) {
+					ha_log(LOG_ERR
+					,	"Client %s respawning too fast"
+					,	child->command);
+					child->shortrcount = 0;
+				}else{
+					ha_log(LOG_INFO, "Respawning client %s:"
+					,	child->command);
+					start_a_child_client(child
+					,	config->client_children);
+				}
+			}
 		}
 	}
 }
 
+static void
+kill_a_child_client(gpointer ppid, gpointer childentry, gpointer unused)
+{
+	pid_t			pid = 	GPOINTER_TO_INT(ppid);
+	struct client_child*	centry = childentry; 
+
+	if (pid != centry->pid) {
+		ha_log(LOG_ERR, "kill_a_child_client: mismatching pids"
+		" %d versus %d for %s - not killed.", pid, centry->pid
+		,	centry->command);
+		return;
+	}
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "sending SIGTERM to client %d (%s)"
+		,	pid, centry->command);
+	}
+	centry->respawn=0;
+	kill(pid, SIGTERM);
+}
+
+static void
+start_a_child_client(gpointer childentry, gpointer pidtable)
+{
+	struct client_child*	centry = childentry;
+	GHashTable*		ptable = pidtable;
+	pid_t			pid;
+
+	ha_log(LOG_INFO, "Starting child client %s (%d,%d)"
+	,	centry->command, centry->u_runas
+	,	centry->g_runas);
+
+	if (centry->pid != 0) {
+		ha_log(LOG_ERR, "OOPS! client %s already running as pid %d"
+		,	centry->command, centry->pid);
+	}
+
+	/*
+	 * We need to ensure that the exec will succeed before
+	 * we bother forking.  We don't want to respawn something that
+	 * won't exec in the first place.
+	 */
+
+	if (access(centry->command, F_OK|X_OK) < 0) {
+		ha_perror("Cannot exec %s", centry->command);
+		return;
+	}
+
+	/* We need to fork so we can make child procs not real time */
+	switch(pid=fork()) {
+
+		case -1:	ha_log(LOG_ERR
+				,	"start_a_child_client: Cannot fork.");
+				return;
+
+		default:	/* Parent */
+				g_hash_table_insert(ptable
+				,	GINT_TO_POINTER(pid), centry);
+				return;
+
+		case 0:		/* Child */
+				break;
+	}
+
+	/* Child process:  run the requested command */
+	make_normaltime();
+
+	/* Limit peak resource usage, maximize success chances */
+	if (centry->shortrcount > 0) {
+		sleep(1);
+	}
+
+	ha_log(LOG_INFO, "Starting %s as uid %d  gid %d (pid %d)"
+	,	centry->command, centry->u_runas
+	,	centry->g_runas, getpid());
+
+	if (	setgid(centry->g_runas) < 0
+	||	setuid(centry->u_runas) < 0
+	||	siginterrupt(SIGALRM, 0) < 0) {
+
+		ha_perror("Cannot setup child process %s"
+		,	centry->command);
+	}else{
+		const char *	devnull = "/dev/null";
+		int	j;
+		signal(SIGCHLD, SIG_DFL);
+		alarm(0);
+		IGNORESIG(SIGALRM);
+
+		/* A precautionary measure */
+		for (j=0; j < 100; ++j) {
+			close(j);
+		}
+		(void)open(devnull, O_RDONLY);	/* Stdin:  fd 0 */
+		(void)open(devnull, O_WRONLY);	/* Stdout: fd 1 */
+		(void)open(devnull, O_WRONLY);	/* Stderr: fd 2 */
+		(void)execl(centry->command, centry->command, NULL);
+
+		/* Should not happen */
+		ha_perror("Cannot exec %s", centry->command);
+	}
+	/* Suppress respawning */
+	exit(100);
+}
 
 void
 term_sig(int sig)
@@ -3314,7 +3505,6 @@ giveup_resources(int dummy)
 	int		rc;
 	pid_t		pid;
 	struct ha_msg *	m;
-	static int	shutdown_in_progress = 0;
 
 	i_hold_resources = NO_RSC;
 	if (nice_failback) {
@@ -3493,6 +3683,9 @@ main(int argc, char * argv[], char * envp[])
 				break;
 			case 's':
 				++rpt_hb_status;
+				break;
+			case 'l':
+				++RunAtLowPrio;
 				break;
 
 			case 'v':
@@ -3735,6 +3928,11 @@ signal_all(int sig)
 	/* We're going to wait for the master status process to shut down */
 	if (curproc && curproc->type == PROC_CONTROL) {
 		if (sig == SIGTERM) {
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG, "killing client procs");
+			}
+			g_hash_table_foreach(config->client_children
+			,	kill_a_child_client, NULL);
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG, "sending SIGTERM to MSP: %d"
 				,	master_status_pid);
@@ -4758,6 +4956,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.162  2002/02/11 22:31:34  alan
+ * Added a new option ('l') to make heartbeat run at low priority.
+ * Added support for a new capability - to start and stop client
+ * 	processes together with heartbeat itself.
+ *
  * Revision 1.161  2002/02/10 23:09:25  alan
  * Added a little initial code to support starting client
  * programs when we start, and shutting them down when we stop.

@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.10 2002/02/10 23:09:26 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.11 2002/02/11 22:31:35 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -273,8 +273,13 @@ struct sys_config {
 	struct HBauth_info* authmethod;	/* auth_config[authnum] */
 	struct node_info  nodes[MAXNODE];
 	struct HBauth_info  auth_config[MAXAUTH];
+	GList*		client_list;
+			/* List data: struct client_child */
+			/* These all show up in client_children */
+			/* when they're spawned (and have a pid) */
 	GHashTable*	client_children;/* Indexed by pid */
 			/* associated data: struct client_child */
+			/* They appear here after being spawned */
 };
 
 
@@ -313,6 +318,10 @@ struct client_child {
 	pid_t	pid;		/* Process id of child process */
 	int	respawn;	/* Respawn it if it dies? */
 	uid_t	u_runas;	/* Which user to run as? */
+	gid_t	g_runas;	/* Which group id to run as? */
+	clock_t	lastrespawn;	/* Last time we respawned this command */
+	int	respawncount;	/* Last time we respawned this command */
+	int	shortrcount;	/* How many times has it respawned too fast? */
 	char*	command;	/* What command to run? */
 };
 
