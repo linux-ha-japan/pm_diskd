@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.57 2001/07/17 15:00:04 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.58 2001/07/19 16:34:02 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -94,6 +94,9 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.57 2001/07/17 15:00:
 #endif
 #ifndef HA_MODULE_D
 #	define HA_MODULE_D	HALIB "/modules"
+#endif
+#ifndef HA_PLUGIN_D
+#	define HA_PLUGIN_D	HALIB "/plugins"
 #endif
 #ifndef TTY_LOCK_D
 #	if !defined(__FreeBSD__)
