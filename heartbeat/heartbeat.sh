@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.2 1999/09/23 15:53:13 alanr Exp $
+#	$Id: heartbeat.sh,v 1.3 1999/10/02 04:59:22 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -156,7 +156,8 @@ init_fifo() {
     [ ! -p $HA_FIFO ]
   then
     rm -f $HA_FIFO
-    mkfifo -m 644 $HA_FIFO
+    mkfifo $HA_FIFO
+    chmod 644 $HA_FIFO
   fi
 }
 
@@ -325,7 +326,11 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.3  1999/10/02 04:59:22  alanr
+#  FreeBSD mkfifo cleanup
+#
 #  Revision 1.2  1999/09/23 15:53:13  alanr
+#
 #  First version to work :-)
 #  Got this first version to work...
 #
