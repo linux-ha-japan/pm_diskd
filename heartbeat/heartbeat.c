@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.204 2002/09/10 21:50:06 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.205 2002/09/11 13:07:36 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -449,7 +449,7 @@ int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
 				const char *iface);
 int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
 void	Initiate_Reset(Stonith* s, const char * nodename);
-void	healed_cluster_partition(struct node_info* node);
+void	cause_shutdown_restart(struct node_info* node);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
 void	init_xmit_hist (struct msg_xmit_hist * hist);
@@ -3935,6 +3935,11 @@ mark_node_dead(struct node_info *hip)
 		/* Uh, oh... we're dead! */
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
+#if 0
+		/* Or should we do this... ? */
+		cause_shutdown_restart(thisnode);
+#endif
+		
 		return;
 	}
 	standby_running = 0L;
@@ -4119,14 +4124,12 @@ Initiate_Reset(Stonith* s, const char * nodename)
 }
 
 void
-healed_cluster_partition(struct node_info *t)
+cause_shutdown_restart(struct node_info *t)
 {
-	ha_log(LOG_WARNING
-	,	"Cluster node %s returning after partition"
-	,	t->nodename);
 	/* Give up our resources, and restart ourselves */
 	/* This is cleaner than lots of other options. */
 	/* And, it really should work every time... :-) */
+
 	procinfo->restart_after_shutdown = 1;
 	procinfo->giveup_resources = 1;
 	giveup_resources();
@@ -5242,7 +5245,11 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 				/* They're now alive, but were dead. */
 				/* No restart occured. UhOh. */
 
-				healed_cluster_partition(thisnode);
+				ha_log(LOG_WARNING
+				,	"Cluster node %s"
+				"returning after partition"
+				,	thisnode->nodename);
+				cause_shutdown_restart(thisnode);
 				ishealedpartition=1;
 			}
 		}else if (gen > t->generation) {
@@ -5965,6 +5972,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.205  2002/09/11 13:07:36  alan
+ * renamed healed_cluster_partition to be called cause_shutdown_restart,
+ * and moved the log message elsewhere.
+ * Put in a comment asking if we should call that when we hear no local heartbeat
+ * instead of just shutting down.
+ *
  * Revision 1.204  2002/09/10 21:50:06  alan
  * Added code, modified code to move to a common set of logging functions
  * - cl_log() and friends.
