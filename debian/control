@@ -1,5 +1,5 @@
 Source: heartbeat
-Build-Depends: debhelper (>= 2.0.0), libsnmp5-dev, lynx | lynx-ssl, libglib1.2-dev, perl,  net-tools, netkit-ping, ssh, python, util-linux, psmisc, mount, e2fsprogs, modutils, libnet0-dev, raidtools2, iproute, libssl-dev | libssl09-dev, libtool, automake
+Build-Depends: debhelper (>= 2.0.0), libsnmp5-dev | libsnmp4.2, lynx | lynx-ssl, libglib1.2-dev, perl,  net-tools, netkit-ping, ssh, python, util-linux, psmisc, mount, e2fsprogs, modutils, libnet0-dev, raidtools2, iproute, libssl-dev | libssl09-dev, libtool, automake
 Section: utils
 Priority: optional
 Maintainer: Simon Horman <horms@vergenet.net>
@@ -46,7 +46,6 @@ Architecture: any
 Depends: heartbeat-pils (= ${Source-Version})
 Description: Plugin and Interface Loading System
  Headers and Libraries for developing modules to work with
-
 
 Package: heartbeat
 Architecture: any
