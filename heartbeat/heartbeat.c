@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.263 2003/05/23 14:55:51 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.264 2003/06/04 15:51:35 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1554,10 +1554,6 @@ hb_mcp_final_shutdown(gpointer p)
 
 	if (ANYDEBUG) {
 		cl_log(LOG_DEBUG, "hb_mcp_final_shutdown() phase %d"
-		,	shutdown_phase);
-	}
-	if (ANYDEBUG) {
-		cl_log(LOG_DEBUG, "hb_mcp_final_shutdown(2) phase %d"
 		,	shutdown_phase);
 	}
 	DisableProcLogging();	/* We're shutting down */
@@ -4083,6 +4079,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.264  2003/06/04 15:51:35  alan
+ * removed a duplicate debug log message...
+ *
  * Revision 1.263  2003/05/23 14:55:51  alan
  * Changed the "probable replay attack" message from a debug to an error message.
  *
