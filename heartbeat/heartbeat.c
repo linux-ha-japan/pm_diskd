@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.241 2003/02/07 08:37:16 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.242 2003/03/07 01:13:05 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -297,6 +297,7 @@ int		debug = 0;
 
 static int	killrunninghb = 0;
 static int	rpt_hb_status = 0;
+int		timebasedgenno = FALSE;
 char *		watchdogdev = NULL;
 static int	watchdogfd = -1;
 void		(*localdie)(void);
@@ -379,6 +380,7 @@ static void	process_clustermsg(FILE * f);
 static void	process_registermsg(FILE * f);
 static void	nak_rexmit(seqno_t seqno, const char * reason);
 static int	IncrGeneration(seqno_t * generation);
+static int	GetTimeBasedGeneration(seqno_t * generation);
 static void	process_control_packet(struct msg_xmit_hist* msghist
 ,	struct ha_msg * msg);
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
@@ -576,11 +578,15 @@ initialize_heartbeat()
 	FILE *		fifo;
 	int		ourproc = 0;
 	int		fifoofd;
+	int	(*getgen)(seqno_t * generation) = IncrGeneration;
 
 	localdie = NULL;
 
 
-	if (IncrGeneration(&config->generation) != HA_OK) {
+	if (timebasedgenno) {
+		getgen = GetTimeBasedGeneration;
+	}
+	if (getgen(&config->generation) != HA_OK) {
 		ha_perror("Cannot get/increment generation number");
 		return(HA_FAIL);
 	}
@@ -710,7 +716,7 @@ initialize_heartbeat()
 		ourproc = procinfo->nprocs;
 
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "write process pid: %d\n", pid);
+			ha_log(LOG_DEBUG, "write process pid: %d", pid);
 		}
 
 		switch ((pid=fork())) {
@@ -729,7 +735,7 @@ initialize_heartbeat()
 					cleanexit(1);
 		}
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "read child process pid: %d\n", pid);
+			ha_log(LOG_DEBUG, "read child process pid: %d", pid);
 		}
 		NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 		,	&CoreProcessTrackOps);
@@ -760,7 +766,7 @@ initialize_heartbeat()
 	,	&CoreProcessTrackOps);
 
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "master status process pid: %d\n", pid);
+		ha_log(LOG_DEBUG, "master status process pid: %d", pid);
 	}
 
 	fifo = fopen(FIFONAME, "r");
@@ -870,6 +876,7 @@ write_child(struct hb_media* mp)
 		hb_signal_process_pending();
 	}
 }
+
 
 
 /* The master control process -- reads control fifo, sends msgs to cluster */
@@ -1412,7 +1419,7 @@ APIregistration_input_dispatch(int fd,	gpointer user_data)
 	FILE *		regfifo = user_data;
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG
-		,	"Processing register message from regfd %d.\n"
+		,	"Processing register message from regfd %d."
 		,	fd);
 	}
 	if (fileno(regfifo) != fd) {
@@ -2897,7 +2904,7 @@ StartHeartbeat:
 	if (init_config(CONFIG_NAME) && parse_ha_resources(RESOURCE_CFG)) {
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG
-			,	"HA configuration OK.  Heartbeat starting.\n");
+			,	"HA configuration OK.  Heartbeat starting.");
 		}
 		if (verbose) {
 			dump_config();
@@ -3023,7 +3030,7 @@ make_daemon(void)
 	/* See if heartbeat is already running... */
 
 	if ((pid=get_running_hb_pid()) > 0 && pid != getpid()) {
-		ha_log(LOG_INFO, "%s: already running [pid %ld].\n"
+		ha_log(LOG_INFO, "%s: already running [pid %ld]."
 		,	cmdname, pid);
 		exit(LSB_EXIT_OK);
 	}
@@ -3600,7 +3607,7 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 
 	hist->lastmsg = MAXMSGHIST-1;
 	hist->hiseq = hist->lowseq = 0;
-	for (j=0; j< MAXMSGHIST; ++j) {
+	for (j=0; j < MAXMSGHIST; ++j) {
 		hist->msgq[j] = NULL;
 		hist->seqnos[j] = 0;
 		hist->lastrexmit[j] = zero_longclock;
@@ -3891,10 +3898,22 @@ IncrGeneration(seqno_t * generation)
 	return HA_OK;
 }
 
+static int
+GetTimeBasedGeneration(seqno_t * generation)
+{
+	*generation = (seqno_t) time(NULL);
+	return HA_OK;
+}
+
+
+
 
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.242  2003/03/07 01:13:05  alan
+ * Put in code for a time-based generation number option.
+ *
  * Revision 1.241  2003/02/07 08:37:16  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.

@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.79 2003/02/07 08:37:16 horms Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.80 2003/03/07 01:13:05 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -74,6 +74,7 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.79 2003/02/07 08:37:16 
 #define KEY_STONITHHOST "stonith_host"
 #define KEY_CLIENT_CHILD "respawn"
 #define KEY_RT_PRIO	 "rtprio"
+#define KEY_GEN_METH	 "hbgenmethod"
 
 static int add_normal_node(const char *);
 static int set_hopfudge(const char *);
@@ -92,6 +93,7 @@ static int set_stonith_info(const char *);
 static int set_stonith_host_info(const char *);
 static int set_realtime_prio(const char *);
 static int add_client_child(const char *);
+static int set_generation_method(const char *);
 
 struct directive {
 	const char * name;
@@ -111,6 +113,7 @@ struct directive {
 ,	{KEY_DBGFILE,   set_dbgfile}
 ,	{KEY_FAILBACK,  set_nice_failback}
 ,	{KEY_RT_PRIO,	set_realtime_prio}
+,	{KEY_GEN_METH,	set_generation_method}
 };
 
 static const struct WholeLineDirective {
@@ -139,6 +142,7 @@ extern int				hb_realtime_prio;
 extern PILPluginUniv*			PluginLoadingSystem;
 extern GHashTable*			CommFunctions;
 struct node_info *   			curnode;
+extern int    				timebasedgenno;
 
 static int	islegaldirective(const char *directive);
 static int	parse_config(const char * cfgfile, char *nodename);
@@ -1335,6 +1339,16 @@ set_realtime_prio(const char * value)
 	hb_realtime_prio = foo;
 	return HA_OK;
 }
+static int
+set_generation_method(const char * value)
+{
+	if (strcmp(value, "time") != 0) {
+		ha_log(LOG_ERR, "Illegal hb generation method [%s]", value);
+		return HA_FAIL;
+	}
+	timebasedgenno = TRUE;
+	return HA_OK;
+}
 
 static int
 add_client_child(const char * directive)
@@ -1416,6 +1430,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.80  2003/03/07 01:13:05  alan
+ * Put in code for a time-based generation number option.
+ *
  * Revision 1.79  2003/02/07 08:37:16  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.
