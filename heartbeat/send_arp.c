@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.22 2003/07/12 16:19:54 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.23 2003/07/12 17:02:59 alan Exp $";
 /* 
  * send_arp
  * 
@@ -105,30 +105,31 @@ main(int argc, char *argv[])
 	 *	argv[optind+5] NETMASK		ffffffffffff
 	 */
 
-	device    = argv[optind+1];
-	ipaddr    = argv[optind+2];
-	macaddr   = argv[optind+3];
-	broadcast = argv[optind+4];
-	netmask   = argv[optind+5];
+	device    = argv[optind];
+	ipaddr    = argv[optind+1];
+	macaddr   = argv[optind+2];
+	broadcast = argv[optind+3];
+	netmask   = argv[optind+4];
 
 #if defined(HAVE_LIBNET_1_0_API)
 	if ((ip = libnet_name_resolve(ipaddr, 1)) == -1UL) {
-		syslog(LOG_ERR, "Cannot resolve IP address");
+		syslog(LOG_ERR, "Cannot resolve IP address [%s]", ipaddr);
 		exit(EXIT_FAILURE);
 	}
 
 	l = libnet_open_link_interface(device, errbuf);
 	if (!l) {
-		syslog(LOG_ERR, "libnet_open_link_interface: %s", errbuf);
+		syslog(LOG_ERR, "libnet_open_link_interface on %s: %s"
+		,	device, errbuf);
 		exit(EXIT_FAILURE);
 	}
 #elif defined(HAVE_LIBNET_1_1_API)
 	if ((l=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
-	syslog(LOG_ERR, "libnet_init failure:");
+		syslog(LOG_ERR, "libnet_init failure on %s", device);
 		exit(EXIT_FAILURE);
 	}
 	if ((signed)(ip = libnet_name2addr4(l, ipaddr, 1)) == -1) {
-		syslog(LOG_ERR, "Cannot resolve IP address");
+		syslog(LOG_ERR, "Cannot resolve IP address [%s]", ipaddr);
 		exit(EXIT_FAILURE);
 	}
 #else
@@ -258,6 +259,9 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.23  2003/07/12 17:02:59  alan
+ * Hopefully last fix for the changes made to allow user to specify arp intervals, etc.
+ *
  * Revision 1.22  2003/07/12 16:19:54  alan
  * Fixed a bug in the new send_arp options and their invocation...
  *
