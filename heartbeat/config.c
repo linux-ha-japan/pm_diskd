@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.37 2001/06/27 23:33:46 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.38 2001/06/27 23:54:30 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -83,6 +83,8 @@ int	serial_baud;
 int	num_hb_media_types;
 
 struct hb_media_fns**	hbmedia_types;
+
+struct tms times_buf; /* Needed for times() call */
 
 #ifdef IRIX
 	void setenv(const char *name, const char * value, int);
@@ -757,12 +759,20 @@ parse_authfile(void)
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG
 			,	"Examining authentication method %d", j);
-			ha_log(LOG_DEBUG
-			,	"Method is: %s", config->auth_config[j]
-			.auth->authname);
-			ha_log(LOG_DEBUG
-			,	"Ref count is: %d"
-			,	config->auth_config[j].auth->ref);
+			if (config->auth_config[j].auth != NULL)
+			{
+				ha_log(LOG_DEBUG
+				,	"Method is: %s", config->auth_config[j]
+				.auth->authname);
+				ha_log(LOG_DEBUG
+				,	"Ref count is: %d"
+				,	config->auth_config[j].auth->ref);
+			}
+			else
+			{
+				ha_log(LOG_DEBUG
+				,	"WARNING: config->auth_config[%d] is NULL. (Problem ?)", j);
+			}
 		}
 		if (config->auth_config[j].key != NULL) {
 			ha_free(config->auth_config[j].key);
