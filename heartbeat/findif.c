@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.15 2001/10/03 05:45:56 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.16 2001/10/13 21:03:12 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -54,12 +54,14 @@ static const char _findif_c [] = "$Id: findif.c,v 1.15 2001/10/03 05:45:56 alan 
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#ifdef __linux__
 #undef __OPTIMIZE__
 /*
  * This gets rid of some silly -Wtraditional warnings on Linux
  * because the netinet header has some slightly funky constants
  * in it.
  */
+#endif /* __linux__ */
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -70,11 +72,29 @@ void ConvertQuadToInt (char *dest);
 
 void ConvertBitsToMask (char *mask);
 
-int SearchForProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
-,	 char *best_if, unsigned long *best_netmask);
+/*
+ * Different OSes offer different mechnisms to obtain this information.
+ * Not all this can be determined at configure-time; need a run-time element.
+ *
+ * typedef ... SearchRoute ...:
+ *	For routines that interface on these mechanisms.
+ *	Return code:
+ *		<0:	mechanism invalid, so try next mechanism
+ *		0:	mechanism worked: good answer
+ *		>0:	mechanism worked: bad answer
+ *	On non-zero, errmsg may have been filled with an error message
+ */
+typedef int SearchRoute (char *address, struct in_addr *in, struct in_addr *addr_out
+,	 char *best_if, unsigned long *best_netmask, char *errmsg);
 
-int SearchForRoute (char *address, struct in_addr *out, struct in_addr *addr_out	
-,	char *best_if, unsigned long *best_netmask);
+SearchRoute SearchUsingProcRoute;
+SearchRoute SearchUsingRouteCmd;
+
+SearchRoute *search_mechs[] = {
+	&SearchUsingProcRoute,
+	&SearchUsingRouteCmd,
+	NULL
+};
 
 void GetAddress (char *inputaddress, char **address, char **netmaskbits
 ,	 char **bcast_arg, char **if_specified);
@@ -93,25 +113,35 @@ void usage(void);
 void
 ConvertQuadToInt (char *dest)
 {
-	int ipquad[4] = { 0, 0, 0, 0 };
+	unsigned ipquad[4] = { 0, 0, 0, 0 };
 	unsigned long int intdest = 0;
 
 	/*
-	 * Convert a dotted quad into a value
+	 * Convert a dotted quad into a value in the local byte order
  	 * 
  	 * 	ex.  192.168.123.1 would be converted to
  	 * 	1.123.168.192
  	 * 	1.7B.A8.C0
  	 * 	17BA8C0
  	 * 	24881344
+	 *
+	 * This replaces our argument with a new string -- in decimal...
  	 *
 	 */
 
 	while (strstr (dest, ".")) {
 		*strstr(dest, ".") = ' ';
 	}
-	sscanf (dest, "%d%d%d%d", &ipquad[3], &ipquad[2], &ipquad[1], &ipquad[0]);
+	sscanf (dest, "%u%u%u%u", &ipquad[3], &ipquad[2], &ipquad[1], &ipquad[0]);
+	
+#if useMULT
 	intdest = (ipquad[0] * 0x1000000) + (ipquad[1] * 0x10000) + (ipquad[2] * 0x100) + ipquad[3];
+#else
+	intdest = (	((ipquad[0]&0xff) <<24)
+	|		((ipquad[1]&0xff) <<16)
+	|		((ipquad[2]&0xff) <<8) 
+	|	 	 (ipquad[3]&0xff));
+#endif
 	sprintf (dest, "%ld", intdest);
 }
 
@@ -125,10 +155,10 @@ ConvertBitsToMask (char *mask)
 
 	maskbits = atoi(mask);
 
-	for (i = 0; i < 32; i++)
-	{
-		if (i <  maskbits)
+	for (i = 0; i < 32; i++) {
+		if (i <  maskbits) {
 			longmask |= maskflag;
+		}
 		/* printf ("%d:%x:%x\n", i, longmask, maskflag); */
 		maskflag = maskflag << 1;
 	}
@@ -138,8 +168,8 @@ ConvertBitsToMask (char *mask)
 }
 
 int
-SearchForProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
-,	 char *best_if, unsigned long *best_netmask)
+SearchUsingProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
+,	 char *best_if, unsigned long *best_netmask, char *errmsg)
 {
 	long    dest, gw, flags, refcnt, use, metric, mask;
 	int	best_metric = INT_MAX;
@@ -149,19 +179,19 @@ SearchForProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 	FILE *routefd = NULL;
 
 	if ((routefd = fopen(PROCROUTE, "r")) == NULL) {
-		fprintf(stderr, "Cannot open %s for reading"
+		sprintf(errmsg, "Cannot open %s for reading"
 		,	PROCROUTE);
-		return(1);
+		return(-1);
 	}
 
-	/* Skip first line */
+	/* Skip first (header) line */
 	fgets(buf, sizeof(buf), routefd);
 	while (fgets(buf, sizeof(buf), routefd) != NULL) {
 		if (sscanf(buf, "%[^\t]\t%lx%lx%lx%lx%lx%lx%lx"
 		,	interface, &dest, &gw, &flags, &refcnt, &use
 		,	&metric, &mask)
 		!= 8) {
-			fprintf(stderr, "Bad line in %s: %s"
+			sprintf(errmsg, "Bad line in %s: %s"
 			,	PROCROUTE, buf);
 			return(1);
 		}
@@ -175,7 +205,7 @@ SearchForProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 	fclose(routefd);
 
 	if (best_metric == INT_MAX) {
-		fprintf(stderr, "No route to %s\n", address);
+		sprintf(errmsg, "No route to %s\n", address);
 		return(1); 
 	}
 
@@ -183,8 +213,8 @@ SearchForProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 }
 
 int
-SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
-,	 char *best_if, unsigned long *best_netmask)
+SearchUsingRouteCmd (char *address, struct in_addr *in, struct in_addr *addr_out
+,	 char *best_if, unsigned long *best_netmask, char *errmsg)
 {
 	char	dest[20], mask[20];
 	char	routecmd[MAXSTR];
@@ -211,8 +241,7 @@ SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 		*sp = '\0';
 
 		buf[strlen(buf)] = EOS;
-		if (strstr (buf, "mask:"))
-		{
+		if (strstr (buf, "mask:")) {
 			/*strsep(&cp, ":");cp++;*/
 			cp = strtok(buf, ":");
 			cp = strtok(NULL, ":");cp++;
@@ -220,8 +249,7 @@ SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
                   	done++;
 		}
 
-		if (strstr (buf, "interface:"))
-		{
+		if (strstr (buf, "interface:")) {
 			/*strsep(&cp, ":");cp++;*/
 			cp = strtok(buf, ":");
 			cp = strtok(NULL, ":");cp++;
@@ -229,8 +257,7 @@ SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
                   	done++;
 		}
 
-		if (strstr (buf, "destination:"))
-		{
+		if (strstr (buf, "destination:")) {
 			/*strsep(&cp, ":");cp++;*/
 			cp = strtok(buf, ":");
 			cp = strtok(NULL, ":");cp++;
@@ -244,12 +271,21 @@ SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 	 *	returned if multiple IP's are defined.
 	 *	use 255.255.255.255 for mask then
 	 */
-	if (!strlen(mask)) strcpy (mask, "255.255.255.255");
+	/* I'm pretty sure this is the wrong behavior...
+	 * I think the right behavior is to declare an error and give up.
+	 * The admin didn't define his routes correctly.  Fix them.
+	 * It's useless to take over an IP address with no way to
+	 * return packets to the originator.  Without the right subnet
+	 * mask, you can't reply to any packets you receive.
+	 */
+	if (strlen(mask) == 0) {
+		strcpy (mask, "255.255.255.255");
+	}
 	ConvertQuadToInt  (dest);
 	ConvertBitsToMask (mask);
 
 	if (inet_pton(AF_INET, address, addr_out) <= 0) {
-		fprintf(stderr, "IP address [%s] not valid.", address);
+		sprintf(errmsg, "IP address [%s] not valid.", address);
 		usage();
 		return(1);
 	}
@@ -262,7 +298,7 @@ SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 
 	fclose(routefd);
 	if (best_metric == INT_MAX) {
-		fprintf(stderr, "No route to %s\n", address);
+		sprintf(errmsg, "No route to %s\n", address);
 		return(1);
 	}
 
@@ -382,12 +418,25 @@ main(int argc, char ** argv) {
 	if (if_specified != NULL) {
 		strcpy(best_if, if_specified);
 	}else{
-#ifdef USE_ROUTE_GET
-		SearchForRoute (address, &in, &addr_out, best_if, &best_netmask);
-#else
-		SearchForProcRoute (address, &in, &addr_out, best_if, &best_netmask);
-#endif
-      }
+		SearchRoute **sr = search_mechs;
+		char errmsg[MAXSTR] = "No valid mecahnisms";
+		int rc = -1;
+
+		while (*sr) {
+			errmsg[0] = '\0';
+			rc = (*sr) (address, &in, &addr_out, best_if
+			,	&best_netmask, errmsg);
+			if (rc >= 0) {		/* Mechanism worked */
+				break;
+			}
+			sr++;
+		}
+		if (rc != 0) {		/* No route, or all mechanisms failed */
+			if (*errmsg) {
+				fprintf(stderr, "%s", errmsg);
+			}
+		}
+	}
 
 	if (netmask != BAD_NETMASK) {
 		best_netmask = netmask;
@@ -517,6 +566,12 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.16  2001/10/13 21:03:12  alan
+ * Put in a fix to the findif command which makes it test which way to get
+ * routing information at run time rather than at compile time.
+ * This permits configure to be run as a normal user on environments where
+ * /proc/route isn't available.
+ *
  * Revision 1.15  2001/10/03 05:45:56  alan
  * Added a couple of patches from Matt Soffen:
  * Make a debug statement conditional ;-)
