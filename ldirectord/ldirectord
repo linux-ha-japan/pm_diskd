@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.69 2003/07/08 03:02:32 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.70 2003/07/14 08:17:15 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -2705,8 +2705,12 @@ sub ld_gethostservbyname{
 	$ip=&ld_gethostbyname($ip)  or return(undef);
 
 	if(defined($port)){
-		$port=&ld_getservbyname($port, $protocol) or return(undef);
-		return("$ip:$port");
+	    $port=&ld_getservbyname($port, $protocol);
+		if (defined($port)) {
+		    return("$ip:$port");
+		} else {
+		    return(undef);
+		}
 	}
 	return($ip);
 }
