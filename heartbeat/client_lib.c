@@ -1500,7 +1500,7 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 	return(msg2stream(msg, pi->MsgFIFO));
 }
 
-static char	APILogBuf[MAXLINE];
+static char	APILogBuf[MAXLINE] = "";
 int		BufLen = 0;
 
 void
