@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.79 2001/01/16 21:53:39 alan Exp $
+#	$Id: Specfile,v 1.80 2001/01/19 12:32:07 eric Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -371,7 +371,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %attr (750, root, %APIGROUP%) /var/lib/%PKG%/api
 %attr (620, root, %APIGROUP%) /var/lib/%PKG%/register
 %attr (1770, root, %APIGROUP%) /var/lib/%PKG%/casual
-/usr/man/man8/heartbeat.8
+/usr/man/man8/heartbeat.8*
 %doc doc/*
 
 # Files for ldirectord
