@@ -171,7 +171,7 @@ clntCh_input_dispatch(gpointer source_data, GTimeVal* current_time
 			(struct IPC_CHANNEL *)user_data;
 
 	if(gpfd->revents&G_IO_HUP || (gpfd+1)->revents&G_IO_HUP) {
-		fprintf(stderr, "dispatch:received HUP\n");
+		cl_log(LOG_DEBUG, "dispatch:received HUP");
 		client_delete(client);
 		g_main_remove_poll(gpfd);
 		g_main_remove_poll(gpfd+1);
@@ -242,14 +242,14 @@ waitCh_input_dispatch(gpointer source_data, GTimeVal* current_time
 			NULL)) != NULL) {
 		/* accept the connection */
 		if(global_verbose)
-			fprintf(stderr,"accepting a new connection \n");
+			cl_log(LOG_DEBUG,"accepting a new connection");
 		/* inform our client manager about this new client */
 		client_add(newclient);
 
 		/* add this source to the event loop */
 		if((newsource = (GPollFD *) g_malloc(2*sizeof(GPollFD))) 
 			== NULL) {
-			fprintf(stderr,"waitCh_input_dispatch: not enough memory\n");
+			cl_log(LOG_ERR,"waitCh_input_dispatch: not enough memory");
 			return FALSE;
 		}
 		newsource->fd = newclient->ops->get_send_select_fd(newclient);
@@ -288,9 +288,9 @@ wait_channel_init(void)
 
 	mask = umask(0);
 	wait_ch = ipc_wait_conn_constructor(domainsocket, attrs);
-	if(wait_ch == NULL){
-	   printf("Can't create wait channel\n");
-	   exit(1);
+	if (wait_ch == NULL){
+		cl_perror("Can't create wait channel");
+		exit(1);
 	}
 	mask = umask(mask);
 
@@ -312,24 +312,27 @@ usage(const char *cmd)
 static void
 ccm_debug(int signum) 
 {
-	fprintf(stderr, "ccm_debug called with signal =%d\n",signum);
+	/* FIXME!  stdio and cl_log calls can't be made on signals */
+	/* It will cause unpredictable crashes */
+
+	cl_log(LOG_DEBUG, "ccm_debug called with signal =%d",signum);
 	switch(signum) {
 	case SIGUSR1:
 		if(global_debug){
-			fprintf(stderr, "debug set off\n");
+			cl_log(LOG_DEBUG, "debug set off");
 			global_debug = 0;
 		} else {
 			global_debug = 1;
-			fprintf(stderr, "debug set on\n");
+			cl_log(LOG_DEBUG, "debug set on");
 		}
 		break;
 	case SIGUSR2:
 		if(global_verbose){
-			fprintf(stderr, "verbose set off\n");
+			cl_log(LOG_DEBUG, "verbose set off");
 			global_verbose = 0;
 		} else {
 			global_verbose = 1;
-			fprintf(stderr, "verbose set on\n");
+			cl_log(LOG_DEBUG, "verbose set on");
 		}
 		break;
 	}
@@ -358,6 +361,9 @@ main(int argc, char **argv)
 	} else {
 		cmdname = tmp_cmdname;
 	}
+	cl_log_enable_stderr(TRUE);
+	cl_log_set_entity(cmdname);
+	cl_log_set_facility(LOG_DAEMON);
 	while ((flag = getopt(argc, argv, OPTARGS)) != EOF) {
 		switch(flag) {
 			case 'v':
@@ -412,6 +418,7 @@ main(int argc, char **argv)
 	g_source_add(G_PRIORITY_LOW, FALSE, &waitCh_input_SourceFuncs
 		       , &waitchan, wait_ch, NULL);
 	
+	cl_log_enable_stderr(FALSE);
 	g_main_run(mainloop);
 	g_main_destroy(mainloop);
 

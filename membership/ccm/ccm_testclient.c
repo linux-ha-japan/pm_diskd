@@ -25,6 +25,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <syslog.h>
+#include <clplumbing/cl_log.h>
 
 
 oc_ev_t *ev_token;
@@ -38,7 +40,7 @@ my_ms_events(oc_ed_t event, void *cookie,
 	int i;
 	int i_am_in;
 
- 	fprintf(stderr,"\nevent=%s\n", 
+ 	cl_log(LOG_DEBUG,"event=%s", 
 			event==OC_EV_MS_NEW_MEMBERSHIP?"NEW MEMBERSHIP":
 		        event==OC_EV_MS_NOT_PRIMARY?"NOT PRIMARY":
 			event==OC_EV_MS_PRIMARY_RESTORED?"PRIMARY RESTORED":
@@ -49,8 +51,8 @@ my_ms_events(oc_ed_t event, void *cookie,
 		return;
 	}
 
-	fprintf(stderr,"trans=%d, nodes=%d, new=%d, lost=%d n_idx=%d, "
-				"new_idx=%d, old_idx=%d\n",
+	cl_log(LOG_DEBUG,"trans=%d, nodes=%d, new=%d, lost=%d n_idx=%d, "
+				"new_idx=%d, old_idx=%d",
 			oc->m_instance,
 			oc->m_n_member,
 			oc->m_n_in,
@@ -60,9 +62,9 @@ my_ms_events(oc_ed_t event, void *cookie,
 			oc->m_out_idx);
 
 	i_am_in=0;
-	fprintf(stderr, "\nNODES IN THE PRIMARY MEMBERSHIP\n");
+	cl_log(LOG_DEBUG, "NODES IN THE PRIMARY MEMBERSHIP");
 	for(i=0; i<oc->m_n_member; i++) {
-		fprintf(stderr,"\tnodeid=%d, born=%d\n",
+		cl_log(LOG_DEBUG,"\tnodeid=%d, born=%d",
 			oc->m_array[oc->m_memb_idx+i].node_id,
 			oc->m_array[oc->m_memb_idx+i].node_born_on);
 		if(oc_ev_is_my_nodeid(ev_token, &(oc->m_array[i]))){
@@ -70,26 +72,26 @@ my_ms_events(oc_ed_t event, void *cookie,
 		}
 	}
 	if(i_am_in) {
-		fprintf(stderr,"\nMY NODE IS A MEMBER OF THE MEMBERSHIP LIST\n\n");
+		cl_log(LOG_DEBUG,"MY NODE IS A MEMBER OF THE MEMBERSHIP LIST");
 	}
 
-	fprintf(stderr, "NEW MEMBERS\n");
+	cl_log(LOG_DEBUG, "NEW MEMBERS");
 	if(oc->m_n_in==0) 
-		fprintf(stderr, "\tNONE\n");
+		cl_log(LOG_DEBUG, "\tNONE");
 	for(i=0; i<oc->m_n_in; i++) {
-		fprintf(stderr,"\tnodeid=%d, born=%d\n",
+		cl_log(LOG_DEBUG,"\tnodeid=%d, born=%d",
 			oc->m_array[oc->m_in_idx+i].node_id,
 			oc->m_array[oc->m_in_idx+i].node_born_on);
 	}
-	fprintf(stderr, "\nMEMBERS LOST\n");
+	cl_log(LOG_DEBUG, "MEMBERS LOST");
 	if(oc->m_n_out==0) 
-		fprintf(stderr, "\tNONE\n");
+		cl_log(LOG_DEBUG, "\tNONE");
 	for(i=0; i<oc->m_n_out; i++) {
-		fprintf(stderr,"\tnodeid=%d, born=%d\n",
+		cl_log(LOG_DEBUG,"\tnodeid=%d, born=%d",
 			oc->m_array[oc->m_out_idx+i].node_id,
 			oc->m_array[oc->m_out_idx+i].node_born_on);
 	}
-	fprintf(stderr, "-----------------------\n");
+	cl_log(LOG_DEBUG, "-----------------------");
 	oc_ev_callback_done(cookie);
 }
 
@@ -100,6 +102,9 @@ main(int argc, char *argv[])
 	fd_set rset;
 	int	my_ev_fd;
 
+	cl_log_set_entity(argv[0]);
+	cl_log_enable_stderr(TRUE);
+	cl_log_set_facility(LOG_USER);
 	oc_ev_register(&ev_token);
 
 	oc_ev_set_callback(ev_token, OC_EV_MEMB_CLASS, my_ms_events, NULL);
@@ -113,14 +118,14 @@ main(int argc, char *argv[])
 	for (;;) {
 
 		FD_ZERO(&rset);
-		FD_SET(my_ev_fd,&rset);
+		FD_SET(my_ev_fd, &rset);
 
 		if(select(my_ev_fd + 1, &rset, NULL,NULL,NULL) == -1){
 			perror("select");
 			return(1);
 		}
 		if(oc_ev_handle_event(ev_token)){
-			fprintf(stderr,"terminating \n");
+			cl_log(LOG_ERR,"terminating");
 			return(1);
 		}
 	}

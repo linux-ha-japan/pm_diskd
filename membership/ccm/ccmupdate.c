@@ -51,8 +51,9 @@ update_add_memlist_request(ccm_update_t *tab,
 			g_slist_nth_data(UPDATE_GET_CLHEAD(tab),i++)) != NULL){
 		if(idx == obj->index) {
 			if(trans > obj->trans) {
-				fprintf(stderr,"WARNING:update_add_memlist_request "
-					"%s already added(updating)\n", node);
+				cl_log(LOG_WARNING
+				,	"WARNING:update_add_memlist_request"
+				" %s already added(updating)", node);
 				obj->trans = trans;
 			}
 			return;
@@ -322,7 +323,7 @@ update_add(ccm_update_t *tab,
 		/* something wrong. Better printout a error and exit 
 	 	* Lets catch this bug
 	 	*/
-		ha_log(LOG_ERR, "ccm_update_table:Internal Logic error i=%d\n",
+		cl_log(LOG_ERR, "ccm_update_table:Internal Logic error i=%d",
 				i);
 		exit(1);
 	}
@@ -338,7 +339,7 @@ update_add(ccm_update_t *tab,
 		 * This should not happen. But never know! 
 		*/
 		if(i == UPDATE_GET_INDEX(tab,j)){
-			ha_log(LOG_ERR, "ccm_update_table:duplicate entry %s\n",
+			cl_log(LOG_ERR, "ccm_update_table:duplicate entry %s",
 						orig);
 			return;
 		}
@@ -348,7 +349,7 @@ update_add(ccm_update_t *tab,
 		/* something wrong. Better printout a error and exit 
 	 	* Lets catch this bug
 	 	*/
-		ha_log(LOG_ERR, "ccm_update_table:Internal Logic error j=%d\n",
+		cl_log(LOG_ERR, "ccm_update_table:Internal Logic error j=%d",
 				j);
 		exit(1);
 	}

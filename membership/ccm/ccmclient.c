@@ -79,7 +79,7 @@ send_message(ccm_client_t *ccm_client, ccm_ipc_t *msg)
 
 	while(ipc_client->ops->send(ipc_client, &(msg->ipcmsg)) 
 			== IPC_FAIL){
-		fprintf(stderr, "Warning: ipc channel blocked\n");
+		cl_log(LOG_WARNING, "ipc channel blocked");
 		sleep(1);
 	}
 	return;
@@ -202,7 +202,7 @@ flush_func(gpointer key, gpointer value, gpointer user_data)
 {
 	struct IPC_CHANNEL *ipc_client = (struct IPC_CHANNEL *)key;
 	while(ipc_client->ops->is_sending_blocked(ipc_client)) {
-		fprintf(stderr, "Warning: ipc channel blocked\n");
+		cl_log(LOG_WARNING, "ipc channel blocked");
 		sleep(1);
 		ipc_client->ops->resume_io(ipc_client);
 	}
@@ -242,7 +242,7 @@ void
 client_init(void)
 {
 	if(ccm_hashclient) {
-		fprintf(stderr,"ccm: client already initialized\n");
+		cl_log(LOG_DEBUG, "ccm: client already initialized");
 		return;
 	}
 	ccm_hashclient =  g_hash_table_new(g_direct_hash, 
@@ -257,7 +257,7 @@ client_add(struct IPC_CHANNEL *ipc_client)
 	ccm_client_t  *ccm_client;
 
 	if(!ccm_hashclient) {
-		fprintf(stderr,"ccm: client subsystem not initialized\n");
+		cl_log(LOG_ERR, "ccm: client subsystem not initialized");
 		return -1;
 	}
 
@@ -349,7 +349,7 @@ client_send_msg(int n,  int trans, int *member, void *borndata)
 	
 
 	if(global_debug) {
-		fprintf(stderr,"n=%d, msg->msg_len=%ld\n",
+		cl_log(LOG_DEBUG, "n=%d, msg->msg_len=%ld",
 			n,ipc_born_message->ipcmsg.msg_len);
 	}
 
@@ -375,7 +375,7 @@ client_not_primary(void)
 	}
 
 	if(global_verbose)
-		fprintf(stderr,"membership state: not primary\n");
+		cl_log(LOG_DEBUG, "membership state: not primary");
 }
 
 void
@@ -394,7 +394,7 @@ client_primary_restored(void)
 		send_all();
 	}
 	if(global_verbose)
-		fprintf(stderr,"membership state: primary restored\n");
+		cl_log(LOG_DEBUG, "membership state: primary restored");
 }
 
 
@@ -415,7 +415,7 @@ client_evicted(void)
 	}
 	cleanup();
 	if(global_verbose)
-		fprintf(stderr,"membership state: evicted\n");
+		cl_log(LOG_DEBUG, "membership state: evicted");
 }
 
 

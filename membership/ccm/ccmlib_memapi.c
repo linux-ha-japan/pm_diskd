@@ -120,7 +120,7 @@ init_bornon(mbr_private_t *private,
 	born = (ccm_born_t *)msg->msg_body;
 
 	n = born->n;
-	//fprintf(stderr,"n=%d, msg->msg_len=%ld\n",n,msg->msg_len);
+	//fprintf(stderr, "n=%d, msg->msg_len=%ld\n",n,msg->msg_len);
 	assert(msg->msg_len == sizeof(ccm_born_t)
 			+n*sizeof(struct born_s));
 	bornon = born->born;
@@ -170,11 +170,11 @@ init_llmborn(mbr_private_t *private)
 		}
 		ret = ch->ops->recv(ch,&msg);
 		if(ret == IPC_BROKEN) {
-			printf("connection denied\n");
+			fprintf(stderr, "connection denied\n");
 			return -1;
 		}
 	 	if(ret == IPC_FAIL){
-			fprintf(stderr,".");
+			fprintf(stderr, ".");
 			sleep(1);
 			continue;
 		}

@@ -110,10 +110,11 @@ print_vertex(vertex_t **vertex, int maxnode)
 	for ( i = 0 ; i < maxnode ; i++) {
 		printf("%d:\t",i);
 		for ( j = 0 ; j < maxnode ; j++) {
-			if(bitmap_test(j,  vertex[i]->bitmap, maxnode)) 
+			if(bitmap_test(j,  vertex[i]->bitmap, maxnode)) {
 				printf(" 1 ");
-			else 
+			}else{
 				printf(" 0 ");
+			}
 		}
 		printf("uuid=%d, count=%d\n",vertex[i]->uuid,vertex[i]->count);
 		printf("\n");
@@ -198,7 +199,8 @@ find_best_candidate(vertex_t **vertex, int startindx,
 		}
 		if(count == min_count) {
 			if (vyesorno == 'y') {
-				printf("probably 1 more group exists\n");
+				cl_log(LOG_DEBUG
+				,	"probably 1 more group exists");
 			}
 		}
 		if(count < min_count) {
@@ -235,7 +237,7 @@ delete_entry(vertex_t **vertex, int indx, int size,
 	 * entries up
 	 */
 	if (vyesorno == 'y') {
-		printf("k=%d is being removed\n",indx);
+		cl_log(LOG_DEBUG, "k=%d is being removed",indx);
 	}
 	tmp_vertex = vertex[indx];
 	tmp_vertex->count--;
@@ -326,7 +328,8 @@ get_max_clique(vertex_t **vertex,  int maxnode, int *loc)
 		k = find_best_candidate(vertex, j-num+1, j+1, indxtab, 
 					maxnode); 
 		if (vyesorno == 'y') {
-			printf("k=%d is the best candidate for removal\n",k);
+			ha_log(LOG_DEBUG
+			,	"k=%d is the best candidate for removal",k);
 		}
 
 		/* delete the candidate */

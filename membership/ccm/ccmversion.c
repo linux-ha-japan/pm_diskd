@@ -65,12 +65,13 @@ version_retry(ccm_version_t *ver)
 {
 	if(version_timeout_expired(ver)) {
 		if(global_debug) {
-			fprintf(stderr, "%d tries left\n", 
-					3-VERSION_GET_TRIES(ver));
+			cl_log(LOG_DEBUG, "%d tries left" 
+			,	3-VERSION_GET_TRIES(ver));
 		}
-		if(VERSION_GET_TRIES(ver) == MAXTRIES) {
+
+		if (VERSION_GET_TRIES(ver) == MAXTRIES) {
 			return FALSE;
-		} else {
+		}else{
 			VERSION_INC_TRIES(ver);
 			VERSION_SET_TIMER(ver,ccm_get_time());
 			return TRUE;
