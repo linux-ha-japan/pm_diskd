@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.238 2003/01/31 10:02:09 lars Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.239 2003/02/05 06:46:19 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -388,6 +388,7 @@ static void master_status_process(void);		/* The real biggie */
 pid_t		processes[MAXPROCS];
 pid_t		master_status_pid;
 int		parse_only = 0;
+int		hb_realtime_prio = -1;
 int		RestartRequested = 0;
 int		shutdown_in_progress = 0;
 int		WeAreRestarting = 0;
@@ -785,7 +786,7 @@ read_child(struct hb_media* mp)
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, -1, 32);
+	cl_make_realtime(-1, hb_realtime_prio, 32);
 	curproc->pstat = RUNNING;
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
 	drop_privs(0, 0);	/* Become nobody */
@@ -845,7 +846,7 @@ write_child(struct hb_media* mp)
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, -1, 32);
+	cl_make_realtime(-1, hb_realtime_prio, 32);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
 	drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
@@ -881,7 +882,7 @@ control_process(FILE * fp, int fifoofd)
 			"hb_signal_set_control_process(): Soldiering on...");
 	}
 
-	cl_make_realtime(-1, -1, 32);
+	cl_make_realtime(-1, hb_realtime_prio, 32);
 	set_proc_title("%s: control process", cmdname);
 //	setmsrepeattimer(10);
 	/*
@@ -1110,7 +1111,7 @@ master_status_process(void)
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, -1, 64);
+	cl_make_realtime(-1, hb_realtime_prio, 64);
 	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
 	set_proc_title("%s: master status process", cmdname);
@@ -3890,6 +3891,9 @@ IncrGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.239  2003/02/05 06:46:19  alan
+ * Added the rtprio config option to the ha.cf file.
+ *
  * Revision 1.238  2003/01/31 10:02:09  lars
  * Various small code cleanups:
  * - Lots of "signed vs unsigned" comparison fixes

@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.76 2003/02/05 06:07:13 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.77 2003/02/05 06:46:19 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -39,6 +39,7 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.76 2003/02/05 06:07:13 
 #include <fcntl.h>
 #include <pwd.h>
 #include <netdb.h>
+#include <sched.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
 #include <sys/stat.h>
@@ -69,6 +70,7 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.76 2003/02/05 06:07:13 
 #define KEY_STONITH	"stonith"
 #define KEY_STONITHHOST "stonith_host"
 #define KEY_CLIENT_CHILD "respawn"
+#define KEY_RT_PRIO	 "rtprio"
 
 static int add_normal_node(const char *);
 static int set_hopfudge(const char *);
@@ -85,6 +87,7 @@ static int set_nice_failback(const char *);
 static int set_warntime_ms(const char *);
 static int set_stonith_info(const char *);
 static int set_stonith_host_info(const char *);
+static int set_realtime_prio(const char *);
 static int add_client_child(const char *);
 
 struct directive {
@@ -104,6 +107,7 @@ struct directive {
 ,	{KEY_LOGFILE,   set_logfile}
 ,	{KEY_DBGFILE,   set_dbgfile}
 ,	{KEY_FAILBACK,  set_nice_failback}
+,	{KEY_RT_PRIO,	set_realtime_prio}
 };
 
 static const struct WholeLineDirective {
@@ -128,6 +132,7 @@ extern char *				watchdogdev;
 extern int				nummedia;
 extern int                              nice_failback;
 extern int				DoManageResources;
+extern int				hb_realtime_prio;
 extern PILPluginUniv*			PluginLoadingSystem;
 extern GHashTable*			CommFunctions;
 struct node_info *   			curnode;
@@ -1314,6 +1319,21 @@ set_stonith_host_info(const char * value)
 	return(HA_FAIL);
 }
 static int
+set_realtime_prio(const char * value)
+{
+	int	foo;
+	foo = atoi(value);
+
+	if (	foo < sched_get_priority_min(SCHED_FIFO)
+	||	foo > sched_get_priority_max(SCHED_FIFO)) {
+		ha_log(LOG_ERR, "Illegal realtime priority [%s]", value);
+		return HA_FAIL;
+	}
+	hb_realtime_prio = foo;
+	return HA_OK;
+}
+
+static int
 add_client_child(const char * directive)
 {
 	struct client_child*	child;
@@ -1393,6 +1413,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.77  2003/02/05 06:46:19  alan
+ * Added the rtprio config option to the ha.cf file.
+ *
  * Revision 1.76  2003/02/05 06:07:13  alan
  * Changed the default values for deadtime and heartbeat intervals.
  *
