@@ -103,3 +103,6 @@ install-exec-local:
 	test -p $(DESTDIR)$(apireg) || mkfifo -m 620 $(DESTDIR)$(apireg)
 	-chgrp $(apigid) $(DESTDIR)/$(apireg)
 
+uninstall-local:
+	-test -p $(DESTDIR)$(hafifo) && rm $(DESTDIR)$(hafifo)
+	-test -p $(DESTDIR)$(apireg) && rm $(DESTDIR)$(apireg)
