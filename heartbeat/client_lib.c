@@ -1707,6 +1707,10 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 		ha_api_log(LOG_ERR, "sendnodemsg: casual client");
 		return HA_FAIL;
 	}
+	if (*nodename == EOS) {
+		ha_api_log(LOG_ERR, "sendnodemsg: bad nodename");
+		return HA_FAIL;
+	}
 	if (ha_msg_mod(msg, F_TO, nodename) != HA_OK) {
 		ha_api_log(LOG_ERR, "sendnodemsg: cannot set F_TO field");
 		return(HA_FAIL);
