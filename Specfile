@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.78 2001/01/09 14:49:51 alan Exp $
+#	$Id: Specfile,v 1.79 2001/01/16 21:53:39 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -63,6 +63,8 @@ machine. It's simple and reliable, albeit admittedly brutal.
      Juan Pedro Paredes Caballero <juampe@retemail.es>
 
 + Version 0.4.9 Beta series
+  + Incorporated Andreas Piesk's <a.piesk@gmx.net> APCsmart Stonith module
+  + Incorporated Chris Wright's <chris@wirex.com> multicast HB comm module
   + Incorporated off-by-1 stonith fix from Andreas Piesk <apiesk@virbus.de>
     and his stonith test program fix for handling a NULL hostlist return.
   + Made media modules and authentication modules dynamically loadable.
