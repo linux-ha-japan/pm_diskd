@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.18 2001/06/19 13:56:28 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.19 2001/08/21 15:37:13 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -286,10 +286,17 @@ msg2stream(struct ha_msg* m, FILE * f)
 {
 	char *	s  = msg2string(m);
 	if (s != NULL) {
-		fputs(s, f);
-		fflush(f);
+		int	rc = HA_OK;
+		if (fputs(s, f) == EOF) {
+			rc = HA_FAIL;
+			ha_perror("msg2stream: fputs failure");
+		}
+		if (fflush(f) == EOF) {
+			ha_perror("msg2stream: fflush failure");
+			rc = HA_FAIL;
+		}
 		ha_free(s);
-		return(HA_OK);
+		return(rc);
 	}else{
 		return(HA_FAIL);
 	}
@@ -413,6 +420,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.19  2001/08/21 15:37:13  alan
+ * Put in code to make sure the calls in msg2stream get checked for errors...
+ *
  * Revision 1.18  2001/06/19 13:56:28  alan
  * FreeBSD portability patch from Matt Soffen.
  * Mainly added #include "portability.h" to lots of files.

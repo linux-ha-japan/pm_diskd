@@ -753,7 +753,7 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 		return;
 	}
 
-	if (!msg2stream(msg, f)) {
+	if (msg2stream(msg, f) != HA_OK) {
 		ha_log(LOG_ERR, "Cannot send message to client %d"
 		,	client->pid);
 	}
