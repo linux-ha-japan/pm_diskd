@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.25 2001/05/26 17:38:01 mmoerz Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.26 2001/05/31 15:51:08 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -83,7 +83,7 @@ int		EXPORT(hb_dev_isping)(void);
 #define		RTS_WARNTIME	3600
 
 int
-serial_LTX_hb_dev_mtype (char **buffer) { 
+EXPORT(hb_dev_mtype) (char **buffer) { 
 	
 	*buffer = ha_malloc((strlen("serial") * sizeof(char)) + 1);
 
@@ -93,7 +93,7 @@ serial_LTX_hb_dev_mtype (char **buffer) {
 }
 
 int
-serial_LTX_hb_dev_descr (char **buffer) { 
+EXPORT(hb_dev_descr) (char **buffer) { 
 
 	const char *str = "serial ring";	
 
@@ -105,13 +105,13 @@ serial_LTX_hb_dev_descr (char **buffer) {
 }
 
 int
-serial_LTX_hb_dev_isping (void) {
+EXPORT(hb_dev_isping) (void) {
 	return 0;
 }
 
 /* Initialize global serial data structures */
 int
-serial_LTX_hb_dev_init (void)
+EXPORT(hb_dev_init) (void)
 {
 	(void)_serial_c_Id;
 	(void)_heartbeat_h_Id;
@@ -125,7 +125,7 @@ serial_LTX_hb_dev_init (void)
 
 /* Process a serial port declaration */
 struct hb_media *
-serial_LTX_hb_dev_new (const char * port)
+EXPORT(hb_dev_new) (const char * port)
 {
 	char	msg[MAXLINE];
 	struct	stat	sbuf;
@@ -176,7 +176,7 @@ serial_LTX_hb_dev_new (const char * port)
 }
 
 int
-serial_LTX_hb_dev_open (struct hb_media* mp)
+EXPORT(hb_dev_open) (struct hb_media* mp)
 {
 	struct serial_private*	sp;
 	char			msg[MAXLINE];
@@ -196,7 +196,7 @@ serial_LTX_hb_dev_open (struct hb_media* mp)
 }
 
 int
-serial_LTX_hb_dev_close (struct hb_media* mp)
+EXPORT(hb_dev_close) (struct hb_media* mp)
 {
 	struct serial_private*	sp;
 	int rc;
@@ -302,7 +302,7 @@ serial_localdie(void)
 
 /* This process does all the writing to our tty ports */
 int
-serial_LTX_hb_dev_write (struct hb_media*mp, struct ha_msg*m)
+EXPORT(hb_dev_write) (struct hb_media*mp, struct ha_msg*m)
 {
 	char *		str;
 
@@ -355,7 +355,7 @@ serial_LTX_hb_dev_write (struct hb_media*mp, struct ha_msg*m)
 
 /* This process does all the reading from our tty ports */
 struct ha_msg *
-serial_LTX_hb_dev_read (struct hb_media*mp)
+EXPORT(hb_dev_read) (struct hb_media*mp)
 {
 	char buf[MAXLINE];
 	struct hb_media*	sp;
@@ -478,6 +478,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.26  2001/05/31 15:51:08  alan
+ * Put in more fixes to get module loading (closer to) working...
+ *
  * Revision 1.25  2001/05/26 17:38:01  mmoerz
  * *.cvsignore: added automake generated files that were formerly located in
  * 	     config/

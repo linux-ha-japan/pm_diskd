@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.11 2001/05/31 13:50:56 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.12 2001/05/31 15:51:08 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -56,8 +56,9 @@ extern int num_auth_types;
 
 
 static const char *module_error (void);
-static int generic_symbol_load(struct symbol_str symbols[]
-				, int len, lt_dlhandle handle);
+static int generic_symbol_load(const char * module
+				,	struct symbol_str symbols[]
+				,	int len, lt_dlhandle handle);
 static int comm_module_init(void);
 
 
@@ -72,12 +73,15 @@ module_error (void)
 	return _module_error;
 }
 
+#define MODULESUFFIX	".so"
+#define	STRLEN(s)	(sizeof(s)-1)
+
 static int
 so_select (const struct dirent *dire)
 { 
     
-	const char obj_end [] = ".so";
-	const char *end = &dire->d_name[strlen(dire->d_name) - (sizeof(obj_end)-1)];
+	const char obj_end [] = MODULESUFFIX;
+	const char *end = &dire->d_name[strlen(dire->d_name) - (STRLEN(obj_end))];
 	
 	
 	if (DEBUGMODULE) {
@@ -110,18 +114,38 @@ so_select (const struct dirent *dire)
  * Generic function to load symbols from a module.
  */
 static int
-generic_symbol_load(struct symbol_str symbols[], int len, lt_dlhandle handle)
+generic_symbol_load(const char * module
+,	struct symbol_str symbols[], int len, lt_dlhandle handle)
 { 
 	int  a;
+	char symbolname[MAX_FUNC_NAME + sizeof(MODPREFIXSTR)];
+	char modlen = strlen(module);
+	char modulename[MAX_FUNC_NAME];
+
+	strncpy(modulename, module, sizeof(modulename));
+	if (modlen > STRLEN(MODULESUFFIX)
+	&&	strcmp(MODULESUFFIX
+		,	modulename+modlen-(STRLEN(MODULESUFFIX)+1))) {
+		modulename[modlen-STRLEN(MODULESUFFIX)] = EOS;
+	}
+		
 	
 	for (a = 0; a < len; a++) {
+
 		struct symbol_str *sym = &symbols[a];
+
+#if defined(MODPREFIXSTR)
+		strncpy(symbolname, modulename, sizeof(symbolname));
+		strncat(symbolname, MODPREFIXSTR, sizeof(symbolname));
+		strncat(symbolname, sym->name, sizeof(symbolname));
+#endif
 		
-		if ((sym->function = lt_dlsym(handle, sym->name)) == NULL) {
+		if ((sym->function = lt_dlsym(handle, symbolname)) == NULL) {
 			if (sym->mandatory) {
 				ha_log(LOG_ERR
-				,	"%s: Plugin does not have [%s] symbol."
-				,	__FUNCTION__, sym->name);
+				,	"%s: Plugin does not have [%s] symbol [%s]."
+				,	__FUNCTION__, sym->name
+				,	symbolname);
 				lt_dlclose(handle); handle = NULL;
 				return(HA_FAIL);
 			}
@@ -190,8 +214,9 @@ comm_module_init(void)
 #if 0
 		char *help               = NULL;
 #endif
-		struct hb_media_fns* fns;
-		int ret;
+		struct hb_media_fns*	fns;
+		int			ret;
+		int			pathlen;
 
 #if 0
 		/* should use d_type one day when libc6 implements it */
@@ -208,8 +233,9 @@ comm_module_init(void)
 			continue;
 #endif
 		
-		mod_path = ha_malloc((strlen(COMM_MODULE_DIR) 
-		+ strlen(namelist[a]->d_name) + 2) * sizeof(char));
+		pathlen = (strlen(COMM_MODULE_DIR) 
+		+	strlen(namelist[a]->d_name) + 2) * sizeof(char);
+		mod_path = (char*) ha_malloc(pathlen);
 		if (!mod_path) { 
 		        ha_log(LOG_ERR, "%s: Failed to alloc module path."
 			,	__FUNCTION__);
@@ -219,7 +245,7 @@ comm_module_init(void)
 			return(HA_FAIL);
 		}
 
-		sprintf(mod_path,"%s/%s", COMM_MODULE_DIR, 
+		snprintf(mod_path, pathlen, "%s/%s", COMM_MODULE_DIR, 
 			namelist[a]->d_name);
 
 		if (DEBUGMODULE) {
@@ -253,8 +279,9 @@ comm_module_init(void)
 			,	mod_path);
 		}
 
-		ret = generic_symbol_load(comm_symbols, NR_HB_MEDIA_FNS, 
-		 fns->dlhandler);
+		ret = generic_symbol_load(namelist[a]->d_name
+		,	comm_symbols, NR_HB_MEDIA_FNS
+		,	fns->dlhandler);
 
 		fns->init = comm_symbols[0].function;
 		fns->new  = comm_symbols[1].function;
@@ -268,7 +295,7 @@ comm_module_init(void)
 		fns->isping = comm_symbols[9].function;
 		
 		if (ret == HA_FAIL) {
-			ha_free(mod_path);
+			ha_free(mod_path); mod_path=NULL;
 			ha_free(fns);
 			for (a=0; a < n; a++) {
                                 free(namelist[a]);
@@ -281,8 +308,7 @@ comm_module_init(void)
 		fns->type_len = fns->mtype(&fns->type);
 		fns->desc_len = fns->descr(&fns->description);
 		fns->ref = 0;
-		ha_free(mod_path); 
-		/* mod_path = NULL; */ /* obsolete */
+		ha_free(mod_path); mod_path = NULL;
 	}
 
 	for (a=0; a < n; a++) {
@@ -330,6 +356,7 @@ auth_module_init()
 	        char *mod_path         = NULL; 
 		char *help             = NULL;
 		struct auth_type* auth;
+		int			pathlen;
 		int ret;
 		
 		if ( !strcmp( namelist[a]->d_name, "." ) || 
@@ -342,8 +369,10 @@ auth_module_init()
 		if ( strcmp( help, ".la" ) ) 
 			continue;
 		
-		mod_path = ha_malloc((strlen(AUTH_MODULE_DIR) +
-		      strlen(namelist[a]->d_name) + 2) * sizeof(char));
+		pathlen = (strlen(AUTH_MODULE_DIR) +
+		      strlen(namelist[a]->d_name) + 2) * sizeof(char);
+
+		mod_path = (char *) ha_malloc(pathlen);
 
 		if (!mod_path) { 
 			ha_log(LOG_ERR, "%s: Failed to alloc module path"
@@ -354,8 +383,8 @@ auth_module_init()
 			return(HA_FAIL);
 		}
 
-		sprintf(mod_path,"%s/%s", AUTH_MODULE_DIR,
-			namelist[a]->d_name);
+		snprintf(mod_path, pathlen, "%s/%s", AUTH_MODULE_DIR
+		,	namelist[a]->d_name);
 		
 		auth = MALLOCT(struct auth_type);
 		
@@ -379,8 +408,9 @@ auth_module_init()
 			return(HA_FAIL);
 		}
 		
-		ret = generic_symbol_load(auth_symbols, NR_AUTH_FNS, 
-		 auth->dlhandler);
+		ret = generic_symbol_load(namelist[a]->d_name
+		,	auth_symbols, NR_AUTH_FNS
+		,	auth->dlhandler);
 
 		auth->auth = auth_symbols[0].function;
 		auth->atype = auth_symbols[1].function;
