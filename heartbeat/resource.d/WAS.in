@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.2 2002/03/12 23:15:36 alan Exp $
+# $Id: WAS.in,v 1.3 2002/03/13 03:13:15 alan Exp $
 # 
 # WAS
 #
@@ -42,18 +42,28 @@ usage() {
 	usage: $0 <WAS-configuration file> ($methods)
 	usage: $0 methods
 
-	$0 manages Websphere Application Server (WAS) as an HA resource
+	$0 manages a Websphere Application Server (WAS) as an HA resource
 
 	The 'start' operation starts WAS.
 	The 'stop' operation stops WAS.
 	The 'status' operation reports whether WAS is running
 	The 'monitor' operation reports whether the WAS seems to be working
+		(httpd also needs to be working for this case)
 	The 'methods' operation reports on the methods $0 supports
 
 	The start and stop operations must be run as root.
 
-	The status operation is unable to report the root PID that
-	WebSphere is using unless run as root.
+	The status operation will report a pid of "-" for the
+	WAS root process using unless it is run as root.
+
+	If you don't have xmllint on your system, parsing of WAS
+	configuration files is very primitive.
+	In this case, the port specification we need from the XML
+	config file has to be on the same line as the
+	first part of the <transports/> tag.
+
+	We run servlet/snoop on the first transport port listed in
+	the config file for the "monitor" operation.
 	!
   exit 1
 
@@ -88,19 +98,50 @@ run() {
 }
 
 #
+#	Reformat the XML document in a sort of canonical form
+#	if we can.  If we don't have xmllint, we just cat it out
+#	and hope for the best ;-)
+#
+xmlcat() {
+  if
+    [ "X$XMLcat" == X ]
+  then
+    XMLcat=`which xmllint 2>/dev/null`
+    if
+      [ "X${XMLcat}" == X  -o ! -x "${XMLcat}" ]
+    then
+      XMLcat=cat
+    else
+      XMLcat="$XMLcat --recover --format"
+    fi
+  fi
+  for j in "$@"
+  do
+    ${XMLcat} "$j"
+  done
+}
+
+#
 #This is a bit skanky, but it works anyway...
 #
 #<transports xmi:type="applicationserver:HTTPTransport" xmi:id="HttpTransport_1" hostname="*" port="9080"/>
 #<transports xmi:type="applicationserver:HTTPTransport" xmi:id="HttpTransport_2" hostname="*" port="9443" sslEnabled="true"/>
 #<transports xmi:type="applicationserver:HTTPTransport" xmi:id="HttpTransport_3" hostname="*" port="9090" external="false"/>
+#
+# It's not really skanky if we can find xmllint on the system, because it
+# reformats tags so they are all on one line, which is all we we need...
+#
 
 #
-#	Get the numbers of the ports WAS should be listening on...
+# Get the numbers of the ports WAS should be listening on...
+#
+# If we don't have xmllint around, then the applicationserver and the
+# port= specification have to be on the same line in the XML config file.
 #
 GetWASPorts() {
-  grep -i 'applicationserver' $1	|
-	grep port= 			|
-	sed -e 's%.*port= *"* *%%'	\
+  xmlcat $1 | grep -i 'transports.*applicationserver:HTTPTransport' 	|
+	grep port= 				|
+	sed -e 's%.*port= *"* *%%'		\
 		-e 's%[^0-9][^0-9]*.*$%%'
 	# Delete up to port=, throw away optional quote and optional
 	#	white space.
@@ -108,12 +149,16 @@ GetWASPorts() {
 	# This should leave us the port number all by itself...
 }
 
+#
+#	We assume that the first port listed in the <transports/>
+#	is the one we should run servlet/snoop on.
+#
 GetWASSnoopPort() {
 	GetWASPorts "$@" | head -n1
 }
 
 #
-#	Return information on the processname/id for the WebSphere ports
+#	Return information on the processname/id for the WAS ports
 #
 #	pid/java	is the expected output.  Several lines, one per port...
 #
