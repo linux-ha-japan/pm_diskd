@@ -35,6 +35,7 @@ apicasualdir		= $(havarlibdir)/casual
 # fifos with path
 hafifo			= $(havarlibdir)/fifo
 apireg			= $(havarlibdir)/register
+apigid			= @APIGID@
 
 
 CFLAGS			= @CFLAGS@	\
@@ -93,7 +94,12 @@ EXTRA_DIST              = $(ha_DATA) $(ha_SCRIPTS)
 install-exec-local:
 	$(mkinstalldirs) $(DESTDIR)$(havarrundir)
 	$(mkinstalldirs) $(DESTDIR)$(apidir)
+	chgrp $(apigid) $(DESTDIR)/$(apidir)
+	chmod 750 $(DESTDIR)/$(apidir)
 	$(mkinstalldirs) $(DESTDIR)$(apicasualdir)
+	chgrp $(apigid) $(DESTDIR)/$(apicasualdir)
+	chmod 1770 $(DESTDIR)/$(apicasualdir)
 	test -p $(DESTDIR)$(hafifo) || mkfifo -m 600 $(DESTDIR)$(hafifo)
 	test -p $(DESTDIR)$(apireg) || mkfifo -m 620 $(DESTDIR)$(apireg)
+	chgrp $(apigid) $(DESTDIR)/$(apireg)
 
