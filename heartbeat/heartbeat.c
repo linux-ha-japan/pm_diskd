@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.102 2001/05/10 22:36:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.103 2001/05/11 06:20:26 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -602,13 +602,11 @@ ha_log(int priority, const char * fmt, ...)
                 }else{
                         if (config->use_logfile) {
                                 fn = config->logfile;
-                        }else{
-                                return;
                         }
                 }
 	}
 
-	if (!config  || fn != NULL) {
+	if (!config  || fn != NULL || config->log_facility < 0) {
 		if (fn) {
 			fp = fopen(fn, "a");
 		}
@@ -3977,6 +3975,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.103  2001/05/11 06:20:26  alan
+ * Fixed CFLAGS so we load modules from the right diurectory.
+ * Fixed minor static symbol problems.
+ * Fixed a bug which kept early error messages from coming out.
+ *
  * Revision 1.102  2001/05/10 22:36:37  alan
  * Deleted Makefiles from CVS and made all the warnings go away.
  *

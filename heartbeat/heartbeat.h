@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.44 2001/03/16 03:01:12 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.45 2001/05/11 06:20:26 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -81,6 +81,12 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.44 2001/03/16 03:01:
 #endif
 #ifndef VAR_LOG_D
 #	define	VAR_LOG_D	"/var/log"
+#endif
+#ifndef HALIB
+#	define HALIB		"/usr/lib/heartbeat"
+#endif
+#ifndef HA_MODULE_D
+#	define HA_MODULE_D	HALIB "/modules"
 #endif
 #ifndef TTYLOCK_D
 #	if !defined(__FreeBSD__)
@@ -152,8 +158,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.44 2001/03/16 03:01:
 #define RESOURCE_CFG		HA_D "/haresources"
 
 /* dynamic module directories */
-#define COMM_MODULE_DIR	"/usr/lib/heartbeat/modules/comm"
-#define AUTH_MODULE_DIR "/usr/lib/heartbeat/modules/auth"
+#define COMM_MODULE_DIR	HA_MODULE_D "/comm"
+#define AUTH_MODULE_DIR HA_MODULE_D "/auth"
 
 #define	STATIC		/* static */
 #define	MALLOCT(t)	((t *)(ha_malloc(sizeof(t))))

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.22 2001/05/10 22:36:37 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.23 2001/05/11 06:20:26 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -54,30 +54,31 @@ extern int serial_baud;
 extern int baudrate;
 
 /* Used to maintain a list of our serial ports in the ring */
-STATIC struct hb_media*		lastserialport;
+static struct hb_media*		lastserialport;
 
 
-STATIC struct hb_media*	hb_dev_new(const char * value);
-STATIC struct ha_msg*	hb_dev_read(struct hb_media*mp);
-STATIC char *		ttygets(char * inbuf, int length
+struct hb_media*	hb_dev_new(const char * value);
+struct ha_msg*	hb_dev_read(struct hb_media*mp);
+static char *		ttygets(char * inbuf, int length
 ,				struct serial_private *tty);
-STATIC int		hb_dev_write(struct hb_media*mp, struct ha_msg *msg);
-STATIC int		hb_dev_open(struct hb_media* mp);
-STATIC int		ttysetup(int fd);
-STATIC int		opentty(char * serial_device);
-STATIC int		hb_dev_close(struct hb_media* mp);
-STATIC int		hb_dev_init(void);
-STATIC void		serial_localdie(void);
-STATIC int		hb_dev_mtype (char **buffer);
-STATIC int		hb_dev_descr (char **buffer);
-STATIC int		hb_dev_isping (void);
+int		hb_dev_write(struct hb_media*mp, struct ha_msg *msg);
+int		hb_dev_open(struct hb_media* mp);
+static int		ttysetup(int fd);
+static int		opentty(char * serial_device);
+int		hb_dev_close(struct hb_media* mp);
+int		hb_dev_init(void);
+static void		serial_localdie(void);
+int		hb_dev_mtype (char **buffer);
+int		hb_dev_descr (char **buffer);
+int		hb_dev_isping (void);
 
 #define		IsTTYOBJECT(mp)	((mp) && ((mp)->vf == (void*)&serial_media_fns))
 //#define		TTYASSERT(mp)	ASSERT(IsTTYOBJECT(mp))
 #define		TTYASSERT(mp)
 #define		RTS_WARNTIME	3600
 
-STATIC int hb_dev_mtype (char **buffer) { 
+int
+hb_dev_mtype (char **buffer) { 
 	
 	*buffer = ha_malloc((strlen("serial") * sizeof(char)) + 1);
 
@@ -86,7 +87,8 @@ STATIC int hb_dev_mtype (char **buffer) {
 	return strlen("serial");
 }
 
-STATIC int hb_dev_descr (char **buffer) { 
+int
+hb_dev_descr (char **buffer) { 
 
 	const char *str = "serial ring";	
 
@@ -97,12 +99,13 @@ STATIC int hb_dev_descr (char **buffer) {
 	return strlen(str);
 }
 
-STATIC int hb_dev_isping (void) {
+int
+hb_dev_isping (void) {
 	return 0;
 }
 
 /* Initialize global serial data structures */
-STATIC int
+int
 hb_dev_init(void)
 {
 	(void)_serial_c_Id;
@@ -116,7 +119,7 @@ hb_dev_init(void)
 }
 
 /* Process a serial port declaration */
-STATIC struct hb_media *
+struct hb_media *
 hb_dev_new(const char * port)
 {
 	char	msg[MAXLINE];
@@ -167,7 +170,7 @@ hb_dev_new(const char * port)
 	return(ret);
 }
 
-STATIC int
+int
 hb_dev_open(struct hb_media* mp)
 {
 	struct serial_private*	sp;
@@ -187,7 +190,7 @@ hb_dev_open(struct hb_media* mp)
 	return(HA_OK);
 }
 
-STATIC int
+int
 hb_dev_close(struct hb_media* mp)
 {
 	struct serial_private*	sp;
@@ -201,7 +204,7 @@ hb_dev_close(struct hb_media* mp)
 }
 
 /* Set up a serial line the way we want it be done */
-STATIC int
+static int
 ttysetup(int fd)
 {
 	struct TERMIOS	ti;
@@ -253,7 +256,7 @@ ttysetup(int fd)
 }
 
 /* Open a tty and set it's line parameters */
-STATIC int
+static int
 opentty(char * serial_device)
 {
 	int	fd;
@@ -276,7 +279,7 @@ opentty(char * serial_device)
 
 static struct hb_media* ourmedia = NULL;
 
-STATIC void
+static void
 serial_localdie(void)
 {
 	int	ourtty;
@@ -293,7 +296,7 @@ serial_localdie(void)
 }
 
 /* This process does all the writing to our tty ports */
-STATIC int
+int
 hb_dev_write(struct hb_media*mp, struct ha_msg*m)
 {
 	char *		str;
@@ -346,7 +349,7 @@ hb_dev_write(struct hb_media*mp, struct ha_msg*m)
 }
 
 /* This process does all the reading from our tty ports */
-STATIC struct ha_msg *
+struct ha_msg *
 hb_dev_read(struct hb_media*mp)
 {
 	char buf[MAXLINE];
@@ -443,7 +446,7 @@ hb_dev_read(struct hb_media*mp)
 
 
 /* Gets function for our tty */
-STATIC char *
+static char *
 ttygets(char * inbuf, int length, struct serial_private *tty)
 {
 	char *	cp;
@@ -470,6 +473,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.23  2001/05/11 06:20:26  alan
+ * Fixed CFLAGS so we load modules from the right diurectory.
+ * Fixed minor static symbol problems.
+ * Fixed a bug which kept early error messages from coming out.
+ *
  * Revision 1.22  2001/05/10 22:36:37  alan
  * Deleted Makefiles from CVS and made all the warnings go away.
  *

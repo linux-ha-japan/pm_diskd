@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.17 2001/01/02 20:24:07 eric Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.18 2001/05/11 06:20:26 alan Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -55,21 +55,19 @@ struct ip_private {
 };
 
 
-STATIC int	hb_dev_init(void);
-STATIC struct hb_media*
-		hb_dev_new(const char* interface);
-STATIC int	hb_dev_open(struct hb_media* mp);
-STATIC int	hb_dev_close(struct hb_media* mp);
-STATIC struct ha_msg*
-		hb_dev_read(struct hb_media* mp);
-STATIC int	hb_dev_write(struct hb_media* mp, struct ha_msg* msg);
-STATIC int	HB_make_receive_sock(struct hb_media* ei);
-STATIC int	HB_make_send_sock(struct hb_media * mp);
-STATIC struct ip_private *
+int	hb_dev_init(void);
+struct hb_media* hb_dev_new(const char* interface);
+int	hb_dev_open(struct hb_media* mp);
+int	hb_dev_close(struct hb_media* mp);
+struct ha_msg* hb_dev_read(struct hb_media* mp);
+int	hb_dev_write(struct hb_media* mp, struct ha_msg* msg);
+static int	HB_make_receive_sock(struct hb_media* ei);
+static int	HB_make_send_sock(struct hb_media * mp);
+static struct ip_private *
 		new_ip_interface(const char * ifn, int port);
-STATIC int hb_dev_descr (char** buffer);
-STATIC int hb_dev_mtype (char** buffer);
-STATIC int hb_dev_isping (void);
+int hb_dev_descr (char** buffer);
+int hb_dev_mtype (char** buffer);
+int hb_dev_isping (void);
 
 extern int	udpport;
 
@@ -77,7 +75,7 @@ extern int	udpport;
 //#define		UDPASSERT(mp)	ASSERT(ISUDPOBJECT(mp))
 #define		UDPASSERT(mp)
 
-STATIC int hb_dev_mtype (char** buffer) { 
+int hb_dev_mtype (char** buffer) { 
 	
 	*buffer = ha_malloc((strlen("udp") * sizeof(char)) + 1);
 
@@ -86,7 +84,7 @@ STATIC int hb_dev_mtype (char** buffer) {
 	return strlen("udp");
 }
 
-STATIC int hb_dev_descr (char **buffer) { 
+int hb_dev_descr (char **buffer) { 
 
 	const char* str = "UDP/IP broadcast";	
 
@@ -97,11 +95,11 @@ STATIC int hb_dev_descr (char **buffer) {
 	return strlen(str);
 }
 
-STATIC int hb_dev_isping (void) {
+int hb_dev_isping (void) {
     return 0;
 }
 
-STATIC int
+int
 hb_dev_init(void)
 {
 	struct servent*	service;
@@ -124,7 +122,7 @@ hb_dev_init(void)
  *	Create new UDP/IP broadcast heartbeat object 
  *	Name of interface is passed as a parameter
  */
-STATIC struct hb_media *
+struct hb_media *
 hb_dev_new(const char * intf)
 {
 	char	msg[MAXLINE];
@@ -156,7 +154,7 @@ hb_dev_new(const char * intf)
 /*
  *	Open UDP/IP broadcast heartbeat interface
  */
-STATIC int
+int
 hb_dev_open(struct hb_media* mp)
 {
 	struct ip_private * ei;
@@ -179,7 +177,7 @@ hb_dev_open(struct hb_media* mp)
 /*
  *	Close UDP/IP broadcast heartbeat interface
  */
-STATIC int
+int
 hb_dev_close(struct hb_media* mp)
 {
 	struct ip_private * ei;
@@ -204,7 +202,7 @@ hb_dev_close(struct hb_media* mp)
  * Receive a heartbeat broadcast packet from UDP interface
  */
 
-STATIC struct ha_msg *
+struct ha_msg *
 hb_dev_read(struct hb_media* mp)
 {
 	struct ip_private *	ei;
@@ -236,7 +234,7 @@ hb_dev_read(struct hb_media* mp)
  * Send a heartbeat packet over broadcast UDP/IP interface
  */
 
-STATIC int
+int
 hb_dev_write(struct hb_media* mp, struct ha_msg * msgptr)
 {
 	struct ip_private *	ei;
@@ -275,7 +273,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg * msgptr)
  * Set up socket for sending broadcast UDP heartbeats
  */
 
-STATIC int
+static int
 HB_make_send_sock(struct hb_media * mp)
 {
 	int sockfd, one = 1;
@@ -332,7 +330,7 @@ HB_make_send_sock(struct hb_media * mp)
  */
 
 #define	MAXBINDTRIES	10
-int
+static int
 HB_make_receive_sock(struct hb_media * mp) {
 
 	struct ip_private * ei;
@@ -478,7 +476,7 @@ HB_make_receive_sock(struct hb_media * mp) {
 	}
 #endif
 
-STATIC struct ip_private *
+static struct ip_private *
 new_ip_interface(const char * ifn, int port)
 {
 	struct ip_private * ep;
@@ -520,6 +518,11 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.18  2001/05/11 06:20:26  alan
+ * Fixed CFLAGS so we load modules from the right diurectory.
+ * Fixed minor static symbol problems.
+ * Fixed a bug which kept early error messages from coming out.
+ *
  * Revision 1.17  2001/01/02 20:24:07  eric
  * Fixed memory leak in hb_dev_open() in case of malloc() failure.
  *

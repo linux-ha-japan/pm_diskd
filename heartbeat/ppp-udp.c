@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.14 2001/03/08 14:37:03 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.15 2001/05/11 06:20:26 alan Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -136,40 +136,40 @@ struct ip_private*	pppref = NULL;
 static int		ppp_countdown = PPPCOUNT;
 
 
-STATIC int	hb_dev_init(void);
-STATIC void	ppp_localdie(void);
-STATIC struct hb_media*
+static int	hb_dev_init(void);
+static void	ppp_localdie(void);
+static struct hb_media*
 		hb_dev_new(const char* tty, const char* ipaddr);
-STATIC int	hb_dev_parse(const char * line);
-STATIC int	hb_dev_open(struct hb_media* mp);
-STATIC int	hb_dev_close(struct hb_media* mp);
-STATIC struct ha_msg*
+static int	hb_dev_parse(const char * line);
+static int	hb_dev_open(struct hb_media* mp);
+static int	hb_dev_close(struct hb_media* mp);
+static struct ha_msg*
 		hb_dev_read(struct hb_media* mp);
-STATIC int	hb_dev_write(struct hb_media* mp, struct ha_msg *msg);
-STATIC int	ppp_udp_make_receive_sock(struct hb_media* ei);
-STATIC int	ppp_udp_make_send_sock(struct hb_media * mp);
-STATIC int	ppp_udp_open_write(struct hb_media * mp);
-STATIC int	ppp_udp_open_read(struct hb_media * mp);
-STATIC char *	ppp_udp_ppp_start_path(struct hb_media * mp);
-STATIC int 	ppp_udp_ppp_proc_info(struct hb_media * mp);
-STATIC int 	ppp_udp_start_ppp(struct hb_media *mp);
-STATIC int	set_up_ip(struct hb_media* mp);
-STATIC int	is_valid_local_addr(const char * cp);
-STATIC int	is_valid_serial(const char * port);
-STATIC struct hb_media*
+static int	hb_dev_write(struct hb_media* mp, struct ha_msg *msg);
+static int	ppp_udp_make_receive_sock(struct hb_media* ei);
+static int	ppp_udp_make_send_sock(struct hb_media * mp);
+static int	ppp_udp_open_write(struct hb_media * mp);
+static int	ppp_udp_open_read(struct hb_media * mp);
+static char *	ppp_udp_ppp_start_path(struct hb_media * mp);
+static int 	ppp_udp_ppp_proc_info(struct hb_media * mp);
+static int 	ppp_udp_start_ppp(struct hb_media *mp);
+static int	set_up_ip(struct hb_media* mp);
+static int	is_valid_local_addr(const char * cp);
+static int	is_valid_serial(const char * port);
+static struct hb_media*
 		last_udp_ppp_interface;
-STATIC void save_ppp_info(struct hb_media * mp);
-STATIC void check_ppp_info(int sig);
-STATIC int hb_dev_mtype (char **buffer);
-STATIC int hb_dev_descr (char **buffer);
-STATIC int hb_dev_isping (void);
+static void save_ppp_info(struct hb_media * mp);
+static void check_ppp_info(int sig);
+static int hb_dev_mtype (char **buffer);
+static int hb_dev_descr (char **buffer);
+static int hb_dev_isping (void);
 
 extern int	udpport;	/* Shared with udp.c */
 
 #define		ISUDPOBJECT(mp)	((mp) && ((mp)->vf == (void*)&ppp_udp_media_fns))
 //#define		PPPUDPASSERT(mp)	ASSERT(ISUDPOBJECT(mp))
 #define PPPUDPASSERT(mp) 
-STATIC int hb_dev_mtype (char **buffer)
+static int hb_dev_mtype (char **buffer)
 {
 	*buffer = ha_malloc((strlen("ppp-udp") * sizeof(char)) + 1);
 
@@ -178,7 +178,7 @@ STATIC int hb_dev_mtype (char **buffer)
 	return strlen("ppp-udp");
 }
 
-STATIC int hb_dev_descr (char **buffer)
+static int hb_dev_descr (char **buffer)
 {
 	const char *str = "Serial ring running PPP/UDP";
 
@@ -189,11 +189,11 @@ STATIC int hb_dev_descr (char **buffer)
 	return strlen(str);
 }
 
-STATIC int hb_dev_isping (void) { 
+static int hb_dev_isping (void) { 
 	return 0;
 }
 
-STATIC int
+static int
 hb_dev_init(void)
 {
 	(void)_heartbeat_h_Id;
@@ -208,7 +208,7 @@ hb_dev_init(void)
  *	Create new PPP-UDP/IP heartbeat object 
  *	Name of interface is passed as a parameter
  */
-STATIC struct hb_media *
+static struct hb_media *
 hb_dev_new(const char* tty, const char* ipaddr)
 {
 	struct ip_private*	ipi;
@@ -261,7 +261,7 @@ hb_dev_new(const char* tty, const char* ipaddr)
  *	It insists that they must be RFC-defined local addresses.
  */
 
-STATIC int
+static int
 hb_dev_parse(const char * line)
 {
 	const char *	bp = line;
@@ -315,7 +315,7 @@ hb_dev_parse(const char * line)
 }
 
 #define DEVSLASH	"/dev/"
-STATIC char *
+static char *
 ppp_udp_ppp_start_path(struct hb_media * mp)
 {
 	static char	tmp [MAXLINE];
@@ -340,7 +340,7 @@ ppp_udp_ppp_start_path(struct hb_media * mp)
 	return(result);
 }
 
-STATIC int 
+static int 
 ppp_udp_ppp_proc_info(struct hb_media * mp)
 {
 	const char *	ppp_start_file = ppp_udp_ppp_start_path(mp);
@@ -409,7 +409,7 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 /*
  *	Open PPP-UDP/IP heartbeat interface
  */
-STATIC int
+static int
 hb_dev_open(struct hb_media* mp)
 {
 	struct ip_private * ei;
@@ -433,7 +433,7 @@ hb_dev_open(struct hb_media* mp)
  *		Otherwise we open it up with ppp_udp_make_send_sock()
  *	It's up to the application to retry.
  */
-STATIC int
+static int
 ppp_udp_open_write(struct hb_media * mp)
 {
 	struct ip_private * ei;
@@ -523,7 +523,7 @@ ppp_udp_open_write(struct hb_media * mp)
 extern pid_t	processes[];
 extern int	num_procs;
 
-STATIC int
+static int
 ppp_udp_start_ppp(struct hb_media * mp)
 {
 	char		PPPcmd[MAXLINE];
@@ -564,7 +564,7 @@ ppp_udp_start_ppp(struct hb_media * mp)
 	return(HA_OK);
 }
 
-STATIC int
+static int
 ppp_udp_open_read(struct hb_media * mp)
 {
 	struct ip_private * ei;
@@ -595,7 +595,7 @@ ppp_udp_open_read(struct hb_media * mp)
 /*
  *	Close PPP-UDP/IP heartbeat interface
  */
-STATIC int
+static int
 hb_dev_close(struct hb_media* mp)
 {
 	struct ip_private * ei;
@@ -637,7 +637,7 @@ hb_dev_close(struct hb_media* mp)
  * Receive a heartbeat packet from PPP-UDP interface
  */
 
-STATIC struct ha_msg *
+static struct ha_msg *
 hb_dev_read(struct hb_media* mp)
 {
 	struct ip_private *	ei;
@@ -739,7 +739,7 @@ hb_dev_read(struct hb_media* mp)
  * Send a heartbeat packet over PPP-UDP/IP interface
  */
 
-STATIC int
+static int
 hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 {
 	struct ip_private *	ei;
@@ -856,7 +856,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
  * Set up socket for sending PPP-UDP heartbeats
  */
 
-STATIC int
+static int
 ppp_udp_make_send_sock(struct hb_media * mp)
 {
 	int sockfd, one = 1;
@@ -1011,7 +1011,7 @@ static TIME_T			ppp_ts = NULLTS;
 static char			ppp_path[MAXLINE];
 static struct hb_media *	ppp_hbmedia;
 
-STATIC void
+static void
 save_ppp_info(struct hb_media * mp)
 {
 	struct stat buf;
@@ -1043,7 +1043,7 @@ save_ppp_info(struct hb_media * mp)
 	alarm(ALARMCNT);
 }
 
-STATIC void
+static void
 check_ppp_info(int sig)
 {
 	struct stat buf;
@@ -1087,7 +1087,7 @@ check_ppp_info(int sig)
 }
 
 
-STATIC int
+static int
 set_up_ip(struct hb_media * mp)
 {
 	struct ip_private * ei;
@@ -1139,7 +1139,7 @@ set_up_ip(struct hb_media * mp)
 #define		MASK192	0x0000FFFFU
 #define		VAL192	0x0000A8C0U
 
-STATIC int
+static int
 is_valid_local_addr(const char * addr)
 {
 	struct in_addr	in;
@@ -1169,7 +1169,7 @@ is_valid_local_addr(const char * addr)
 	return(HA_FAIL);
 }
 
-STATIC int
+static int
 is_valid_serial(const char * port)
 {
 	char		msg[MAXLINE];
@@ -1198,7 +1198,7 @@ is_valid_serial(const char * port)
 	return(HA_OK);
 }
 
-STATIC void
+static void
 ppp_localdie(void)
 {
 	if (pppref && pppref->ppp_pid > 0) {
@@ -1207,6 +1207,11 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.15  2001/05/11 06:20:26  alan
+ * Fixed CFLAGS so we load modules from the right diurectory.
+ * Fixed minor static symbol problems.
+ * Fixed a bug which kept early error messages from coming out.
+ *
  * Revision 1.14  2001/03/08 14:37:03  alan
  * Removed the ppp code from the build process...
  *

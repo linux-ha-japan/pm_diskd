@@ -34,9 +34,11 @@ hafifo			= $(havarlibdir)/fifo
 apireg			= $(havarlibdir)/register
 
 
-CFLAGS			= @CFLAGS@ -DVAR_RUN_D='"$(localstatedir)/run"' \
--DVAR_LIB_D='"$(havarlibdir)"' \
--DHALIB='"$(halibdir)/@HEARTBEATPKG@"'
+CFLAGS			= @CFLAGS@	\
+-DVAR_RUN_D='"$(localstatedir)/run"'	\
+-DVAR_LIB_D='"$(havarlibdir)"'		\
+-DHA_D='"$(hadir)"'			\
+-DHALIB='"$(halibdir)"'
 
 ## script subdirs
 SUBDIRS			= init.d lib logrotate.d rc.d resource.d

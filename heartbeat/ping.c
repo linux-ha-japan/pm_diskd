@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.5 2000/12/05 21:20:59 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.6 2001/05/11 06:20:26 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -70,29 +70,29 @@ struct ping_private {
 };
 
 
-STATIC int	hb_dev_init(void);
-STATIC struct hb_media*
-		hb_dev_new(const char* interface);
-STATIC int	hb_dev_open(struct hb_media* mp);
-STATIC int	hb_dev_close(struct hb_media* mp);
-STATIC struct ha_msg*
+int	hb_dev_init(void);
+struct hb_media* hb_dev_new(const char* interface);
+int	hb_dev_open(struct hb_media* mp);
+int	hb_dev_close(struct hb_media* mp);
+struct ha_msg*
 		hb_dev_read(struct hb_media* mp);
-STATIC int	hb_dev_write(struct hb_media* mp, struct ha_msg* msg);
+int	hb_dev_write(struct hb_media* mp, struct ha_msg* msg);
 
-STATIC struct ping_private *
+static struct ping_private *
 		new_ping_interface(const char * host);
-STATIC int in_cksum (u_short * buf, int nbytes);
+static int in_cksum (u_short * buf, int nbytes);
 
-STATIC int hb_dev_mtype (char **buffer);
-STATIC int hb_dev_descr (char **buffer);
-STATIC int hb_dev_isping (void);
+int hb_dev_mtype (char **buffer);
+int hb_dev_descr (char **buffer);
+int hb_dev_isping (void);
 
 
 #define		ISPINGOBJECT(mp)	((mp) && ((mp)->vf == (void*)&ping_media_fns))
 //#define		PINGASSERT(mp)	ASSERT(ISPINGOBJECT(mp))
 #define		PINGASSERT(mp)
 
-STATIC int hb_dev_mtype (char **buffer) { 
+int
+hb_dev_mtype (char **buffer) { 
 	
 	*buffer = ha_malloc((strlen("ping") * sizeof(char)) + 1);
 
@@ -101,7 +101,8 @@ STATIC int hb_dev_mtype (char **buffer) {
 	return strlen("ping");
 }
 
-STATIC int hb_dev_descr (char **buffer) { 
+int
+hb_dev_descr (char **buffer) { 
 
 	const char *str = "ping membership";	
 
@@ -114,11 +115,12 @@ STATIC int hb_dev_descr (char **buffer) {
 
 /* Yes, a ping device */
 
-STATIC int hb_dev_isping (void) {
+int
+hb_dev_isping (void) {
 	return 1;
 }
 
-STATIC int
+int
 hb_dev_init(void)
 {
 	(void)_heartbeat_h_Id;
@@ -127,7 +129,7 @@ hb_dev_init(void)
 	return(HA_OK);
 }
 
-STATIC struct ping_private *
+static struct ping_private *
 new_ping_interface(const char * host)
 {
 	struct ping_private*	ppi;
@@ -163,7 +165,7 @@ new_ping_interface(const char * host)
  *	Create new ping heartbeat object 
  *	Name of host is passed as a parameter
  */
-STATIC struct hb_media *
+struct hb_media *
 hb_dev_new(const char * host)
 {
 	struct ping_private*	ipi;
@@ -193,7 +195,7 @@ hb_dev_new(const char * host)
  *	Close UDP/IP broadcast heartbeat interface
  */
 
-STATIC int
+int
 hb_dev_close(struct hb_media* mp)
 {
 	struct ping_private * ei;
@@ -214,7 +216,7 @@ hb_dev_close(struct hb_media* mp)
  * Receive a heartbeat ping reply packet.
  */
 
-STATIC struct ha_msg *
+struct ha_msg *
 hb_dev_read(struct hb_media* mp)
 {
 	struct ping_private *	ei;
@@ -279,7 +281,7 @@ hb_dev_read(struct hb_media* mp)
  *
  */
 
-STATIC int
+int
 hb_dev_write(struct hb_media* mp, struct ha_msg * msg)
 {
 	struct ping_private *	ei;
@@ -383,7 +385,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg * msg)
 /*
  *	Open ping socket.
  */
-STATIC int
+int
 hb_dev_open(struct hb_media* mp)
 {
 	struct ping_private * ei;
@@ -417,7 +419,7 @@ hb_dev_open(struct hb_media* mp)
  *	Checksum routine for Internet Protocol family headers (C Version)
  *	This function taken from Mike Muuss' ping program.
  */
-STATIC int
+static int
 in_cksum (u_short *addr, int len)
 {
 	int		nleft = len;
