@@ -40,14 +40,14 @@ LOGFILE=/tmp/linux-ha.testlog
 RSCDIR=$HADIR/resource.d
 errcount=0
 
-cd /etc/ha.d
+cd @sysconfdir@/ha.d
 
 GetAllIFNames() {
   $IFCONFIG | grep '^[a-zA-Z]' | cut -d' ' -f1
 }
 
 GuessIFname() {
-  GetAllIFNames | grep -v '^lo' | line
+  GetAllIFNames | grep -v '^lo' | head -1
 }
 
 INTERFACE=`GuessIFname`
