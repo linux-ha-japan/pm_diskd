@@ -370,14 +370,28 @@ struct MLModuleImports_s {
 					/* Logging function		*/
 };
 
-/* Exported functions */
+/*
+ * EXPORTED INTERFACES...
+ */
 
+/* Create a new module universe - start the module loading system up */
 MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
+
+/* Delete a module universe - shut the module loading system down */
+/*	Best if used carefully ;-) */
 void		DelMLModuleUniv(MLModuleUniv*);
 
+/* Return a list of modules of the given type */
+char **		MLListModules(MLModuleUniv* u, const char *moduletype
+,		int* modulecount /*can be NULL*/);
+
+/* Free the module list returned by MLFreeListModules */
+void		MLFreeModuleList(char ** modulelist);
+
+/* Load the requested module */
 ML_rc		MLLoadModule(MLModuleUniv* moduniv
-,	const char * moduletype
-,	const char * modulename);
+,		const char * moduletype
+,		const char * modulename);
 
 #ifdef ENABLE_ML_DEFS_PRIVATE
 /* Probably these should be moved to a different header file */

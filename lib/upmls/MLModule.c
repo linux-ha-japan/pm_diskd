@@ -1233,3 +1233,14 @@ MLModTypeListModules(MLModuleType* mtype
 	return(result);
 }
 
+void
+MLFreeModuleList(char ** modulelist)
+{
+	char **	ml = modulelist;
+
+	while (*ml != NULL) {
+		DELETE(*ml);
+	}
+	DELETE(modulelist);
+}
+
