@@ -1,12 +1,16 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.26 2000/08/01 12:21:55 alan Exp $
+#	$Id: heartbeat.sh,v 1.27 2000/08/01 12:25:05 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
 # Author:       Alan Robertson	<alanr@suse.com>
 #
-#		it should run under SuSE and Debian also...
+#		This script works correctly under SuSE, Debian,
+#		Conectiva and a few others.  Please let me know if it
+#		doesn't work under your distribution, and we'll fix it.
+#		We don't hate anyone, and like for everyone to use
+#		our software, no matter what distribution you're using.
 #
 # chkconfig: 2345 34 40
 # description: Startup script high-availability services.
@@ -31,7 +35,7 @@ US=`uname -n`
 USE_MODULES=1
 
 #
-#	Some non-SUSE distributions like it if we their functions...
+#	Some non-SUSE distributions like it if we use their functions...
 #
 if
   [ ! -x $DISTFUNCS ]
@@ -251,6 +255,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.27  2000/08/01 12:25:05  alan
+#  More political changes to the comments ;-)
+#
 #  Revision 1.26  2000/08/01 12:21:55  alan
 #  I modified some comments to make it less obvious tht we are specifically
 #  Red-Hat compatible.
