@@ -320,7 +320,7 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 		return EINVAL;
 	}
 
-	if (msg->pid < 2 || (kill(msg->pid, 0) < 0 && errno != EPERM)
+	if (msg->pid < 2 || (CL_KILL(msg->pid, 0) < 0 && errno != EPERM)
 	||	(client->ch->farside_pid != msg->pid)) {
 		return EINVAL;
 	}
@@ -796,7 +796,7 @@ get_running_pid(gboolean* anypidfile)
 
 	if (lockfd != NULL
 	&&      fscanf(lockfd, "%ld", &pid) == 1 && pid > 0) {
-		if (kill((pid_t)pid, 0) >= 0 || errno != ESRCH) {
+		if (CL_KILL((pid_t)pid, 0) >= 0 || errno != ESRCH) {
 			fclose(lockfd);
 			return(pid);
 		}
@@ -814,7 +814,7 @@ init_stop(void)
 	pid =	get_running_pid(NULL);
 
 	if (pid > 0) {
-		if (kill((pid_t)pid, SIGTERM) < 0) {
+		if (CL_KILL((pid_t)pid, SIGTERM) < 0) {
 			fprintf(stderr, "Cannot kill pid %ld\n", pid);
 			exit(1);
 		}

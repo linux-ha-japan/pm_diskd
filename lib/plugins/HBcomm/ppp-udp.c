@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.5 2002/10/18 07:16:10 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.6 2002/10/21 02:00:35 horms Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -117,7 +117,8 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.5 2002/10/18 07:16:10 ala
 #if defined(SO_BINDTODEVICE)
 #	include <net/if.h>
 #endif
-#include "heartbeat.h"
+#include <heartbeat.h>
+#include <clplumbing/cl_signal.h>
 
 #define	EOS	'\0'
 
@@ -469,11 +470,11 @@ ppp_udp_open_write(struct hb_media * mp)
 		ei->wsocket = -1;
 		ei->ppp_started = 0;	/* Force restart */
 		if (ei->ppp_pid > 1) {
-			kill(ei->ppp_pid, SIGTERM);
+			CL_KILL(ei->ppp_pid, SIGTERM);
 		}
 	}
 	if (ei->ppp_started && ei->ppp_pid > 1
-	&&	(kill(ei->ppp_pid, 0)< 0 && errno == ESRCH)) {
+	&&	(CL_KILL(ei->ppp_pid, 0)< 0 && errno == ESRCH)) {
 		/* It must have died while starting up */
 		ei->ppp_started = 0;
 	}
@@ -481,12 +482,12 @@ ppp_udp_open_write(struct hb_media * mp)
 		/* There may be a ppp running, but we don't want it ... */
 		if (ppp_udp_ppp_proc_info(mp) == HA_OK) {
 			if (ei->ppp_pid > 1) {
-				if (kill(ei->ppp_pid, 0) >= 0) {
+				if (CL_KILL(ei->ppp_pid, 0) >= 0) {
 					ha_log(LOG_NOTICE
 					,	"PID %d: killing PPPd pid %d"
 					,	getpid(), ei->ppp_pid);
 				}
-				kill(ei->ppp_pid, SIGTERM);
+				CL_KILL(ei->ppp_pid, SIGTERM);
 			}else{
 				ha_error("Cannot kill unknown PPPd process!");
 			}
@@ -625,12 +626,12 @@ hb_dev_close(struct hb_media* mp)
 	}
 	/* We don't like our PPP process for some reason */
 	if (ei->ppp_pid > 1) {
-		if (kill(ei->ppp_pid, 0) >= 0) {
+		if (CL_KILL(ei->ppp_pid, 0) >= 0) {
 			ha_log(LOG_NOTICE, "PID %d: killing PPPd pid %d."
 			,	getpid(), ei->ppp_pid);
 		}
 		/* Even the reader can cause this, if things look bad */
-		kill(ei->ppp_pid, SIGTERM);
+		CL_KILL(ei->ppp_pid, SIGTERM);
 		unlink(ppp_udp_ppp_start_path(mp));
 		ei->ppp_pid = 0;
 	}
@@ -779,7 +780,8 @@ hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 	 *	no route to host to let us know.  I suppose we could use
 	 *	death of child, but we only have one, so this works fine.
 	 */
-	if (ei->ppp_pid > 0 && (kill(ei->ppp_pid, 0)< 0 && errno == ESRCH)) {
+	if (ei->ppp_pid > 0 && (CL_KILL(ei->ppp_pid, 0) < 0 && 
+				errno == ESRCH)) {
 		/* Our PPP process has died.  Start a new one */
 		ha_log(LOG_DEBUG, "PPPd process %d is gone.", ei->ppp_pid);
 		hb_dev_close(mp);
@@ -1206,11 +1208,16 @@ static void
 ppp_localdie(void)
 {
 	if (pppref && pppref->ppp_pid > 0) {
-		kill(pppref->ppp_pid, SIGTERM);
+		CL_KILL(pppref->ppp_pid, SIGTERM);
 	}
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.6  2002/10/21 02:00:35  horms
+ * Use CL_KILL() instead of kill() throughout the code.
+ * This makes the code nice and homogenous and removes
+ * the need for spurious inclusion of signal.h
+ *
  * Revision 1.5  2002/10/18 07:16:10  alan
  * Put in Horms big patch plus a patch for the apcmastersnmp code where
  * a macro named MIN returned the MAX instead.  The code actually wanted

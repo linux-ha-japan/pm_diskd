@@ -22,7 +22,7 @@
  *
  */
 
-static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.2 2002/10/18 22:46:30 alan Exp $";
+static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.3 2002/10/21 02:00:35 horms Exp $";
 
 
 #define _USE_BSD
@@ -109,7 +109,7 @@ hb_signal_signal_all(int sig)
 				ha_log(LOG_DEBUG, "sending SIGTERM to MSP: %d"
 				,	(int) master_status_pid);
 			}
-			if (kill(master_status_pid, SIGTERM) >= 0) {
+			if (CL_KILL(master_status_pid, SIGTERM) >= 0) {
 				/* Tell master status proc to shut down */
 				/* He'll send us a SIGQUIT when done */
 				/* Meanwhile, we'll just go on... */
@@ -134,7 +134,7 @@ hb_signal_signal_all(int sig)
 				,	us, (int) processes[j], (int) sig);
 			}
 			return_to_orig_privs();
-			kill(processes[j], sig);
+			CL_KILL(processes[j], sig);
 			return_to_dropped_privs();
 		}
 	}
@@ -403,7 +403,7 @@ hb_signal_reread_config_action(void)
 		return_to_orig_privs();
 		for (j=0; j < procinfo->nprocs; ++j) {
 			if (procinfo->info+j != curproc) {
-				kill(procinfo->info[j].pid, SIGHUP);
+				CL_KILL(procinfo->info[j].pid, SIGHUP);
 			}
 		}
 		return_to_dropped_privs();

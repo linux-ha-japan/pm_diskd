@@ -872,7 +872,7 @@ api_flush_msgQ(client_proc_t* client)
 	}
 	nsig = (writeok ? client->signal : 0);
 
-	if (kill(clientpid, nsig) < 0 && errno == ESRCH) {
+	if (CL_KILL(clientpid, nsig) < 0 && errno == ESRCH) {
 		ha_log(LOG_INFO, "api_send_client: client %ld died"
 		,	(long) client->pid);
 		client->removereason = "died";
@@ -1029,7 +1029,7 @@ api_add_client(struct ha_msg* msg)
 	if ((cpid = ha_msg_value(msg, F_PID)) != NULL) {
 		pid = atoi(cpid);
 	}
-	if (pid <= 0  || (kill(pid, 0) < 0 && errno == ESRCH)) {
+	if (pid <= 0  || (CL_KILL(pid, 0) < 0 && errno == ESRCH)) {
 		ha_log(LOG_WARNING
 		,	"api_add_client: bad pid [%ld]", (long) pid);
 		return 0;
@@ -1039,7 +1039,7 @@ api_add_client(struct ha_msg* msg)
 	client = find_client(cpid, fromid);
 
 	if (client != NULL) {
-		if (kill(client->pid, 0) == 0 || errno != ESRCH) {
+		if (CL_KILL(client->pid, 0) == 0 || errno != ESRCH) {
 			ha_log(LOG_WARNING
 			,	"duplicate client add request");
 			return 0;
@@ -1344,7 +1344,7 @@ ClientSecurityIsOK(client_proc_t* client)
 
 	/* Does this client even exist? */
 
-	if (kill(client->pid, 0) < 0 && errno == ESRCH) {
+	if (CL_KILL(client->pid, 0) < 0 && errno == ESRCH) {
 		ha_log(LOG_ERR
 		,	"Client pid %ld does not exist", (long) client->pid);
 		return(0);
@@ -1573,7 +1573,7 @@ ProcessAnAPIRequest(client_proc_t*	client)
 	static int		consecutive_failures = 0;
 
 	/* Supposedly got a message from 'client' */
-	if (kill(client->pid, 0) < 0 &&	errno == ESRCH) {
+	if (CL_KILL(client->pid, 0) < 0 &&	errno == ESRCH) {
 		/* Oops... he's dead */
 		ha_log(LOG_INFO
 		,	"Client pid %ld died (input)"

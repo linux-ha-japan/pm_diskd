@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.224 2002/10/19 16:04:33 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.225 2002/10/21 02:00:35 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -256,6 +256,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.224 2002/10/19 16:04
 #include <clplumbing/realtime.h>
 #include <clplumbing/uids.h>
 #include <clplumbing/GSource.h>
+#include <clplumbing/cl_signal.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api_core.h>
@@ -1478,7 +1479,7 @@ hb_msp_final_shutdown(gpointer p)
 		ha_log(LOG_DEBUG, "Sending SIGQUIT to pid %d"
 		,       (int) processes[0]);
 	}
-	kill(processes[0], SIGQUIT);
+	CL_KILL(processes[0], SIGQUIT);
 	cleanexit(0);
 	/* NOTREACHED*/
 	return FALSE;
@@ -1924,7 +1925,7 @@ FinalCPShutdown(void)
 	CL_IGNORE_SIG(SIGTERM);
 	return_to_orig_privs();
 	/* Kill any lingering processes, etc.*/
-	kill(-getpid(), SIGTERM);
+	CL_KILL(-getpid(), SIGTERM);
 
 
 	getrlimit(RLIMIT_NOFILE, &oflimits);
@@ -2030,7 +2031,7 @@ hb_kill_tracked_process(ProcTrack* p, void * data)
 	/* Suppress logging this process' death */
 	p->loglevel = PT_LOGNONE;
 	return_to_orig_privs();
-	kill(pid, nsig);
+	CL_KILL(pid, nsig);
 	return_to_dropped_privs();
 }
 
@@ -2177,7 +2178,7 @@ hb_trigger_restart(int quickrestart)
 	procinfo->restart_after_shutdown = 1;
 	procinfo->giveup_resources = (quickrestart ? FALSE : TRUE);
 	return_to_orig_privs();
-	if (kill(master_status_pid, SIGTERM) >= 0) {
+	if (CL_KILL(master_status_pid, SIGTERM) >= 0) {
 		/* Tell master status proc to shut down */
 		/* He'll send us a SIGQUIT when done */
 		/* Meanwhile, we'll just go on... */
@@ -2233,14 +2234,14 @@ restart_heartbeat(void)
 		if (pid != curpid) {
 			ha_log(LOG_INFO, "Killing process %d with signal %d"
 			,	(int) pid, killsig);
-			kill(pid, killsig);
+			CL_KILL(pid, killsig);
 		}
 	}
 	ha_log(LOG_INFO, "Done killing processes for restart.");
 
 	if (quickrestart) {
 		/* Kill any lingering takeover processes, etc. */
-		kill(-getpid(), SIGTERM);
+		CL_KILL(-getpid(), SIGTERM);
 		sleep(1);
 	}
 
@@ -2271,7 +2272,7 @@ restart_heartbeat(void)
 	}
 	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat");
 	ha_log(LOG_ERR, "Shutting down...");
-	kill(curpid, SIGTERM);
+	CL_KILL(curpid, SIGTERM);
 }
 
 /* See if any nodes or links have timed out */
@@ -2575,10 +2576,10 @@ mark_node_dead(struct node_info *hip)
 		/* Bump up debug level */
 		hb_signal_debug_usr1_action();
 		return_to_orig_privs();	/* And we stay this way... */
-		kill(procinfo->info[0].pid, SIGUSR1);
+		CL_KILL(procinfo->info[0].pid, SIGUSR1);
 
 		if (!shutdown_in_progress) {
-			if (kill(procinfo->info[0].pid, SIGTERM) < 0) {
+			if (CL_KILL(procinfo->info[0].pid, SIGTERM) < 0) {
 				ha_perror("Cannot signal CP (pid %ld)"
 				,	(long)procinfo->info[0].pid);
 				hb_emergency_shutdown();
@@ -2781,13 +2782,13 @@ main(int argc, char * argv[], char * envp[])
 			cleanexit(LSB_EXIT_OK);
 		}
 
-		if (kill((pid_t)running_hb_pid, SIGTERM) >= 0) {
+		if (CL_KILL((pid_t)running_hb_pid, SIGTERM) >= 0) {
 			/* Wait for the running heartbeat to die */
 			alarm(0);
 			do {
 				sleep(1);
 				continue;
-			}while (kill((pid_t)running_hb_pid, 0) >= 0);
+			}while (CL_KILL((pid_t)running_hb_pid, 0) >= 0);
 			cleanexit(LSB_EXIT_OK);
 		}
 		err = errno;
@@ -2898,7 +2899,7 @@ main(int argc, char * argv[], char * envp[])
 			,	"Signalling heartbeat pid %ld to reread"
 			" config files", running_hb_pid);
 
-			if (kill(running_hb_pid, SIGHUP) >= 0) {
+			if (CL_KILL(running_hb_pid, SIGHUP) >= 0) {
 				cleanexit(0);
 			}
 			ha_perror("Unable to send SIGHUP to pid %ld"
@@ -2988,7 +2989,7 @@ hb_force_shutdown(void)
 		hb_signal_signal_all(SIGTERM);
 		return_to_dropped_privs();
 		return;
-	}else if (kill(processes[0], SIGTERM >= 0)) {
+	}else if (CL_KILL(processes[0], SIGTERM >= 0)) {
 		/* Kill worked! */
 		return_to_dropped_privs();
 		return;
@@ -3006,9 +3007,9 @@ hb_emergency_shutdown(void)
 	CL_IGNORE_SIG(SIGTERM);
 	ha_log(LOG_ERR, "Emergency Shutdown: "
 			"Attempting to kill everything ourselves");
-	kill(-getpgrp(), SIGTERM);
+	CL_KILL(-getpgrp(), SIGTERM);
 	sleep(2);
-	kill(-getpgrp(), SIGKILL);
+	CL_KILL(-getpgrp(), SIGKILL);
 	/*NOTREACHED*/
 	cleanexit(100);
 }
@@ -3021,7 +3022,7 @@ get_running_hb_pid()
 	if ((lockfd = fopen(PIDFILE, "r")) != NULL
 	&&	fscanf(lockfd, "%ld", &pid) == 1 && pid > 0) {
 		hb_pid_in_file = pid;
-		if (kill((pid_t)pid, 0) >= 0 || errno != ESRCH) {
+		if (CL_KILL((pid_t)pid, 0) >= 0 || errno != ESRCH) {
 			fclose(lockfd);
 			return(pid);
 		}
@@ -3817,6 +3818,11 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.225  2002/10/21 02:00:35  horms
+ * Use CL_KILL() instead of kill() throughout the code.
+ * This makes the code nice and homogenous and removes
+ * the need for spurious inclusion of signal.h
+ *
  * Revision 1.224  2002/10/19 16:04:33  alan
  * Moved most of the resource handling code in heartbeat into hb_resource.[ch]
  * Some inline code that's tied to packet reception is still in heartbeat.c,
