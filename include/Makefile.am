@@ -22,4 +22,4 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 SOURCES		        = HBauth.h HBcomm.h ha_msg.h heartbeat.h
 
-SUBDIRS                 = pils
+SUBDIRS                 = pils stonith
