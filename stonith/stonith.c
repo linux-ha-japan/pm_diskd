@@ -65,7 +65,7 @@ static int
 symbol_load(struct symbol_str symbols[], int len, void **handle)
 {
 	int  a;
-	char *error;
+	const char *error;
 
 	for(a = 0; a < len; a++) {
 		struct symbol_str *sym = &symbols[a];
