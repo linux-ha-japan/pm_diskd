@@ -29,6 +29,7 @@ MCASTIP=225.0.0.2
 IFCONFIG=@IFCONFIG@
 HADIR=@sysconfdir@/ha.d
 INITDIR=@INITDIR@
+STONITH=@sbindir@/stonith
 #
 DEFAULTINTERFACE=eth0	# But we really guess it...
 #
@@ -285,7 +286,58 @@ TestHeartbeat() {
     echo "OOPS! Looks like we had some errors come up."
     errcount=`expr $errcount + 1`
   fi
-  echo "$errcount errors. Log file is stored in $LOGFILE"
+}
+
+StonithCheck() {
+
+  serrcount=0
+
+  echo "Checking STONITH basic sanity."
+  if
+    $STONITH -h >/dev/null
+  then
+    : OK
+  else
+    echo "$STONITH -h failed"
+    serrcount=`expr $serrcount + 1`
+  fi
+  wc=`$STONITH -h | wc -l`
+  if
+    [ $wc -lt 100 ]
+  then
+    echo "$STONITH -h help message is too short"
+    serrcount=`expr $serrcount + 1`
+  fi
+  if
+    FOOBARLIST=`$STONITH -t null -p "foo bar" -l`
+  then
+    : FOOBARLIST OK
+  else
+    echo "$STONITH -t null list option failed"
+    serrcount=`expr $serrcount + 1`
+  fi
+  if
+    echo $FOOBARLIST | grep foo >/dev/null &&
+    echo $FOOBARLIST | grep bar >/dev/null
+  then
+    : OK null list
+  else
+    echo "$STONITH -t null list option incorrect"
+    serrcount=`expr $serrcount + 1`
+  fi
+
+  if
+    RESETOUT=`$STONITH -t null -p "foo bar" foo 2>&1`
+  then
+    case $RESETOUT in
+     *"Host foo null-reset"*)	: NULL Stonith output OK;;
+     *)				echo "NULL reset failed."
+  				  serrcount=`expr $serrcount + 1`;;
+    esac
+  else
+    echo "$STONITH -t null reset failed."
+  fi
+  errcount=`expr $errcount + $serrcount`
 }
 
 #
@@ -307,4 +359,7 @@ SetUpConfigFiles
 
 TestHeartbeat
 RemoveConfigFiles
+StonithCheck
+
+echo "$errcount errors. Log file is stored in $LOGFILE"
 exit $errcount
