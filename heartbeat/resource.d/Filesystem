@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem,v 1.1 2000/10/25 19:47:13 eric Exp $
+# $Id: Filesystem,v 1.2 2000/11/07 15:38:54 alan Exp $
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
@@ -41,6 +41,11 @@
 #
 #       What all this means is that if 2 nodes mount the same file system
 #       read-write, the filesystem is going to become corrupted.
+#
+#	As a result, you should use this together with the stonith option
+#	and redundant, independent communications paths.
+#
+#	If you don't do this, don't blame us when you scramble your disk.
 # 
 LC_ALL=en; export LC_ALL 
 
@@ -60,15 +65,16 @@ check_util () {
     fi
 }
 
-function usage {
-cat <<EOT;
-usage: $0 <device> <directory> <fstype> {start|stop|status}
+usage() {
 
-<device>    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
-<directory> : the mount point for the filesystem
-<fstype>    : name of the filesystem type. e.g. ext2
+cat <<-EOT;
+	usage: $0 <device> <directory> <fstype> {start|stop|status}
 
-EOT
+	<device>    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
+	<directory> : the mount point for the filesystem
+	<fstype>    : name of the filesystem type. e.g. ext2
+
+	EOT
 }
 
 # Check the arguments passed to this script
@@ -120,8 +126,11 @@ start)
 	fi
 
 	# Insert SCSI module
-	$MODPROBE scsi_hostadapter
-	if [ $? -ne 0 ] ; then
+	if
+	  $MODPROBE scsi_hostadapter
+	then
+	  : $MODPROBE scsi_hostadapter worked
+	else
 	    # This warning is sometimes bogus - the driver is often compiled
 	    # into the kernel.
 	    ha_log "WARNING: Couldn't insert SCSI module."
@@ -139,33 +148,34 @@ start)
 	# Check the filesystem & auto repair.  
 	# NOTE: Some filesystem types don't need this step...  Please modify
 	#       accordingly
-	case $FSTYPE in
-	  ext3)
-		fsck_needed=no
-	  ;;
-	  *)
-		fsck_needed=yes
-	  ;;
-	esac
 
-	if [ "$fsck_needed"x = "yes"x ] ; then
+	if
+	  case $FSTYPE in
+	    ext3|reiserfs)	false;;
+	    *)			true;;
+	  esac
+        then
+	  ha_log "info: Starting filesystem check on $DEVICE"
+	  $FSCK -t $FSTYPE -a $DEVICE
 	
-		ha_log "info: Starting filesystem check on $DEVICE"
-		$FSCK -t $FSTYPE -a $DEVICE
-	
-		# NOTE: if any errors at all are detected, it returns non-zero
-		# if the error is >4 then there is a big problem
-		if [ $? -ge 4 ] ; then
-			ha_log "ERROR: Couldn't sucessfully fsck filesystem for $DEVICE"
-		exit 1	
-		fi	
+	  # NOTE: if any errors at all are detected, it returns non-zero
+	  # if the error is >4 then there is a big problem
+	  if
+	    [ $? -ge 4 ]
+	  then
+	    ha_log "ERROR: Couldn't sucessfully fsck filesystem for $DEVICE"
+	    exit 1	
+	  fi	
 	fi
 
 	# Mount the filesystem.
-	$MOUNT -t $FSTYPE $DEVICE $MOUNTPOINT
-	if [ $? -ne 0 ] ; then
-		ha_log "ERROR: Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
-		exit 1
+	if
+	  $MOUNT -t $FSTYPE $DEVICE $MOUNTPOINT
+        then
+	  : Mount worked!
+        else
+	  ha_log "ERROR: Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
+	  exit 1
 	fi
 
 # end of start)
@@ -217,23 +227,10 @@ status)
 # end of status)
 ;;
 
-#
-# STATUS: is the raid device online or offline?
-#
-status) 
-
-	# See if the device is online
-	$MOUNT | grep -e "^$DEVICE" >/dev/null
-	if [ $? = 0 ] ; then
-	    echo "running"
-	else
-	    echo "stopped"
-	fi
-
-;;
 
 *)
-    echo "This script should be run with the third argument 'start', 'stop', or 'status'"
+    echo "This script should be run with a fourth argument of 'start', 'stop', or 'status'"
+    usage
     exit 1
 ;;
 

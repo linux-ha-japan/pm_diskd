@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Raid1,v 1.1 2000/10/25 19:39:42 eric Exp $
+# $Id: Raid1,v 1.2 2000/11/07 15:38:54 alan Exp $
 # 
 # Raid1
 #      Description: Manages a software Raid1 device on a shared storage medium.
@@ -103,12 +103,12 @@ check_util () {
     fi
 }
 
-function usage {
-cat <<EOT;
-usage: $0 <raidtab_config_file> <md_dev_name> {start|stop|status}
+usage() {
+cat <<-EOT;
+	usage: $0 <raidtab_config_file> <md_dev_name> {start|stop|status}
 
-<raidtab_config_file> : name of MD configuration file. e.g. /etc/raidtab
-<md_dev_name>         : of the form /dev/md?? (the block device to use)
+	<raidtab_config_file> : name of MD configuration file. e.g. /etc/raidtab
+	<md_dev_name>         : of the form /dev/md?? (the block device to use)
 
 EOT
 }
