@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.4 2001/05/15 19:27:17 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.5 2001/05/17 05:51:54 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -81,7 +81,7 @@ static int set_mcast_if(int sockfd, char *ifname);
 static int set_mcast_loop(int sockfd, u_char loop);
 static int set_mcast_ttl(int sockfd, u_char ttl);
 static int join_mcast_group(int sockfd, struct in_addr *addr, char *ifname);
-static int if_NameToIndex(const char *ifname);
+static int if_getaddr(const char *ifname, struct in_addr *addr);
 static int is_valid_dev(const char *dev);
 static int is_valid_mcast_addr(const char *addr);
 static int get_port(const char *port, u_short *p);
@@ -100,20 +100,6 @@ extern int	udpport;
  */
 
 #define		UDPASSERT(hbm)
-
-/*
- * The following "define"-like things are probably somewhat unclean.
- * Please feel free to tidy (or re-structure or whatever).
- * The original code was written for Linux, defining SOL_IP.
- * Various other systems (Solaris, *BSD) seem to use IPPROTO_IP instead.
- *    David Lee <T.D.Lee@durham.ac.uk> May 2001
- */
-
-#ifndef SOL_IP
-# ifdef IPPROTO_IP
-#  define SOL_IP IPPROTO_IP
-# endif
-#endif /* SOL_IP */
 
 int hb_dev_mtype (char** buffer)
 { 
@@ -489,7 +475,7 @@ HB_make_receive_sock(struct hb_media * hbm)
 	int	boundyet=0;
 	int	one=1;
 	int	rc;
-	int	binderr;
+	int	binderr=0;
 
 	UDPASSERT(hbm);
 	mcp = (struct mcast_private *) hbm->pd;
@@ -500,7 +486,7 @@ HB_make_receive_sock(struct hb_media * hbm)
 	}
 	/* set REUSEADDR option on socket so you can bind a multicast */
 	/* reader to multiple interfaces */
-	if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0){
+	if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&one, sizeof(one)) < 0){
 		ha_log(LOG_ERR, "Error setsockopt(SO_REUSEADDR)");
 	}        
 
@@ -607,7 +593,7 @@ new_mcast_private(const char *ifn, const char *mcast, u_short port,
  */
 static int set_mcast_loop(int sockfd, u_char loop)
 {
-	return setsockopt(sockfd, SOL_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
+	return setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
 }
 
 /* set_mcast_ttl will set the time-to-live value for the writing socket.
@@ -626,7 +612,7 @@ static int set_mcast_loop(int sockfd, u_char loop)
  */
 static int set_mcast_ttl(int sockfd, u_char ttl)
 {
-	return setsockopt(sockfd, SOL_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
+	return setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 }
 
 /*
@@ -637,19 +623,16 @@ static int set_mcast_ttl(int sockfd, u_char ttl)
  */
 static int set_mcast_if(int sockfd, char *ifname)
 {
-	int idx;
-	struct ip_mreqn	mreq;
+	int rc;
+	struct ip_mreq mreq;
 
-	idx=if_NameToIndex(ifname);
-	if (idx == -1) {
-		return -1;
-	}
-
-	/* Zero out the struct... we only care about the index... */
-
+	/* Zero out the struct... we only care about the address... */
 	memset(&mreq, 0, sizeof(mreq));
-	mreq.imr_ifindex=idx;
-	return setsockopt(sockfd, SOL_IP, IP_MULTICAST_IF, &mreq, sizeof(mreq));
+
+	rc = if_getaddr(ifname, &mreq.imr_interface);
+	if (rc == -1)
+		return -1;
+	return setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_IF, &mreq, sizeof(mreq));
 }
 
 /* join_mcast_group is used to join a multicast group.  the group is
@@ -661,32 +644,36 @@ static int set_mcast_if(int sockfd, char *ifname)
  */
 static int join_mcast_group(int sockfd, struct in_addr *addr, char *ifname)
 {
-	struct ip_mreqn mreq_add;
+	struct ip_mreq	mreq_add;
 
 	memset(&mreq_add, 0, sizeof(mreq_add));
 	memcpy(&mreq_add.imr_multiaddr, addr, sizeof(struct in_addr));
 
 	if (ifname) {
-		int idx;
-		idx=if_NameToIndex(ifname);
-		if (idx != -1)
-			mreq_add.imr_ifindex=idx;
+		if_getaddr(ifname, &mreq_add.imr_interface);
 	}
-	return setsockopt(sockfd, SOL_IP, IP_ADD_MEMBERSHIP, &mreq_add, sizeof(mreq_add));
+	return setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq_add, sizeof(mreq_add));
 }
 
-/* if_NameToIndex takes an interface name as input and returns
- * the interface index number, 0 if ifname is NULL, or -1 on error
+/* if_getaddr gets the ip address from an interface
+ * specified by name and places it in addr.
+ * returns 0 on success and -1 on failure.
  */
-static int if_NameToIndex(const char *ifname)
+static int
+if_getaddr(const char *ifname, struct in_addr *addr)
 {
 	int	fd;
 	struct ifreq	if_info;
+	
+	if (!addr)
+		return -1;
+
+	addr->s_addr = INADDR_ANY;
 
 	memset(&if_info, 0, sizeof(if_info));
 	if (ifname) {
 		strncpy(if_info.ifr_name, ifname, IFNAMSIZ-1);
-	} else {	/* ifname is NULL, so index will be zero */
+	} else {	/* ifname is NULL, so use any address */
 		return 0;
 	}
 
@@ -696,25 +683,29 @@ static int if_NameToIndex(const char *ifname)
 	}
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, 
-			"looking up index for %s",
+			"looking up address for %s",
 			if_info.ifr_name);
 	}
-	if (ioctl(fd, SIOCGIFINDEX, &if_info) == -1) {
-		ha_log(LOG_ERR, "Error ioctl(SIOCGIFINDEX)");
+	if (ioctl(fd, SIOCGIFADDR, &if_info) == -1) {
+		ha_log(LOG_ERR, "Error ioctl(SIOCGIFADDR)");
 		close(fd);
 		return -1;
 	}
+	memcpy(addr, &((struct sockaddr_in *)&if_info.ifr_addr)->sin_addr,
+		sizeof(struct in_addr));
 	close(fd);
-	return if_info.ifr_ifindex;
+	return 0;
 }
 
 /* returns true or false */
 static int is_valid_dev(const char *dev)
 {
 	int rc=0;
-	if (dev) 
-		if (if_NameToIndex(dev) != -1)
-			rc=1;
+	if (dev) {
+		struct in_addr addr;
+		if (if_getaddr(dev, &addr) != -1)
+			rc = 1;
+	}
 	return rc;
 }
 
@@ -751,6 +742,9 @@ static int get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.5  2001/05/17 05:51:54  alan
+ * Put in the latest multicast fixes from Chris Wright.
+ *
  * Revision 1.4  2001/05/15 19:27:17  alan
  * More solaris porting changes.
  *
