@@ -284,11 +284,29 @@ client_delete(struct IPC_CHANNEL *ipc_client)
 				!=NULL){
 		g_hash_table_remove(ccm_hashclient, ipc_client);
 		g_free(ccm_client);
+		ipc_client->ops->resume_io(ipc_client);
 		ipc_client->ops->destroy(ipc_client);
 	}
 	return;
 }
 
+static gboolean 
+delete_func(gpointer key, gpointer value, gpointer user_data)
+{
+	struct IPC_CHANNEL *ipc_client = (struct IPC_CHANNEL *)key;
+
+	client_delete(ipc_client);
+	return TRUE;
+}
+
+void
+client_delete_all(void)
+{
+	if(g_hash_table_size(ccm_hashclient)) {
+		g_hash_table_foreach_remove(ccm_hashclient, delete_func, NULL);
+	}
+	return;
+}
 
 
 void
@@ -384,7 +402,7 @@ client_primary_restored(void)
 void
 client_evicted(void)
 {
-	int type = OC_EV_MS_NOT_PRIMARY;
+	int type = OC_EV_MS_EVICTED;
 	evicted_flag=1;
 	if(llm_flag) {
 		if(ipc_misc_message && --(ipc_misc_message->count)==0){

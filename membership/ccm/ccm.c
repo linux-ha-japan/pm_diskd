@@ -1013,18 +1013,17 @@ ccm_am_i_highest_joiner(ccm_info_t *info)
 	char *		joiner_name;
 	gpointer	jptr;
 	char *		hname = ccm_get_my_hostname(info);
-	int  		i=0;
+	GSList *	head = CCM_GET_JOINERHEAD(info);
 
-	/* FIXME!  g_slist_nth_data is a slow operation ! */
-	/* The way it's used in this loop makes it an n**2 operation! */
-
-	while( (jptr=g_slist_nth_data(CCM_GET_JOINERHEAD(info),i++)) != NULL){
+	while ( head ) {
+		jptr = g_slist_nth_data(head, 0);
 		joiner = GPOINTER_TO_INT(jptr)-1;
 		joiner_name = LLM_GET_NODEID(CCM_GET_LLM(info), joiner);
 		if (strncmp(hname, joiner_name, 
 			LLM_GET_NODEIDSIZE(CCM_GET_LLM(info))) < 0) {
 			return FALSE;
 		}
+		head = g_slist_next(head);
 	}
 	return TRUE;
 }
@@ -1192,15 +1191,10 @@ ccm_send_join_reply(ll_cluster_t *hb, ccm_info_t *info)
 	int 	joiner;
 	gpointer	jptr;
 	const char *joiner_name;
-	GSList 	*tmphead;
-	int	i=0;
+	GSList 	*head = CCM_GET_JOINERHEAD(info);
 
-	tmphead = CCM_GET_JOINERHEAD(info);
-
-	/* FIXME!  g_slist_nth_data is a slow operation ! */
-	/* The way it's used in this loop makes it an n**2 operation! */
-
-	while( (jptr=g_slist_nth_data(CCM_GET_JOINERHEAD(info),i++)) != NULL){
+	while(head) {
+		jptr = g_slist_nth_data(head, 0);
 		joiner = GPOINTER_TO_INT(jptr)-1;
 		joiner_name = LLM_GET_NODEID(CCM_GET_LLM(info), joiner);
 		/* send joiner the neccessary information */
@@ -1209,6 +1203,7 @@ ccm_send_join_reply(ll_cluster_t *hb, ccm_info_t *info)
 				"to send join reply");
 			sleep(1);
 		}
+		head = g_slist_next(head);
 	}
 }
 

@@ -53,6 +53,7 @@ typedef struct hb_srcdata_s {
 	GPollFD 	hbpoll;
 	struct timeval  t;
 	char		timeflag;
+	GMainLoop	*mainloop;
 } hb_srcdata_t;
 
 static gboolean
@@ -100,15 +101,24 @@ hb_input_dispatch(gpointer source_data, GTimeVal* current_time
 	,       gpointer        user_data)
 {
 	void  *ccmuser = (void *)user_data;
+	hb_srcdata_t *sdata = (hb_srcdata_t *)source_data;
 
 	int ret = ccm_take_control(ccmuser);
-	if (ret)  return FALSE;
+	if (ret)  {
+		// TOBEDONE: remove all the sources from the
+		// event loop before quiting.
+		g_main_quit(sdata->mainloop);
+		return FALSE;
+	}
 	return TRUE;
 }
 
 static void
 hb_input_destroy(gpointer user_data)
 {
+	// close connections to all the clients
+	client_delete_all();
+	return;
 }
 
 
@@ -234,7 +244,8 @@ waitCh_input_dispatch(gpointer source_data, GTimeVal* current_time
  	if ((newclient = wait_ch->ops->accept_connection(wait_ch, 
 			NULL)) != NULL) {
 		/* accept the connection */
-		fprintf(stderr,"accepting a new connection \n");
+		if(global_verbose)
+			fprintf(stderr,"accepting a new connection \n");
 		/* inform our client manager about this new client */
 		client_add(newclient);
 
@@ -371,6 +382,8 @@ main(int argc, char **argv)
 	/* initialize the client tracking system */
 	client_init();
 
+	mainloop = g_main_new(TRUE);
+
 	/* 
 	 * heartbeat is the main source of events. 
 	 * This source must be listened 
@@ -383,6 +396,7 @@ main(int argc, char **argv)
 	srcdata.hbpoll.fd  = 	ccm_get_fd(ccmdata);
         srcdata.hbpoll.events = G_IO_IN|G_IO_HUP|G_IO_ERR;
 	srcdata.timeflag  = FALSE;
+	srcdata.mainloop  = mainloop;
         g_main_add_poll(&srcdata.hbpoll, G_PRIORITY_HIGH);
 	g_source_add(G_PRIORITY_HIGH, FALSE, &hb_input_SourceFuncs
 		       , &srcdata, ccmdata, NULL);
@@ -400,10 +414,10 @@ main(int argc, char **argv)
 	g_source_add(G_PRIORITY_LOW, FALSE, &waitCh_input_SourceFuncs
 		       , &waitchan, wait_ch, NULL);
 	
-	mainloop = g_main_new(TRUE);
 	g_main_run(mainloop);
+	g_main_destroy(mainloop);
 
 	free(tmp_cmdname);
 	/*this program should never terminate,unless killed*/
-	exit(1);
+	return(1);
 }
