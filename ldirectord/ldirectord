@@ -1,6 +1,7 @@
 #!/usr/bin/perl
-# Linux Director Daemon
-# $Id: ldirectord,v 1.6 2000/04/23 21:04:51 horms Exp $
+# Linux Director Daemon - run "perldoc ldirectord" for details 
+# THIS IS BETA. checkout version 1.6 for a stable version.
+# $Id: ldirectord,v 1.7 2000/05/02 10:06:16 jacob Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # with help from: Horms <horms@vergenet.net>
 # This is GPL software. You should own a few hundred copies
@@ -111,12 +112,19 @@ an emergency page.
 =head2 These commands must follow a B<virtual> entry and must
 be indented (minimum 4 spaces or one tab)
 
-B<real => I<x.y.z.w:p> B<gate>|B<masq>|B<ipip> [I<weight>]
+B<real => I<x.y.z.w:p> B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
 
 Defines a real service by IP-address and port. The second argument
-defines the forwarding method, must be gate, ipip or masq. The thrid
-argument is optional and defines the weight for that real server.
-More than one of these entries may be inside a virtual section.
+defines the forwarding method, must be B<gate>, B<ipip> or B<masq>.
+The thrid argument is optional and defines the weight for that real server.
+The last two arguments are optional. They define a request-receive pair to 
+be used to check if a server is alive. They override the request-receive
+pair in the virtual server section. These two strings must be quoted.
+If the request string starts with I<http://...> the IP-address of the real
+server is overridden, otherwise the IP-address of the real server is used.
+This may be used to send a request over a transparent proxy.
+
+=head2 More than one of these entries may be inside a virtual section:
 
 B<service = http>|B<https>|B<none>
 
@@ -128,12 +136,14 @@ default is none.
 B<request = ">I<uri to requested object>B<">
 
 This object will be requested each checkinterval seconds on each real server.
-The string must be inside quotes.
+The string must be inside quotes. Note that this string may be overridden
+by an optional per real-server based request-string.
 
 B<receive = ">I<string to compare>B<">
 
 If the requested result contains this I<string to compare>, the real server
-is declared alive. The string must be inside quotes.
+is declared alive. The string must be inside quotes. Note that this string may
+be overridden by an optional per real-server based receive-string.
 
 B<scheduler = rr>|B<wrr>|B<lc>|B<wlc>
 
@@ -378,8 +388,15 @@ sub read_config
 					$2 =~ /(\w+)(.*)/ && ($1 eq "gate" || $1 eq "masq" || $1 eq "ipip")
 					    or config_error($line, "forward method must be gate, masq or ipip");
 					my $fwd = $1;
-					if ($2 =~ /\s+(\d+)/) {
-						push(@rsrv, {"server"=>$rmt, "forward"=>$fwd, "weight"=>$1});
+					if ($2 =~ /\s+(\d+)\s+(.*)/) {
+						my $weight = $1;
+						if ($2 =~ /\"(.*)\",\s*\"(.*)\"/) {
+							push(@rsrv, {"server"=>$rmt, "forward"=>$fwd, "weight"=>$weight, "request"=>$1, "receive"=>$2});
+						} else {
+							push(@rsrv, {"server"=>$rmt, "forward"=>$fwd, "weight"=>$weight});
+						}
+					} elsif ($2 =~ /\s+\"(.*)\",\s*\"(.*)\"/) {
+						push(@rsrv, {"server"=>$rmt, "forward"=>$fwd, "request"=>$1, "receive"=>$2});
 					} else {
 						push(@rsrv, {"server"=>$rmt, "forward"=>$fwd});
 					}
@@ -672,22 +689,36 @@ sub ld_main
 sub check_server
 {
 	my ($v, $r) = @_;
-	my $uri = $$v{request};
+	my $uri;
 	if ($$v{service} eq "http") {
-		$uri =~ s/^\///g;
 		my $ua = new LWP::UserAgent;
 		$ua->agent("LinuxDirector/0.1" . $ua->agent);
 		$ua->timeout($TIMEOUT);
 		my $req;
-		$req = new HTTP::Request(GET=>"http:\/\/$$r{server}\/$uri");
+		my $receive_string;
+		if (defined $$r{request} && defined $$r{receive}) {
+			$uri = $$r{request};
+			$uri =~ s/^\///g;
+			if ($$r{request} =~ /http:\/\//) {
+				$req = new HTTP::Request(GET=>"$$r{request}");
+			} else {
+				$req = new HTTP::Request(GET=>"http:\/\/$$r{server}\/$uri");
+			}
+			$receive_string = $$r{receive};
+		} else {
+			$uri = $$v{request};
+			$uri =~ s/^\///g;
+			$req = new HTTP::Request(GET=>"http:\/\/$$r{server}\/$uri");
+			$receive_string = $$v{receive};
+		}
 		my $res = $ua->request($req);
-		my $receive_string = $$v{receive};
 		if ($res->is_success && (!($receive_string =~ /.+/) || $res->content =~ /$receive_string/)) {
 			service_set($v, $r, "up");
 		} else {
 			service_set($v, $r, "down");
 		}
 	} elsif ($$v{service} eq "https") {
+		$uri = $$v{request};
 		$$r{server} =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/;
 		my ($page, $result, %headers) = &Net::SSLeay::get_https($1, $2, $uri);
 		my $receive_string = $$v{receive};
