@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.30 2000/08/13 04:36:16 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.31 2000/09/01 21:11:50 marcelo Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -142,6 +142,10 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.30 2000/08/13 04:36:
 #define CONFIG_NAME		HA_D "/ha.cf"
 #define RESOURCE_CFG		HA_D "/haresources"
 
+/* dynamic module directories */
+#define COMM_MODULE_DIR	"/usr/lib/heartbeat/modules/comm"
+#define AUTH_MODULE_DIR "/usr/lib/heartbeat/modules/auth"
+
 #define	STATIC		/* static */
 #define	MALLOCT(t)	((t *)(ha_malloc(sizeof(t))))
 
@@ -207,12 +211,17 @@ struct auth_info {
 };
 
 struct auth_type {
-	const char *	authname;
+	int	ref;
+	char *	authname;
+	int authname_len;
 	const unsigned char *	(*auth)(const struct auth_info * authinfo
 	,	const char *data);
-	int		needskey;
+	int		(*needskey) (void); 
+	int		(*atype)(char **buffer);
+	void *	dlhandler;
 };
 
+#define NR_AUTH_FNS 3 /* number of functions in auth_type struct */
 
 #define MAXAUTH	16
 
@@ -253,9 +262,11 @@ struct hb_media {
 };
 
 struct hb_media_fns {
-	const char *	type;		/* Medium type */
-	const char *	description;	/* Longer Description */
-	int		isping;
+	int	ref;
+	char *	type;		/* Medium type */
+	int	type_len;
+	char *	description;	/* Longer Description */
+	int	desc_len;
 	int		(*init)(void);
 	struct hb_media*(*new)(const char * token);
 	int		(*parse)(const char * options);
@@ -263,7 +274,13 @@ struct hb_media_fns {
 	int		(*close)(struct hb_media *mp);
 	struct ha_msg*	(*read)(struct hb_media *mp);
 	int		(*write)(struct hb_media *mp, struct ha_msg*msg);
+	int		(*mtype)(char **buffer);
+	int		(*descr)(char **buffer);
+	int		(*isping)(void);
+	void *	dlhandler;
 };
+
+#define NR_HB_MEDIA_FNS 9 /* number of functions in hb_media_fns struct */
 
 #define	MAXMSGHIST	100
 struct msg_xmit_hist {
