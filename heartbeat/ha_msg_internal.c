@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.22 2002/09/13 05:24:13 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.23 2002/09/13 14:47:46 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -225,7 +225,9 @@ controlfifo2msg(FILE * f)
 	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
 	&&	strcmp(buf, MSG_END) != 0) {
 
-		if (buf[0] == EOS) {
+		/* This shouldn't happen but it does on FreeBSD! */
+		/* FIXME (FreeBSD gets a newline) !! */
+		if (*buf == '\n') {
 			continue;
 		}
 
@@ -527,6 +529,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.23  2002/09/13 14:47:46  alan
+ * Put in a workaround for an annoying message we get in FreeBSD...
+ *
  * Revision 1.22  2002/09/13 05:24:13  alan
  * Put in some debugging code for Matt Soffen in FreeBSD.
  *
