@@ -1,24 +1,28 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.8 2000/06/21 04:34:48 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.9 2000/07/26 05:17:19 alan Exp $";
 /*
-   About 150 lines of the code in this file borrowed 1999 from Tom Vogt's
-	"Heart" program, and significantly mangled by
-	Alan Robertson <alanr@suse.com> (c) 1999, 2000
-	Released under the GNU General Public License
-	
-	Tom's orignal copyright reproduced notice below...
-
-   Written 1999 by Tom Vogt <tom@lemuria.org>
-   
-   this is GPL software. you should own a few hundred copies of the GPL
-   by now. if not, get one at http://www.fsf.org
-   
-   a few lines of this code have been taken from "Beej's Guide to
-   Network Programming", http://www.ecst.csuchico.edu/~beej/guide/net/
-
-   thanks to the Linux-HA mailing list <linux-ha@muc.de> for helping me
-   with several questions on broadcasting and for testing the early alpha
-   versions.
-*/
+ * udp.c: UDP-based heartbeat code for heartbeat.
+ *
+ * Copyright (C) 1999, 2000 Alan Robertson <alanr@unix.sh>
+ *
+ * About 150 lines of the code in this file originally borrowed in
+ * 1999 from Tom Vogt's "Heart" program, and significantly mangled by
+ *	Alan Robertson <alanr@unix.sh>
+ *	
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -456,6 +460,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.9  2000/07/26 05:17:19  alan
+ * Added GPL license statements to all the code.
+ *
  * Revision 1.8  2000/06/21 04:34:48  alan
  * Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
  *

@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.4 1999/10/11 04:50:28 alanr Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.5 2000/07/26 05:17:19 alan Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +13,7 @@ static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.4 1999/10/11 04:50:2
  *	that the system is stable in terms of memory usage.
  *
  *	For our purposes, these functions are a somewhat faster than using
- *	malloc directly (although they use a more memory)
+ *	malloc directly (although they use a bit more memory)
  *
  *	The general strategy is loosely related to the buddy system, 
  *	except very simple, well-suited to our continuous running
@@ -30,6 +30,22 @@ static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.4 1999/10/11 04:50:2
  *
  *	It's very simple.  We get usage stats.  It makes me happy.
  *
+ *
+ * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 #define	HA_MALLOC_MAGIC	0xFEEDBEEFUL

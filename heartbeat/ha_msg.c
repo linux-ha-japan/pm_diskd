@@ -1,4 +1,24 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.14 2000/07/19 23:03:53 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.15 2000/07/26 05:17:19 alan Exp $";
+/*
+ * Heartbeat messaging object.
+ *
+ * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,9 +31,6 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.14 2000/07/19 23:03:53 ala
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
 
-/*
- *	Heartbeat messaging object.
- */
 
 /* Create a new (empty) message */
 struct ha_msg *
@@ -389,6 +406,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.15  2000/07/26 05:17:19  alan
+ * Added GPL license statements to all the code.
+ *
  * Revision 1.14  2000/07/19 23:03:53  alan
  * Working version of most of the API code.  It still has the security bug...
  *

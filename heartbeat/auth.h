@@ -1,12 +1,28 @@
 /*
- * Code for authentication of packets
+ * heartbeat code for authentication of packets
  *
- * Version: $Id: auth.h,v 1.2 2000/04/12 02:30:02 horms Exp $
+ * Version: $Id: auth.h,v 1.3 2000/07/26 05:17:19 alan Exp $
+ *
+ * Copyright (C) 1999, 2000 Mitja Sarp
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 
 #ifndef AUTH_H
-#define AUTH_H
+#	define AUTH_H 1
 
 static unsigned long const crctab[256] =
 {
@@ -92,4 +108,4 @@ void SHA1Init(SHA1_CTX *context);
 void SHA1Update(SHA1_CTX *context, const char * data, int len);
 void SHA1Final(const char * digest, SHA1_CTX * context);
 
-#endif
+#endif /* AUTH_H */

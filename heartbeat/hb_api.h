@@ -1,10 +1,28 @@
+/*
+ * Client-side Low-level clustering API for heartbeat.
+ *
+ * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+
+#ifndef __HB_API_H
+#	define __HB_API_H 1
 #include <ha_msg.h>
 
 #define	LLC_PROTOCOL_VERSION	1
-
-/*
- *	Low-level clustering API to heartbeat.
- */
 
 typedef void (*llc_msg_callback_t) (const struct ha_msg* msg
 ,	void* private_data);
@@ -36,8 +54,8 @@ struct llc_ops {
  *	set_msg_callback:	Define callback for the given message type 
  *
  *	msgtype:	Type of message being handled. 
- *			Messages intercepted by nstatus_callback or ifstatus_callback
- *			functions won't be handled here.
+ *			Messages intercepted by nstatus_callback or
+ *			ifstatus_callback functions won't be handled here.
  *
  *	callback:	callback function.
  *
@@ -187,3 +205,4 @@ struct llc_ops {
 };
 
 ll_cluster_t*	ll_cluster_new(const char * llctype);
+#endif /* __HB_API_H */

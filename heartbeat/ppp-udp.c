@@ -1,8 +1,26 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.9 2000/06/21 04:34:48 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.10 2000/07/26 05:17:19 alan Exp $";
 /*
- *  This code written by
- *	Alan Robertson <alanr@suse.com> (c) 1999, 2000
- *	Released under the GNU General Public License
+ *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
+ *			heartbeats.
+ *
+ * Copyright (C) 1999, 2000 Alan Robertson <alanr@unix.sh>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+
+/*
  *
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -1166,6 +1184,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.10  2000/07/26 05:17:19  alan
+ * Added GPL license statements to all the code.
+ *
  * Revision 1.9  2000/06/21 04:34:48  alan
  * Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
  *

@@ -1,11 +1,27 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.14 2000/05/17 13:39:55 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.15 2000/07/26 05:17:19 alan Exp $";
 
 /*
- *	Linux-HA serial heartbeat code
+ * Linux-HA serial heartbeat code
  *
- *	The basic facilities for round-robin (ring) heartbeats are
- *	contained within.
+ * The basic facilities for round-robin (ring) heartbeats are
+ * contained within.
  *
+ *
+ * Copyright (C) 1999, 2000 Alan Robertson <alanr@unix.sh>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 #include <errno.h>
@@ -525,6 +541,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.15  2000/07/26 05:17:19  alan
+ * Added GPL license statements to all the code.
+ *
  * Revision 1.14  2000/05/17 13:39:55  alan
  * Added the close-on-exec flag to sockets and tty fds that we open.
  * Thanks to Christoph Jäger for noticing the problem.
