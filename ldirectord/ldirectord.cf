@@ -7,8 +7,6 @@
 # taken out of the available pool. The real server will be added back into
 # the pool once the test succeeds. If all real servers are removed from the
 # pool then localhost:80 is added to the pool as a fallback measure.
-#
-# Prepared: April 2000
 
 # Global Directives
 checktimeout=3
