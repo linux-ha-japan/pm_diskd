@@ -2,7 +2,7 @@
 #
 # ldirectord  Linux Director Daemon
 #
-# chkconfig: 2345 34 40
+# chkconfig: 2345 92 40
 # description: Start and stop ldirectord on non-heartbeat systems
 #              Using the config file /etc/ha.d/conf/ldirectord.cf
 #              
@@ -21,8 +21,6 @@ then
   . /etc/rc.d/init.d/functions
 fi
 
-[ -f /etc/ha.d/conf/ldirectord.cf ] || exit 0
-
 
 ######################################################################
 # Read arument and take action as appropriate
@@ -30,17 +28,17 @@ fi
 
 case "$1" in
   start)
-        action "Starting ldirectord" /usr/sbin/ldirectord  ldirectord.cf start
+        action "Starting ldirectord" /usr/sbin/ldirectord start
 	;;
   stop)
-        action "Stopping ldirectord" /usr/sbin/ldirectord  ldirectord.cf stop
+        action "Stopping ldirectord" /usr/sbin/ldirectord stop
 	;;
   restart)
 	$0 stop
 	$0 start
 	;;
   status)
-	/usr/sbin/ldirectord  ldirectord.cf status
+	/usr/sbin/ldirectord status
 	;;
   *)
 	echo "Usage: ipv4_conf {start|stop|restart|status}"

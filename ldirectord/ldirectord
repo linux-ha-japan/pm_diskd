@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.20 2000/10/09 21:00:42 horms Exp $
+# $Id: ldirectord,v 1.21 2000/12/12 10:31:50 jacob Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -117,8 +117,16 @@ B<logfile = ">I</path/to/logfile>B<">
 
 an alternative logfile might be specified with this directive.
 
-=head2 These commands must follow a B<virtual> entry and must
-be indented (minimum 4 spaces or one tab)
+
+B<execute = ">I<configuration>B<">
+
+Use this directive to start an own instance of ldirectord for
+the named I<configuration>.
+
+
+=head2 These commands must follow a B<virtual> entry
+
+and must be indented (minimum 4 spaces or one tab)
 
 B<real => I<w.x.y.z[-a.b.c.d]:p> B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
 
@@ -136,11 +144,15 @@ may be used to send a request over a transparent proxy.
 
 =head2 More than one of these entries may be inside a virtual section:
 
-B<checktype = >I<negotiate>|I<connect>|I<off>
+B<checktype = >I<negotiate>|I<connect>|I<N>|I<off>
 
 Type of check to perform. Negotiate means to send request and expect
-receive strings. Connect means raw tcp/ip connection. Default is
-I<negotiate>.
+receive strings. Connect means raw tcp/ip connection, here the request
+and receive string can be omitted. If checktype is a number then negotiate
+and connect is combined so that after each N connect attempts one
+negotiate attempt is performed. This is useful to check often if a
+service answers and in much longer intervalls a negotiating check
+is done. Default is I<connect>.
 
 B<service = http>|B<https>|B<ftp>|B<none>
 
@@ -195,6 +207,8 @@ mark then the protocol must be fwm, which is the default.
 
 =head1 FILES
 
+B</etc/ha.d/ldirectord.cf>
+
 B</etc/ha.d/conf/>I<configuration>
 
 B</var/log/ldirectord.log>
@@ -220,14 +234,18 @@ Skliarouk Peter <skliaroukp@bigfoot.com>
 
 # default values
 $CHECKTIMEOUT = 5;
+$CONNECTTIMEOUT = 0;
+$NEGOTIATETIMEOUT = 0;
 $CHECKINTERVAL = 10;
+$LDIRECTORD="/usr/sbin/ldirectord"; # path onto myself
 $LDIRLOG="/var/log/ldirectord.log";
 $RUNPID="/var/run/ldirectord";
 $AUTOCHECK="no";
 $CALLBACK;
 @VIRTUAL;
-@REAL;
 @OLDVIRTUAL;
+@REAL;
+%LD_INSTANCE;
 $LD_TERM_CALLED=0;
 $checksum;
 $initializing;
@@ -247,101 +265,123 @@ $DEBUG = 3 if (defined $opt_d);
 if ($DEBUG>0 and -f "./ipvsadm") {
 	$IPVSADM="./ipvsadm";
 } else {
-	if(-f "/sbin/ipvsadm") {
+	if (-x "/sbin/ipvsadm") {
 		$IPVSADM="/sbin/ipvsadm";
-	} else {
+	} elsif (-x "/usr/sbin/ipvsadm") {
 		$IPVSADM="/usr/sbin/ipvsadm";
+	} else {
+		die "Can not find ipvsadm";
 	}
 }
 
 # main code
 if ($opt_h) {
-	&system_wrapper("/usr/bin/perldoc /etc/ha.d/resource.d/ldirectord");
+	&system_wrapper("/usr/bin/perldoc $LDIRECTORD");
 } else {
 	$initializing = 1;
 	init();
 	ld_setup();
 	ld_start();
+	ld_cmd_children("start", %LD_INSTANCE);
 	$initializing = 0;
 	ld_main();
 }
-&ld_rm_file("$RUNPID.$CONFIG.pid");
+&ld_rm_file("$RUNPID.$CFGNAME.pid");
 &ld_exit(0, "Reached end of \"main\"");
 
 
 # functions
 sub init
 {
-	# install signal handlers
-
-	# Catch all signals  (this covers TERM)
-	for $i (keys %SIG){
-	  $SIG{"$i"} = \&ld_term;
+	# install signal handlers (this covers TERM)
+	my $i;
+	for $i (keys %SIG) {
+		$SIG{"$i"} = \&ld_term;
 	}
 
-	#except CHLD, USR1 and USR2
+	# except CHLD, USR1, USR2 and __WARN__
 	$SIG{'CHLD'} = "DEFAULT";
 	$SIG{'USR1'} = "DEFAULT";
 	$SIG{'USR2'} = "DEFAULT";
+	$SIG{'__WARN__'} = "DEFAULT";
 
-	#HUP is actually used
+	# HUP is actually used
 	$SIG{'HUP'} = \&ld_hup;
 
-	if ( !defined $ARGV[0] || !defined $ARGV[1] || ($ARGV[1] ne "start" && $ARGV[1] ne "stop"
-	     && $ARGV[1] ne "status" && $ARGV[1] ne "restart" && $ARGV[1] ne "reload") ) {
-	 	init_error("Usage ldirectord configfile \{start|stop|restart|reload|status\}\nType ldirectord -h for more information");
-	} else {
-		$CONFIG = $ARGV[0];
-		$CMD = $ARGV[1];
-		my $oldpid;
-		if (open(FILE, "<$RUNPID.$CONFIG.pid")) {
-			$_ = <FILE>;
-			chomp;
-			my $tmppid = $_;
-			close(FILE);
-			# Check to make sure this isn't a stale pid file
-			if (open(FILE, "</proc/$tmppid/cmdline")) {
-				$_ = <FILE>;
-				if(/ldirectord/) {
-					$oldpid = $tmppid;
-				}
-				close(FILE);
-			}
-		}
-		if (defined $oldpid) {
-			# Kill old daemon
-			if ($CMD eq "stop") {
-				kill 15, $oldpid;
-				ld_exit(0, "Exiting from ldirectord stop");
-			} elsif ($CMD eq "restart") {
-				kill 15, $oldpid;
-				while (-f "$RUNPID.$CONFIG.pid") {
-					# wait until old pid file is removed
-				}
-			} elsif ($CMD eq "reload") {
-				kill 1, $oldpid;
-				ld_exit(0, "Exiting from ldirectord reload");
-			} elsif ($CMD eq "status") {
-				print "ldirectord for $CONFIG is running with pid: $oldpid\n";
-				ld_exit(0, "Exiting from ldirectord status");
-			} else {
-				init_error("ldirectord for $CONFIG is already running with pid: $oldpid");
-			}
-		} else {
-			if ($CMD eq "status") {
-				print "ldirectord is not running for $CONFIG\n";
-			} elsif ($CMD ne "start") {
-				init_error("ldirectord is not running for $CONFIG");
-			}
-		}
-		read_config();
-		undef @OLDVIRTUAL;
+	# search for the correct configuration file
+	if ( !defined $ARGV[0] ) {
+	 	init_error("Usage ldirectord [configfile] \{start|stop|restart|reload|status\}\nRun ldirectord -h for more information");
 	}
+	if ( defined $ARGV[0] && defined $ARGV[1] ) {
+		$CONFIG = $ARGV[0];
+		if ($CONFIG =~ /([^\/]+)$/) {
+			$CFGNAME = $1;
+		}
+		$CMD = $ARGV[1];
+	} elsif ( defined $ARGV[0] ) {
+		$CONFIG = "ldirectord.cf";
+		$CFGNAME = "ldirectord";
+		$CMD = $ARGV[0];
+	}
+	if ( -f "/etc/ha.d/$CONFIG" ) {
+		$CONFIG = "/etc/ha.d/$CONFIG";
+	} elsif ( -f "/etc/ha.d/conf/$CONFIG" ) {
+		$CONFIG = "/etc/ha.d/conf/$CONFIG";
+	} elsif ( ! -f "$CONFIG" ) {
+		init_error("Config file $CONFIG not found");
+	}
+	if ( $CMD ne "start" && $CMD ne "stop" && $CMD ne "status" && $CMD ne "restart" && $CMD ne "reload") {
+	 	init_error("Usage ldirectord [configfile] \{start|stop|restart|reload|status\}\nType ldirectord -h for more information");
+	}
+	my $oldpid;
+	if (open(FILE, "<$RUNPID.$CFGNAME.pid")) {
+		$_ = <FILE>;
+		chomp;
+		my $tmppid = $_;
+		close(FILE);
+		# Check to make sure this isn't a stale pid file
+		if (open(FILE, "</proc/$tmppid/cmdline")) {
+			$_ = <FILE>;
+			if (/ldirectord/) {
+				$oldpid = $tmppid;
+			}
+			close(FILE);
+		}
+	}
+	if (defined $oldpid) {
+		# Kill old daemon
+		if ($CMD eq "stop") {
+			kill 15, $oldpid;
+			ld_exit(0, "Exiting from ldirectord stop");
+		} elsif ($CMD eq "restart") {
+			kill 15, $oldpid;
+			while (-f "$RUNPID.$CFGNAME.pid") {
+				# wait until old pid file is removed
+			}
+		} elsif ($CMD eq "reload") {
+			kill 1, $oldpid;
+			ld_exit(0, "Exiting from ldirectord reload");
+		} elsif ($CMD eq "status") {
+			print "ldirectord for $CONFIG is running with pid: $oldpid\n";
+			ld_cmd_children("status", %LD_INSTANCE);
+			ld_exit(0, "Exiting from ldirectord status");
+		} else {
+			init_error("ldirectord for $CONFIG is already running with pid: $oldpid");
+		}
+	} else {
+		if ($CMD eq "status") {
+			print "ldirectord is not running for $CONFIG\n";
+		} elsif ($CMD ne "start") {
+			init_error("ldirectord is not running for $CONFIG");
+		}
+	}
+	read_config();
+	undef @OLDVIRTUAL;
 
 	# Run as daemon
 	if (!defined $opt_d) {
 		&ld_daemon();
-		open(FILE, ">$RUNPID.$CONFIG.pid") || init_error("Can not open $RUNPID.$CONFIG.pid");
+		open(FILE, ">$RUNPID.$CFGNAME.pid") || init_error("Can not open $RUNPID.$CFGNAME.pid");
 		print FILE "$$\n";
 		close(FILE);
 	}
@@ -364,18 +404,19 @@ sub init_error
 
 # ld_term
 # If we get a sinal then log it and quit
-
 sub ld_term
 {
-        my ($signal)=(@_);
-	if($LD_TERM_CALLED){ 
-	  $SIG{'__DIE__'} = "IGNORE"; 
-	  $SIG{"$signal"} = "IGNORE"; 
-	  die("Exit Handler Repeatedly Called\n"); 
+        my ($signal) = (@_);
+	print STDERR "ldirectord $CFGNAME received signal: $signal\n";
+	if ($LD_TERM_CALLED){ 
+		$SIG{'__DIE__'} = "IGNORE";
+		$SIG{"$signal"} = "IGNORE";
+		die("Exit Handler Repeatedly Called\n"); 
 	}
-	$LD_TERM_CALLED=1;
+	$LD_TERM_CALLED = 1;
 
-	&ld_rm_file("$RUNPID.$CONFIG.pid");
+	ld_cmd_children("stop", %LD_INSTANCE);
+	&ld_rm_file("$RUNPID.$CFGNAME.pid");
 	ld_stop();
 	&ld_log("Linux Director Daemon terminated on signal: $signal");
 	&ld_exit(0, "Linux Director Daemon terminated on signal: $signal");
@@ -384,16 +425,37 @@ sub ld_term
 
 sub ld_hup
 {
-        my ($signal)=(@_);
+        my ($signal) = (@_);
 	&ld_log("Reloading Linux Director Daemon config on signal: $signal");
+	reread_config();
+}
+
+
+sub reread_config
+{
 	@OLDVIRTUAL = @VIRTUAL;
+	my %OLD_INSTANCE = %LD_INSTANCE;
 	eval {
 		read_config();
+		my %NEW_INSTANCE = %LD_INSTANCE;
 		ld_setup();
 		ld_start();
+		my $child;
+		foreach $child (keys %OLD_INSTANCE) {
+			if (exists $NEW_INSTANCE{$child}) {
+				delete $OLD_INSTANCE{$child};
+				delete $NEW_INSTANCE{$child};
+				if (system("$LDIRECTORD $child reload")) {
+					system("$LDIRECTORD $child start");
+				}
+			}
+		}
+		ld_cmd_children("stop", %OLD_INSTANCE);
+		ld_cmd_children("start", %NEW_INSTANCE);
 	};
 	if ($@) {
 		@VIRTUAL = @OLDVIRTUAL;
+		%LD_INSTANCE = %OLD_INSTANCE;
 	}
 	undef @OLDVIRTUAL;
 }
@@ -404,26 +466,21 @@ sub read_config
 	undef @VIRTUAL;
 	undef $CALLBACK;
 	undef $checksum;
-        if ( $DEBUG > 1 ) {
-		$CONFIGFILE = $CONFIG;
-	} else {
-		$CONFIGFILE = "/etc/ha.d/conf/$CONFIG";
-	}
-	open(CFGFILE, "<$CONFIGFILE") || config_error(0, "can not open file $CONFIGFILE");
+	undef %LD_INSTANCE;
+	open(CFGFILE, "<$CONFIG") || config_error(0, "can not open file $CONFIG");
 	my $line = 0;
 	while(<CFGFILE>) {
 		$line++;
 		outer_loop:
 		if ($_ =~ /^virtual\s*=\s*(.*)/) {
-			$1 =~ /^(((\d+\.\d+\.\d+\.\d+):(\d+))|(\d+))$/
+			$1 =~ /(((\d+\.\d+\.\d+\.\d+):(\d+))|(\d+))/
 			    or config_error($line, "invalid address for virtual server");
 			my (%vsrv, @rsrv);
 			if (defined($2)) {
 			        $vsrv{server} = $3;
 			        $vsrv{port} = $4;
-				$vsrv{checktype} = "negotiate";
+				$vsrv{checktype} = "connect";
 			        $vsrv{protocol} = "tcp";
-#				( $vsrv{port} =~ /(\d+)/ ) or config_error($line, "invalid port number");
 				( $vsrv{port}>0 && $vsrv{port}<65536 ) or config_error($line, "port number must be in range 1..65536");
 				if ($vsrv{port} eq "80") {
 					$vsrv{service} = "http";
@@ -448,7 +505,10 @@ sub read_config
 			$vsrv{receive} = "";
 			$vsrv{login} = "anonymous";
 			$vsrv{passwd} = "ldirectord\@$ENV{HOSTNAME}";
-			$vsrv{checktimeout} = "0";
+			$vsrv{checktimeout} = 0;
+			$vsrv{connecttimeout} = 0;
+			$vsrv{negotiatetimeout} = 0;
+			$vsrv{num_connects} = 0;
 			push(@VIRTUAL, \%vsrv);
 			while(<CFGFILE>) {
 				$line++;
@@ -475,12 +535,23 @@ sub read_config
 					$vsrv{receive} = $1;
 				} elsif ($rcmd =~ /^checktype\s*=\s*(.*)/){
                                         lc($1);
-                                        $1 =~ /(\w+)/ && ($1 eq "connect" || $1 eq "negotiate" || $1 eq "off")
-                                            or config_error($line, "checktype must be connect or negotiate or off");
-                                        $vsrv{checktype} = $1;
+					if ($1 =~ /(\d+)/ && $1>=0) {
+						$vsrv{num_connects} = $1;
+						$vsrv{checktype} = "combined";
+					} elsif ( $1 =~ /(\w+)/ && ($1 eq "connect" || $1 eq "negotiate" || $1 eq "off") ) {
+						$vsrv{checktype} = $1;
+					} else {
+						config_error($line, "checktype must be connect, negotiate, off or a positive number");
+					}
 				} elsif ($rcmd =~ /^checktimeout\s*=\s*(.*)/){
                                         $1 =~ /(\d+)/ && $1 or config_error($line, "invalid check timeout");
                                         $vsrv{checktimeout} = $1;
+				} elsif ($rcmd =~ /^connecttimeout\s*=\s*(.*)/){
+                                        $1 =~ /(\d+)/ && $1 or config_error($line, "invalid check timeout");
+                                        $vsrv{connecttimeout} = $1;
+				} elsif ($rcmd =~ /^negotiatetimeout\s*=\s*(.*)/){
+                                        $1 =~ /(\d+)/ && $1 or config_error($line, "invalid check timeout");
+                                        $vsrv{negotiatetimeout} = $1;
 				} elsif ($rcmd =~ /^checkport\s*=\s*(.*)/){
 					$1 =~ /(\d+)/ or config_error($line, "invalid port");
 					( $1 > 0 && $1 < 65536 ) or config_error($line, "checkport must be in range 1..65536");
@@ -544,6 +615,12 @@ sub read_config
 		if ($_ =~ /^checktimeout\s*=\s*(.*)/) {
 			($1 =~ /(\d+)/ && $1 && $1>0) or config_error($line, "invalid timeout value");
 			$CHECKTIMEOUT = $1;
+		} elsif ($_ =~ /^connecttimeout\s*=\s*(.*)/) {
+			($1 =~ /(\d+)/ && $1 && $1>0) or config_error($line, "invalid timeout value");
+			$CONNECTTIMEOUT = $1;
+		} elsif ($_ =~ /^negotiatetimeout\s*=\s*(.*)/) {
+			($1 =~ /(\d+)/ && $1 && $1>0) or config_error($line, "invalid timeout value");
+			$NEGOTIATETIMEOUT = $1;
 		} elsif ($_ =~ /^checkinterval\s*=\s*(.*)/) {
 			$1 =~ /(\d+)/ && $1 or config_error($line, "invalid checkinterval value");
 			$CHECKINTERVAL = $1;
@@ -561,13 +638,15 @@ sub read_config
 		} elsif ($_ =~ /^logfile\s*=\s*\"(.*)\"/) {
 			my $tmpLDIRLOG = $LDIRLOG;
 			$LDIRLOG = $1;
-			if (&ld_log("Reading file conf/$CONFIG")) {
+			if (&ld_log("Reading file $CONFIG")) {
 				config_error($line, "unable to open logfile: $1");
-				$LDIRLOG=$tmpLDIRLOG;
+				$LDIRLOG = $tmpLDIRLOG;
 			}
+		} elsif ($_ =~ /^execute\s*=\s*(.*)/) {
+			$LD_INSTANCE{$1} = 1;
 		} else {
 			if ($_ =~ /^timeout\s*=\s*(.*)/) {
-				config_error($line, "timeout directive deprciated in favour of checktimeout");
+				config_error($line, "timeout directive deprciated in favour of checktimeout, negotiatetimeout or connecttimeout");
 			}
 			config_error($line, "Unknown command $_");
 		}
@@ -575,6 +654,7 @@ sub read_config
 	close(CFGFILE);
 	return(0);
 }
+
 
 sub add_real_server_range
 {
@@ -639,24 +719,25 @@ sub add_real_server
 	}
 }
 
+
 sub config_error
 {
 	my ($line, $msg) = @_;
 	if (defined $opt_d || $initializing==1) {
 		if ($line>0) {
-			print STDERR "Error reading file conf/$CONFIG at line $line: $msg\n";
+			print STDERR "Error [$pid] reading file $CONFIG at line $line: $msg\n";
 		} else {
 			print STDERR "Error: $msg\n";
 		}
 	} else {
 		if ($line>0) {
-			&ld_log("Error reading file conf/$CONFIG at line $line: $msg");
+			&ld_log("Error [$pid] reading file $CONFIG at line $line: $msg");
 		} else {
 			 &ld_log("Error: $msg\n");
 		}
 	}
 	if ($initializing) {
-		&ld_rm_file("$RUNPID.$CONFIG.pid");
+		&ld_rm_file("$RUNPID.$CFGNAME.pid");
 		ld_exit(2, "config_error: Confituration Error");
 	} else {
 		die;
@@ -709,9 +790,18 @@ sub ld_setup
                 		$$r{request} = $$v{request} unless defined $$r{request};
                 		$$r{receive} = $$v{receive};
 			}
+			if ($$v{checktype} eq "combined") {
+				$$r{num_connects} = 999999;
+			} else {
+				$$r{num_connects} = -1;
+			}
 		}
 		$$v{status} = -1;
 		$$v{checktimeout} = $CHECKTIMEOUT if ($$v{checktimeout}<=0);
+		$$v{connecttimeout} = $CONNECTTIMEOUT if ($$v{connecttimeout}<=0);
+		$$v{connecttimeout} = $$v{checktimeout} if ($$v{connecttimeout}<=0);
+		$$v{negotiatetimeout} = $NEGOTIATETIMEOUT if ($$v{negotiatetimeout}<=0);
+		$$v{negotiatetimeout} = $$v{checktimeout} if ($$v{negotiatetimeout}<=0);
 	}
 }
 
@@ -749,7 +839,7 @@ sub ld_start
 	close(IPVS);
 
 	# modify service, if changed
-
+	my $nv;
 	foreach $nv (@VIRTUAL) {
 		my $nreal = $$nv{real};
 		$$nv{status} = 0;
@@ -765,7 +855,7 @@ sub ld_start
 					&system_wrapper("$IPVSADM -e $$nv{proto} " . &get_virtual($nv) . " -R $$nr{server}:$$nr{port} $$nr{forw} $$nr{wght}");
 					$$nr{status} = 1;
 					$$nv{status}++;
-					 &ld_log("Changing real server: $$nr{server}:$$nr{port} (" . &get_virtual($nv) . ")\n");
+					&ld_log("Changing real server: $$nr{server}:$$nr{port} ($$v{status} x " . &get_virtual($nv) . ")\n");
 					delete($$or{"$$nr{server}:$$nr{port}"});
 				} else {
 					$$nr{status} = 0;
@@ -783,7 +873,7 @@ sub ld_start
 			foreach $nr (@$nreal) {
 				$$nr{status} = 0;
 			}
-			&ld_log("Adding virtual server: " . &get_virtual($nv) . "\n");
+			&ld_log("Adding virtual server: " . &get_virtual($nv));
 		}
 
 		&fallback_on($nv);
@@ -800,6 +890,17 @@ sub ld_start
 }
 
 
+sub ld_cmd_children
+{
+	my ($cmd, %children) = (@_);
+	# instantiate other ldirectord, if specified
+	my $child;
+	foreach $child (keys %children) {
+		system("$LDIRECTORD $child $cmd");
+	}
+}
+
+
 sub ld_stop
 {
 	foreach $v (@VIRTUAL) {
@@ -809,7 +910,7 @@ sub ld_stop
 				&system_wrapper("$IPVSADM -d $$v{proto} " . &get_virtual($v) . " -R $$r{server}:$$r{port}");
 				$$r{status} = 0;
 				$$v{status}--;
-				&ld_log("Removing real server: $$r{server}:$$r{port} ($$v{status}*" . &get_virtual($v) );
+				&ld_log("Removing real server: $$r{server}:$$r{port} ($$v{status} x " . &get_virtual($v) );
 			}
 		}
 		&system_wrapper("$IPVSADM -D $$v{proto} " .  &get_virtual($v));
@@ -835,22 +936,29 @@ sub ld_main
 			# $ua->max_req($#$real+1);
 			foreach $r (@$real) {
 				unless(grep(/^$$v{protocol}:$$r{server}:$$r{port}$/, @real_checked)){
-					if ($$v{checktype} eq "negotiate") {
+					if ($$v{checktype} eq "negotiate" || $$r{num_connects}>=$$v{num_connects}) {
 						print "DEBUG2: Checking negotiate: real server=$$r{server}:$$r{port} (virtual: " .  &get_virtual($v) . ")\n" if ($DEBUG>=2);
 						if ($$v{service} eq "http") {
-							check_http($v, $r);
+							$$r{num_connects} = 0 if (check_http($v, $r));
 							# my $req = new HTTP::Request(GET=>"$$r{url}");
 							# $ua->register($req, \&http_received);
 						} elsif ($$v{service} eq "https") {
-							check_https($v, $r);
+							$$r{num_connects} = 0 if (check_https($v, $r));
 						} elsif ($$v{service} eq "ftp") {
-							check_ftp($v, $r);
+							$$r{num_connects} = 0 if (check_ftp($v, $r));
 						} else {
-							check_none($v, $r);
+							$$r{num_connects} = 0 if (check_none($v, $r));
 						}
 					} elsif ($$v{checktype} eq "connect") {
 						print "DEBUG2: Checking connect: server=$$r{server}\n" if ($DEBUG >=2);
 						check_connect($v, $r);
+					} elsif ($$v{checktype} eq "combined") {
+						print "DEBUG2: Checking combined-connect: server=$$r{server}\n" if ($DEBUG >=2);
+						if (check_connect($v, $r)) {
+							$$r{num_connects}++;
+						} else {
+							$$r{num_connects} = 999999;
+						}
 					}
 					push(@real_checked, "$$v{protocol}:$$r{server}:$$r{port}");
 				}
@@ -897,30 +1005,38 @@ sub check_http
 	my ($v, $r) = @_;
 	my $ua = new LWP::UserAgent;
 	$ua->agent("LinuxDirector/0.1".$ua->agent);
-	$ua->timeout($$v{checktimeout});
+	$ua->timeout($$v{negotiatetimeout});
 	my $req = new HTTP::Request(GET=>"$$r{url}");
 	my $res = $ua->request($req);
 	my $recstr = $$r{receive};
 	if ($res->is_success && (!($recstr =~ /.+/) || $res->content =~ /$recstr/)) {
 		service_set($v, $r, "up");
+		return 1;
 	} else {
 		service_set($v, $r, "down");
+		return 0;
 	}
 }
 
 
 sub check_https
 {
-	use Net::SSLeay;
 	my ($v, $r) = @_;
+	use Net::SSLeay;
+	$Net::SSLeay::trace = 0;
 	$uri = $$v{request};
-	my ($page, $result, %headers) = &Net::SSLeay::get_https($$r{server}, $$r{port}, $uri);
+	my ($page, $result, %headers) = Net::SSLeay::get_https($$r{server}, $$r{port}, $uri);
 	my $recstr = $$r{receive};
-	if (!($recstr =~ /.+/) || $page =~ /$recstr/) {
-		service_set($v, $r, "up");
-	} else {
+	if ($result =~ /ERROR/) {
 		service_set($v, $r, "down");
+		return 0;
 	}
+	if ( !($recstr =~ /.+/) || $page =~ /$recstr/ ) {
+		service_set($v, $r, "up");
+		return 1;
+	}
+	service_set($v, $r, "down");
+	return 0;
 }
 
 
@@ -933,9 +1049,9 @@ sub check_connect
 	eval {
 		local $SIG{'__DIE__'} = "DEFAULT";
 		local $SIG{'ALRM'} = sub { die "Timeout Alarm" };
-		print "DEBUG4: Timeout is $$v{checktimeout}\n" if ($DEBUG>= 4);
-		alarm $$v{checktimeout};
-		$result = OpenSocket( $$r{server}, $port );
+		print "DEBUG4: Timeout is $$v{connecttimeout}\n" if ($DEBUG>= 4);
+		alarm $$v{connecttimeout};
+		$result = open_socket( $$r{server}, $port, $$v{protocol} );
 		if ($result == 0) {
 			# Failure to open the socket
 			die("Couldn't open socket");
@@ -947,9 +1063,11 @@ sub check_connect
 	if ($EVAL_ERROR) {
 		service_set($v, $r, "down");
 		print "DEBUG3: Deactivating service $$r{server}:$$r{port} because $EVAL_ERROR\n" if ($DEBUG>=3);
+		return 0;
 	} else {
 		service_set($v, $r, "up");
 		print "DEBUG3: Activating service $$r{server}:$$r{port}\n" if ($DEBUG>=3);
+		return 1;
 	}
 }
 
@@ -965,9 +1083,9 @@ sub check_ftp
 	pipe(\*READ_FH, \*WRITE_FH);
 	select(\*WRITE_FH); $| = 1; select(STDERR);
 
-	unless ($ftp = Net::FTP->new("$$r{server}:$$r{port}", Timeout=>$$v{checktimeout})) {
+	unless ($ftp = Net::FTP->new("$$r{server}:$$r{port}", Timeout=>$$v{negotiatetimeout})) {
 		service_set($v, $r, "down");
-		return;
+		return 0;
 	}
 	$ftp->login($$v{login}, $$v{passwd});
 	$ftp->cwd("/");
@@ -979,23 +1097,24 @@ sub check_ftp
 		if (/$$r{receive}/) {
 	 		service_set($v, $r, "up");
 			close(\*READ_FH);
-			return;
+			return 1
 		}
 	}
 	close(\*READ_FH);
 
 	service_set($v, $r, "down");
+	return 0;
 }
 
 
 # check_none
 # Dummy function to check service if service type is none.
 # Just activates the real server
-
 sub check_none
 {
 	my ($v, $r) = @_;
 	service_set($v, $r, "up");
+	return 1;
 }
 
 
@@ -1013,7 +1132,6 @@ sub check_none
 # post: The real server is brough up or down for each virtual service
 #       it belongs to.
 # return: none
-
 sub service_set()
 {
 	my ($v, $r, $state) = @_;
@@ -1063,7 +1181,6 @@ sub service_set()
 # post: real service is taken up from the respective virtual service
 #       if it is inactive
 # return: none   
-
 sub _service_up
 {
 	my ($v, $r) = @_;
@@ -1071,7 +1188,7 @@ sub _service_up
 		&system_wrapper("$IPVSADM -a $$v{proto}  " . &get_virtual($v) . " -R $$r{server}:$$r{port} $$r{forw} $$r{wght}");
 		$$r{status} = 1;
 		$$v{status}++;
-		&ld_log("Adding real server: $$r{server}:$$r{port} (" .  &get_virtual($v) . ")");
+		&ld_log("Adding real server: $$r{server}:$$r{port} ($$v{status} x " .  &get_virtual($v) . ")");
 		&fallback_off($v);
 	}
 }
@@ -1088,7 +1205,6 @@ sub _service_up
 # post: real service is taken down from the respective virtual service
 #       if it is active
 # return: none   
-
 sub _service_down
 {
 	my ($v, $r) = @_;
@@ -1096,7 +1212,7 @@ sub _service_down
 		&system_wrapper("$IPVSADM -d $$v{proto} " .  &get_virtual($v) . " -R $$r{server}:$$r{port}");
 		$$r{status} = 0;
 		$$v{status}--;
-		&ld_log("Removing real server: $$r{server}:$$r{port} (" .  &get_virtual($v) . ")");
+		&ld_log("Removing real server: $$r{server}:$$r{port} ($$v{status} x " .  &get_virtual($v) . ")");
 		&fallback_on($v);
 	}
 }
@@ -1107,8 +1223,8 @@ sub _service_down
 # pre: virtaual: virtual to turn fallback service on for
 # post: fallback server is turned on if it was inactive
 # return: none
-
-sub fallback_on {
+sub fallback_on 
+{
 	my ($virtual) = (@_);
 
 	my $fallback=&fallback_find($virtual);
@@ -1125,8 +1241,8 @@ sub fallback_on {
 # pre: virtaual: virtual to turn fallback service off for
 # post: fallback server is turned off if it was active
 # return: none
-
-sub fallback_off {
+sub fallback_off 
+{
 	my ($virtual) = (@_);
 
 	my $fallback=&fallback_find($virtual);
@@ -1145,8 +1261,8 @@ sub fallback_off {
 # return: $virtual->{"fallback"} if defined
 #         else $FALLBACK if defined
 #         else undef
-
-sub fallback_find {
+sub fallback_find 
+{
 	my ($virtual) = (@_);
 
 	if( defined $virtual->{"fallback"} ) {
@@ -1165,26 +1281,17 @@ sub check_cfgfile
 	my $filename = shift;
 	my $chs = 0;
 	my $lctr = 0;
-	open(CFGFILE, "</etc/ha.d/conf/$CONFIG") || config_error(0, "can not open file /etc/ha.d/conf/$CONFIG");
+	open(CFGFILE, "<$CONFIG") || config_error(0, "can not open file $CONFIG");
 	while (<CFGFILE>) {
 		$lctr++;
 		$chs += (4*($lctr%3)+3)*unpack("%32C*", $_);
 	}
 	close(CFGFILE);
 	if (defined $checksum && $chs!=$checksum) {
-		&ld_log("Configuration file '/etc/ha.d/conf/$CONFIG' has changed on disk");
+		&ld_log("Configuration file '$CONFIG' has changed on disk");
 		if ($AUTOCHECK eq "yes") {
 			&ld_log(" - reread new configuration");
-			@OLDVIRTUAL = @VIRTUAL;
-			eval {
-				read_config();
-				ld_setup();
-				ld_start();
-			};
-			if ($@) {
-				@VIRTUAL = @OLDVIRTUAL;
-			}
-			undef @OLDVIRTUAL;
+			reread_config();
 		} else {
 			&ld_log(" - ignore new configuration\n");
 		}
@@ -1209,10 +1316,10 @@ sub ld_log
 {
 	my ($message) = (@_);
 
-        my $now = localtime()."|$CONFIG";
+        my $now = localtime()."|$CFGNAME";
 
         if ($DEBUG >=2) {
-	  print "DEBUG$DEBUG: $message\n" || return(1);
+		print "DEBUG$DEBUG: $message\n" || return(1);
 	}
 
         open(LOGFILE, ">>$LDIRLOG") || return(1);
@@ -1340,7 +1447,7 @@ sub decimal_to_ip
 {
 	my ($ip_address)=(@_);
 
-	my $result="";
+	my $result = "";
 
 	return(sprintf(
 		"%d.%d.%d.%d",
@@ -1357,13 +1464,12 @@ sub decimal_to_ip
 # Will be of the form fwmark for a Firewall Mark service
 sub get_virtual
 {
-	my ($nv)=(@_);
+	my ($nv) = (@_);
 
-	if($nv->{"protocol"} eq "fwm"){
-	  return $nv->{"fwm"};
-	}
-	else {
-          return $nv->{"server"} . ":" . $nv->{"port"};
+	if ($nv->{"protocol"} eq "fwm"){
+		return $nv->{"fwm"};
+	} else {
+        	return $nv->{"server"} . ":" . $nv->{"port"};
 	}
 }
 
@@ -1381,42 +1487,30 @@ sub get_virtual
 
 sub ld_exit
 {
-	my($exit_status, $message)=(@_);
-	unless(defined($exit_status)){ $exit_status=0; }
-	unless(defined($exit_status)){ $message=""; }
+	my ($exit_status, $message)=(@_);
+	unless(defined($exit_status)) { $exit_status=0; }
+	unless(defined($exit_status)) { $message=""; }
 
-	if($exit_status!=0 or $DEBUG>2){
-	  &ld_log("Exiting with exit_status $exit_status: $message");
+	if ($exit_status!=0 or $DEBUG>2) {
+		&ld_log("Exiting with exit_status $exit_status: $message");
 	}
 	exit($exit_status);
 }
 
 
-# Added by Peter Skliarouk 
-# Used if checktype = connect
-sub OpenSocket ($ $)
+sub open_socket
 {
-	# Make a Berkeley socket connection between this program and a TCP port
-	# on another (or this) host. Port must be number.
-	local($OtherHostIP, $Port) = @_;
-	local($OurHostname, $sockaddr, $name, $aliases, $proto, $type, $len, $ThisAddr, $this, $that);
+	use Socket;
+	my ($remote, $port, $protocol) = @_;
+	my ($iaddr, $paddr, $pro, $result);
 
-	$OurHostname = &hostname;
-
-	($name, $aliases, $proto) = getprotobyname('tcp');
-	($name, $aliases, $type, $len, $ThisAddr) = gethostbyname($OurHostname);
-	($name, $aliases, $type, $len, $OtherHostAddr) = gethostbyname($OtherHostIP);
-
-	$sockaddr = 'S n a4 x8';    # Format for packed network address
-	$this = pack($sockaddr, &AF_INET, 0, $ThisAddr);
-	$that = pack($sockaddr, &AF_INET, $Port, $OtherHostAddr);
-
-	$result = socket(S, &PF_INET, &SOCK_STREAM, $proto) || return undef;
-	$result = bind(S, $this) || return undef;
-	$result = connect(S, $that) || return undef;
-
-	select(S); $| = 1; select(STDOUT);      # set S to be un-buffered
-	return 1;                               # success
+	$iaddr = inet_aton($remote) || die "no host: $remote";
+	$paddr = sockaddr_in($port, $iaddr);
+	$pro = getprotobyname($protocol);
+	socket(SOCK, PF_INET, SOCK_STREAM, $pro) || die "socket: $!";
+	$result = connect(SOCK, $paddr);
+	close(SOCK) || die "close: $!" if ($result);
+	return $result;
 }
 
 
@@ -1437,7 +1531,8 @@ sub OpenSocket ($ $)
 # Writen by Horms, horms@vergenet.net for an unrelated project while
 # working for Zip World, http://www.zipworld.com.au/, 1997-1999.
 
-sub ld_daemon {
+sub ld_daemon 
+{
 	# `fork()' so the parent can exit, this returns control to the command
 	# line or shell invoking your program.  This step is required so that
 	# the new process is guaranteed not to be a process group leader. The
@@ -1499,6 +1594,7 @@ sub ld_daemon {
 	}
 }
 
+
 # ld_daemon_become_child
 # Fork, kill parent and return child process
 # pre: none
@@ -1508,16 +1604,16 @@ sub ld_daemon {
 #         child: none  (this is the process that returns)
 # Writen by Horms, horms@vergenet.net for an unrelated project while
 # working for Zip World, http://www.zipworld.com.au/, 1997-1999.
-
-sub ld_daemon_become_child {
+sub ld_daemon_become_child 
+{
 	my($status);
 
 	$status=fork();
 
-	if($status<0){
+	if ($status<0){
 		&ld_exit(-1, "ld_daemon_become_child: Could not fork: $!");
 	}
-	if($status>0){
+	if ($status>0){
 		&ld_exit(0, "ld_daemon_become_child: Parent exiting as it should");
 	}
 }
