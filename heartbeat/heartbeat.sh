@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.16 2000/04/03 08:26:29 horms Exp $
+#	$Id: heartbeat.sh,v 1.17 2000/04/23 13:16:17 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -23,10 +23,6 @@ CONFIG=$HA_DIR/ha.cf
 RHFUNCS=/etc/rc.d/init.d/functions
 PROC_HA=$HA_BIN/ha.o
 SUBSYS=heartbeat
-#
-#	Places to find killproc or killall in...
-#
-KILLPROCS="/sbin/killproc /usr/bin/killall"
 INSMOD=/sbin/insmod
 US=`uname -n`
 
@@ -39,12 +35,18 @@ USE_MODULES=1
 if
   [ ! -x $RHFUNCS ]
 then
-  daemon() {
-	$*
-  }
+  # Provide our own versions of Red Hat's "built-in" functions
   status() {
 	$HA_BIN/heartbeat -s
   }
+  echo_failure() {
+      echo "Heartbeat failure [rc=$1]"
+      return $1
+  }
+  echo_success() {
+	: Cool!  It started!
+  }
+  # Historical note: We no longer use their 'killproc' or daemon functions.
 else
   . $RHFUNCS
 fi
@@ -141,7 +143,7 @@ init_proc_ha() {
 
 start_heartbeat() {
   if
-    daemon $HA_BIN/heartbeat # -d >& /dev/null
+    $HA_BIN/heartbeat # -d >& /dev/null
   then
     : OK
   else
@@ -155,7 +157,7 @@ start_heartbeat() {
 #
 
 StartHA() {
-   echo -n "Starting High-Availability services: "
+  echo -n "Starting High-Availability services: "
   if
     [ $USE_MODULES = 1 ]
   then
@@ -177,15 +179,7 @@ StartHA() {
   then
     : OK
   else
-    RC=$?
-    if
-      [ -x $RHFUNCS ]
-    then
-      echo_failure
-    else
-      echo "Heartbeat did not start [rc=$RC]"
-    fi
-    return $RC
+    echo_failure $?
   fi
 }
 
@@ -195,53 +189,16 @@ StartHA() {
 StopHA() {
   echo -n "Stopping High-Availability services: "
 
-  MGR=$HA_BIN/ResourceManager
-  if
-    [ ! -x $RHFUNCS ]
-  then
-    echo "$SUBSYS: shutdown in progress."
-  fi
-
   if
     $HA_BIN/heartbeat -k &> /dev/null	# Kill it
   then
-    if
-      [ -x $RHFUNCS ]
-    then
-      echo_success
-    fi
+    echo_success
     return 0
-  fi
-
-  KILLPROC=""
-
-  #	Use the Red Hat killproc function if it's there...
-
-  if
-    [ -x $RHFUNCS ]
-  then
-    killproc $SUBSYS
   else
-    for j in $KILLPROCS
-    do
-      if
-        [ -x $j ]
-      then
-        KILLPROC=$j;
-        break;
-      fi
-    done
-    if
-      [ "X$KILLPROC" != X ]
-    then
-      $KILLPROC $HA_BIN/heartbeat
-    else
-      echo "No killproc/killall"
-      exit 1
-    fi
+    RC=$?
+    echo_failure $RC
+    return $RC
   fi
-  lrc=$?
-  return $lrc
 }
 
 
@@ -285,7 +242,13 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.17  2000/04/23 13:16:17  alan
+#  Changed the code in heartbeat.sh to no longer user RH's daemon or
+#  killproc functions.
+#
 #  Revision 1.16  2000/04/03 08:26:29  horms
+#
+#
 #  Tidied up the output from heartbeat.sh (/etc/rc.d/init.d/heartbeat)
 #  on Redhat 6.2
 #
