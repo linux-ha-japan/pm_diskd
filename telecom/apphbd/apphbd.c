@@ -337,7 +337,7 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 
 
 /* Shut down the requested client */
-void
+static void
 apphb_client_remove(gpointer Client)
 {
 	apphb_client_t* client = Client;
