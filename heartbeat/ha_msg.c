@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.34 2002/10/22 17:41:58 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.35 2002/10/30 17:17:40 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -334,19 +334,27 @@ msgfromIPC(IPC_Channel * ch)
 		case IPC_FAIL:
 			ha_perror("msgfromIPC: waitin failure");
 			return NULL;
+
 		case IPC_BROKEN:
 			sleep(1);
 			return NULL;
+
 		case IPC_INTR:
 			return NULL;
-			break;
 
 		case IPC_OK:
 			break;
 	}
 
 
+	ipcmsg = NULL;
 	rc = ch->ops->recv(ch, &ipcmsg);
+#if 0
+	if (DEBUGPKTCONT) {
+		ha_log(LOG_DEBUG, "msgfromIPC: recv returns %d ipcmsg = 0x%lx"
+		,	rc, (unsigned long)ipcmsg);
+	}
+#endif
 	if (rc != IPC_OK) {
 		return NULL;
 	}
@@ -503,6 +511,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.35  2002/10/30 17:17:40  alan
+ * Added some debugging, and changed one message from an ERROR to a WARNING.
+ *
  * Revision 1.34  2002/10/22 17:41:58  alan
  * Added some documentation about deadtime, etc.
  * Switched one of the sets of FIFOs to IPC channels.

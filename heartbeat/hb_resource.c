@@ -83,7 +83,6 @@ int		other_is_stable = 0; /* F_ISSTABLE */
 int		takeover_in_progress = 0;
 enum hb_rsc_state resourcestate = HB_R_INIT;
 enum standby	going_standby;
-longclock_t	standby_running;
 
 enum standby	going_standby = NOT;
 longclock_t	standby_running = 0L;
@@ -1062,7 +1061,7 @@ ask_for_resources(struct ha_msg *msg)
 
 		secs_left = (secs_left+999)/1000;
 
-		ha_log(LOG_ERR
+		ha_log(LOG_WARNING
 		,	"Standby in progress"
 		"- new request from %s ignored [%ld seconds left]"
 		,	from, secs_left);
@@ -1697,6 +1696,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.4  2002/10/30 17:17:40  alan
+ * Added some debugging, and changed one message from an ERROR to a WARNING.
+ *
  * Revision 1.3  2002/10/22 17:41:58  alan
  * Added some documentation about deadtime, etc.
  * Switched one of the sets of FIFOs to IPC channels.
