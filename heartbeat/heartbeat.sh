@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.27 2000/08/01 12:25:05 alan Exp $
+#	$Id: heartbeat.sh,v 1.28 2000/08/01 12:25:59 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -255,12 +255,14 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.28  2000/08/01 12:25:59  alan
+#  Yet another few comment changes...
+#
 #  Revision 1.27  2000/08/01 12:25:05  alan
-#  More political changes to the comments ;-)
+#  More political comment changes...
 #
 #  Revision 1.26  2000/08/01 12:21:55  alan
-#  I modified some comments to make it less obvious tht we are specifically
-#  Red-Hat compatible.
+#  Some comment changes.
 #
 #  Revision 1.25  2000/06/21 04:34:48  alan
 #  Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
