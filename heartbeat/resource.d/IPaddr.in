@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.35 2003/02/03 15:40:35 msoffen Exp $
+#	$Id: IPaddr.in,v 1.36 2003/02/12 05:40:22 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -16,6 +16,10 @@
 
 unset LC_ALL; export LC_ALL # Make ifconfig work in France for David Jules :-)
 unset LANGUAGE; export LANGUAGE # Make ifconfig work in France for Fabrice :-)
+#	make ifconfig work in Austria for Gregor Göstl
+#	I have no idea why the previous fix didn't fix it for him.
+LC_MESSAGES=C
+export LC_MESSAGES
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -625,7 +629,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.35 2003/02/03 15:40:35 msoffen Exp $"
+  echo "$Id: IPaddr.in,v 1.36 2003/02/12 05:40:22 alan Exp $"
 }
 
 #
@@ -672,6 +676,12 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.36  2003/02/12 05:40:22  alan
+# Put in a bug fix from Gregor Göstl of Austria to fix the language
+# of the ifconfig command to English/C.
+# I have no idea why it's necessary in addition to the fix that's already
+# there.
+#
 # Revision 1.35  2003/02/03 15:40:35  msoffen
 # Splitting the ifconfig onto 2 lines failed miserably. Put back on one.
 #
