@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.15 2001/06/03 08:25:03 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.16 2001/06/03 08:26:15 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -752,9 +752,9 @@ struct mlModEnv_s {
  * Each plugin handler registers and deals with plugins of a given type.
  *
  * Such a plugin must be loaded before any modules of it's type can be loaded.
- * MLPluginHandlers will be autoloaded, however, if certain conditions are met...
+ * PluginHandlers will be autoloaded, however, if certain conditions are met...
  *
- * If a MLPluginHandler is to be autoloaded, it must be one plugin handler per file,
+ * If a PluginHandler is to be autoloaded, it must be one plugin handler per file,
  * and the file named according to the type of the plugin it implements, and loaded
  * in the directory named "PluginHandler".
  * 
