@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.20 1999/10/11 05:18:07 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.21 1999/10/11 14:29:15 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1387,16 +1387,24 @@ control_process(FILE * fp)
 		const char *	cseq;
 		unsigned long	seqno = -1;
 
-		if (msg == NULL || (cseq = ha_msg_value(msg, F_SEQ)) == NULL
-		||	sscanf(cseq, "%lx", &seqno) != 1 ||	seqno <= 0) {
-			ha_log(LOG_ERR, "control_process: bad sequence number");
+		if (msg == NULL) {
+			ha_log(LOG_ERR, "control_process: NULL message");
 			continue;
 		}
-		/* Convert it to a string and log original message for re-xmit */
+
+		if ((cseq = ha_msg_value(msg, F_SEQ)) == NULL
+		||	sscanf(cseq, "%lx", &seqno) != 1 || seqno <= 0) {
+
+			ha_log(LOG_ERR, "control_process: bad sequence number");
+			ha_msg_del(msg);
+			continue;
+		}
+		/* Convert it to a string and log original msg for re-xmit */
 		smsg = msg2string(msg);
 
-		/* If it didn't convert, throw it away */
+		/* If it didn't convert, throw original message away */
 		if (smsg == NULL) {
+			ha_msg_del(msg);
 			continue;
 		}
 		add2_xmit_hist (&msghist, msg, seqno);
@@ -1411,6 +1419,7 @@ control_process(FILE * fp)
 			write(sysmedia[j]->wpipe[P_WRITEFD], smsg, len);
 		}
 		ha_free(smsg);
+		/* Note that we don't throw away "msg" here - it's saved above */
 	}
 	/* That's All Folks... */
 }
@@ -1451,7 +1460,7 @@ master_status_process(void)
 
 		msg = msgfromstream(f);
 
-		/* This may be caused by SIGALRM signals */
+		/* This may be caused by SIGALRM */
 		if (msg == NULL) {
 			continue;
 		}
@@ -1691,6 +1700,7 @@ void
 dump_proc_stats(volatile struct process_info * proc)
 {
 	const char *	ct;
+	unsigned long	curralloc;
 
 	if (!proc) {
 		return;
@@ -1710,8 +1720,14 @@ dump_proc_stats(volatile struct process_info * proc)
 	,	proc->allocmsgs, proc->totalmsgs
 	,	time(NULL) - proc->lastmsg, proc->pid, ct);
 
+	if (proc->numalloc > proc->numfree) {
+		curralloc = proc->numalloc - proc->numfree;
+	}else{
+		curralloc = 0;
+	}
+
 	ha_log(LOG_INFO, "ha_malloc stats: %lu/%lu  %lu/%lu [pid%d/%s]"
-	,	proc->numalloc, proc->numfree
+	,	curralloc, proc->numalloc
 	,	proc->nbytes_alloc, proc->nbytes_req, proc->pid, ct);
 
 	ha_log(LOG_INFO, "RealMalloc stats: %lu total malloc bytes."
@@ -2301,7 +2317,7 @@ main(int argc, const char ** argv)
 	}
 
 	/*
-	 *	We are an exec in an attempt to restart.
+	 *	We should perform an "exec" of ourselves in an attempt to restart.
 	 */
 
 	if (WeAreRestarting) {
@@ -2804,6 +2820,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.21  1999/10/11 14:29:15  alanr
+ * Minor malloc tweaks
+ *
  * Revision 1.20  1999/10/11 05:18:07  alanr
  * Minor tweaks in mem stats, etc
  *
