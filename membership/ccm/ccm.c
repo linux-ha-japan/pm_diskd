@@ -3479,6 +3479,7 @@ ccm_initialize()
 	ccm_info_t 	*global_info;
 	ll_cluster_t*	hb_fd;
 	ccm_t		*ccmret;
+	int		facility;
 
 
 	(void)_heartbeat_h_Id;
@@ -3491,6 +3492,12 @@ ccm_initialize()
 
 
 	hb_fd = ll_cluster_new("heartbeat");
+
+	/* change the logging facility to the one used by heartbeat daemon */
+	if ((facility = hb_fd->llc_ops->get_logfacility(hb_fd))>0) {
+		cl_log_set_facility(facility);
+	}
+
 	
 	cl_log(LOG_INFO, "PID=%ld", (long)getpid());
 
