@@ -4,7 +4,7 @@
    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
    <meta name="Description" content="This document is a short description of how to get started with Linux-HA (heartbeat), especially from the software perspective.">
    <meta name="Author" content="Rudy Pawul - rpawul@iso-ne.com">
-   <meta name="GENERATOR" content="Mozilla/4.5 [en] (Win98; U) [Netscape]">
+   <meta name="GENERATOR" content="Mozilla/4.7 [en] (Win98; U) [Netscape]">
    <title>Getting Started with Linux-HA (heartbeat)</title>
 </head>
 <body>
@@ -47,7 +47,7 @@ the 2 NIC route because I only had one null modem cable, had plenty of
 NICs on hand and thought it was good to have two medium types.
 <p>Once your hardware is in order, you must install your OS and configure
 your networking (I used Red Hat 6.0.).&nbsp; Assuming you have 2 NICs,
-one should be configured for you "normal" network and the other as a private
+one should be configured for your "normal" network and the other as a private
 network between your clustered nodes.&nbsp; For an example, we will assume
 that our cluster will have the following addresses:
 <p>Node 1 (linuxha1):&nbsp;&nbsp; 192.168.85.1&nbsp; (normal 192x net)
@@ -72,10 +72,10 @@ will be the receiver, type:
 <p>On the other node, type,:
 <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><tt>echo
 hello >/dev/ttyS0</tt></b>
-<p>If it works, change their roles and try again.&nbsp; If it doesn't,
-it may be as simple as having the wrong device file.&nbsp; Volker's HA
-Hardware Guide and the Serial HOWTO are two good resources for troubleshooting
-your serial connection.
+<p>You should see the text on the receiver node.&nbsp; If it works, change
+their roles and try again.&nbsp; If it doesn't, it may be as simple as
+having the wrong device file.&nbsp; Volker's HA Hardware Guide and the
+Serial HOWTO are two good resources for troubleshooting your serial connection.
 <h2>
 Installing Heartbeat.</h2>
 You can now install the heartbeat package.&nbsp; If you're reading this,
@@ -91,7 +91,7 @@ can be found in the README.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><i><font color="#FF
 exactly how to install this script and where.</font></i></b>
 <h2>
 Configuring Heartbeat</h2>
-There are two files you will need to configure before starting up heartbeat.&nbsp;
+There are three files you will need to configure before starting up heartbeat.&nbsp;
 First, is <i>ha.cf</i>.&nbsp; This will be placed in the /etc/ha.d directory
 that is created after installation.&nbsp; It tells heartbeat what types
 of media paths to use and how to configure them.&nbsp;&nbsp; The ha.cf
@@ -128,7 +128,7 @@ Now you can create the device file with that info typing, "<b><tt>mknod
 
 <dd>
 Specifies to use a udp heartbeat over the 10x eth1 interface (replace with
-eth0, if that's what you use).</dd>
+eth0, eth1, or whatever you use).</dd>
 
 <dt>
 <b><tt><font size=+1>keepalive 2</font></tt></b></dt>
@@ -171,30 +171,31 @@ address.&nbsp; Note also, that a given tty port cannot be used for both
 a ppp-udp heartbeat and a serial heartbeat.</dd>
 
 <dt>
-<b><tt><font size=+1>node linuxha1</font></tt></b></dt>
+<b><tt><font size=+1>node linuxha1.linux-ha.org</font></tt></b></dt>
 
 <dd>
-<i>Mandatory</i>.&nbsp; Hostname of machine in cluster.</dd>
+<i>Mandatory</i>.&nbsp; Hostname of machine in cluster as described by
+`uname -a`.</dd>
 
 <dt>
-<b><tt><font size=+1>node linuxha2</font></tt></b></dt>
+<b><tt><font size=+1>node linuxha2.linux-ha.org</font></tt></b></dt>
 
 <dd>
-<i>Mandatory</i>.&nbsp; Hostname of machine in cluster.</dd>
+<i>Mandatory</i>.&nbsp; Hostname of machine in cluster as described by
+`uname -a`.</dd>
 </dl>
-Once you've got your ha.cf set up, you need to configure <i>haresources</i>.&nbsp;
+Once you've got your ha.cf set up, you need to configure <i>ipresources</i>.&nbsp;
 This file specifies the services for the cluster and who the default owner
 is.
 <br>For our example, we'll assume the high availability services are Apache
-and Samba (the IP for the cluster is mandatory!).&nbsp; The haresources
+and Samba (the IP for the cluster is mandatory!).&nbsp; The ipresources
 will need one line:
-<pre>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><tt>linuxha1 192.168.85.3 httpd smb</tt></b></pre>
+<pre>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><tt>linuxha1.linux-ha.org 192.168.85.3 httpd smb</tt></b></pre>
 <tt>So, this line dictates that on startup, have linuxha1 serve the IP
 192.168.85.3 and start apache and samba as well.</tt>
 <br><tt>On shutdown, heartbeat will first stop smb, then apache, then give
-up the IP.&nbsp; This assumes that the command "uname -n" spits out "linuxha1"
-- yours may well produce "linuxha1.domain.com" and if it does, use that
-instead!</tt>
+up the IP.&nbsp; This assumes that the command "uname -n" spits out "linuxha1.linux-ha.org"
+- yours may well produce "linuxha1" and if it does, use that instead!</tt>
 <p><tt><i>Note</i>:&nbsp; httpd and smb are the name of startup scripts
 for Apache and Samba, respectively.&nbsp; Heartbeat will look for startup
 scripts of the same name in the following paths:</tt>
@@ -208,28 +209,26 @@ standard.</tt>
 be:
 <pre>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>scriptname::argument</b></pre>
 So, if we added a service "maid" which needed the argument "vacuum", our
-haresources line would modify to the following:
+ipresources line would modify to the following:
 <pre><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; linuxha1 192.168.85.3 httpd smb maid::vacuum</b></pre>
 
-<p><br><font size=+1>This bring us </font>to some added flexibility with
+<p><br><font size=+1>This brings us </font>to some added flexibility with
 the service IP address.&nbsp; We are actually using a shorthand notation
-above.&nbsp; The actual line could read (we've canned the maid):
+above.&nbsp; The actual line could have read (we've canned the maid):
 <pre><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; linuxha1 IPaddr::192.168.85.3 httpd smb</b></pre>
 Where <b><i>IPaddr</i></b> is the name of our service script, taking the
-argument 192.168.85.3.&nbsp;
-Sure enough, if you look in the directory
-/etc/ha.d/resource.d, you will find a script called IPaddr.&nbsp;
-This script will also allow you to manipulate the netmask and broadcast address
-of this IP service.&nbsp;
-To specify a subnet with 32 addresses, you could
+argument 192.168.85.3.&nbsp; Sure enough, if you look in the directory
+/etc/ha.d/resource.d, you will find a script called IPaddr.&nbsp; This
+script will also allow you to manipulate the netmask and broadcast address
+of this IP service.&nbsp; To specify a subnet with 32 addresses, you could
 define the service as (leaving off the IPaddr because we can!):
-<pre><b>                linuxha1 192.168.85.3/27 httpd smb</b></pre>
+<pre><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; linuxha1 192.168.85.3/27 httpd smb</b></pre>
 This sets the IP service address to 192.168.85.3, the netmask to 255.255.255.224
 and the broadcast address would default to 192.168.85.31 (which is the
 highest address on the subnet).&nbsp; The last parameter you can set is
 the broadcast address.&nbsp; To override the default&nbsp; and set it to
 192.168.85.16, your entry would read:
-<pre><b>                linuxha1 192.168.85.3/5/192.168.85.16 httpd smb</b></pre>
+<pre><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; linuxha1 192.168.85.3/5/192.168.85.16 httpd smb</b></pre>
 You may be wondering whether any of the above is necessary for you.&nbsp;
 It depends.&nbsp; If you've properly established a net route (independent
 of heartbeat) for the service's IP address, with the correct netmask and
@@ -237,7 +236,7 @@ broadcast address, then no, it's not necessary for you.&nbsp; However,
 this case won't fit everybody and that's why the option's there!&nbsp;
 In addition, you may have more than one possible interface that could be
 used for the service IP.&nbsp; Read on to see how heartbeat treats this...
-<p>Once you straighten out your haresources file, copy ha.cf and haresources
+<p>Once you straighten out your haresources file, copy ha.cf and ipresources
 to /etc/ha.d and you're ready to start!
 <br>&nbsp;
 <h2>
@@ -246,14 +245,37 @@ One important aspect of configuring the haresources file for a machine
 which has multiple ethernet interfaces is to know how heartbeat selects
 which interface will wind up supporting the service addresses that are
 configured in haresources.&nbsp; After all, no interface was specified
-in the haresources file.
+in the ipresources file.
 <p>Heartbeat decides which interface will be used by looking at the routing
 table.&nbsp; It tries to select the lowest cost route to the IP address
 to be taken over.&nbsp; In the case of a tie, it chooses the first route
 found.&nbsp; For most configurations this means the default route will
 be least preferred.
-<p>If you don't specify a netmask for the IP address in the haresources
+<p>If you don't specify a netmask for the IP address in the ipresources
 file, the netmask associated with the selected route will be used.
+<br>&nbsp;
+<p><b><font size=+2>Configuring Authkeys</font></b>
+<p>The third file to configure determines your authentication keys.&nbsp;
+There are three types of authentication methods available:&nbsp; crc, md5,
+and sha1.&nbsp; "Well, which should I use?", you ask.&nbsp; Since this
+document is called "Getting <i>Started</i>", we'll keep it simple......
+<p>If your heartbeat runs over a secure network, such as the crossover
+cable in our example, you'll want to use crc.&nbsp; This is the cheapest
+method from a resources perspective.&nbsp; If the network is insecure,
+but you're either not very paranoid or concerned about minimizing CPU resources,
+use md5.&nbsp; Finally, if you want the best authentication without regard
+for CPU resources, use sha1.&nbsp; It's the hardest to crack.
+<p>The format of the file is as follows:
+<br>auth &lt;number>
+<br>&lt;number> &lt;authmethod> [&lt;authkey>]
+<p>SO, for sha1, a sample /etc/ha.d/authkeys could be:
+<br>auth 1
+<br>1 sha1 key-for-sha1-any-text-you-want
+<p>For md5, you could use the same as the above, but replace "sha1" with
+"md5".&nbsp; Finally, for crc, a sample can be:
+<br>auth 2
+<br>1 any-text-I-well-please
+<p>Make sure its permissions are safe, like 600.&nbsp; That's it!
 <h2>
 Starting and testing heartbeat</h2>
 From Red Hat, or other distributions which use the SystemV style init files,
@@ -291,25 +313,48 @@ start heartbeat.
 <p>Once you've started heartbeat, take a peek at your log file (default
 is /var/log/ha-log) before testing it.&nbsp; If all is peachy, the service
 owner's log (linuxha1 in our example) should look something like this:
-<br>1999/09/16_09:13:25 INFO: heartbeat starting.
-<br>1999/09/16_09:13:25 Starting serial heartbeat on tty /dev/ttyS0
-<br>1999/09/16_09:13:25 UDP heartbeat started on port 1001 interface eth1
-<br>1999/09/16_09:13:25 Using watchdog device: /dev/watchdog
-<br>1999/09/16_09:13:35 Requesting resource group 192.168.85.3
-<br>1999/09/16_09:13:35 INFO: heartbeat initialization complete.
-<br>1999/09/16_09:13:35 INFO: Running /etc/ha.d/resource.d/IPaddr 192.168.85.3
+<br>heartbeat: 2000/01/18_14:26:45 info: Neither logfile nor logfacility
+found.
+<br>heartbeat: 2000/01/18_14:26:45 info: Defaulting to /var/log/ha-log
+<br>heartbeat: 2000/01/18_14:26:45 info: ***********************
+<br>heartbeat: 2000/01/18_14:26:45 info: Configuration validated. Starting
+heartbeat.
+<br>heartbeat: 2000/01/18_14:26:46 notice: Starting serial heartbeat on
+tty /dev/ttyS0
+<br>heartbeat: 2000/01/18_14:26:46 notice: UDP heartbeat started on port
+1001 interface eth1
+<br>heartbeat: 2000/01/18_14:26:46 notice: Using watchdog device: /dev/watchdog
+<br>heartbeat: 2000/01/18_14:26:46 error: Cannot open /proc/ha/.control:
+No such file or directory
+<br>heartbeat: 2000/01/18_14:26:56 warn: node linuxha2.linux-ha.org: is
+dead
+<br>heartbeat: 2000/01/18_14:26:56 INFO: Running /etc/ha.d/rc.d/status
 status
-<br>1999/09/16_09:14:06 Acquiring resource group: ha1.iso-ne.com 192.168.85.3
-httpd smb
-<br>1999/09/16_09:14:06 INFO: Running /etc/rc.d/init.d/smb&nbsp; start
-<br>1999/09/16_09:14:07 INFO: Running /etc/rc.d/init.d/httpd&nbsp; start
-<br>1999/09/16_09:14:08 INFO: Running /etc/ha.d/resource.d/IPaddr 192.168.85.3
+<br>heartbeat: 2000/01/18_14:26:57 info: Requesting our resources.
+<br>heartbeat: 2000/01/18_14:26:58 INFO: Running /etc/ha.d/resource.d/IPaddr
+192.168.85.3 status
+<br>heartbeat: 2000/01/18_14:26:58 INFO: Running /etc/ha.d/rc.d/ip-request
+ip-request
+<br>heartbeat: 2000/01/18_14:27:00 info: node linuxha2.linux-ha.org: status
+up
+<br>heartbeat: 2000/01/18_14:27:00 INFO: Running /etc/ha.d/rc.d/status
+status
+<br>heartbeat: 2000/01/18_14:27:28 Acquiring resource group: linuxha1.linux-ha.org
+192.168.85.3 httpd smb mirror
+<br>heartbeat: 2000/01/18_14:27:28 INFO: Running /etc/ha.d/resource.d/mirror&nbsp;
 start
-<br>1999/09/16_09:14:08 INFO: ifconfig eth0:0 192.168.85.3 netmask 255.255.255.0&nbsp;
-broadcast 192.168.85.255
-<br>1999/09/16_09:14:08 Sending Gratuitous Arp for 192.168.85.3 on eth0:0
-[eth0]
-<br>&nbsp;
+<br>heartbeat: 2000/01/18_14:27:29 INFO: Running /etc/rc.d/init.d/smb&nbsp;
+start
+<br>heartbeat: 2000/01/18_14:27:30 INFO: Running /etc/rc.d/init.d/httpd&nbsp;
+start
+<br>heartbeat: 2000/01/18_14:27:31 INFO: Running /etc/ha.d/resource.d/IPaddr
+192.168.85.3 start
+<br>heartbeat: 2000/01/18_14:27:32 INFO: ifconfig eth0:0 192.168.85.3 netmask
+255.255.255.0 broadcast 192.168.85.255
+<br>heartbeat: 2000/01/18_14:27:32 Sending Gratuitous Arp for 192.168.85.3
+on eth0:0 [eth0]
+<br><b>NOTE:</b>&nbsp; Your log may differ depending on when you started
+heartbeat on linuxha2!!!&nbsp; I waited just over 10 seconds.
 <p>
 <hr WIDTH="54%">
 <p><b>OK, </b>now try to ping your cluster's IP (192.168.85.3 in the example).
@@ -323,8 +368,8 @@ share listed under the cluster name and not the hostname of your cluster
 member!
 <p>If this all works, you've got availability.&nbsp; Now let's see if we
 have High Availability :-)
-<p>Take down linuxha.&nbsp; Kill power, kill heartbeat, whatever you have
-the stomach for, but don't just yank both the serial and eth1 heartbeat
+<p>Take down linuxha1.&nbsp; Kill power, kill heartbeat, whatever you have
+the stomach for, but <b>don't just yank</b> both the serial and eth1 heartbeat
 cables.&nbsp; If you do that, you'll have services running on both nodes
 and when you re-connect the heartbeat, a bit of chaos....
 <br>Now ping the cluster IP. Approximately 5-10 seconds later it should
@@ -337,13 +382,15 @@ from your eth1 NIC that you're using for your udp heartbeat.&nbsp; Wait
 about 10 seconds.
 <br>Now, look at /var/log/ha-log on linuxha2 and make sure there's no line
 like this:
-<br>&nbsp;&nbsp;&nbsp; <b>1999/08/16_12:40:58 node ha1.iso-ne.com: is dead</b>
+<br>&nbsp;&nbsp;&nbsp; <b>1999/08/16_12:40:58 node linuxha1.linux-ha.org:
+is dead</b>
 <br>If you get that, your serial heartbeat isn't working and your second
-node is taking over.&nbsp; Test your null modem cable.&nbsp; Run the above
-serial tests again.
+node is taking over.&nbsp; To avoid any problems, shut down heartbeat on
+the first node, then test your null modem cable.&nbsp; Run the above serial
+tests again.
 <p>If your log is clean, great.&nbsp; Re-connect the crossover cable.&nbsp;
 Once that's done, disconnect the serial cable, wait 10 seconds and check
-the ha2 log again.
+the linuxha2 log again.
 <br>If it's clean, congrats!&nbsp; If not, you can check /var/log/ha-log
 and /var/log/ha-debug for more clues.
 <br>&nbsp;
@@ -414,8 +461,8 @@ and /var/log/ha-debug for more clues.
 </tr>
 </table>
 
-<p>Rev 0.0.6
-<br>(c) 1999 Rudy Pawul
+<p>Rev 0.0.9
+<br>(c) 2000 Rudy Pawul
 <br><a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a>
 </body>
 </html>
