@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.23 2002/06/16 03:50:29 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.24 2002/06/16 06:20:41 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -436,6 +436,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 @libdir@/libhbclient.*
 @libdir@/libpils.*
 @libdir@/libplumb.*
+@libdir@/libapphb.*
 @sysconfdir@/ha.d/resource.d/
 @INITDIR@/heartbeat
 @sysconfdir@/logrotate.d/heartbeat
