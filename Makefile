@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.24 1999/12/25 08:44:17 alan Exp $
+#	$Id: Makefile,v 1.25 2000/01/26 15:21:53 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -9,7 +9,7 @@
 #
 #
 PKG=heartbeat
-VERS=0.4.6c
+VERS=0.4.6d
 RPMREL=1
 
 INITD=$(shell [ -d /etc/init.d ] && echo etc/init.d || echo etc/rc.d/init.d )
