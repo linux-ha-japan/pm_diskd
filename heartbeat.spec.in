@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.12 2001/11/26 15:19:50 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.13 2001/12/17 11:20:58 lars Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -21,6 +21,7 @@ Requires: perl, perl-libwww-perl perl-Net-SSLeay, ipvsadm
 # ultramonkey.sourceforge.net and others
 
 %package stonith
+Requires: telnet
 Summary: Provides an interface to Shoot The Other Node In The Head 
 Group: Utilities
 
@@ -52,7 +53,6 @@ machine in the cluster is not using a resource, pull the plug on the other
 machine. It's simple and reliable, albeit admittedly brutal.
 
 %changelog
-
 * Fri Oct 26 2001 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
