@@ -50,36 +50,48 @@ libstonith_la_LDFLAGS	= -version-info 0:0:0
 
 ## modules
 
-stonithlib_LTLIBRARIES	= null.la baytech.la rps10.la nw_rpc100s.la ssh.la
-stonithlib_LTLIBRARIES	+= apcsmart.la apcmaster.la meatware.la wti_nps.la
+stonithlib_LTLIBRARIES	=	\
+	apcmaster.la		\
+	apcmastersnmp.la		\
+	apcsmart.la		\
+	baytech.la		\
+	meatware.la		\
+	null.la			\
+	nw_rpc100s.la		\
+	rps10.la		\
+	ssh.la			\
+	wti_nps.la
 
-baytech_la_SOURCES	= baytech.c expect.c 
-baytech_la_LDFLAGS	= -no-undefined -module -avoid-version
-
-rps10_la_SOURCES	= rps10.c expect.c
-rps10_la_LDFLAGS	= -no-undefined -module -avoid-version
-
-nw_rpc100s_la_SOURCES	= nw_rpc100s.c expect.c
-nw_rpc100s_la_LDFLAGS	= -no-undefined -module -avoid-version
-
-apcsmart_la_SOURCES	= apcsmart.c expect.c
-apcsmart_la_LDFLAGS	= -no-undefined -module -avoid-version
-
-meatware_la_SOURCES	= meatware.c expect.c 
-meatware_la_LDFLAGS	= -no-undefined -module -avoid-version
-
-ssh_la_SOURCES		= ssh.c expect.c 
-ssh_la_LDFLAGS		= -no-undefined -module -avoid-version
 
 apcmaster_la_SOURCES	= apcmaster.c expect.c 
 apcmaster_la_LDFLAGS	= -no-undefined -module -avoid-version
 
-wti_nps_la_SOURCES	= meatware.c expect.c 
-wti_nps_la_LDFLAGS	= -no-undefined -module -avoid-version
+apcmastersnmp_la_SOURCES	= apcmastersnmp.c
+apcmastersnmp_la_LDFLAGS	= -no-undefined -module -avoid-version -lsnmp -lcrypto
 
-# a real module ?
+apcsmart_la_SOURCES	= apcsmart.c expect.c
+apcsmart_la_LDFLAGS	= -no-undefined -module -avoid-version
+
+baytech_la_SOURCES	= baytech.c expect.c 
+baytech_la_LDFLAGS	= -no-undefined -module -avoid-version
+
+meatware_la_SOURCES	= meatware.c expect.c 
+meatware_la_LDFLAGS	= -no-undefined -module -avoid-version
+
 null_la_SOURCES		= null.c 
 null_la_LDFLAGS		= -no-undefined -module -avoid-version
+
+nw_rpc100s_la_SOURCES	= nw_rpc100s.c expect.c
+nw_rpc100s_la_LDFLAGS	= -no-undefined -module -avoid-version
+
+rps10_la_SOURCES	= rps10.c expect.c
+rps10_la_LDFLAGS	= -no-undefined -module -avoid-version
+
+ssh_la_SOURCES		= ssh.c expect.c 
+ssh_la_LDFLAGS		= -no-undefined -module -avoid-version
+
+wti_nps_la_SOURCES	= meatware.c expect.c 
+wti_nps_la_LDFLAGS	= -no-undefined -module -avoid-version
 
 ## Man pages
 

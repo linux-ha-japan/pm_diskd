@@ -49,8 +49,9 @@
 /*
  * Version string that is filled in by CVS
  */
-static const char *version __attribute__ ((unused)) = "$Revision: 1.7 $"; 
+static const char *version __attribute__ ((unused)) = "$Revision: 1.8 $"; 
 
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
