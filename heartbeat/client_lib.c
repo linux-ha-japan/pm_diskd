@@ -455,7 +455,7 @@ hb_api_signoff(struct ll_cluster* cinfo)
 		ha_perror("can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
-	if (!pi->iscasual && DoUnLock(HBPREFIX, OurClientID) != 0) {
+	if (!pi->iscasual && DoUnlock(HBPREFIX, OurClientID) != 0) {
 		ha_log(LOG_ERR, "Cannot unlock FIFO for %s", OurClientID);
 	}
 	ZAPMSG(request);
