@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.32 2002/11/20 09:16:01 horms Exp $
+#	$Id: IPaddr.in,v 1.33 2002/12/10 22:18:39 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -33,13 +33,13 @@ USAGE="usage: $0 ip-address {start|stop|status|monitor}";
 SYSTYPE="`uname -s`"
 
 #
-#	Find out which alias serves the given IP address
-#	The argument is an IP address, and its output
-#	is an aliased interface name (e.g., "eth0:0").
+#      Find out which alias serves the given IP address
+#      The argument is an IP address, and its output
+#      is an aliased interface name (e.g., "eth0:0").
 #
 find_interface_solaris() {
 
-  ipaddr=$1;
+  ipaddr="$1";
 
   $IFCONFIG $IFCONFIG_A_OPT | nawk '{if ($0 ~ /.*: / && NR > 1) {print "\n"$0} else {print}}' |
   while read ifname linkstuff
@@ -78,7 +78,7 @@ find_interface_solaris() {
 #
 find_interface_generic() {
 
-  ipaddr=$1;
+  ipaddr="$1";
 
   $IFCONFIG $IFCONFIG_A_OPT  |
   while read ifname linkstuff
@@ -95,8 +95,6 @@ find_interface_generic() {
     done
 
     case $ifname in
-      lo:*)	#Skip Loopback on Linux;;
-		if [ $SYSTYPE == "Linux" ]; then continue; fi;;
       *:*)	;;
       *)	continue;;
     esac
@@ -104,7 +102,7 @@ find_interface_generic() {
 
     case $SYSTYPE in
       *BSD)
-		$IFCONFIG | grep $ipaddr -B4 | grep "UP," | cut -d ":" -f 1
+		$IFCONFIG | grep "$ipaddri" -B4 | grep "UP," | cut -d ":" -f 1
 		return 0;;
       *)
     		: "comparing $ipaddr to $addr (from ifconfig)"
@@ -175,32 +173,169 @@ ifconfig2sendarp() {
 	echo "$1" | sed "s%:%%g"
 }
 
-add_route () {
-  case $SYSTYPE in
-    SunOS)	dev_intf="-interface";;
-    *BSD)	dev_intf="-ifp";;
-    *)		dev_intf="dev";;
-  esac
-
-  ha_log "info: $ROUTE -n -add host $BASEIP $dev_intf $IF"
-  $ROUTE -n add -host $BASEIP $dev_intf $IF
-}
+#add_route () {
+#  ipaddr="$1"
+#  iface="$2"
+#
+#  case $SYSTYPE in
+#    	SunOS)	
+#		dev_intf="-interface"
+#		;;
+#    	*BSD)	
+#		dev_intf="-ifp"
+#		;;
+#    	*)	
+#		dev_intf="dev"
+#		;;
+#  esac
+#
+#  ha_log "info: $ROUTE -n -add host $ipaddr $dev_intf $iface"
+#  $ROUTE -n add -host $ipaddr $dev_intf $iface
+#
+#  return $?
+#}
 
 delete_route () {
+  ipaddr="$1"
+
   case $SYSTYPE in
 	SunOS)
-			CMD=""
-			;;
+		CMD=""
+		;;
 	*BSD)
-			CMD="$ROUTE -n delete -host $BASEIP"
-			;;
+		CMD="$ROUTE -n delete -host $ipaddr"
+		;;
 
-	*)		CMD="$ROUTE -n del -host $BASEIP"
-			;;
+	*)	
+		CMD="$ROUTE -n del -host $ipaddr"
+		;;
   esac
 
   ha_log "info: $CMD"
   $CMD
+
+  return $?
+}
+
+delete_interface () {
+  ipaddr="$1"
+  ifname="$2"
+
+  case $SYSTYPE in
+	SunOS)
+		case `uname -r` in
+			5.8)
+				CMD="$IFCONFIG $ifname unplumb"
+				;;
+			*)
+				CMD="$IFCONFIG $ifname 0 down"
+				;;
+		esac
+		;;
+	*BSD)
+		CMD="$IFCONFIG $ifname inet $ipaddr -alias"
+		;;
+
+	*)
+		CMD="$IFCONFIG $ifname down"
+		;;
+  esac
+
+  ha_log "info: $CMD"
+  $CMD
+
+  return $?
+}
+
+
+add_interface () {
+  ipaddr="$1"
+  ifinfo="$2"
+  iface="$3"
+
+  #
+  #	On Linux the Alias is named ethx:y
+  #	This will remove the "extra" interface Data 
+  #	leaving us with just ethx
+  #
+  case $SYSTYPE in
+    *BSD)
+		IFEXTRA=""
+		;;
+    *)
+		IFEXTRA=`echo "$ifinfo" | cut -f2-`
+		;;
+  esac
+
+  case $SYSTYPE in
+    SunOS)
+		case `uname -r` in
+		  5.8)
+				$IFCONFIG $iface plumb
+				CMD="$IFCONFIG $iface inet $ipaddr $IFEXTRA up"
+				;;
+		  *)
+				CMD="$IFCONFIG $iface inet $ipaddr $IFEXTRA up"
+				;;
+		esac
+		;;
+
+    *BSD)
+		CMD="$IFCONFIG $iface inet $ipaddr" \
+			"netmask 255.255.255.255 alias"
+		;;
+    *)		
+    		CMD="$IFCONFIG $iface $ipaddr $IFEXTRA"	
+		;;
+  esac
+
+  ha_log "info: $CMD"
+  $CMD
+  rc=$?
+
+  case $rc in
+    0)
+    		;;
+    *)
+    		echo "ERROR: $CMD failed."
+		;;
+  esac
+
+  return $rc
+}
+
+#      On Linux systems the (hidden) loopback interface may
+#      conflict with the requested IP address. If so, this
+#      unoriginal code will remove the offending loopback address
+#      and save it in VLDIR so it can be added back in later
+#      when the IPaddr is released.
+#
+remove_conflicting_loopback() {
+	ipaddr="$1"
+	ifname="$2"
+
+	echo $ifname > "$VLDIR/$ipaddr"
+	ha_log "info: Removing conflicting loopback $ifname."
+	delete_interface "$ipaddr" "$ifname"
+	# Forcibly remove the route (if it exists) to the loopback.
+	delete_route "$ipaddr"
+}
+
+#      On Linux systems the (hidden) loopback interface may
+#      need to be restored if it has been taken down previously
+#      by remove_conflicting_loopback()
+#
+restore_loopback() {
+	ipaddr="$1"
+
+	if [ -s "$VLDIR/$ipaddr" ]; then
+		ifname=`cat "$VLDIR/$ipaddr"`
+		ha_log "info: Restoring loopback IP Address " \
+			"$ipaddr on $ifname."
+		add_interface "$ipaddr" "netmask 255.255.255.255" "$ifname"
+		#add_route "$ipaddr" "$ifname"
+		rm -f "$VLDIR/$ipaddr"
+	fi
 }
 
 #
@@ -212,19 +347,28 @@ ip_stop() {
 
   case $SYSTYPE in
 	*BSD)
-		if
-			$IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
-		then
+		if $IFCONFIG $IFCONFIG_A_OPT | \
+			grep "inet.*[: ]$BASEIP " >/dev/null 2>&1; then
 			continue;
 		else
 			exit 0
 		fi;;
 
+	Linux)
+		if [ -z "$IF" ]; then
+    			: Requested interface not in use
+    			exit 0
+		else
+			case $IF in
+			  lo*)
+				: Requested interface is on loopback
+				exit 0
+				;;
+			esac
+  		fi;;
 	*)
-		if
-			[ -z "$IF" ]
-  		then
-    		: Requested interface not in use
+		if [ -z "$IF" ]; then
+    			: Requested interface not in use
     			exit 0
   		fi;;
   esac
@@ -235,45 +379,28 @@ ip_stop() {
     $HA_RCDIR/local_giveip $*
   fi
 
-#
-#	The next bit of code originally borrowed from Horms' fake code...
-#	and can be inferred from the IP-Aliasing mini-HOWTO
-#
-
-
-  delete_route;
-
-  case $SYSTYPE in
-	SunOS)
-			case `uname -r` in
-				5.8)
-					CMD="$IFCONFIG $IF unplumb"
-					;;
-				*)
-					CMD="$IFCONFIG $IF 0 down"
-					;;
-			esac
-			;;
-	*BSD)
-			CMD="$IFCONFIG $IF inet $BASEIP -alias"
-			;;
-
-	*)		CMD="$IFCONFIG $IF down"
-			;;
-  esac
-  ha_log "info: $CMD"
-  $CMD
+  delete_route "$BASEIP"
+  delete_interface "$BASEIP" "$IF"
   rc=$?
 
   case $SYSTYPE in
 	*BSD|SunOS)	;;
-	*)		# remove lock file...
-  			rm -f "$VLDIR/$IF";;
+	Linux)
+		restore_loopback "$BASEIP"
+		# remove lock file...
+		rm -f "$VLDIR/$IF";;
+	
+	*)	# remove lock file...
+		rm -f "$VLDIR/$IF";;
   esac
 
   case $rc in
-    0) ha_log "info: IP Address $BASEIP released";;
-    *) ha_log "WARN: IP Address $BASEIP NOT released";;
+    	0) 
+		ha_log "info: IP Address $BASEIP released"
+		;;
+    	*) 	
+		ha_log "WARN: IP Address $BASEIP NOT released"
+		;;
   esac
   return $rc
 }
@@ -315,10 +442,12 @@ find_free_interface() {
 
   case $SYSTYPE in
 	SunOS)
-		IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | grep "^$nicname:[0-9]" | sed 's%: .*%%'`
+		IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | \
+			grep "^$nicname:[0-9]" | sed 's%: .*%%'`
 		;;
 	*)
-		IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | grep "^$nicname:[0-9]" | sed 's% .*%%'`
+		IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | \
+			grep "^$nicname:[0-9]" | sed 's% .*%%'`
 		;;
   esac
 
@@ -377,29 +506,24 @@ ip_start() {
 
   BASEIP=`echo $1 | sed s'%/.*%%'`
 
-  if
-    IFINFO=`find_free_interface $1`
-  then
-    : OK got interface [$IFINFO] for $1
-  else
-    exit 1
-  fi
-  IF=`echo "$IFINFO" | cut -f1`
-
-  #
-  #	On Linux the Alias is named ethx:y
-  #	This will remove the "extra" interface Data 
-  #	leaving us with just ethx
-  #
   case $SYSTYPE in
-    *BSD)
-		IFEXTRA=""
-		;;
-    *)
-		IFEXTRA=`echo "$IFINFO" | cut -f2-`
-		;;
+    Linux)
+		CURRENTIF=`find_interface "$BASEIP"`
+       		case $CURRENTIF in
+         	  lo*)
+            		remove_conflicting_loopback "$BASEIP" "$CURRENTIF"
+            		;;
+            	  *)	;;
+    		esac ;;
+    *)		;;
   esac
 
+  if IFINFO=`find_free_interface $1`; then
+  	: OK got interface [$IFINFO] for $1
+  else
+  	exit 1
+  fi
+  IF=`echo "$IFINFO" | cut -f1`
 
   if
     [ -x $HA_RCDIR/local_takeip ]
@@ -407,38 +531,17 @@ ip_start() {
     $HA_RCDIR/local_takeip $*
   fi
 
-#
-#	The remaining code in this function taken from FAKE, by horms
-#
-  case $SYSTYPE in
-    SunOS)
-		case `uname -r` in
-			5.8)
-				$IFCONFIG $IF plumb
-				CMD="$IFCONFIG $IF inet $BASEIP $IFEXTRA up"
-				;;
-			*)
-				CMD="$IFCONFIG $IF inet $BASEIP $IFEXTRA up"
-				;;
-		esac
-		;;
-    *BSD)
-		CMD="$IFCONFIG $IF inet $BASEIP netmask 255.255.255.255 alias"
-							;;
-    *)		CMD="$IFCONFIG $IF $BASEIP $IFEXTRA"	;;
-  esac
-
-  ha_log "info: $CMD"
-  $CMD
+  add_interface "$BASEIP" "$IFINFO" "$IF"
   rc=$?
-
   case $rc in
-    0)	;;
-    *)	echo "ERROR: $CMD failed."
-	return $rc;;
+    0)
+    		;;
+    *)
+		return $rc
+		;;
   esac
 
-  # add_route
+  # add_route $BASEIP $IF
 
   TARGET_INTERFACE=`echo $IF | sed 's%:.*%%'`
 
@@ -475,6 +578,21 @@ ip_status() {
 		echo "stopped"
 	fi;;
 
+    Linux)		
+	if
+		[ -z "$IF" ]
+	then
+		echo "stopped"
+	else
+		case $IF in
+		  lo*)
+			echo "loopback"
+			;;
+		  *)
+			echo "running"
+			;;
+		esac
+	fi;;
     *)		
 	if
 		[ -z "$IF" ]
@@ -508,7 +626,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.32 2002/11/20 09:16:01 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.33 2002/12/10 22:18:39 horms Exp $"
 }
 
 #
@@ -555,6 +673,21 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.33  2002/12/10 22:18:39  horms
+# If IPaddr is running on Linux, and a VIP is obtained that
+# is on a loopback alias, then the loopback alias and the associated
+# route if it exists, is removed before the alias, usually on an ethernet
+# interface, is brought up.
+#
+# When the VIP is relinquished the alias on the loopback is restored.
+#
+# This is intended for use in conjunction with the LVS, where the
+# same host may be a Linux Director and a Real Server.
+#
+# This feature explictly only works on Linux, as LVS only works on Linux.
+#
+# Thanks to Lorn Kay who did a lot of the ground work to get this fix working.
+#
 # Revision 1.32  2002/11/20 09:16:01  horms
 # do not fail if an interface is already configured
 #
