@@ -1,7 +1,7 @@
 #
 #	There are lots of options in this file.  All you have to have is a set
 #	of nodes listedJ {"node ...}
-#	and one of {serial, udp, or ppp-udp}
+#	and one of {serial, udp, or mcast}
 #
 #
 #       Note on logging:
@@ -35,25 +35,29 @@ logfacility	local0
 #	deadtime: seconds-to-declare-host-dead
 #
 #deadtime 10
+#
+#
+#	Very first dead time (initdead)
+#
+#	On some machines/OSes, etc. the network takes a while to come up
+#	and start working right after you've been rebooted.  As a result
+#	we have a separate dead time for when things first come up.
+#	It should be at least twice the normal dead time.
+#
+#initdead 120
+#
 #	hopfudge maximum hop count minus number of nodes in config
 #hopfudge 1
 #	
 #	serial	serialportname ...
 #serial	/dev/ttyS0
 #
-#	Only for serial ports.  It applies to both PPP/UDP and "raw" ports
 #
-#	This means run PPP over ports ttyS1 and ttyS2
-#	Their respective IP addresses are as listed.
-#	Note that I enforce that these are local addresses.  Other addresses
-#	are almost certainly a mistake.
-#ppp-udp	/dev/ttyS1 10.0.0.1 /dev/ttyS2 10.0.0.2
-#
-#	Baud rate for both serial and ppp-udp ports...
+#	Baud rate for serial ports...
 #
 #baud	19200
 #
-#	What UDP port to use for udp or ppp-udp communication?
+#	What UDP port to use for communication?
 #
 #udpport	694
 #
@@ -106,6 +110,12 @@ logfacility	local0
 #         <params...> are driver specific parameters.  To see the
 #              format for a particular device, run:
 #           stonith -l -t <stonith_type> 
+#
+#
+#	Note that if you put your stonith device access information in
+#	here, and you make this file publically readable, you're asking
+#	for a denial of service attack ;-)
+#
 #
 #stonith_host *     baytech 10.0.0.3 mylogin mysecretpassword
 #stonith_host ken3  rps10 /dev/ttyS1 kathy 0 

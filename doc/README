@@ -4,12 +4,9 @@ It can do 2-node IP takeover for an unlimited number of IP interfaces.
 
 It heartbeats over:
 	unadorned serial links arranged in a ring topology
-	UDP/IP heartbeats over ethernet (or similar)
-	PPP/UDP using a serial ring topology like the first case
-
-Special Note:  There is some kernel code for displaying/controlling
-heartbeat via /proc. It works reasonably well.  It should be automatically
-installed when you start heartbeat.
+	UDP/IP broadcast heartbeats over ethernet (or similar)
+	UDP/IP multicast heartbeats over ethernet (or similar)
+	special "ping" heartbeats to routers, etc.
 
 After installing this package, you'll have to make some HA config files
 in /etc/ha.d.  Samples of these config files are found in the doc directory.
@@ -43,87 +40,3 @@ Get involved!
 
 	- Ask for enhancements...
 
-Notes for using PPP-UDP module on Red Hat 6.0
-
-If you're getting messages like these in your console log:
-	modprobe: can't locate module ppp-compress-21
-	modprobe: can't locate module ppp-compress-26
-	modprobe: can't locate module ppp-compress-24
-
-Then, you should put these lines in /etc/conf.modules:
-	alias ppp-compress-21 bsd_comp
-	alias ppp-compress-24 ppp_deflate
-	alias ppp-compress-26 ppp_deflate
-and all should be well...
-
-SPECIAL INSTALLATION NOTES:
-The ppp-udp interface requires a "helper" script to be installed for it to
-run.  Under Red Hat Linux, the "right" place to install the helper is in:
-	/etc/ppp/ip-up.local
-This assumes that /etc/ppp/ip-up will call it when it is invoked.
-When you install the RPM on your system, it will modify /etc/ppp/ip-up.local
-automatically as part of the installation procedure,
-If you install from the tar.gz, or if your version of Linux doesn't call
-/etc/ppp/ip-up.local from /etc/ppp/ip-up, then you'll need to do this part
-of the installation by hand.
-
-I hope to improve this and make it more automatic for the future
-The script below is taken from the RPM Specfile, and "hacks"
-/etc/ppp/ip-up.local as needed for Red Hat Linux.  It seems to work
-pretty well for that circumstance. YMMV
-
-Here's a bit longer explanation of why this is all done in this way, and
-what you can do about it:
-
-The key thing is that I need to "hack" the script called by ppp when
-connections start.  According to Red Hat ppp documentation, that script is
-called /etc/ppp/ip-up.  HOWEVER, this is a "system" script, and under
-Red Hat isn't supposed to be hacked.  So, they have it call a different
-script /etc/ppp/ip-up.local which you are allowed to hack.  If your
-distribution has a script called /etc/ppp/ip-up which calls
-/etc/ppp/ip-up.local when a connection comes up, then my RPM will do
-exactly the right thing.  If not, it won't.  More worrisome, it isn't done
-when you install from .tar.gz, only when you install via RPM.  This is
-somewhat laziness, somewhat difficulty in testing on other systems.
-
-How you can help us: to look at your system's /etc/ppp/ip-up script, and tell
-us what distribution and version you're running, and whether your distribution
-even has this file, and whether it calls some other script (like
-/etc/ppp/ip-up) from this script.  If you don't find this script on your
-system, examine your pppd manual pages and tell me what they say we should
-be doing to tell it to call a script of our choosing when links come up.
-
-Below is the script we run in postinstall in the RPM.  You can try it
-with file2hack=/etc/ppp/ip-up, if running this one doesn't work correctly.
-
-#
-#	Hack to allow ppp-udp to be notified about PPP processes starting
-#
-Install_PPP_hack() {
-  file2hack=/etc/ppp/ip-up.local
-  if
-    [ ! -f $file2hack ]
-  then
-    echo '#!/bin/bash' > $file2hack
-    chmod 755 $file2hack
-  fi
-  MARKER="Heartbeat"
-  ed -s $file2hack <<-!EOF  2>/dev/null
-H
-g/ $MARKER\$/d
-\$a
-#	The following lines added for Linux-HA support		# $MARKER
-DEVFILE=\`echo \$DEVICE | sed -e 's!^/dev/!!' -e 's!/!.!g'\`	# $MARKER
-OUTFILE=/etc/ha.d/ppp.d/\$DEVFILE				# $MARKER
-(			# $MARKER
-echo "\$IPREMOTE"	# $MARKER
-echo "\$IFNAME"		# $MARKER
-echo "\$PPPD_PID"	# $MARKER
-echo "\$IPLOCAL"		# $MARKER
-) > \$OUTFILE		# $MARKER
-.
-w
-!EOF
-}
-
-Install_PPP_hack

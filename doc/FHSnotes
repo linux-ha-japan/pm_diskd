@@ -12,7 +12,6 @@ The scripts in /etc/ha.d/init.d, rc.d, and resource.d are analagous by
 
 I think /etc/ha.d/bin should be moved over to /usr/lib/heartbeat
 
-ppp.d should be moved to /var/run/ppp.d
 
 It isn't completely clear where heartbeat-fifo should go.   I would suggest
 /var/run because it is somewhat analagous to the transient
