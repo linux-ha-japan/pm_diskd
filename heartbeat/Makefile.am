@@ -57,6 +57,14 @@ heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c ha_if.c \
 			module.c
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
 			$(top_builddir)/replace/libreplace.la
+heartbeat_LDFLAGS	= -export-dynamic -dlpreopen force -dlopen self \
+			-dlopen ping.la \
+			-dlopen serial.la \
+			-dlopen udp.la \
+			-dlopen mcast.la \
+			-dlopen md5.la \
+			-dlopen sha1.la \
+			-dlopen crc.la
 
 send_arp_SOURCES	= send_arp.c
 
@@ -72,31 +80,31 @@ commmod_LTLIBRARIES	= ping.la serial.la udp.la mcast.la
 # ppp_udp.la
 
 ping_la_SOURCES		= ping.c
-ping_la_LDFLAGS		= -no-undefined -module -avoid-version
+ping_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 serial_la_SOURCES	= serial.c
-serial_la_LDFLAGS	= -no-undefined -module -avoid-version
+serial_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 #ppp_udp_la_SOURCES	= ppp-udp.c
-#ppp_udp_la_LDFLAGS	= -no-undefined -module -avoid-version
+#ppp_udp_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 udp_la_SOURCES		= udp.c
-udp_la_LDFLAGS		= -no-undefined -module -avoid-version
+udp_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 mcast_la_SOURCES	= mcast.c
-mcast_la_LDFLAGS	= -no-undefined -module -avoid-version
+mcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 ## authentication modules
 authmod_LTLIBRARIES	= md5.la sha1.la crc.la
 
 md5_la_SOURCES		= md5.c
-md5_la_LDFLAGS		= -no-undefined -module -avoid-version
+md5_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 sha1_la_SOURCES		= sha1.c
-sha1_la_LDFLAGS		= -no-undefined -module -avoid-version
+sha1_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 crc_la_SOURCES		= crc.c
-crc_la_LDFLAGS		= -no-undefined -module -avoid-version
+crc_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 ## SCRIPTS/DATA
 ha_DATA			= shellfuncs README.config
