@@ -182,6 +182,7 @@ static int gbl_debug = DEBUG;
  *	Remote Power Controllers...
  */
 
+static struct Etoken WTItokReady[] =	{ {"RPS-10 Ready", 0, 0}, {NULL,0,0}};
 static struct Etoken WTItokComplete[] =	{ {"Complete", 0, 0} ,{NULL,0,0}};
 static struct Etoken WTItokPlug[] =	{ {"Plug", 0, 0}, {NULL,0,0}};
 static struct Etoken WTItokOutlet[] =	{ {"0", 0, 0}, 
@@ -202,7 +203,6 @@ static struct Etoken WTItokOff[] =	{ {"Off", 0, 0}, {NULL,0,0}};
  * Tokens currently not used because they don't show up on all RPS10 units:
  *
 static struct Etoken WTItokOn[] =	{ {"On", 0, 0}, {NULL,0,0}};
-static struct Etoken WTItokReady[] =	{ {"RPS-10 Ready", 0, 0}, {NULL,0,0}};
  */
 
 /* Accept either a CR/NL or an NL/CR */
@@ -637,14 +637,21 @@ RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 
 		/* validate the outlet token */
 		if ((sscanf (outlet, "%c", &outlet_id) != 1)
-		    || (!((outlet_id >= '0') && (outlet_id <= '9'))
-			    && (outlet_id != '*'))
+		    || !( ((outlet_id >= '0') && (outlet_id <= '9'))
+			|| (outlet_id == '*') || (outlet_id == 'A') )
 		   ) {
 			syslog(LOG_ERR
 			, "%s: the outlet_id %s must be between"
-			" 0 and 9 or '*'",
+			" 0 and 9 or '*' / 'A'",
 			       WTIid, outlet);
 			goto token_error;
+		}
+		
+		if (outlet_id == 'A') {
+			/* Remap 'A' to '*'; in some configurations,
+			 * a '*' can't be configured because it breaks
+			 * scripts -- lmb */
+			outlet_id = '*';
 		}
 		
 		if (ctx->unit_count >= WTI_NUM_CONTROLLERS) {
@@ -765,19 +772,17 @@ RPSConnect(struct WTI_RPS10 * ctx)
          */
 	dtrtoggle(ctx->fd);
 
-#if 0
 	/* Wait for the switch to respond with "RPS-10 Ready".  
 	   Emperically, this usually takes 5-10 seconds... 
-	   ... Unfortunately, there is a series of switches 
-	   which does NOT act this way and does NOT send the 
-	   "RPS-10 Ready"; this is disabled because of this.
+	   ... If this fails, this may be a hint that you got
+	   a broken serial cable, which doesn't connect hardware
+	   flow control.
 	*/
 	if (gbl_debug) printf ("Waiting for READY\n");
 	EXPECT(WTItokReady, 12);
 	if (gbl_debug) printf ("Got READY\n");
 	EXPECT(WTItokCRNL, 2);
 	if (gbl_debug) printf ("Got NL\n");
-#endif
 
   return(S_OK);
 }
