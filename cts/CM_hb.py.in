@@ -51,7 +51,7 @@ class HeartbeatCM(ClusterManager):
         self.update({
             "Name"	     : "heartbeat",
             "DeadTime"	     : 30,
-            "StartCmd"	     : "@libdir@/heartbeat/heartbeat -d 2>/dev/null",
+            "StartCmd"	     : "ulimit -c unlimited; @libdir@/heartbeat/heartbeat -d 2>/dev/null",
             "StopCmd"	     : "@libdir@/heartbeat/heartbeat -k",
             "StatusCmd"	     : "@libdir@/heartbeat/heartbeat -s",
             "RereadCmd"	     : "@libdir@/heartbeat/heartbeat -r",
@@ -264,7 +264,7 @@ class HBipResource(HBResource):
     '''
 
     def IsWorkingCorrectly(self, nodename):
-        return self._ResourceOperation("monitor", "OK", "localhost")
+        return self._ResourceOperation("monitor", "OK", self.CM.OurNode)
 
 #
 #   A little test code...
