@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.92 2000/11/12 21:12:48 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.93 2000/12/04 22:11:22 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3857,6 +3857,10 @@ ParseTestOpts()
  *	It goes up each time we restart to prevent replay attacks.
  */
 
+#ifndef O_SYNC
+#	define O_SYNC 0
+#endif
+
 int
 IncrGeneration(unsigned long * generation)
 {
@@ -3887,6 +3891,13 @@ IncrGeneration(unsigned long * generation)
 		close(fd);
 		return HA_FAIL;
 	}
+
+	/* 
+	 * Some UNIXes don't implement O_SYNC. 
+	 * So we do an fsync here for good measure.  It can't hurt ;-)
+	 */
+
+	fsync(fd);
 	close(fd);
 	/*
 	 * We *really* don't want to lose this data.  We won't be able to join the
@@ -3907,6 +3918,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.93  2000/12/04 22:11:22  alan
+ * FreeBSD compatibility changes.
+ *
  * Revision 1.92  2000/11/12 21:12:48  alan
  * Set the close-on-exec bit for the watchdog file descriptor.
  *
