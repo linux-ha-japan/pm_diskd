@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.9 2001/10/07 04:00:56 alan Exp $
+#	$Id: IPaddr.in,v 1.10 2001/10/07 04:18:20 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -22,6 +22,7 @@ exec_prefix=@exec_prefix@
 . @sysconfdir@/ha.d/shellfuncs
 
 IFCONFIG=@IFCONFIG@
+IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
 ROUTE=@ROUTE@
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
@@ -36,7 +37,7 @@ SYSTYPE="`uname -s`"
 find_interface() {
 
   ipaddr=$1;
-  $IFCONFIG |
+  $IFCONFIG $IFCONFIG_A_OPT |
   while read ifname linkstuff
   do
     read inet addr junk
@@ -149,7 +150,7 @@ find_free_interface() {
     return 1;
   fi
 
-  IFLIST=`$IFCONFIG | grep "^$nicname:[0-9]" | sed 's% .*%%'`
+  IFLIST=`$IFCONFIG $IFCONFIG_A_OPT | grep "^$nicname:[0-9]" | sed 's% .*%%'`
   IFLIST=" `echo $IFLIST` "
 
   j=0
@@ -271,7 +272,7 @@ ip_start() {
 ip_status() {
   BASEIP=`echo $1 | sed s'%/.*%%'`
   if
-    $IFCONFIG | grep "inet addr:$BASEIP " >/dev/null 2>&1
+    $IFCONFIG $IFCONFIG_A_OPT | grep "inet addr:$BASEIP " >/dev/null 2>&1
   then
     echo "running"
   else
@@ -347,6 +348,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.10  2001/10/07 04:18:20  alan
+# Added some more portability patches from David Lee.
+#
 # Revision 1.9  2001/10/07 04:00:56  alan
 # Got rid of a non-portable shell construct in IPaddr.in
 #
