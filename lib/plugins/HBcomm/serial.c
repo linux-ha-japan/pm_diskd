@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.17 2002/04/13 22:35:08 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.18 2002/04/24 12:11:40 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -7,7 +7,7 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.17 2002/04/13 22:35:08 ala
  * contained within.
  *
  *
- * Copyright (C) 1999, 2000 Alan Robertson <alanr@unix.sh>
+ * Copyright (C) 1999, 2000, 2001 Alan Robertson <alanr@unix.sh>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -628,6 +628,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.18  2002/04/24 12:11:40  alan
+ * updated the copyright date.
+ *
  * Revision 1.17  2002/04/13 22:35:08  alan
  * Changed ha_msg_add_nv to take an end pointer to make it safer.
  * Added a length parameter to string2msg so it would be safer.
