@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.35 2000/04/26 07:06:41 horms Exp $
+#	$Id: Specfile,v 1.36 2000/04/27 08:07:04 horms Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -231,7 +231,7 @@ It implements the following kinds of heartbeats:
 %prep
 %setup
 %build
-make -j
+make
 %install
 rm -rf $RPM_BUILD_ROOT
 BUILD_ROOT=$RPM_BUILD_ROOT make install
