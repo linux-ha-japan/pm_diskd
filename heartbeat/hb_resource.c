@@ -77,14 +77,18 @@
  *
  **************************************************************************/
 
-int		DoManageResources = 1;
-int 		nice_failback = 0;
-int		other_holds_resources = HB_NO_RSC;
-int		other_is_stable = 0; /* F_ISSTABLE */
-int		takeover_in_progress = 0;
-enum hb_rsc_state resourcestate = HB_R_INIT;
-enum standby	going_standby = NOT;
-longclock_t	standby_running = 0L;
+extern struct node_info *	curnode;
+int				DoManageResources = TRUE;
+int 				nice_failback = FALSE;
+int 				auto_failback = FALSE;
+static int			needs_failback = FALSE;
+int				other_holds_resources = HB_NO_RSC;
+int				other_is_stable = FALSE; /* F_ISSTABLE */
+int				takeover_in_progress = FALSE;
+enum hb_rsc_state		resourcestate = HB_R_INIT;
+enum standby			going_standby = NOT;
+longclock_t			standby_running = 0L;
+static int			standby_rsctype = HB_ALL_RSC;
 
 /*
  * A helper to allow us to pass things into the anonproc
@@ -201,6 +205,30 @@ FilterNotifications(const char * msgtype)
 	return rc;
 }
 
+static void
+PerformAutoFailback(void)
+{
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Calling PerformAutoFailback()");
+	}
+	if ((procinfo->i_hold_resources & HB_FOREIGN_RSC) == 0
+	||	!needs_failback || !auto_failback) {
+			return;
+	}
+
+	if (going_standby != NOT) {
+		ha_log(LOG_ERR, "Auto failback ignored.");
+		return;
+	}
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Auto failback triggered.");
+	}
+
+	standby_rsctype = HB_FOREIGN_RSC;
+	send_standby_msg(ME);
+	needs_failback = FALSE;
+}
+
 /* Notify the (external) world of an HA event */
 void
 notify_world(struct ha_msg * msg, const char * ostatus)
@@ -224,7 +252,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	struct sigaction sa;
 	char		command[STATUSLENG];
 	char 		rc_arg0 [] = RC_ARG0;
-	char *	const argv[MAXFIELDS+3] = {rc_arg0, command, NULL};
+	char *	const	argv[MAXFIELDS+3] = {rc_arg0, command, NULL};
 	const char *	fp;
 	char *		tp;
 	int		pid, status;
@@ -314,13 +342,13 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				 */
 				/* We no longer need the "hook" parameter */
 				HB_RSCMGMTPROC(pid, "notify world");
+	}
 
 #if WAITFORCOMMANDS
 				waitpid(pid, &status, 0);
 #else
 				(void)status;
 #endif
-	}
 }
 
 
@@ -334,11 +362,14 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 {
 	gboolean	need_stonith = TRUE;
 	standby_running = zero_longclock;
+	going_standby	= NOT;
+	
 
 	if (hip->nodetype == PINGNODE) {
 		takeover_from_node(hip->nodename);
 		return;
 	}
+	needs_failback = TRUE;
 
 	/*
 	 * If we haven't heard anything from them - they might be holding
@@ -439,7 +470,6 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 
 #define	HB_UPD_RSC(cur, up)	((up == HB_NO_RSC) ? HB_NO_RSC : ((up)|(cur)))
 
-extern struct node_info *      curnode;
 
 void
 comm_up_resource_action(void)
@@ -575,6 +605,7 @@ process_resources(const char * type, struct ha_msg* msg
 						,	"remote resource"
 						" transition completed.");
 						other_is_stable = 1;
+						PerformAutoFailback();
 					}
 				}else{
 					other_is_stable = 0;
@@ -600,6 +631,7 @@ process_resources(const char * type, struct ha_msg* msg
 				hb_send_resources_held
 				(	rsc_msg[procinfo->i_hold_resources]
 				,	1, NULL);
+				PerformAutoFailback();
 			}
 		}else{
 			const char * comment = ha_msg_value(msg, F_COMMENT);
@@ -670,6 +702,7 @@ process_resources(const char * type, struct ha_msg* msg
 		local_takeover_time =	add_longclock(time_longclock()
 		,	secsto_longclock(RQSTDELAY));
 	}
+
 
 	AuditResources();
 }
@@ -1027,7 +1060,6 @@ req_our_resources(int getthemanyway)
 	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
 }
-static int	standby_rsctype = HB_ALL_RSC;
 
 /* Send "standby" related msgs out to the cluster */
 static int
@@ -1831,6 +1863,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.22  2003/05/22 05:17:42  alan
+ * Added the auto_failback option to heartbeat.
+ *
  * Revision 1.21  2003/05/19 14:42:57  alan
  * Put in some code to fix some resource audit problems which showed up
  * with the new standby enhancements.

@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.81 2003/04/30 22:24:22 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.82 2003/05/22 05:17:42 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -51,6 +51,7 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.81 2003/04/30 22:24:22 
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <pils/plugin.h>
+#include <clplumbing/realtime.h>
 #include <HBcomm.h>
 #include <hb_module.h>
 #include <hb_config.h>
@@ -71,11 +72,14 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.81 2003/04/30 22:24:22 
 #define	KEY_LOGFILE	"logfile"
 #define	KEY_DBGFILE	"debugfile"
 #define KEY_FAILBACK	"nice_failback"
+#define KEY_AUTOFAIL	"auto_failback"
 #define KEY_STONITH	"stonith"
 #define KEY_STONITHHOST "stonith_host"
 #define KEY_CLIENT_CHILD "respawn"
 #define KEY_RT_PRIO	 "rtprio"
 #define KEY_GEN_METH	 "hbgenmethod"
+#define KEY_REALTIME	 "realtime"
+#define KEY_DEBUGLEVEL	 "debug"
 
 static int add_normal_node(const char *);
 static int set_hopfudge(const char *);
@@ -90,12 +94,15 @@ static int set_facility(const char *);
 static int set_logfile(const char *);
 static int set_dbgfile(const char *);
 static int set_nice_failback(const char *);
+static int set_auto_failback(const char *);
 static int set_warntime_ms(const char *);
 static int set_stonith_info(const char *);
 static int set_stonith_host_info(const char *);
 static int set_realtime_prio(const char *);
 static int add_client_child(const char *);
 static int set_generation_method(const char *);
+static int set_realtime(const char *);
+static int set_debuglevel(const char *);
 
 struct directive {
 	const char * name;
@@ -115,8 +122,11 @@ struct directive {
 ,	{KEY_LOGFILE,   set_logfile}
 ,	{KEY_DBGFILE,   set_dbgfile}
 ,	{KEY_FAILBACK,  set_nice_failback}
+,	{KEY_AUTOFAIL,  set_auto_failback}
 ,	{KEY_RT_PRIO,	set_realtime_prio}
 ,	{KEY_GEN_METH,	set_generation_method}
+,	{KEY_REALTIME,	set_realtime}
+,	{KEY_DEBUGLEVEL,set_debuglevel}
 };
 
 static const struct WholeLineDirective {
@@ -140,12 +150,15 @@ extern volatile struct process_info *	curproc;
 extern char *				watchdogdev;
 extern int				nummedia;
 extern int                              nice_failback;
+extern int                              auto_failback;
 extern int				DoManageResources;
 extern int				hb_realtime_prio;
 extern PILPluginUniv*			PluginLoadingSystem;
 extern GHashTable*			CommFunctions;
 struct node_info *   			curnode;
 extern int    				timebasedgenno;
+int    					enable_realtime = TRUE;
+extern int    				debug;
 
 static int	islegaldirective(const char *directive);
 static int	parse_config(const char * cfgfile, char *nodename);
@@ -164,6 +177,28 @@ struct hb_media_fns**	hbmedia_types;
 	void setenv(const char *name, const char * value, int);
 #endif
 
+static int
+str_to_boolean(const char * s, int * ret)
+{
+	if (	strcasecmp(s, "true") == 0
+	||	strcasecmp(s, "on") == 0
+	||	strcasecmp(s, "yes") == 0
+	||	strcasecmp(s, "y") == 0
+	||	strcasecmp(s, "1") == 0){
+		*ret = TRUE;
+		return HA_OK;
+	}
+	if (	strcasecmp(s, "false") == 0
+	||	strcasecmp(s, "off") == 0
+	||	strcasecmp(s, "no") == 0
+	||	strcasecmp(s, "n") == 0
+	||	strcasecmp(s, "0") == 0){
+		*ret = FALSE;
+		return HA_OK;
+	}
+	ha_log(LOG_ERR, "Illegal boolean value [%s]", s);
+	return HA_FAIL;
+}
 
 /*
  *	Read in and validate the configuration file.
@@ -1095,15 +1130,16 @@ set_logfile(const char * value)
 static int
 set_nice_failback(const char * value)
 {
-        if(!strcasecmp(value, "on")) {
-                nice_failback = 1;
-        } else {
-                nice_failback = 0;
-        }
-
-        return(HA_OK);
+	return str_to_boolean(value, &nice_failback);
 }
 
+/* sets auto_failback behavior on/off */
+static int
+set_auto_failback(const char * value)
+{
+	nice_failback = TRUE;
+	return str_to_boolean(value, &auto_failback);
+}
 
 /*
  *	Convert a string into a positive, rounded number of milliseconds.
@@ -1380,6 +1416,30 @@ set_generation_method(const char * value)
 	timebasedgenno = TRUE;
 	return HA_OK;
 }
+static int
+set_realtime(const char * value)
+{
+	int	ret = str_to_boolean(value, &enable_realtime);
+	if (ret == HA_OK) {
+		if (enable_realtime) {
+			cl_enable_realtime();
+		}else{
+			cl_disable_realtime();
+		}
+	}
+	return ret;
+		
+}
+
+static int
+set_debuglevel(const char * value)
+{
+	debug = atoi(value);
+	if (debug >= 0 && debug < 256) {
+		return(HA_OK);
+	}
+	return(HA_FAIL);
+}
 
 static int
 add_client_child(const char * directive)
@@ -1463,6 +1523,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.82  2003/05/22 05:17:42  alan
+ * Added the auto_failback option to heartbeat.
+ *
  * Revision 1.81  2003/04/30 22:24:22  alan
  * Added the ability to have a ping node have a different timeout
  * interval than our usual one.
