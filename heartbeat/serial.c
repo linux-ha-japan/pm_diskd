@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.19 2000/12/04 20:33:17 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.20 2000/12/04 22:16:33 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -39,6 +39,7 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.19 2000/12/04 20:33:17 ala
 #include <sys/fcntl.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 
 #include <heartbeat.h>
 #include <lock.h>
@@ -227,8 +228,7 @@ ttysetup(int fd)
 	ti.c_cflag |=  (serial_baud|CS8|CREAD|CLOCAL|CRTSCTS);
 
 	ti.c_lflag &= ~(ICANON|ECHO|ISIG);
-	/* The __FreeBSD__ clause may not be needed any more */
-#if !defined(IRIX) && !defined(__FreeBSD__) && !defined(BSD)
+#if !defined(IRIX) && !defined(BSD)
 	ti.c_line = 0;
 #endif
 	ti.c_cc[VMIN] = 1;
@@ -460,6 +460,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.20  2000/12/04 22:16:33  alan
+ * Simplfied a BSD compatibility fix.
+ *
  * Revision 1.19  2000/12/04 20:33:17  alan
  * OpenBSD fixes from Frank DENIS aka Jedi/Sector One <j@c9x.org>
  *
