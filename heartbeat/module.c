@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.5 2000/11/12 04:29:22 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.6 2000/12/05 15:12:52 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -30,12 +30,20 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.5 2000/11/12 04:29:22 ala
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/param.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <dlfcn.h>
 #include "heartbeat.h"
 #include <ha_msg.h>
 #include <hb_module.h>
+
+/* BSD wants us to cast the select parameter to scandir */
+#ifdef BSD
+#	define SCANSEL_C	(void *)
+#else
+#	define SCANSEL_C	/* Nothing */
+#endif
 
 extern struct hb_media_fns** hbmedia_types;
 extern int num_hb_media_types;
@@ -128,7 +136,7 @@ comm_module_init(void)
 	strcpy(comm_symbols[9].name, "hb_dev_isping");
 	comm_symbols[9].mandatory = 1;
 
-	n = scandir(COMM_MODULE_DIR, &namelist, &so_select, 0);
+	n = scandir(COMM_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
 
 	if (n < 0) { 
 		ha_log(LOG_ERR, "%s: scandir failed.", __FUNCTION__);
@@ -229,7 +237,7 @@ auth_module_init()
 	strcpy(auth_symbols[2].name, "hb_auth_nkey");
 	auth_symbols[2].mandatory = 1;
 
-	n = scandir(AUTH_MODULE_DIR, &namelist, &so_select, 0);
+	n = scandir(AUTH_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
 
 	if (n < 0) { 
 		ha_log(LOG_ERR, "%s: scandir failed", __FUNCTION__);

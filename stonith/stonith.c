@@ -26,6 +26,7 @@
 #include <syslog.h>
 #include <libintl.h>
 #include <sys/wait.h>
+#include <sys/param.h>
 #include <dlfcn.h>
 #include <dirent.h>
 #include <stonith.h>
@@ -40,6 +41,14 @@ struct symbol_str {
     char name[MAX_FUNC_NAME];
     void** function;
 };
+
+/* BSD wants us to cast the select parameter to scandir */
+#ifdef BSD
+#	define SCANSEL_C	(void *)
+#else
+#	define SCANSEL_C	/* Nothing */
+#endif
+
 
 static int so_select (const struct dirent *dire);
 
@@ -157,7 +166,7 @@ stonith_types(void)
 	static int	lastcount = 0;
 
 
-	n = scandir(STONITH_MODULES, &namelist, &so_select, 0);
+	n = scandir(STONITH_MODULES, &namelist, SCANSEL_C &so_select, 0);
 	if (n < 0) {
 		syslog(LOG_ERR, "%s: scandir failed.", __FUNCTION__);
 		return(NULL);
