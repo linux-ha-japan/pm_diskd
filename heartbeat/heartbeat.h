@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.17 2000/04/03 08:26:29 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.18 2000/04/05 13:40:28 lclaudio Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -274,6 +274,7 @@ extern void		ha_error(const char * msg);
 extern void		ha_assert(const char *s, int line, const char * file);
 extern void		ha_log(int priority, const char * fmt, ...);
 extern void		ha_perror(const char * fmt, ...);
+extern int              send_local_starting(void);
 extern int		send_local_status(void);
 extern int		set_local_status(const char * status);
 extern int		send_cluster_msg(struct ha_msg*msg);

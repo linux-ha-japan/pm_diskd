@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.29 2000/04/03 08:26:29 horms Exp $
+#	$Id: Specfile,v 1.30 2000/04/05 13:40:27 lclaudio Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -22,12 +22,17 @@ It implements the following kinds of heartbeats:
 	- Bidirectional Serial PPP/UDP Rings (using PPP)
 
 %changelog
+
+* Tue Apr 04 2000  Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>
+
 * Sat Dec 25 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      and Guenther Thomsen <thomsen@cs.tu-berlin.de>
 
 + Version 0.4.7
+  + Added the nice_failback feature. If the cluster is running when
+	the primary starts it acts as a secondary. (Luis Claudio)
   + Put in lots of code to make lost packet retransmission happen
   + Stopped trying to use the /proc/ha interface
   + Finished the error recovery in the heartbeat protocol (and got it to work)

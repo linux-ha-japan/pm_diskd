@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.39 2000/04/03 08:26:29 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.40 2000/04/05 13:40:28 lclaudio Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -169,6 +169,11 @@ int		Argc = -1;
 int		debug = 0;
 int		RestartRequested = 0;
 int		WeAreRestarting = 0;
+int             cluster_already_active = 0;
+int             we_are_primary = 0;
+int             send_starting_now = 1;
+int             nice_failback = 0;
+int		starting = 1;
 int		killrunninghb = 0;
 int		rpt_hb_status = 0;
 int		childpid = -1;
@@ -763,7 +768,8 @@ master_status_process(void)
 	struct ha_msg *		msg = NULL;
 	int			resources_requested_yet = 0;
 	time_t			lastnow = 0L;
-
+	int 			received_starting = 0;
+		
 
 	init_status_alarm();
 	init_watchdog();
@@ -781,6 +787,13 @@ master_status_process(void)
 			send_status_now = 0;
 			send_local_status();
 		}
+
+                if ((send_starting_now && nice_failback) && starting) {
+			send_starting_now = 0;
+			ha_log(LOG_DEBUG, "Sending starting msg");
+			send_local_starting();
+		}
+
 		if (dump_stats_now) {
 			dump_stats_now = 0;
 			dump_all_proc_stats();
@@ -857,6 +870,25 @@ master_status_process(void)
 			}
 		}
 
+
+
+		/* If we're starting and a "starting" message came from another
+		 *  node, the primary may take its role. Else act as secondary 
+		 *  (of course, if nice_failback is on)
+		*/
+		
+		if (!strcasecmp(type,NOSEQ_PREFIX T_STARTING) 
+		&& thisnode != curnode && (starting && nice_failback)) {
+                        nice_failback = 0;
+			cluster_already_active = 0;
+			received_starting = 1;
+			starting = 0;
+			ha_log(LOG_DEBUG,"Received starting msg from %s"
+					,from);
+			send_local_starting();
+			continue;
+		}
+				
 		/*
 		 * Request our resources after a (PPP-induced) delay.
 		 * If we have PPP as our only link this delay might have
@@ -868,9 +900,24 @@ master_status_process(void)
 		 */
 	
 		if (!WeAreRestarting && !resources_requested_yet
-		&&	(thisnode != curnode || (now-starttime) > RQSTDELAY)) {
-				resources_requested_yet=1;
-				req_our_resources();
+		&&	(thisnode != curnode && (now-starttime) > RQSTDELAY)) {
+			if (nice_failback && !received_starting) {
+				ha_log(LOG_DEBUG,
+					"The cluster is already active");
+				cluster_already_active = 1;
+			} else {
+				if (nice_failback && received_starting) {
+					ha_log(LOG_DEBUG,
+						"Everybody is starting now");
+				}
+			}
+			resources_requested_yet=1;
+			starting = 0;
+			req_our_resources();
+		}
+
+                if (!strcasecmp(type,NOSEQ_PREFIX T_STARTING)) {
+			continue;
 		}
 
 		/* Is this message a duplicate, or destined for someone else? */
@@ -1339,6 +1386,37 @@ send_cluster_msg(struct ha_msg* msg)
 	return(HA_OK);
 }
 
+/* Send the starting msg out to the cluster */
+int
+send_local_starting(void)
+{
+        struct ha_msg * m;
+        int             rc;
+        char            timestamp[16];
+
+        sprintf(timestamp, "%lx", time(NULL));
+
+        /* if (debug){ */
+                ha_log(LOG_DEBUG, "Sending local starting msg");
+        /* } */
+        if ((m=ha_msg_new(0)) == NULL) {
+                ha_log(LOG_ERR, "Cannot send local starting msg");
+                return(HA_FAIL);
+        }
+        if ((ha_msg_add(m, F_TYPE, NOSEQ_PREFIX T_STARTING) == HA_FAIL) 
+        &&  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
+        &&  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)) {
+                ha_log(LOG_ERR, "send_local_starting: "
+                "Cannot create local starting msg");
+                rc = HA_FAIL;
+        }else{
+                rc = send_cluster_msg(m);
+        }
+
+        ha_msg_del(m);
+        return(rc);
+}
+
 /* Send our local status out to the cluster */
 int
 send_local_status(void)
@@ -1394,13 +1472,29 @@ mark_node_dead(struct node_info *hip)
 	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
 
 	heartbeat_monitor(hmsg);
+	
+	if (starting && nice_failback && hip != curnode) {
+		ha_log(LOG_DEBUG, "I'm alone... ");
+		/* This is one of the  place to put the
+		 * SIT_AND_CRY stuff */
+		nice_failback = 0;
+		req_our_resources();
+	}
+			
 	notify_world(hmsg, hip->status);
 	strcpy(hip->status, "dead");
 	if (hip == curnode) {
 		/* Uh, oh... we're dead! */
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
-	}
+	} else {
+                if (we_are_primary && nice_failback) {
+                        ha_log(LOG_DEBUG,"%s",  "We are primary again!");
+                        we_are_primary = 0;
+                        req_our_resources();
+                }
+        }
+
 	ha_msg_del(hmsg);
 }
 
@@ -1557,12 +1651,25 @@ req_our_resources()
 		if (buf[strlen(buf)-1] == '\n') {
 			buf[strlen(buf)-1] = EOS;
 		}
-		sprintf(getcmd, HALIB "/req_resource %s &", buf);
-		if ((rc=system(getcmd)) != 0) {
-			ha_perror("%s returned %d", getcmd, rc);
-			finalrc=HA_FAIL;
+
+                /* If the cluster is already active, act as standby. */
+                if (cluster_already_active && nice_failback) {
+                        ha_log(LOG_DEBUG,
+                        "Acting as standby for resource %s",buf);
+                } else {
+			sprintf(getcmd, HALIB "/req_resource %s &", buf);
+			if ((rc=system(getcmd)) != 0) {
+				ha_perror("%s returned %d", getcmd, rc);
+				finalrc=HA_FAIL;
+			}
 		}
 	}
+
+        if (rsc_count && nice_failback) {
+                cluster_already_active = 0;
+                we_are_primary = 1;
+        }
+
 	rc=pclose(rkeys);
 	if (rc < 0 && errno != ECHILD) {
 		ha_perror("pclose(%s) returned %d", cmd, rc);
@@ -2502,7 +2609,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.40  2000/04/05 13:40:28  lclaudio
+ *   + Added the nice_failback feature. If the cluster is running when
+ *         the primary starts it acts as a secondary.
+ *
  * Revision 1.39  2000/04/03 08:26:29  horms
+ *
+ *
  * Tidied up the output from heartbeat.sh (/etc/rc.d/init.d/heartbeat)
  * on Redhat 6.2
  *

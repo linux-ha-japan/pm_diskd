@@ -4,6 +4,8 @@
 	Mitja Sarp <mitja@lysator.liu.se>
 	Guenther Thomsen <thomsen@cs.tu-berlin.de>
 	Jacob Rief <jacob.rief@tis.at>
+        Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>
+	Marcelo Tosatti <marcelo@conectiva.com.br>
 
 Code for the following pieces borrowed from code by:
 	Tom Vogt <tom@lemuria.org>	(udp code)

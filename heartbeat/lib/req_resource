@@ -14,7 +14,9 @@
 HA_DIR=/etc/ha.d; export HA_DIR
 . $HA_DIR/shellfuncs
 
-TIMEOUT=30
+# To comply with the new failback stuff the timeout was reduced to 10s.
+# The primary failover always waits $TIMEOUT...
+TIMEOUT=10
 
 RESOURCE=$1
 
