@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.42 2002/03/13 02:25:58 horms Exp $
+# $Id: ldirectord,v 1.43 2002/04/26 21:32:55 alan Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -427,9 +427,9 @@ sub init
 		}
 	} else {
 		if ($CMD eq "status") {
-			init_error("ldirectord is not running for $CONFIG");
+			init_error("ldirectord is stopped for $CONFIG");
 		} elsif ($CMD ne "start") {
-			init_error("ldirectord is not running for $CONFIG");
+			init_error("ldirectord is stopped for $CONFIG");
 		}
 	}
 	read_config();
