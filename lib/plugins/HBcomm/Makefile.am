@@ -38,9 +38,11 @@ bcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 mcast_la_SOURCES	= mcast.c
 mcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
+mcast_la_LIBADD		= $(top_builddir)/replace/libreplace.la
 
 serial_la_SOURCES	= serial.c
 serial_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 ping_la_SOURCES	= ping.c
 ping_la_LDFLAGS	= -export-dynamic -module -avoid-version
+ping_la_LIBADD		= $(top_builddir)/replace/libreplace.la
