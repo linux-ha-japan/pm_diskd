@@ -37,7 +37,7 @@ pkginclude_HEADERS	= expect.h stonith.h
 sbin_PROGRAMS		= stonith meatclient
 
 stonith_SOURCES		= main.c
-stonith_LDADD		= libstonith.la @STONITH_LDADD@
+stonith_LDADD		= libstonith.la @LIBADD_DL@
 
 meatclient_SOURCES	= meatclient.c
 
