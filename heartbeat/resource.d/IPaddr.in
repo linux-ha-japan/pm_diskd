@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.34 2002/12/10 22:42:00 horms Exp $
+#	$Id: IPaddr.in,v 1.35 2003/02/03 15:40:35 msoffen Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -281,8 +281,7 @@ add_interface () {
 		;;
 
     *BSD)
-		CMD="$IFCONFIG $iface inet $ipaddr" \
-			"netmask 255.255.255.255 alias"
+		CMD="$IFCONFIG $iface inet $ipaddr netmask 255.255.255.255 alias"
 		;;
     *)		
     		CMD="$IFCONFIG $iface $ipaddr $IFEXTRA"	
@@ -626,7 +625,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.34 2002/12/10 22:42:00 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.35 2003/02/03 15:40:35 msoffen Exp $"
 }
 
 #
@@ -673,6 +672,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.35  2003/02/03 15:40:35  msoffen
+# Splitting the ifconfig onto 2 lines failed miserably. Put back on one.
+#
 # Revision 1.34  2002/12/10 22:42:00  horms
 # ipaddri -> ipaddr
 #
