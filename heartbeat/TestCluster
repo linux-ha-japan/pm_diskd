@@ -123,23 +123,26 @@ sub SyncStart {
 	}
 }
 
-$attempts = 10;
+$> == 0 || die "Must be root [not $>] to run $0";
+
 
 $EQ="=============";
 
-for ($time=4200; $time <= 5500; $time += 100) {
+$min=100; $max=8000; $incr=100; $repeats = 10;
 
-	print "\n$EQ $time milliseconds Delay $EQ\n";
-	for ($try=1; $try <= $attempts; ++$try) {
-		print "+++Try $try: $time ms delay.\n";
+for ($time=$min; $time <= $max; $time += $incr) {
+
+	print STDERR "\n$EQ $time milliseconds Delay $EQ\n";
+	for ($try=1; $try <= $repeats; ++$try) {
+		print STDERR "+++Try $try: $time ms delay.\n";
 		&AppendLogs(
 		"$EQ Try $try: $time ms delay $EQ");
 		&SyncStart(0, $time);
 		sleep(20);
 	}
-	print "\n$EQ $time milliseconds Advance  $EQ\n";
-	for ($try=1; $try <= $attempts; ++$try) {
-		print "+++Try $try: $time ms advance.\n";
+	print STDERR "\n$EQ $time milliseconds Advance  $EQ\n";
+	for ($try=1; $try <= $repeats; ++$try) {
+		print STDERR "+++Try $try: $time ms advance.\n";
 		&AppendLogs(
 		"$EQ Try $try: $time ms advance $EQ");
 		&SyncStart($time, 0);
