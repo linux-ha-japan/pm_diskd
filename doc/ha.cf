@@ -3,6 +3,14 @@
 #	of nodes listed {"node ...}
 #	and one of {serial, bcast, mcast, or ucast}
 #
+#	ATTENTION: As the configuration file is read line by line,
+#		   THE ORDER OF DIRECTIVE MATTERS!
+#
+#		   In particular, make sure that the timings and udpport
+#		   et al are set before the heartbeat media are defined!
+#		   All will be fine if you keep them ordered as in this
+#		   example.
+#
 #
 #       Note on logging:
 #       If any of debugfile, logfile and logfacility are defined then they
