@@ -25,6 +25,7 @@
 #ifndef OC_EVENT_H
 #define OC_EVENT_H
 #include <sys/types.h>
+#include <stdint.h>
 
 /*
  * An opaque token into the membership service is
@@ -38,7 +39,7 @@ typedef int oc_ev_t;
  * descriptor is unique for all events across all event classes.
  */
 
-typedef u_int32_t  oc_ed_t;
+typedef uint32_t  oc_ed_t;
 
 /*
  * Event descriptors:
