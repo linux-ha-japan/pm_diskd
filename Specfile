@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.80 2001/01/19 12:32:07 eric Exp $
+#	$Id: Specfile,v 1.81 2001/01/20 23:19:51 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -10,12 +10,12 @@ Packager: Alan Robertson <alanr@henge.com>
 Source: http://linux-ha.org/download/%PKG%-%VERS%.tar.gz
 Buildroot: /var/tmp/%PKG%-root
 BuildPreReq: lynx
-Requires: logrotate, sysklogd
+Requires: sysklogd
 
 %package ldirectord
 Summary: Monitor daemon for maintaining high availability resources
 Group: Utilities
-Requires: perl, perl-libwww-perl perl-Net-SSLeay, logrotate, ipvsadm
+Requires: perl, perl-libwww-perl perl-Net-SSLeay, ipvsadm
 # perl-libwww-perl, perl-net-ssleay available from
 # ultramonkey.sourceforge.net and others
 
