@@ -1,5 +1,0 @@
-#!/bin/sh
-
-. $HA_FUNCS
-
-ha_log "Stonith complete"
