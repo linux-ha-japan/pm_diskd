@@ -192,7 +192,7 @@ update_choose_leader(update_t *entry1,
 			update_t *entry2,  
 			llm_info_t *llm)
 {
-	char value;
+	int value;
 
 	if (entry2 == NULL) {
 		return entry1;	
