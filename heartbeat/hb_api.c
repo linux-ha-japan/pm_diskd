@@ -571,7 +571,7 @@ api_get_parameter (const struct ha_msg* msg, struct ha_msg* resp
 		return I_API_BADREQ;
 	}
 	if ((pvalue = GetParameterValue(pname)) != NULL) {
-		if (ha_msg_mod(resp, F_PVALUE, pvalue)) {
+		if (ha_msg_mod(resp, F_PVALUE, pvalue) != HA_OK) {
 			ha_log(LOG_ERR
 			,	"api_parameter: cannot add "
 			F_PVALUE " field to message");
