@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.14 2000/12/12 22:09:34 alan Exp $
+#	$Id: Makefile,v 1.15 2000/12/20 12:39:18 eric Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -81,7 +81,11 @@ BINCMDS = $(STONITH)
 
 LIBFILES = $(ARFILE) $(SHLIB)
 
-PRODUCTS = $(BINCMDS) $(LIBS) baytech.so rps10.so nw_rpc100s.so
+
+# If you want the VA Linux Cluster stonith module installed, 
+# uncomment the following line.  You must have the vacmclient library 
+#VACM_STONITH = vacm_stonith.so 
+PRODUCTS = $(BINCMDS) $(LIBS) baytech.so rps10.so nw_rpc100s.so $(VACM_STONITH)
 
 INCFILES = stonith.h
 
@@ -97,6 +101,9 @@ rps10.so:	rps10.o expect.o
 
 nw_rpc100s.so:	nw_rpc100s.o expect.o
 	$(CC) -shared -o $@ $^
+
+vacm_stonith.so: vacm_stonith.o
+	$(CC) -shared -o $@ $^ -lvacmclient
 
 $(MODULES:.o=.so): $(MODULES)
 	$(CC) -shared -o $@ $(@:.so=.o)
@@ -119,10 +126,10 @@ install_bin: all
 	$(INSTALL) -cm 755 $(BINCMDS) $(BINDIR)
 	ls -l $(BINDIR)/$(BINCMDS)
 
-install_lib: $(LIBFILES) $(MODULES) baytech.so rps10.so nw_rpc100s.so
+install_lib: $(LIBFILES) $(MODULES) baytech.so rps10.so nw_rpc100s.so $(VACM_STONITH)
 	$(INSTALL) -cm 755 $(LIBFILES) $(LIBDIR)
 	mkdir -p $(MODDIR)
-	$(INSTALL) -cm 755 $(MODULES:.o=.so) baytech.so rps10.so nw_rpc100s.so $(MODDIR)
+	$(INSTALL) -cm 755 $(MODULES:.o=.so) baytech.so rps10.so nw_rpc100s.so $(VACM_STONITH) $(MODDIR)
 
 install_inc:
 	if [ ! -d $(INCDIR) ]; then mkdir $(INCDIR); fi
