@@ -58,7 +58,7 @@ case $HA_DONTASK in
     $HA_BIN/ResourceManager takegroup "$RESOURCE";;
 
   *)
-    ha_clustermsg <<!MSG
+    ha_clustermsg <<-!MSG
 	t=ip-request
 	ipaddr=$RESOURCE
 !MSG
