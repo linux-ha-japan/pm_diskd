@@ -1,0 +1,9 @@
+The Linux Director Daemon (ldirectord) is written by Jacob Rief
+<jacob.rief@tis.at>
+
+The ldirectord is a stand-alone daemon to monitor services of real
+servers, currently http and https service. It is simple to install and
+works with the heartbeat code (http://www.linux-ha.org/).
+
+See 'perldoc ldirectord' for all the information about ldirectord.
+
