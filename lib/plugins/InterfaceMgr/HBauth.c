@@ -1,5 +1,8 @@
 /*
  *	Heartbeat authentication interface manager
+ *
+ *	Copyright 2001 Alan Robertson <alanr@unix.sh>
+ *	Licensed under the GNU Lesser General Public License
  */
 #define	PIL_PLUGINTYPE	InterfaceMgr
 #define	PIL_PLUGIN	HBauth

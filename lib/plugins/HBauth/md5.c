@@ -61,7 +61,7 @@ static void md5closepi(PILPlugin* pi)
 /*
  * md5closeintf called as part of shutting down the md5 HBauth interface.
  * If there was any global data allocated, or file descriptors opened, etc.
- * which is associated with the md5 interface, here's our chance
+ * which is associated with the md5 implementation, here's our chance
  * to clean it up.
  */
 static PIL_rc md5closeintf(PILInterface* pi, void* pd)

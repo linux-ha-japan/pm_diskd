@@ -1,5 +1,9 @@
 /*
+ * 
  * Generic interface (implementation) manager
+ *
+ * Copyright 2001 Alan Robertson <alanr@unix.sh>
+ * Licensed under the GNU Lesser General Public License
  *
  * This manager will manage any number of types of interfaces.
  *
@@ -24,33 +28,6 @@
  * authentication modules, they'll have their (separate) hash table that
  * their exported interfaces are registered in.
  * 
- * What does this look like in practice?
- *
- * GHashTable*	authmodules = NULL;
- * GHashTable*	commmodules = NULL;
- * PILGenericIfMgmtRqst RegisterRequests[] =
- * {
- * 	{"auth",	&authmodules,	NULL},
- * 	{"comm",	&commmodules,	NULL};
- * 	{NULL,		NULL,		NULL}
- * };
- * PILPlugin*	PluginUniverse;
- * PluginUniverse = NewPILPlugin("/usr/lib/whatever/plugins");
- * PILLoadPlugin(PluginUniverse, "InterfaceMgr", "generic", &RegisterRequests);
- *
- * Then, when you load an auth module, its exported interface gets added
- * to "authmodules". When you unload an auth module, it gets removed
- * from authmodules.
- *
- * Then, when you load a comm module, its exported interfaces gets added
- * to "commodules".  When you unload a comm module, its exported
- * interfaces get removed from "commodules"
- *
- * If there are simple changes that would be useful for this generic
- * plugin manager, then "patches are being accepted" :-)
- *
- * If you don't like the way this plugin manager works in a broader way,
- * you're free to write your own  - it's just another plugin ;-)
  */
 
 #define	PIL_PLUGINTYPE		InterfaceMgr
@@ -61,34 +38,9 @@
 /* We are an interface manager... */
 #define ENABLE_PLUGIN_MANAGER_PRIVATE
 
-#include <pils/interface.h>
+#include <pils/generic.h>
 
 #include <stdio.h>
-
-/*
- * The next three typedefs really belongs in a .h file, but it's not
- * there yet ;-)
- */
-typedef enum {
-	PIL_REGISTER,
-	PIL_UNREGISTER,
-}GenericPILCallbackType;
- 
-/* A user callback for the generic interface manager */
-typedef int (*GenericPILCallback)
-(		GenericPILCallbackType	calltype
-,		PILPluginUniv*		universe
-,               const char * 		iftype
-,		const char *		ifname
-,		void *			userptr
-);
-
-typedef struct {
-	const char *	   iftype;	/* What type of interface is this? */
-	GHashTable**	   ifmap;	/* Table with implementation info */
-	GenericPILCallback callback;	/* Function2call when events occur */
-	void*		   userptr;	/* Passed to Callback function */
-}PILGenericIfMgmtRqst;
 
 PIL_PLUGIN_BOILERPLATE("1.0", GenDebugFlag, ClosePlugin)
 

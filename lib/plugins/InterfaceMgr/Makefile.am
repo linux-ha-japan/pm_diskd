@@ -29,7 +29,10 @@ CFLAGS			= @CFLAGS@
 ## libraries
 
 plugindir		= $(pkglibdir)/plugins/InterfaceMgr
-plugin_LTLIBRARIES	= HBauth.la
+plugin_LTLIBRARIES	= HBauth.la generic.la
+
+generic_la_SOURCES	= generic.c
+generic_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 HBauth_la_SOURCES	= HBauth.c
 HBauth_la_LDFLAGS	= -export-dynamic -module -avoid-version
