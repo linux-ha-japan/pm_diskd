@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.3 1999/10/02 04:59:22 alanr Exp $
+#	$Id: heartbeat.sh,v 1.4 1999/10/02 17:48:08 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -209,6 +209,8 @@ StartHA() {
   then
     mv $HA_DIR/ipresources $HA_DIR/haresources
   fi
+  #  Create the FIFO, if we need to...
+  init_fifo
   #	Start heartbeat daemon
   if
     start_heartbeat
@@ -326,6 +328,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.4  1999/10/02 17:48:08  alanr
+#  Put back call to init_fifo.  Thanks to Thomas Hepper
+#
 #  Revision 1.3  1999/10/02 04:59:22  alanr
 #  FreeBSD mkfifo cleanup
 #
