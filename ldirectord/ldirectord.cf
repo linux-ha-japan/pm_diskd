@@ -109,6 +109,20 @@ virtual=192.168.6.240:143
         persistent=600
         protocol=tcp
 
+#Sample configuration for an ldap virtual service.
+#Fallback setting overides global
+#virtual=192.168.84.5:389
+#        real=10.0.1.4:389 masq
+#        real=10.0.1.6:389 masq
+#        fallback=127.0.0.1:389
+#        service=ldap
+#        scheduler=wlc
+#        request="dc=upmc, dc=fr"
+#        receive="dc=upmc, dc=fr"
+#        persistent=600
+#        #netmask=255.255.255.255
+#        protocol=tcp
+
 #Sample configuration for an unsuported protocol
 #The real servers will just be brought up without checking for availability
 #Fallback setting overides global
