@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.17 2003/02/17 16:30:46 msoffen Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.18 2003/02/17 18:51:03 alan Exp $";
 /* 
  * send_arp
  * 
@@ -107,7 +107,7 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 #else
-    #error "libnet not defined.\n");
+#	error "Must have LIBNET version defined."
 #endif
 
 /*
@@ -228,6 +228,9 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.18  2003/02/17 18:51:03  alan
+ * Minor typo correction for #error line in send_arp.c
+ *
  * Revision 1.17  2003/02/17 16:30:46  msoffen
  * Made it error out if libnet isn't defined at all (no 1.0 or 1.1 version).
  *
