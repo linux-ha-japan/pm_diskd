@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.12 2000/09/01 21:10:46 marcelo Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.13 2000/12/12 23:23:47 alan Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -996,8 +996,8 @@ ppp_udp_make_receive_sock(struct hb_media * mp) {
 	return(sockfd);
 }
 #define	ALARMCNT	2
-#define	NULLTS		0L
-static time_t			ppp_ts = NULLTS;
+#define	NULLTS		((TIME_T) 0L)
+static TIME_T			ppp_ts = NULLTS;
 static char			ppp_path[MAXLINE];
 static struct hb_media *	ppp_hbmedia;
 
@@ -1015,10 +1015,10 @@ save_ppp_info(struct hb_media * mp)
 	}
 	strcpy(ppp_path, path);
 	for (j=0; j < 3; ++j) {
-		time_t	now;
-		now = time(NULL);
+		TIME_T	now;
+		now = (TIME_T) time(NULL);
 		if (stat(ppp_path, &buf) >= 0) {
-			ppp_ts = buf.st_mtime;
+			ppp_ts = (TIME_T) buf.st_mtime;
 			if ((now - ppp_ts) > 1) {
 				break;
 			}
@@ -1197,6 +1197,11 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.13  2000/12/12 23:23:47  alan
+ * Changed the type of times from time_t to TIME_T (unsigned long).
+ * Added BuildPreReq: lynx
+ * Made things a little more OpenBSD compatible.
+ *
  * Revision 1.12  2000/09/01 21:10:46  marcelo
  * Added dynamic module support
  *

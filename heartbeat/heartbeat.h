@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.37 2000/12/04 22:11:22 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.38 2000/12/12 23:23:47 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -91,6 +91,11 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.37 2000/12/04 22:11:
 #	endif
 #endif
 
+/* This is consistent with OpenBSD, and is a good choice anyway */
+#define	TIME_T	unsigned long
+#define	TIME_F	"%lu"
+#define	TIME_X	"%lx"
+
 /* #define HA_DEBUG */
 #define	DEFAULTLOG	VAR_LOG_D "/ha-log"
 #define	DEFAULTDEBUG	VAR_LOG_D "/ha-debug"
@@ -103,10 +108,10 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.37 2000/12/04 22:11:
 #define	EOS		'\0'
 #define	COMMENTCHAR	'#'
 #define	STATUS		"STATUS"
-#define	INITSTATUS	"init"		/* The status of a node we've never heard from */
-#define	UPSTATUS	"up"		/* This means we're listening, but might not be transmitting */
-#define	ACTIVESTATUS	"active"	/* This means we're fully functional, and all links are up */
-#define	DEADSTATUS	"dead"		/* The status assigned to a non-working link or machine */
+#define	INITSTATUS	"init"		/* Status of a node we've never heard from */
+#define	UPSTATUS	"up"		/* Listening (we might not be xmitting) */
+#define	ACTIVESTATUS	"active"	/* fully functional, and all links are up */
+#define	DEADSTATUS	"dead"		/* Status of non-working link or machine */
 #define	LINKUP		"up"		/* The status assigned to a working link */
 #define	LOADAVG		"/proc/loadavg"
 #define	PIDFILE		VAR_RUN_D "/heartbeat.pid"

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.93 2000/12/04 22:11:22 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.94 2000/12/12 23:23:46 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -308,8 +308,8 @@ int		DoManageResources = 1;
 int		childpid = -1;
 char *		watchdogdev = NULL;
 int		watchdogfd = -1;
-time_t		starttime = 0L;
-time_t		next_statsdump = 0L;
+TIME_T		starttime = 0L;
+TIME_T		next_statsdump = 0L;
 void		(*localdie)(void);
 
 
@@ -543,9 +543,9 @@ ha_timestamp(void)
 {
 	static char ts[64];
 	struct tm*	ttm;
-	time_t		now;
+	TIME_T		now;
 
-	time(&now);
+	now = time(NULL);
 	ttm = localtime(&now);
 
 	sprintf(ts, "%04d/%02d/%02d_%02d:%02d:%02d"
@@ -1079,7 +1079,7 @@ master_status_process(void)
 	FILE *			f = fdopen(status_pipe[P_READFD], "r");
 	FILE *			regfifo;
 	struct ha_msg *		msg = NULL;
-	time_t			lastnow = 0L;
+	TIME_T			lastnow = 0L;
 	char			iface[MAXIFACELEN];
 	int			fd, regfd;
 
@@ -1105,7 +1105,7 @@ master_status_process(void)
 	regfd = fileno(regfifo);	clearerr(regfifo);
 
 	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
-		time_t		now = time(NULL);
+		TIME_T		now = time(NULL);
 		fd_set		inpset;
 		fd_set		exset;
 		int		ndesc;
@@ -1198,8 +1198,8 @@ process_clustermsg(FILE * f)
 	char			iface[MAXIFACELEN];
 	struct	link *		lnk;
 
-	time_t			msgtime;
-	time_t			now = time(NULL);
+	TIME_T			msgtime;
+	TIME_T			now = time(NULL);
 	const char *		from;
 	const char *		ts;
 	const char *		type;
@@ -1334,7 +1334,7 @@ process_clustermsg(FILE * f)
 		const char *	cseq;
 		unsigned long	seqno = 0;
 
-		sscanf(ts, "%lx", &msgtime);
+		sscanf(ts, TIME_X, &msgtime);
 		status = ha_msg_value(msg, F_STATUS);
 		if (status == NULL)  {
 			ha_log(LOG_ERR, "process_status_message: "
@@ -2152,7 +2152,7 @@ void
 ding(int sig)
 {
 	static int	dingtime = 1;
-	time_t		now = time(NULL);
+	TIME_T		now = time(NULL);
 	signal(SIGALRM, ding);
 
 	if (ANYDEBUG) {
@@ -2348,7 +2348,7 @@ send_resources_held(const char *str, int stable)
         int             rc;
         char            timestamp[16];
 
-        sprintf(timestamp, "%lx", time(NULL));
+        sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (ANYDEBUG) {
         	ha_log(LOG_DEBUG, "Sending hold resources msg: %s", str);
@@ -2381,7 +2381,7 @@ send_local_starting(void)
         int             rc;
         char            timestamp[16];
 
-        sprintf(timestamp, "%lx", time(NULL));
+        sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (ANYDEBUG) {
         	ha_log(LOG_DEBUG, "Sending local starting msg");
@@ -2449,7 +2449,7 @@ change_link_status(struct node_info *hip, struct link *lnk, const char * newstat
 	ha_log(LOG_INFO, "Link %s:%s %s.", hip->nodename
 	,	lnk->name, lnk->status);
 
-	sprintf(timestamp, "%lx", time(NULL));
+	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (	ha_msg_add(lmsg, F_TYPE, T_IFSTATUS) == HA_FAIL
 	||	ha_msg_add(lmsg, F_NODE, hip->nodename) == HA_FAIL
@@ -2476,7 +2476,7 @@ mark_node_dead(struct node_info *hip)
 		return;
 	}
 
-	sprintf(timestamp, "%lx", time(NULL));
+	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (	ha_msg_add(hmsg, F_TYPE, T_STATUS) == HA_FAIL
 	||	ha_msg_add(hmsg, F_SEQ, "1") == HA_FAIL
@@ -3522,9 +3522,9 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 
 	if (ishealedpartition || isrestart) {
 		const char *	sts;
-		time_t	newts = 0L;
+		TIME_T	newts = 0L;
 		if ((sts = ha_msg_value(msg, F_TIME)) == NULL
-		||	sscanf(sts, "%lx", &newts) != 1 || newts == 0L) {
+		||	sscanf(sts, TIME_X, &newts) != 1 || newts == 0L) {
 			/* Toss it.  No valid timestamp */
 			ha_log(LOG_ERR, "should_drop_message: bad timestamp");
 			return(DROPIT);
@@ -3918,6 +3918,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.94  2000/12/12 23:23:46  alan
+ * Changed the type of times from time_t to TIME_T (unsigned long).
+ * Added BuildPreReq: lynx
+ * Made things a little more OpenBSD compatible.
+ *
  * Revision 1.93  2000/12/04 22:11:22  alan
  * FreeBSD compatibility changes.
  *

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.20 2000/12/04 22:16:33 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.21 2000/12/12 23:23:47 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -291,7 +291,7 @@ hb_dev_write(struct hb_media*mp, struct ha_msg*m)
 	int		wrc;
 	int		size;
 	int		ourtty;
-	static time_t	last_norts;
+	static TIME_T	last_norts;
 
 	TTYASSERT(mp);
 
@@ -319,7 +319,7 @@ hb_dev_write(struct hb_media*mp, struct ha_msg*m)
 
 	if (wrc < 0) {
 		if (errno == EINTR) {
-			time_t	now = time(NULL);
+			TIME_T	now = time(NULL);
 			tcflush(ourtty, TCIOFLUSH);
 			if ((now - last_norts) > RTS_WARNTIME) {
 				last_norts = now;
@@ -460,6 +460,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.21  2000/12/12 23:23:47  alan
+ * Changed the type of times from time_t to TIME_T (unsigned long).
+ * Added BuildPreReq: lynx
+ * Made things a little more OpenBSD compatible.
+ *
  * Revision 1.20  2000/12/04 22:16:33  alan
  * Simplfied a BSD compatibility fix.
  *

@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.45 2000/12/12 22:09:34 alan Exp $
+#	$Id: Makefile,v 1.46 2000/12/12 23:23:46 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -36,6 +36,7 @@ LOGROTATESCRIPT=$(LOGROTATED)/$(PKG)
 RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
 COMM_MODULES_DIR=$(HALIB)/modules/comm/
 AUTH_MODULES_DIR=$(HALIB)/modules/auth/
+PICFLAG=-fPIC
 APIGID=60
 APIGROUP=haclient
 

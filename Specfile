@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.73 2000/11/25 15:25:25 alan Exp $
+#	$Id: Specfile,v 1.74 2000/12/12 23:23:46 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -9,6 +9,7 @@ Group: Utilities
 Packager: Alan Robertson <alanr@henge.com>
 Source: http://linux-ha.org/download/%PKG%-%VERS%.tar.gz
 Buildroot: /var/tmp/%PKG%-root
+BuildPreReq: lynx
 
 %package ldirectord
 Summary: Monitor daemon for maintaining high availability resources
