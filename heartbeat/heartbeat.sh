@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.28 2000/08/01 12:25:59 alan Exp $
+#	$Id: heartbeat.sh,v 1.29 2000/11/17 13:28:46 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -18,6 +18,28 @@
 # pidfile: /var/run/heartbeat.pid
 # config: /etc/ha.d/ha.cf
   
+if
+  [ -r /etc/SuSE-release ]
+then
+  # rc.status is new since SuSE 7.0
+  [ -r /etc/rc.status ] && . /etc/rc.status
+  . /etc/rc.config
+
+  # Determine the base and follow a runlevel link name.
+  base=${0##*/}
+  link=${base#*[SK][0-9][0-9]}
+
+  # Force execution if not called by a runlevel directory.
+  test "$link" = "$base" && START_HEARTBEAT=yes
+  test "$START_HEARTBEAT" = yes || exit 0
+fi
+if
+  [ -z "$rc_done" ]
+then
+  rc_done="Done."
+  rc_failed="Failed."
+  rc_skipped="Skipped."
+fi
 
 HA_DIR=/etc/ha.d; export HA_DIR
 CONFIG=$HA_DIR/ha.cf
@@ -45,11 +67,12 @@ then
 	$HA_BIN/heartbeat -s
   }
   echo_failure() {
-      echo " Heartbeat failure [rc=$1]"
+      echo " Heartbeat failure [rc=$1]. $rc_failed"
       return $1
   }
   echo_success() {
 	: Cool!  It started!
+      echo -e "$rc_done"
   }
 else
   . $DISTFUNCS
@@ -255,6 +278,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.29  2000/11/17 13:28:46  alan
+#  Made the code slightly more SuSE-friendly in its messages.
+#  Increased the release number :-)
+#
 #  Revision 1.28  2000/08/01 12:25:59  alan
 #  Yet another few comment changes...
 #
