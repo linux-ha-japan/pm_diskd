@@ -39,7 +39,7 @@ static GString*        gXML_GSList_out(gXML_wrapper* wrapper);
 static gboolean gXML_GSlist_append(gXML_wrapper** parent, gXML_wrapper* child, GHashTable* attribs);
 
 /* Initialize our wrapper function structure */
-gXML_type GSList_funcs = {
+gXML_type GSList_type = {
 	"sll",
 	gXML_GSlist_append,
 	gXML_GSList_out,
@@ -49,14 +49,16 @@ gXML_type GSList_funcs = {
 gXML_wrapper*
 gXML_wrap_GSList(GSList* data)
 {
-	return gXML_wrap_generic(data, &GSList_funcs);
+	return gXML_wrap_generic(data, &GSList_type);
 }
 
 GSList*
 gXML_unwrap_GSList(gXML_wrapper*w)
 {
-	g_assert(w->functions == &GSList_funcs);
-	return w->data;
+	if (IS_GSLISTTYPE(w)) {
+		return w->data;
+	}
+	return NULL;
 }
 
 /* Singly Linked List output function */

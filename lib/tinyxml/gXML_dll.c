@@ -38,7 +38,7 @@ static GString*        gXML_GList_out(gXML_wrapper* wrapper);
  * 	Postcondition:  returns an XML string representing the GList
  */
 /* Initialize the wrapper function structure */
-gXML_type GList_funcs = {
+gXML_type GList_type = {
 	"dll",
 	gXML_Glist_append,
 	gXML_GList_out,
@@ -49,14 +49,16 @@ gXML_type GList_funcs = {
 gXML_wrapper*
 gXML_wrap_GList(GList* data)
 {
-	return gXML_wrap_generic(data, &GList_funcs);
+	return gXML_wrap_generic(data, &GList_type);
 }
 
 GList*
 gXML_unwrap_GList(gXML_wrapper*w)
 {
-	g_assert(w->functions == &GList_funcs);
-	return w->data;
+	if (IS_GLISTTYPE(w)) {
+		return w->data;
+	}
+	return NULL;
 }
 
 

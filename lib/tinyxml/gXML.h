@@ -27,19 +27,21 @@
 typedef struct _gXML_type  gXML_type;
 
 /* Define the unique wrapper identifier */
-#define WRAP_IDENT      0xBEADFACE
+#define WRAP_IDENT      0xFEEDFACE
 
 /* Define wrapper structure */
 typedef struct _gXML_wrapper {
 	guint		identifier;
 	gXML_type*	functions;
-	gpointer                data;
+	gpointer	data;
 }gXML_wrapper;
 
 /* Define function pointers */
 struct _gXML_type {
 	const gchar*	type;
-	gboolean	(*append)(gXML_wrapper** parent, gXML_wrapper* child, GHashTable*attrs);
+	/* FIXME! Need to add free object function */
+	gboolean	(*append)(gXML_wrapper** parent
+	,	gXML_wrapper* child, GHashTable*attrs);
 	GString*	(*to_XML)(gXML_wrapper* wrapper);
 };
 
@@ -100,5 +102,23 @@ GString* gXML_GString_out(gXML_wrapper* wrapper);
  */
 
 gboolean gXML_insert_item(gXML_wrapper** parent, gXML_wrapper* child, GHashTable* attrs);
+
+
+extern gXML_type GHashTable_type;
+extern gXML_type GList_type;
+extern gXML_type GSList_type;
+extern gXML_type GString_type;
+
+#define IS_WRAPPED(v)		\
+	((v) != NULL && (((gXML_wrapper*)v)->identifier) == WRAP_IDENT)
+
+#define IS_GHASHTABLETYPE(v)	\
+	(IS_WRAPPED(v) && (((gXML_wrapper*)v)->functions) == &GHashTable_type)
+#define IS_GLISTTYPE(v)		\
+	(IS_WRAPPED(v) && (((gXML_wrapper*)v)->functions) == &GList_type)
+#define IS_GSLISTTYPE(v)	\
+	(IS_WRAPPED(v) && (((gXML_wrapper*)v)->functions) == &GSList_type)
+#define IS_STRINGTYPE(v)	\
+	(IS_WRAPPED(v) && (((gXML_wrapper*)v)->functions) == &GString_type)
 
 #endif /* gXML_H */

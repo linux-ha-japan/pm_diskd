@@ -141,7 +141,7 @@ gboolean
 gXML_GString_append(gXML_wrapper** parent, gXML_wrapper* child, GHashTable* attribs);
 
 /* Initialize wrapper function structure */
-gXML_type GString_funcs = {
+gXML_type GString_type = {
 	"string",
 	gXML_GString_append,
 	gXML_GString_out,
@@ -153,7 +153,7 @@ gXML_wrapper*
 gXML_wrap_GString(GString* data)
 {
 	gXML_wrapper*	w;
-	w = gXML_wrap_generic(data, &GString_funcs);
+	w = gXML_wrap_generic(data, &GString_type);
 	return w;
 }
 
@@ -161,16 +161,13 @@ gXML_wrap_GString(GString* data)
 GString*
 gXML_GString_out(gXML_wrapper* wrapper)
 {
-	g_assert((((GString*)wrapper->data)->str)!= NULL);
-
-	if (wrapper->identifier != WRAP_IDENT) {
-		return g_string_new("<OOPS!>");
-	}else{
-		g_assert(wrapper->functions == &GString_funcs);
+	if (IS_STRINGTYPE(wrapper)) {
 		return gXML_strencode
 		(	g_string_new(((GString*)wrapper->data)->str));
 	}
+	return NULL;
 }
+
 gboolean
 gXML_GString_append(gXML_wrapper** parent
 ,	gXML_wrapper* child, GHashTable* attribs)

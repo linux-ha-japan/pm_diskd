@@ -33,7 +33,7 @@ extern gboolean XMLDEBUG;
 gboolean gXML_append_GHashTable(gXML_wrapper**parent, gXML_wrapper* child, GHashTable* parentattrs);
 
 /* Initialize the wrapper function structure */
-gXML_type GHashTable_funcs = {
+gXML_type GHashTable_type = {
          "aarray",
 	 gXML_append_GHashTable,
          gXML_GHashTable_out,
@@ -44,15 +44,18 @@ gXML_type GHashTable_funcs = {
 gXML_wrapper*
 gXML_wrap_GHashTable(GHashTable* data)
 {
-         return gXML_wrap_generic(data, &GHashTable_funcs);
+         return gXML_wrap_generic(data, &GHashTable_type);
 }
 
 GHashTable*
 gXML_unwrap_GHashTable(gXML_wrapper*w)
 {
-	g_assert(w->functions == &GHashTable_funcs);
-	return w->data;
+	if (IS_GHASHTABLETYPE(w)) {
+		return w->data;
+	}
+	return NULL;
 }
+
 gboolean
 gXML_append_GHashTable(gXML_wrapper**parent, gXML_wrapper* child, GHashTable* attrs)
 {
@@ -88,7 +91,7 @@ gXML_GHashTable_out(gXML_wrapper* wrapper)
 {
   GString *string = g_string_new("<aarray>");
 
-	g_assert(wrapper->functions == &GHashTable_funcs);
+	g_assert(wrapper->functions == &GHashTable_type);
 	g_hash_table_foreach(wrapper->data, (GHFunc)hash_elem_out, string);
 
 	string = g_string_append(string, "</aarray>");
