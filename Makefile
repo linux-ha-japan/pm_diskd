@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.29 2000/04/19 00:27:19 horms Exp $
+#	$Id: Makefile,v 1.30 2000/04/24 07:08:13 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -9,7 +9,7 @@
 #
 #
 PKG=heartbeat
-VERS=0.4.7apre1
+VERS=0.4.7apre2
 RPMREL=1
 
 INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
@@ -61,7 +61,19 @@ WEBDIR=/usr/home/alanr/ha-web/download
 RPMSRC=$(DESTDIR)/usr/src/redhat/SRPMS/$(PKG)-$(VERS)-$(RPMREL).src.rpm
 RPM386=$(DESTDIR)/usr/src/redhat/RPMS/i386/$(PKG)-$(VERS)-$(RPMREL).i386.rpm
 
-.PHONY = all install handy clean pristene rpmclean rpm tar tarclean clobber
+.PHONY =  \
+	all \
+	install \
+	handy \
+	clean \
+	pristene \
+	rpmclean \
+	rpm \
+	tar \
+	dist \
+	distclean \
+	tarclean \
+	clobber
 
 
 all:
@@ -69,11 +81,11 @@ all:
 	do 								\
 		$(MAKE_CMD) -C $$j all; 				\
 	done
-	@if [ -f /etc/redhat-release ];then T=rh-all; else T=all; fi;	\
-	for j in $(KERNELDIRS);						\
-	do 								\
-		$(MAKE_CMD) -C $$j $$T; 				\
-	done
+	#@if [ -f /etc/redhat-release ];then T=rh-all; else T=all; fi;	\
+	#for j in $(KERNELDIRS);						\
+	#do 								\
+	#	$(MAKE_CMD) -C $$j $$T; 				\
+	#done
 
 
 all_dirs:	bin_dirs
@@ -100,24 +112,24 @@ install:	all_dirs
 	then 								\
 		T=rh-install; else T=install; 				\
 	fi;\
-	for j in $(KERNELDIRS);						\
-	do 								\
-		$(MAKE_CMD) -C $$j $$T; 				\
-	done
+	#for j in $(KERNELDIRS);						\
+	#do 								\
+	#	$(MAKE_CMD) -C $$j $$T; 				\
+	#done
 
 install_bin: bin_dirs
 	@for j in $(NONKERNELDIRS); 					\
 	do 								\
 		$(MAKE_CMD) -C $$j install_bin;				\
 	done
-	@if [ -f /etc/redhat-release ];					\
-	then 								\
-		T=rh-install_bin; else T=install_bin; 			\
-	fi 								\
-	for j in $(KERNELDIRS);						\
-	do 								\
-		$(MAKE_CMD) -C $$j $$T; 				\
-	done
+	#@if [ -f /etc/redhat-release ];					\
+	#then 								\
+	#	T=rh-install_bin; else T=install_bin; 			\
+	#fi 								\
+	#for j in $(KERNELDIRS);						\
+	#do 								\
+	#	$(MAKE_CMD) -C $$j $$T; 				\
+	#done
 
 #	For alanr's development environment...
 #
@@ -197,6 +209,8 @@ rpm:            tar $(SPECFILE)
 #
 #       Things for making the tar.gz file
 
+dist:		tar
+
 tar:            $(TARFILE)
 
 $(TARFILE):     tarclean clean $(SPECFILE) 
@@ -207,7 +221,12 @@ $(TARFILE):     tarclean clean $(SPECFILE)
 			cpio -pdm --quiet $(OURDIR)
 		$(TAR)  -cf - $(OURDIR) | gzip - > $(TARFILE)
 		rm -fr $(OURDIR)
+		@echo "########################################################"
+		@echo "# $(TARFILE) is ready for distribution"
+		@echo "########################################################"
 
+
+distclean:	tarclean
 
 tarclean:
 		rm -fr $(OURDIR) $(TARFILE)

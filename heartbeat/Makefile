@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.14 2000/04/23 05:48:35 horms Exp $
+#	$Id: Makefile,v 1.15 2000/04/24 07:08:13 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -96,7 +96,7 @@ PRODUCTS = $(LIBCMDS)
 
 LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 
-RESOURCECMDS= resource.d/IPaddr resource.d/AuidiableAlarm
+RESOURCECMDS= resource.d/IPaddr resource.d/AudibleAlarm
 
 RCCMDS = rc.d/ip-request rc.d/ip-request-resp rc.d/status
 ROOTFILES = harc shellfuncs

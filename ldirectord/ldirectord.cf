@@ -1,0 +1,39 @@
+#
+# Sample ldirectord configuration file to configure a vitual service on TCP
+# port 80 for a single IP address with 3 real servers using direct routing.
+#
+# Ldirectord will connect to each real server once per second and request
+# /index.html. If the data returned by the server does not contain the
+# string "Test Message" then the test fails and the real server will be
+# taken out of the available pool. The real server will be added back into
+# the pool once the test succeeds. If all real servers are removed from the
+# pool then localhost:80 is added to the pool as a fallback measure.
+#
+# Prepared: April 2000
+
+timeout=3
+checkinterval=1
+fallback=127.0.0.1:80
+virtual=192.168.6.240:80
+        real=192.168.6.2:80 gate
+        real=192.168.6.3:80 gate
+        real=192.168.6.6:80 gate
+        service=http
+        request="index.html"
+        receive="Test Page"
+        scheduler=rr
+        #persistent=600
+        protocol=tcp
+
+# Sample configuration for a fwmark based service For an explination of
+# fwmark see the ipvsadm(8) man page
+
+#virtual=1
+#        real=192.168.6.2:80 gate
+#        real=192.168.6.3:80 gate
+#        real=192.168.6.6:80 gate
+#        service=http
+#        request="index.html"
+#        receive="Test Page"
+#        scheduler=rr
+#        #persistent=600

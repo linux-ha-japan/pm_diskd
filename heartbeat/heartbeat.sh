@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.18 2000/04/24 06:34:45 horms Exp $
+#	$Id: heartbeat.sh,v 1.19 2000/04/24 07:08:13 horms Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -145,7 +145,7 @@ init_proc_ha() {
 
 start_heartbeat() {
   if
-    ERROR=$($HA_BIN/heartbeat 2>&1)
+    ERROR="$($HA_BIN/heartbeat 2>&1)"
   then
     : OK
   else
@@ -184,9 +184,9 @@ StartHA() {
   else
     RC=$?
     echo_failure $RC
-    if [ ! -x "$ERROR" ]; then
+    if [ ! -z "$ERROR" ]; then
       echo
-      echo $ERROR
+      echo .$ERROR
     fi 
     return $RC
   fi
@@ -251,6 +251,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.19  2000/04/24 07:08:13  horms
+#  Added init script to ldirectord, fixed hearbeat.sh to work with RH6.2 again, heartbeat.sh now aborts if /etc/ha.d/ha.cf is not present. Added sample ldirectord.cf. Moved logging directives to the top of the sample ha.cf. Incremented version in master Makefile to 0.4.7apre2. KERNELDIRS now don't get any treatment in the master makefile, this is to fix a bug (introduced by me) with using an emty  in a for i in  under some shells
+#
 #  Revision 1.18  2000/04/24 06:34:45  horms
 #  Made init work cleanly with RH 6.2 again
 #

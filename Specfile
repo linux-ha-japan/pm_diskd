@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.33 2000/04/23 05:48:35 horms Exp $
+#	$Id: Specfile,v 1.34 2000/04/24 07:08:13 horms Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -23,7 +23,7 @@ It implements the following kinds of heartbeats:
 
 %changelog
 
-* Tue Apr 8 2000 Alan Robertson <alanr@henge.com>,
+* Sun Apr 23 2000 Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
@@ -40,8 +40,13 @@ It implements the following kinds of heartbeats:
     compatible with the fwmark options to The Linux Virtual Server (Horms)
   + Added log rotation for ldirectord and heartbeat using logrotate
     if it is installed
-  + Added Audiable Alarm reseource by Kirk Lawson <lklawson@heapy.com> 
+  + Added Audible Alarm reseource by Kirk Lawson <lklawson@heapy.com> 
     and myself (Horms)
+  + Added init script for ldirectord so it can be run independantly
+    of heartbeat (Horms)
+  + Added sample config file for ldirectord (Horms)
+  + An empty /etc/ha.d/conf/ is now part of the rpm distribution
+    as this is where ldirectord's configuration belongs (Horms)
 
 * Sat Dec 25 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
@@ -238,6 +243,7 @@ popd
 %HADIR%/harc
 %HADIR%/shellfuncs
 %HADIR%/rc.d
+%HADIR%/conf
 %HALIB%
 %HADIR%/resource.d
 /etc/rc.d/init.d/%PKG%
@@ -246,8 +252,10 @@ popd
 %dir /var/run/ppp.d
 /sbin/ldirectord
 /etc/logrotate.d/ldirectord
+/etc/rc.d/init.d/ldirectord
 /usr/man/man8/ldirectord.8
 %doc %DOCDIR%
+%doc ldirectord/ldirectord.cf
 %post
 #
 #	Hack to allow ppp-udp to be notified about PPP processes starting

@@ -3,6 +3,31 @@
 #	of nodes listedJ {"node ...}
 #	and one of {serial, udp, or ppp-udp}
 #
+#
+#       Note on logging:
+#       If any of debugfile, logfile and logfacility are defined then they
+#       will be used. If debugfile and/or logfile are not defined and
+#       logfacility is defined then the respective logging and debug
+#       messages will be loged to syslog. If logfacility is not defined
+#       then debugfile and logfile will be used to log messges. If
+#       logfacility is not defined and debugfile and/or logfile are not
+#       defined then defaults will be used for debugfile and logfile as
+#       required and messages will be sent there.
+#
+#	File to wirte debug messages to
+#debugfile /var/log/ha-debug
+#
+#
+# 	File to write other messages to
+#
+#logfile	/var/log/ha-log
+#
+#
+#	Facility to use for syslog()/logger 
+#
+logfacility	local0
+#
+#
 #	keepalive: how many seconds between heartbeats
 #
 #keepalive 2
@@ -41,40 +66,17 @@
 #
 #watchdog /dev/watchdog
 #
-#  Nice_failback sets the behavior when performing a failback:
+#       Nice_failback sets the behavior when performing a failback:
 #
-#  - if it's on, when the primary node starts or comes back from any
-#    failure and the cluster is already active, i.e. the secondary server
-#    performed a failover, the primary stays quiet, acting as a secondary.
-#    This way some operations like syncing disks can be easily done.
-#  - if it's off (default), the primary node will always be the primary,
-#    whenever it's powered on.
+#       - if it's on, when the primary node starts or comes back from any
+#         failure and the cluster is already active, i.e. the secondary
+#         server performed a failover, the primary stays quiet, acting as a
+#         secondary.  This way some operations like syncing disks can be
+#         easily done.
+#       - if it's off (default), the primary node will always be the primary,
+#         whenever it's powered on.
 #
 nice_failback off
-#
-# Note on logging:
-# If any of debugfile, logfile and logfacility are defined then they will
-# be used. If debugfile and/or logfile are not defined and logfacility
-# is defined then the respective logging and debug messages will be loged
-# to syslog. If logfacility is not defined then debugfile and logfile will
-# be used to log messges. If logfacility is not defined and debugfile
-# and/or logfile are not defined then defaults will be used for debugfile
-# and logfile as required and messages will be sent there.
-#
-#	File to wirte debug messages to
-#debugfile /var/log/ha-debug
-#
-#
-# 	File to write other messages to
-#
-#logfile	/var/log/ha-log
-#
-#
-#	Facility to use for syslog()/logger 
-#
-logfacility	local0
-#
-#
 #	Tell what machines are in the cluster
 #	node	nodename ...	-- must match uname -n
 #node	ken3
