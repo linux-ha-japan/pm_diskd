@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.74 2000/12/12 23:23:46 alan Exp $
+#	$Id: Specfile,v 1.75 2000/12/20 12:59:58 eric Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -63,7 +63,8 @@ machine. It's simple and reliable, albiet admittedly brutal.
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
      Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
      Marcelo Tosatti <marcelo@conectiva.com.br>,
-     Horms <horms@vergenet.net>, Eric Z. Ayers <eric.ayers@compgen.com>
+     Horms <horms@vergenet.net>, Eric Ayers <eric.ayers@compgen.com>,
+     Mike Tilstra <conrad@sistina.com>
 
 + Version 0.4.9 Beta series
   + Made media modules and authentication modules dynamically loadable.
@@ -71,6 +72,8 @@ machine. It's simple and reliable, albiet admittedly brutal.
   + Added STONITH API library
   + Added STONITH option to heartbeat (stonith & stonith_node)
   + Added STONITH support for WTI RPS10 and Night/Ware RPC100S
+  + Added STONITH support for VACM (you must recompile from source.
+       See the note in README.vacm.)
   + Added heartbeat API code
   + Added late heartbeat warning for heartbeats that arrive later than
     	0.75 of deadtime (warntime option)
