@@ -707,11 +707,11 @@ st_hostlist(Stonith  *s)
 	/* Pop back out to the top level menu */
 	SEND("MENU\r");
 	if (numnames >= 1) {
-		ret = (char **)MALLOC(numnames*sizeof(char*));
+		ret = (char **)MALLOC((numnames+1)*sizeof(char*));
 		if (ret == NULL) {
 			syslog(LOG_ERR, "out of memory");
 		}else{
-			memcpy(ret, NameList, numnames*sizeof(char*));
+			memcpy(ret, NameList, (numnames+1)*sizeof(char*));
 		}
 	}
 	(void)RPCLogout(bt);

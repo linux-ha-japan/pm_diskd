@@ -528,6 +528,7 @@ st_hostlist(Stonith  *s)
 		if (ret == NULL) {
 			syslog(LOG_ERR, "out of memory");
 		} else {
+			ret[numnames-1]=NULL; /* null terminate the array */
 			for (i=0;i<WTI_NUM_CONTROLLERS;i++) {
 				if (ctx->controllers[i].configured) {
 					numnames--;
@@ -535,7 +536,6 @@ st_hostlist(Stonith  *s)
 						strdup(ctx->controllers[i].node);
 				} /* end if this outlet is configured */
 			} /* end for each possible outlet */
-			ret[numnames]=NULL; /* null terminate the array */
 		} /* end if malloc() suceeded */
 	} /* end if any outlets are configured */
 
