@@ -60,11 +60,11 @@ class HeartbeatCM(ClusterManager):
             "LogFileName"    : "/var/log/ha-log",
 
             # Patterns to look for in the log files for various occasions...
-            "Pat:We_started"       : "(%s).*: status active",
-            "Pat:They_started"     : "(%s).*: status active",
+            "Pat:We_started"       : "(%s).*: .*status active",
+            "Pat:They_started"     : "(%s).*: .*status active",
             "Pat:We_stopped"       : "Heartbeat shutdown complete",
             "Pat:They_stopped"     : "node (%s).*: is dead",
-            "Pat:All_stopped"      : " (%s) heartbeat.*Heartbeat shutdown complete",
+            "Pat:All_stopped"      : " (%s).*heartbeat.*Heartbeat shutdown complete",
             "Pat:StandbyOK"        : "Standby process done.*primary",
             "Pat:StandbyNONE"      : "No reply to standby request",
 	    "Pat:StandbyTRANSIENT" : "standby message.*ignored.*in flux",
