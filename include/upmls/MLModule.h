@@ -1,6 +1,30 @@
 #ifndef UPMLS_MLMODULE_H
 #  define UPMLS_MLMODULE_H
+#define index FOOindex
+#define time FOOtime
 #include <glib.h>
+#undef index
+#undef time
+#include <ltdl.h>
+/*
+ *	WARNING!! THIS CODE LARGELY / COMPLETELY UNTESTED!!
+ */
+
+/*****************************************************************************
+ *	UPMLS - Universal Plugin and Module Loading System
+ *****************************************************************************
+ *
+ * An Overview of UPMLS...
+ *
+ * UPMLS is fairly general and reasonably interesting module loading system.
+ * Loadable modules are sometimes referred to as plugins.  Here, we use the
+ * two terms to mean two different things.
+ *
+ */
+#define time FOOtime
+#include <glib.h>
+#undef index
+#undef time
 #include <ltdl.h>
 /*
  *	WARNING!! THIS CODE LARGELY / COMPLETELY UNTESTED!!
@@ -282,14 +306,14 @@
 #define	ML_FUNC_FMT	"%s" ML_INSERT_STR "%s" mlINIT_FUNC_STR
 
 #ifdef __STDC__
-#  define EXPORTHELP1(moduletype, insert, modulename, function)	moduletype##insert##modulename##function
+#  define EXPORTHELPER1(moduletype, insert, modulename, function)	moduletype##insert##modulename##function
 #else
-#  define EXPORTHELP1(moduletype, insert, modulename, function)	\
+#  define EXPORTHELPER1(moduletype, insert, modulename, function)	\
  	moduletype/**/insert/**/modulename/**/function
 #endif
 
-#define EXPORTHELP2(a, b, c, d)    EXPORTHELP1(a, b, c, d)
-#define ML_MODULE_INIT	EXPORTHELP2(ML_MODULETYPE,ML_INSERT,ML_MODULE,mlINIT_FUNC)
+#define EXPORTHELPER2(a, b, c, d)    EXPORTHELPER1(a, b, c, d)
+#define ML_MODULE_INIT	EXPORTHELPER2(ML_MODULETYPE,ML_INSERT,ML_MODULE,mlINIT_FUNC)
 
 /*
  *	Module loading return codes.  OK will always be zero.
@@ -321,6 +345,20 @@ typedef struct MLPluginUniv_s		MLPluginUniv;
 typedef struct MLPluginType_s		MLPluginType;
 
 typedef ML_rc(*MLPluginFun)(MLPlugin*, void* ud_plugin);
+
+#define	ML_MAGIC_MODULE		0xFEEDBEEFUL
+#define	ML_MAGIC_MODTYPE	0xFEEDCEEFUL
+#define	ML_MAGIC_MODUNIV	0xFEEDDEEFUL
+#define	ML_MAGIC_PLUGIN		0xFEEDEEEFUL
+#define	ML_MAGIC_PLUGINTYPE	0xFEEDFEEFUL
+#define	ML_MAGIC_PLUGINUNIV	0xFEED0EEFUL
+
+#define IS_MLMODULE(s)		((s)->MagicNum == ML_MAGIC_MODULE)
+#define IS_MLMODTYPE(s)		((s)->MagicNum == ML_MAGIC_MODTYPE)
+#define IS_MLMODUNIV(s)		((s)->MagicNum == ML_MAGIC_MODUNIV)
+#define IS_MLPLUGIN(s)		((s)->MagicNum == ML_MAGIC_PLUGIN)
+#define IS_MLPLUGINTYPE(s)	((s)->MagicNum == ML_MAGIC_PLUGINTYPE)
+#define IS_MLPLUGINUNIV(s)	((s)->MagicNum == ML_MAGIC_PLUGINUNIV)
 
 /* The type of a Module Initialization Function */
 typedef ML_rc (*MLModuleInitFun) (MLModule*us
@@ -422,6 +460,15 @@ ML_rc		MLLoadModule(MLModuleUniv* moduniv
 void		MLSetDebugLevel(int level);
 int		MLGetDebugLevel(void);
 
+ML_rc		MLIncrPIRefCount(MLModuleUniv* moduniv
+,		const char *	plugintype
+,		const char *	pluginname
+,		int	plusminus);
+
+int		MLGetPIRefCount(MLModuleUniv* moduniv
+,		const char *	plugintype
+,		const char *	pluginname);
+
 /* The module/plugin type of a plugin manager */
 
 #define	PLUGIN_PLUGIN	"Plugin"
@@ -465,6 +512,7 @@ int		MLGetDebugLevel(void);
  */
 
 struct MLModule_s {
+	unsigned long	MagicNum;	
 	char*		module_name;
 	MLModuleType*	moduletype;	/* Parent structure */
 	GHashTable*	Plugins;	/* Plugins registered by this module*/
@@ -484,10 +532,11 @@ struct MLModule_s {
  */
 
 struct MLModuleType_s {
+	unsigned long		MagicNum;	
 	char *			moduletype;
 	MLModuleUniv*		moduniv; /* The universe to which we belong */
 	GHashTable*		Modules;
-			/* Key is module type, value is MLModule */
+				/* Key is module type, value is MLModule */
 
 	int	(*refcount)	(MLModuleType*, const char * modulename);
 	int	(*modrefcount)	(MLModuleType*, const char * modulename
@@ -502,8 +551,9 @@ struct MLModuleType_s {
  */
 
 struct MLModuleUniv_s {
-			/* key is module type, data is MLModuleType* struct */
+	unsigned long		MagicNum;	
 	char *			rootdirectory;
+			/* key is module type, data is MLModuleType* struct */
 	GHashTable*		ModuleTypes;
 	struct MLPluginUniv_s*	piuniv; /* Parallel Universe of plugins */
 	MLModuleImports*	imports;

@@ -38,7 +38,9 @@
  *	we use to track a single plugin handler.
  */
 
+
 struct MLPlugin_s {
+	unsigned long		MagicNum;	
 	MLPluginType*		plugintype;	/* Parent pointer */
 	char *			pluginname;	/* malloced plugin name */
 	MLPlugin*		pimanager;
@@ -53,6 +55,7 @@ struct MLPlugin_s {
  *	we use to track the set of all plugins of a single kind.
  */
 struct MLPluginType_s {
+	unsigned long		MagicNum;	
 	char*			typename;	/* Our plugin type name */
 	GHashTable*		plugins;	/* The set of plugins
 						 * of our type.  The 
@@ -71,8 +74,9 @@ struct MLPluginType_s {
  */
 
 struct MLPluginUniv_s{
+	unsigned long		MagicNum;	
 	GHashTable*		pitypes;	/* 
-						 * Set of Pluign Types
+						 * Set of Plugin Types
 						 * The values are all
 						 * MLPluginType objects
 						 */
@@ -104,9 +108,9 @@ struct MLPluginImports_s {
 		/* Unregister us as a plugin */
 	void (*ForceUnRegister)(MLPlugin *epiinfo);
 
-		/* Unregister/shut down all our clients*/
-	void (*ForEachClient)(MLPlugin* manangerpi
-	,	void(*f)(MLPlugin* clientpi, void * other)
+		/* For each client */
+	void (*ForEachClientDel)(MLPlugin* manangerpi
+	,	gboolean(*f)(MLPlugin* clientpi, void * other)
 	,	void* other);
 
 };
