@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.67 2003/05/21 02:10:14 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.68 2003/06/03 03:32:47 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -1513,14 +1513,22 @@ sub ld_main
 
 sub check_http
 {
-	require LWP::UserAgent;
+	use LWP::UserAgent;
+	if($DEBUG > 2) {
+		use LWP::Debug qw(+);
+	}
 	my ($v, $r) = @_;
 	
-	my $ua = new LWP::UserAgent;
-	$ua->agent("LinuxDirector/0.1 ".$ua->agent);
-	$ua->timeout($$v{negotiatetimeout});
+	my $ua = new LWP::UserAgent();
 	my $req = new HTTP::Request(GET=>"$$r{url}");
-	my $res = $ua->request($req);
+	my $res;
+	{
+		# LWP makes ungaurded calls to eval
+		# which throw a fatal exception if they fail
+		# Needless to say, this is completely stupid.
+		local $SIG{'__DIE__'} = "DEFAULT";
+		$res = $ua->request($req);
+	}
 	my $recstr = $$r{receive};
 	if ($res->is_success && (!($recstr =~ /.+/) || $res->content =~ /$recstr/)) {
 		service_set($v, $r, "up");
@@ -1528,6 +1536,7 @@ sub check_http
 		return 1;
 	} else {
 		service_set($v, $r, "down");
+		&ld_debug(3, "Headers " .  $res->headers->as_string);
 		&ld_debug(2, "check_http: $$r{url} is down\n");
 		return 0;
 	}
