@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.257 2003/05/05 11:46:02 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.258 2003/05/09 15:15:37 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -321,7 +321,13 @@ static int			ClockJustJumped = FALSE;
 longclock_t			local_takeover_time = 0L;
 
 
+#undef DO_AUDITXMITHIST
+#ifdef DO_AUDITXMITHIST
+#	define AUDITXMITHIST audit_xmit_hist()
 void		audit_xmit_hist(void);
+#else
+#	define AUDITXMITHIST /* Nothing */
+#endif
 static void	restart_heartbeat(void);
 static void	usage(void);
 static void	init_procinfo(void);
@@ -3684,6 +3690,7 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 	}
 }
 
+#ifdef DO_AUDITXMITHIST
 void
 audit_xmit_hist(void)
 {
@@ -3763,6 +3770,7 @@ audit_xmit_hist(void)
 		}
 	}
 }
+#endif
 
 
 /* Add a packet to a channel's transmit history */
@@ -3777,7 +3785,7 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 		cl_log(LOG_CRIT, "Unallocated message in add2_xmit_hist");
 		abort();
 	}
-	audit_xmit_hist();
+	AUDITXMITHIST;
 	/* Figure out which slot to put the message in */
 	slot = hist->lastmsg+1;
 	if (slot >= MAXMSGHIST) {
@@ -3804,7 +3812,7 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 	hist->seqnos[slot] = seq;
 	hist->lastrexmit[slot] = 0L;
 	hist->lastmsg = slot;
-	audit_xmit_hist();
+	AUDITXMITHIST;
 }
 
 
@@ -4077,6 +4085,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.258  2003/05/09 15:15:37  alan
+ * Turned off the most expensive and onerous debugging code.
+ *
  * Revision 1.257  2003/05/05 11:46:02  alan
  * Added code to limit our CPU usage when we're running with debugging on.
  * Changed the code to use separate IPC_Channels for read and write children.

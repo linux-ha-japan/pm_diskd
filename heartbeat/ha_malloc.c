@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.18 2003/05/05 11:39:14 alan Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.19 2003/05/09 15:15:37 alan Exp $";
 #include <portability.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -22,16 +22,15 @@ static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.18 2003/05/05 11:39:
  *			Good at finding "use after free" cases
  *			Cheap in memory, but expensive in CPU
  *
- * MAKE_GUARD	 - puts a 4-byte known pattern *after* allocated memory
+ * MAKE_GUARD	 - puts a known pattern *after* allocated memory
  *			Good at finding overrun problems after the fact
- *			Cheap in CPU, adds 4 bytes to each malloc item
+ *			Cheap in CPU, adds a few bytes to each malloc item
  *
  */
 
-#define	MARK_PRISTINE	1	/* Expensive in CPU time */
+#undef	MARK_PRISTINE		/* Expensive in CPU time */
 #define	MAKE_GUARD	1	/* Adds 4 bytes memory - cheap in CPU*/
 
-void audit_xmit_hist(void);
 
 /*
  *
@@ -97,7 +96,7 @@ void audit_xmit_hist(void);
  *
  * Could even make the bucket and reqsize objects into 16-bit ints...
  *
- * The idea of getting it all down into 16-bits of overhead is
+ * The idea of getting it all down into 32-bits of overhead is
  * an interesting thought...
  */
 
@@ -143,7 +142,17 @@ static void	ha_dump_item(struct ha_bucket*b);
 #define	MEMORYSIZE(p)(CBHDR(p)->hdr.reqsize)
 
 #ifdef MAKE_GUARD
-static const char ha_malloc_guard[] = {0x5A, 0xA5, 0x5A, 0xA5};
+#	define GUARDLEN 2
+	static const char ha_malloc_guard[] =
+#if GUARDLEN == 1
+	{0xA5};
+#endif
+#if GUARDLEN == 2
+	{0x5A, 0xA5};
+#endif
+#if GUARDLEN == 4
+	{0x5A, 0xA5, 0x5A, 0xA5};
+#endif
 #	define GUARDSIZE	sizeof(ha_malloc_guard)
 #	define	ADD_GUARD(cp)	(memcpy((((char*)cp)+MEMORYSIZE(cp)), ha_malloc_guard, sizeof(ha_malloc_guard)))
 #	define	GUARD_IS_OK(cp)	(memcmp((((char*)cp)+MEMORYSIZE(cp)), ha_malloc_guard, sizeof(ha_malloc_guard)) == 0)
@@ -152,6 +161,7 @@ static const char ha_malloc_guard[] = {0x5A, 0xA5, 0x5A, 0xA5};
 #	define ADD_GUARD(cp)	/* */
 #	define GUARD_IS_OK(cp)	(1)
 #endif
+
 
 
 /*
@@ -173,7 +183,6 @@ ha_malloc(size_t size)
 	if (!ha_malloc_inityet) {
 		ha_malloc_init();
 	}
-	audit_xmit_hist();
 
 	/*
 	 * Find which bucket would have buffers of the requested size
@@ -251,7 +260,6 @@ ha_malloc(size_t size)
 	if (ret) {
 		ADD_GUARD(ret);
 	}
-	audit_xmit_hist();
 	return(ret);
 }
 
@@ -280,7 +288,6 @@ ha_free(void *ptr)
 		ha_malloc_init();
 	}
 
-	audit_xmit_hist();
 	if (ptr == NULL) {
 		ha_log(LOG_ERR, "attempt to free NULL pointer in ha_free()");
 		return;
@@ -356,7 +363,6 @@ ha_free(void *ptr)
 	if (curproc) {
 		curproc->numfree++;
 	}
-	audit_xmit_hist();
 }
 
 /*
@@ -393,7 +399,6 @@ ha_new_mem(size_t size, int numbuck)
 		curproc->nbytes_req += size;
 		curproc->mallocbytes += mallocsize;
 	}
-	audit_xmit_hist();
 	return(((char*)hdrret)+ha_malloc_hdr_offset);
 }
 

@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.42 2003/04/18 06:33:54 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.43 2003/05/09 15:15:37 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -38,7 +38,7 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.42 2003/04/18 06:33:54 ala
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
 
-#define DOAUDITS	1
+#undef DOAUDITS
 #ifdef DOAUDITS
 
 void ha_msg_audit(const struct ha_msg* msg);
@@ -704,6 +704,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.43  2003/05/09 15:15:37  alan
+ * Turned off the most expensive and onerous debugging code.
+ *
  * Revision 1.42  2003/04/18 06:33:54  alan
  * Changed the audit code for messages to tolerate NULL message pointers.
  *
