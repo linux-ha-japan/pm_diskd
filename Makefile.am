@@ -63,7 +63,7 @@ MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
 
 SUBDIRS                 = libltdl doc debian replace include lib \
                         telecom ldirectord heartbeat \
-                        cts linux-ha membership contrib
+                        cts linux-ha membership contrib @SNMP_SUBAGENT_DIR@
 
 rpm:		dist
 		$(RPM) $(RPMFLAGS) $(TARFILE) </dev/null;
