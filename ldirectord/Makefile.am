@@ -21,7 +21,8 @@ MAINTAINERCLEANFILES    = Makefile.in
 CLEANFILES	       	= ldirectord.8
 
 EXTRA_DIST              = ldirectord ldirectord.cf README	\
-				supervise-ldirectord-config
+				supervise-ldirectord-config \
+				supervise-ldirectord-config.8
 
 harcconfdir		= $(sysconfdir)/ha.d/conf
 
@@ -31,7 +32,7 @@ ldirectord.8: ldirectord
 	$(POD2MAN) --section=8 $< > $@
 
 sbin_SCRIPTS		= ldirectord supervise-ldirectord-config
-man_MANS	        = ldirectord.8
+man_MANS	        = ldirectord.8 supervise-ldirectord-config.8
 
 ## additional Makefile targets
 # additional installations not covered normally
