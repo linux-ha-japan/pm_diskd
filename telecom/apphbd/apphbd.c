@@ -37,7 +37,8 @@
  * Each heartbeat timeout are also event sources.
  *
  * The only limit we have on the number of clients we can support is the
- * number of file descriptors we can have open.
+ * number of file descriptors we can have open.  It's been tested to
+ * several hundred at a time.
  *
  * We use the Gmain_timeout timeouts instead of native glib mainloop
  * timeouts because they aren't affected by changes in the time of day
@@ -219,7 +220,6 @@ apphb_client_new(struct OCF_IPC_CHANNEL* ch)
 
 	ret = g_new(apphb_client_t, 1);
 
-	fprintf(stderr, "Creating new apphb client\n");
 	ret->appname = NULL;
 	ret->ch = ch;
 	ret->timerid = 0;

@@ -24,18 +24,44 @@
  */
 #include <portability.h>
 #include <signal.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
 #include <apphb.h>
 
+void doatest(void);
 int
 main(int argc,char ** argv)
 {
 	int	j;
+	int	max = 1;
+
+	if (argc > 1 && atoi(argv[1]) > 0) {
+		max = atoi(argv[1]);
+	}
+
+	for (j=0; j < max; ++j) {
+		switch(fork()){
+
+		case 0:
+			doatest();
+			exit(0);
+		case -1:
+			fprintf(stderr, "Can't fork!\n");
+		default:
+		}
+	}
+	return(0);
+}
+void
+doatest(void)
+{
+	int	j;
 	int	rc;
 
+	sleep(5);
 	fprintf(stderr, "Client starting - pid: %d\n", getpid());
 	rc = apphb_register("test program");
 	if (rc < 0) {
@@ -76,5 +102,4 @@ main(int argc,char ** argv)
 		perror("apphb_unregister failure");
 		exit(5);
 	}
-	return(0);
 }
