@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.16 2000/12/12 20:44:43 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.17 2001/01/02 20:24:07 eric Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -147,6 +147,7 @@ hb_dev_new(const char * intf)
 		ret->name = name;
 
 	}else{
+		ha_free(ipi->interface);
 		ha_free(ipi);
 	}
 	return(ret);
@@ -519,6 +520,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.17  2001/01/02 20:24:07  eric
+ * Fixed memory leak in hb_dev_open() in case of malloc() failure.
+ *
  * Revision 1.16  2000/12/12 20:44:43  alan
  * Fixed a file descriptor leak.  Fix courtesy of Chris Wright.
  *
