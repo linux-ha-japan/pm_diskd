@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.203 2002/09/10 04:35:58 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.204 2002/09/10 21:50:06 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -250,6 +250,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.203 2002/09/10 04:35
 
 #include <clplumbing/longclock.h>
 #include <clplumbing/proctrack.h>
+#include <clplumbing/ipc.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api_core.h>
@@ -305,7 +306,7 @@ int		watchdogfd = -1;
 TIME_T		starttime = 0L;
 TIME_T		next_statsdump = 0L;
 void		(*localdie)(void);
-void		ha_glib_msg_handler(const gchar *log_domain
+void		cl_glib_msg_handler(const gchar *log_domain
 ,			GLogLevelFlags log_level, const gchar *message
 ,			gpointer user_data);
 
@@ -485,7 +486,6 @@ int		parse_only = 0;
 int		RestartRequested = 0;
 static int	shutdown_in_progress = 0;
 static int	WeAreRestarting = 0;
-static int	AreWeADaemonYet = 0;
 static sigset_t	CommonSignalSet;
 
 enum comm_state {
@@ -696,121 +696,6 @@ void
 ha_error(const char *	msg)
 {
 	ha_log(LOG_ERR, "%s", msg);
-}
-
-
-/*
- * FIXME realtime:
- * This function can cost us realtime.
- * Syslog might block, write might block and open might block.
- * we really ought to do this in a separate process.
- */
-/* HA-logging function */
-void
-ha_log(int priority, const char * fmt, ...)
-{
-	va_list		ap;
-	FILE *		fp = NULL;
-	char *		fn = NULL;
-	char		buf[MAXLINE];
-	int		logpri = LOG_PRI(priority);
-	const char *	pristr;
-
-	va_start(ap, fmt);
-	vsnprintf(buf, MAXLINE, fmt, ap);
-	va_end(ap);
-
-	if (logpri < 0 || logpri >= DIMOF(ha_log_priority)) {
-		pristr = "(undef)";
-	}else{
-		pristr = ha_log_priority[logpri];
-	}
-
-	if (config && config->log_facility >= 0) {
-		syslog(priority, "%s: %s", pristr,  buf);
-	}
-
-	if (config) {
-		if (priority == LOG_DEBUG) {
-			if (config->use_dbgfile) {
-				fn = config->dbgfile;
-			}else{
-				return;
-			}
-		}else{
-			if (config->use_logfile) {
-				fn = config->logfile;
-			}
-		}
-	}
-
-	if (!config  || fn != NULL || config->log_facility < 0) {
-		if (fn) {
-			fp = fopen(fn, "a");
-		}
-
-		if (fp != NULL) {
-			fprintf(fp, "heartbeat: %s %s: %s\n", ha_timestamp()
-			,	pristr,  buf);
-			fclose(fp);
-		}
-
-
-	}
-	if (!AreWeADaemonYet) {
-		fprintf(stderr, "heartbeat: %s %s: %s\n", ha_timestamp()
-		,	pristr,  buf);
-	}
-}
-
-extern int	sys_nerr;
-void
-ha_perror(const char * fmt, ...)
-{
-	const char *	err;
-	char	errornumber[16];
-
-	va_list ap;
-	char buf[MAXLINE];
-
-	if (errno < 0 || errno >= sys_nerr) {
-		sprintf(errornumber, "error %d\n", errno);
-		err = errornumber;
-	}else{
-#ifdef HAVE_STRERROR
-		err = strerror(errno);
-#else
-		err = sys_errlist[errno];
-#endif
-	}
-	va_start(ap, fmt);
-	vsnprintf(buf, MAXLINE, fmt, ap);
-	va_end(ap);
-
-	ha_log(LOG_ERR, "%s: %s", buf, err);
-
-}
-
-void
-ha_glib_msg_handler(const gchar *log_domain,	GLogLevelFlags log_level
-,	const gchar *message, gpointer user_data)
-{
-	GLogLevelFlags	level = (log_level & G_LOG_LEVEL_MASK);
-	int	ha_level;
-
-	switch(level) {
-		case G_LOG_LEVEL_ERROR:		ha_level = LOG_ERR; break;
-		case G_LOG_LEVEL_CRITICAL:	ha_level = LOG_ERR; break;
-		case G_LOG_LEVEL_WARNING:	ha_level = LOG_WARNING; break;
-		case G_LOG_LEVEL_MESSAGE:	ha_level = LOG_NOTICE; break;
-		case G_LOG_LEVEL_INFO:		ha_level = LOG_INFO; break;
-		case G_LOG_LEVEL_DEBUG:		ha_level = LOG_DEBUG; break;
-
-		default:			ha_level = LOG_WARNING; break;
-	}
-
-
-	ha_log(ha_level, "%s", message);
 }
 
 /*
@@ -4666,7 +4551,8 @@ main(int argc, char * argv[], char * envp[])
 	|	G_LOG_LEVEL_INFO	| G_LOG_LEVEL_DEBUG
 	|	G_LOG_FLAG_RECURSION	| G_LOG_FLAG_FATAL
 
-	,	ha_glib_msg_handler, NULL);
+	,	cl_glib_msg_handler, NULL);
+	cl_log_enable_stderr(FALSE);
 	g_log_set_always_fatal((GLogLevelFlags)0);
 
 	tmp_cmdname=strdup(argv[0]);
@@ -4675,6 +4561,7 @@ main(int argc, char * argv[], char * envp[])
 	}else{
 		cmdname = tmp_cmdname;
 	}
+	cl_log_set_entity(cmdname);
 
 	Argc = argc;
 
@@ -4701,7 +4588,7 @@ main(int argc, char * argv[], char * envp[])
 				break;
 			case 'R':
 				++WeAreRestarting;
-				AreWeADaemonYet=1;
+				cl_log_enable_stderr(FALSE);
 				break;
 			case 's':
 				++rpt_hb_status;
@@ -5129,11 +5016,10 @@ make_daemon(void)
 		exit(HA_FAILEXIT);
 	}
 
-	AreWeADaemonYet = 1;
+	cl_log_enable_stderr(FALSE);
 	if (getsid(0) != pid) {
 		if (setsid() < 0) {
-			fprintf(stderr, "%s: setsid() failure.", cmdname);
-			perror("setsid");
+			cl_perror("setsid() failure.");
 		}
 	}
 
@@ -6079,6 +5965,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.204  2002/09/10 21:50:06  alan
+ * Added code, modified code to move to a common set of logging functions
+ * - cl_log() and friends.
+ *
  * Revision 1.203  2002/09/10 04:35:58  alan
  * Removed references to PAGE_SIZE to avoid conflicts in OpenBSD.
  *

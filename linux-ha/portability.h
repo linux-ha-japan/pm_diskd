@@ -26,6 +26,11 @@
 #define	DIMOF(a)		(sizeof(a)/sizeof(a[0]))
 #define	STRLEN(conststr)	((sizeof(conststr)/sizeof(char))-1)
 
+/* This is consistent with OpenBSD, and is a good choice anyway */
+#define	TIME_T	unsigned long
+#define	TIME_F	"%lu"
+#define	TIME_X	"%lx"
+
 
 #ifdef __STDC__
 #       define  MKSTRING(s)     #s
@@ -133,9 +138,5 @@ inet_pton(int af, const char *src, void *dst);
 #else
 #	define	IGNORESIG(s)	signal((s), SIG_IGN)
 #endif
-
-
-
-
 
 #endif /* !PORTABILITY_H */

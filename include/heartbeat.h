@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.16 2002/07/08 04:14:12 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.17 2002/09/10 21:50:06 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -50,6 +50,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.16 2002/07/08 04:14:
 #include <ha_msg.h>
 #include <HBcomm.h>
 #include <stonith/stonith.h>
+#include <clplumbing/cl_log.h>
 #include <ltdl.h>
 #define index FooIndex
 #define time FooTime
@@ -116,11 +117,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.16 2002/07/08 04:14:
 #ifndef RSC_TMPDIR
 #	define	RSC_TMPDIR	VAR_LIB_D "/rsctmp"
 #endif
-
-/* This is consistent with OpenBSD, and is a good choice anyway */
-#define	TIME_T	unsigned long
-#define	TIME_F	"%lu"
-#define	TIME_X	"%lx"
 
 /* #define HA_DEBUG */
 #define	DEFAULTLOG	VAR_LOG_D "/ha-log"
@@ -344,12 +340,13 @@ extern int			RestartRequested;
 #define	DEBUGPKT	(debug >= 4)
 #define	DEBUGPKTCONT	(debug >= 5)
 
+#define ha_log		cl_log
+#define ha_perror	cl_perror
 
 /* Generally useful exportable HA heartbeat routines... */
 extern void		ha_error(const char * msg);
 extern void		ha_assert(const char *s, int line, const char * file);
-extern void		ha_log(int priority, const char * fmt, ...) G_GNUC_PRINTF(2,3);
-extern void		ha_perror(const char * fmt, ...) G_GNUC_PRINTF(1,2);
+
 extern int		send_cluster_msg(struct ha_msg*msg);
 extern void		cleanexit(int exitcode);
 extern void		check_auth_change(struct sys_config *);

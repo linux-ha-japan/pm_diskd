@@ -2,14 +2,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef HAVE_LIBNET_1_1_API
+#ifdef HAVE_LIBNET_1_0_API
 #	include <net/ethernet.h>
 #endif
 #include <libnet.h>
 #include <string.h>
 #include <syslog.h>
 
-const char * ether_ntoa(struct ether_addr *macaddr);
 
 static void
 hwaddr_to_stdout(unsigned char * addr, int len)

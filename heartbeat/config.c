@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.66 2002/07/30 17:34:37 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.67 2002/09/10 21:50:06 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -1026,6 +1026,7 @@ set_facility(const char * value)
 			,	sizeof(config->facilityname)-1);
 			config->facilityname[sizeof(config->facilityname)-1]
 			=	EOS;
+			cl_log_set_facility(config->log_facility);
 			return(HA_OK);
 		}
 	}
@@ -1037,6 +1038,7 @@ int
 set_dbgfile(const char * value)
 {
 	strncpy(config->dbgfile, value, PATH_MAX);
+	cl_log_set_debugfile(config->dbgfile);
 	config->use_dbgfile=1;
 	return(HA_OK);
 }
@@ -1046,6 +1048,7 @@ int
 set_logfile(const char * value)
 {
 	strncpy(config->logfile, value, PATH_MAX);
+	cl_log_set_logfile(config->logfile);
 	config->use_logfile=1;
 	return(HA_OK);
 }
@@ -1357,6 +1360,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.67  2002/09/10 21:50:06  alan
+ * Added code, modified code to move to a common set of logging functions
+ * - cl_log() and friends.
+ *
  * Revision 1.66  2002/07/30 17:34:37  horms
  * Make sure that the initial dead time is not set to less than
  * 10 seconds if it has not been specified in the configuration file.
