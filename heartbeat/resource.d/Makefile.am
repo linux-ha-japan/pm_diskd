@@ -33,6 +33,7 @@ hard_SCRIPTS	=			\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
+			portblock	\
 			ServeRAID	\
 			Raid1		\
 			WAS		\
