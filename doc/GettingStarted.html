@@ -4,7 +4,7 @@
    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
    <meta name="Description" content="This document is a short description of how to get started with Linux-HA (heartbeat), especially from the software perspective.">
    <meta name="Author" content="Rudy Pawul - rpawul@iso-ne.com">
-   <meta name="GENERATOR" content="Mozilla/4.7 [en] (Win98; U) [Netscape]">
+   <meta name="GENERATOR" content="Mozilla/4.75 [en] (Windows NT 5.0; U) [Netscape]">
    <title>Getting Started with Linux-HA (heartbeat)</title>
 </head>
 <body>
@@ -19,11 +19,8 @@ My purpose for writing this document is just trying to contribute in some
 way to possibly help those who REALLY get things done.&nbsp; The "work"
 I am contributing is mostly compiling bits and pieces from other HA documents
 (such as Volker Wiegand's Hardware Installation Guide) into a document
-that can help novices (like myself!) get started on HA without pestering
-Alan (like I did!).
-<p>Hope this helps <i>someone</i> :-).&nbsp; <b><i><font color="#000099">[Editor's
-Note: Alan says it's already helped him a lot by cutting down his email
-load!]</font></i></b>
+that can help novices get started on HA without pestering Alan (like I
+did!) and to cut down on repeat questions on the mailing list.
 <br>&nbsp;
 <h2>
 Getting Started</h2>
@@ -42,18 +39,21 @@ wish to add a second serial/null modem connection or a second network interface
 card (NIC) to each node connected via a crossover cable.&nbsp; See Appendix
 A for instructions on how to build a crossover cable.&nbsp; My setup goes
 the 2 NIC route because I only had one null modem cable, had plenty of
-NICs on hand and thought it was good to have two medium types.
+NICs on hand and thought it was good to have two medium types for the heartbeats.
 <p>Once your hardware is in order, you must install your OS and configure
-your networking (I used Red Hat 6.0.).&nbsp; Assuming you have 2 NICs,
-one should be configured for your "normal" network and the other as a private
-network between your clustered nodes.&nbsp; For an example, we will assume
-that our cluster will have the following addresses:
+your networking (I used Red Hat).&nbsp; Assuming you have 2 NICs, one should
+be configured for your "normal" network and the other as a private network
+between your clustered nodes (via the crossover cable).&nbsp; For an example,
+we will assume that our cluster will have the following addresses:
 <p>Node 1 (linuxha1):&nbsp;&nbsp; 192.168.85.1&nbsp; (normal 192x net)
 <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 10.0.0.1 (private 10x net)
 <br>Node 2 (linuxha2):&nbsp;&nbsp; 192.168.85.2&nbsp; (192x)
 <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 10.0.0.2&nbsp; (10x)
+<br><i><font color="#FF0000">Note:&nbsp; Neither of these addresses should
+be your "cluster address" - the address handled by heartbeat and failed
+over between nodes!</font></i>
 <p>&nbsp; Red Hat makes this easy during installation (please don't think
 I'm carrying their banner, it's just what I use), however, if you use another
 distribution or are having any problems, refer to the Ethernet HOWTO.&nbsp;&nbsp;&nbsp;&nbsp;
@@ -85,16 +85,16 @@ rpm</tt></b>" and use rpm to install.&nbsp; Otherwise, you can simply type
 "<b><tt>make install</tt></b>".
 <p>NOTE:&nbsp; If you want to run PPP over a serial connection and do NOT
 use RPM, you will need to manually install an additional script, which
-can be found in the README.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><i><font color="#FF0000">Describe
-exactly how to install this script and where.</font></i></b>
+can be found in the README.
 <h2>
 Configuring Heartbeat</h2>
-There are three files you will need to configure before starting up heartbeat.&nbsp;
-First, is <i>ha.cf</i>.&nbsp; This will be placed in the /etc/ha.d directory
-that is created after installation.&nbsp; It tells heartbeat what types
-of media paths to use and how to configure them.&nbsp;&nbsp; The ha.cf
-in the source directory contains all the various options you can use, I'll
-go through it line by line...
+<b><font size=+1>Configuring ha.cf</font></b>
+<br>There are three files you will need to configure before starting up
+heartbeat.&nbsp; First, is <i>ha.cf</i>.&nbsp; This will be placed in the
+/etc/ha.d directory that is created after installation.&nbsp; It tells
+heartbeat what types of media paths to use and how to configure them.&nbsp;&nbsp;
+The ha.cf in the source directory contains all the various options you
+can use, I'll go through it line by line...
 <dl>
 <dt>
 <b><tt><font size=+1>serial /dev/ttyS0</font></tt></b></dt>
@@ -157,7 +157,8 @@ Speed at which to run the serial line (bps).</dd>
 <b><tt><font size=+1>udpport 694</font></tt></b></dt>
 
 <dd>
-Use port number 694 for udp.  This is the default, and the official registered port number.</dd>
+Use port number 694 for udp. This is the default, and the official registered
+port number.</dd>
 
 <dt>
 <b><tt><font size=+1>ppp-udp /dev/ttyS1 10.0.0.3</font></tt></b></dt>
@@ -167,6 +168,19 @@ Specifies that you want a PPP/UDP heartbeat across /dev/ttyS1 and its address
 should be 10.0.0.3. Note that this address is required to be a local IP
 address.&nbsp; Note also, that a given tty port cannot be used for both
 a ppp-udp heartbeat and a serial heartbeat.</dd>
+
+<dt>
+<b><tt><font size=+1>nice_failback on</font></tt></b></dt>
+
+<dl>
+<dt>
+<i>Optional.</i>&nbsp; For those familiar with Tru64 Unix, heartbeat acts
+as if in "favored member"mode.&nbsp; The master holds all the resources
+until a failover, at which time the slave takes over.&nbsp; Once the master
+comes back online, it will take everything back from the slave.&nbsp; This
+option will prevent the master node from re-acquiring cluster resources
+after a failover.</dt>
+</dl>
 
 <dt>
 <b><tt><font size=+1>node linuxha1.linux-ha.org</font></tt></b></dt>
@@ -182,10 +196,13 @@ a ppp-udp heartbeat and a serial heartbeat.</dd>
 <i>Mandatory</i>.&nbsp; Hostname of machine in cluster as described by
 `uname -a`.</dd>
 </dl>
-Once you've got your ha.cf set up, you need to configure <i>haresources</i>.&nbsp;
+<b><font size=+1>Configuring haresources</font></b>
+<br>Once you've got your ha.cf set up, you need to configure <i>haresources</i>.&nbsp;
 This file specifies the services for the cluster and who the default owner
 is.
-<br>For our example, we'll assume the high availability services are Apache
+<br><b><i><font color="#FF0000">Note:&nbsp; This file must be the same
+on both nodes!</font></i></b>
+<p>For our example, we'll assume the high availability services are Apache
 and Samba (the IP for the cluster is mandatory!).&nbsp; The haresources
 will need one line:
 <pre>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><tt>linuxha1.linux-ha.org 192.168.85.3 httpd smb</tt></b></pre>
@@ -270,10 +287,14 @@ for CPU resources, use sha1.&nbsp; It's the hardest to crack.
 <br>auth 1
 <br>1 sha1 key-for-sha1-any-text-you-want
 <p>For md5, you could use the same as the above, but replace "sha1" with
-"md5".&nbsp; Finally, for crc, a sample can be:
+"md5".
+<p>Finally, for crc, a sample can be:
 <br>auth 2
 <br>1 crc
-<p>Make sure its permissions are safe, like 600.&nbsp; That's it!
+<p>Make sure its permissions are safe, like 600.&nbsp; And "any text you
+want" is not <i>quite</i> right.&nbsp; There's a limit to the number of
+characters you can use.
+<br>That's it!
 <h2>
 Starting and testing heartbeat</h2>
 From Red Hat, or other distributions which use the SystemV style init files,
@@ -481,7 +502,7 @@ and /var/log/ha-debug for more clues.
 </tr>
 </table>
 
-<p>Rev 1.0.2
+<p>Rev 1.1.0
 <br>(c) 2000 Rudy Pawul
 <br><a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a>
 </body>
