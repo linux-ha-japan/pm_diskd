@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.58 2002/03/19 13:43:43 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.59 2002/03/25 23:19:36 horms Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -81,7 +81,7 @@ int     set_logfile(const char * value);
 int     set_dbgfile(const char * value);
 int	StringToBaud(const char * baudstr);
 
-int	udpport;
+int	udpport = -1;
 int	baudrate;
 int	serial_baud;
 
@@ -1323,6 +1323,18 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.59  2002/03/25 23:19:36  horms
+ * Patches from Gamid Isayev to
+ *
+ * 1) Avoid shadowing the udpport global, hence this
+ *    configuration option should now work.
+ *
+ * 2) Call getservbyname with a vaild protocol (udp), this should
+ *    also allow the udpport configuration option to work.
+ *
+ * --
+ * Horms
+ *
  * Revision 1.58  2002/03/19 13:43:43  alan
  * Just added a note about very long lines in haresources not being
  * handled correctly.

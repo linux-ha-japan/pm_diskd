@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.9 2001/10/03 05:33:28 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.10 2002/03/25 23:19:36 horms Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -77,7 +77,7 @@ static int		bcast_descr(char** buffer);
 static int		bcast_mtype(char** buffer);
 static int		bcast_isping(void);
 
-static int		udpport = -1;
+extern int		udpport;
 
 int if_get_broadaddr(const char *ifn, struct in_addr *broadaddr);
 
@@ -208,7 +208,7 @@ bcast_init(void)
 
 	if (udpport <= 0) {
 		/* If our service name is in /etc/services, then use it */
-		if ((service=getservbyname(HA_SERVICENAME, "bcast")) != NULL){
+		if ((service=getservbyname(HA_SERVICENAME, "udp")) != NULL){
 			udpport = ntohs(service->s_port);
 		}else{
 			udpport = UDPPORT;
@@ -756,6 +756,18 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.10  2002/03/25 23:19:36  horms
+ * Patches from Gamid Isayev to
+ *
+ * 1) Avoid shadowing the udpport global, hence this
+ *    configuration option should now work.
+ *
+ * 2) Call getservbyname with a vaild protocol (udp), this should
+ *    also allow the udpport configuration option to work.
+ *
+ * --
+ * Horms
+ *
  * Revision 1.9  2001/10/03 05:33:28  alan
  * Added a little more error checking for the broadcast port number...
  *
