@@ -11,15 +11,14 @@
 #undef index
 
 
+#define ENABLE_ML_DEFS_PRIVATE
+#define ENABLE_PLUGIN_MANAGER_PRIVATE
+
 #include <upmls/MLPlugin.h>
 #include "../../libltdl/config.h"
 
-#ifdef BSD
-#	define SCANSEL_C	(void *)
-#else
-#	define SCANSEL_C	/* Nothing */
-#endif
-
+#define NEW(type)		(g_new(type,1))
+#define DELETE(obj)	{g_free(obj); obj = NULL;}
 
 #define MODULESUFFIX	LTDL_SHLIB_EXT
 
@@ -226,7 +225,7 @@ NewMLModule(	MLModuleType* mtype
 	,	lt_dlhandle	dlhand
 	,	MLModuleInitFun ModuleSym)
 {
-	MLModule*	ret = g_new(MLModule, 1);
+	MLModule*	ret = NEW(MLModule);
 	ret->module_name = g_strdup(module_name);
 	ret->moduletype = mtype;
 	ret->Plugins = g_hash_table_new(g_str_hash, g_str_equal);
@@ -276,7 +275,7 @@ NewMLModuleType(MLModuleUniv* moduleuniv
 	,	const char *	moduletype
 )
 {
-	MLModuleType*	ret = g_new(MLModuleType, 1);
+	MLModuleType*	ret = NEW(MLModuleType);
 
 	*ret = dummymlmtype;
 
@@ -334,7 +333,7 @@ DelAMLModule	/* IsA GHFunc: required for g_hash_table_foreach() */
 MLModuleUniv*
 NewMLModuleUniv(const char * basemoduledirectory)
 {
-	MLModuleUniv*	ret = g_new(MLModuleUniv, 1);
+	MLModuleUniv*	ret = NEW(MLModuleUniv);
 
 	if (!g_path_is_absolute(basemoduledirectory)) {
 		g_free(ret); ret = NULL;
@@ -557,7 +556,7 @@ NewMLPluginType(MLPluginUniv*univ, const char * typename
 {
 	MLPluginType*	pipi_types;
 	MLPlugin*	pipi_ref;
-	MLPluginType*	ret = g_new(MLPluginType, 1);
+	MLPluginType*	ret = NEW(MLPluginType);
 	ret->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	ret->ud_pi_type = user_data;
 	ret->universe = univ;
@@ -727,7 +726,7 @@ pipi_close_plugin(MLPlugin* basepi, MLPlugin*plugin)
 static MLPluginType*
 pipi_new_plugintype(MLPluginUniv* pluginuniv)
 {
-	MLPluginType*	ret = g_new(MLPluginType, 1);
+	MLPluginType*	ret = NEW(MLPluginType);
 
 	ret->ud_pi_type = NULL;
 	ret->universe = pluginuniv;
@@ -1026,7 +1025,7 @@ MLRegisterAPlugin(MLModule* modinfo
 static MLPluginUniv*
 NewMLPluginUniv(MLModuleUniv* moduniv)
 {
-	MLPluginUniv*	ret = g_new(MLPluginUniv, 1);
+	MLPluginUniv*	ret = NEW(MLPluginUniv);
 
 	ret->moduniv = moduniv;
 	ret->pitypes = g_hash_table_new(g_str_hash, g_str_equal);
@@ -1196,7 +1195,6 @@ MLModTypeListModules(MLModuleType* mtype
 	int		j;
 
 
-
 	path = g_string_new(basedir);
 	if (modclass) {
 		if (g_string_append_c(path, G_DIR_SEPARATOR) == NULL
@@ -1206,7 +1204,8 @@ MLModTypeListModules(MLModuleType* mtype
 		}
 	}
 
-	modulecount = scandir(path->str, &files, SCANSEL_C &so_select, NULL);
+	modulecount = scandir(path->str, &files
+	,	SCANSEL_CAST &so_select, NULL);
 	g_string_free(path, 1); path=NULL;
 
 	result = (char **) g_malloc((modulecount+1)*sizeof(char *));

@@ -5,34 +5,41 @@
 #  endif
 
 /*****************************************************************************
- *	Begin MLPlugin.h    Or something like that...
- *****************************************************************************
  *
- * The most basic plugin type is the "PIHandler" plugin.
- * Each plugin handler registers and deals with plugins of a given type.
+ * The most basic plugin type is the "PIManager" plugin.
+ * Each plugin manager registers and deals with plugins of a given type.
  *
  * Such a plugin must be loaded before any modules of it's type can be loaded.
  *
  * In order to load any module of type "foo", we must load a plugin of type
- * "Plugin" named "foo".  This plugin then handles the registration of
+ * "Plugin" named "foo".  This plugin then manages the registration of
  * all plugins of type foo.
  *
  * To bootstrap, we load a plugin of type "Plugin" named "Plugin"
  * during the initialization of the module system.
  *
- * PIHandlers will be autoloaded if certain conditions are met...
+ * PIManagers will be autoloaded if certain conditions are met...
  *
- * If a PIHandler is to be autoloaded, it must be one plugin handler
+ * If a PIManager is to be autoloaded, it must be one plugin handler
  * per file, and the file named according to the type of the plugin it
- * implements, and loaded in the directory named "PIHandler".
+ * implements, and loaded in the directory named PLUGIN_PLUGIN.
  * 
  */
+
+/* The type of a plugin manager */
+
+#define	PLUGIN_PLUGIN	"Plugin"
 
 typedef struct MLPluginUniv_s		MLPluginUniv;
 typedef struct MLPluginType_s		MLPluginType;
 typedef struct MLPlugin_s		MLPlugin;
 typedef struct MLPluginImports_s	MLPluginImports;
 
+/*
+ *	I'm unsure exactly which of the following structures
+ *	are needed to write a plugin, or a plugin manager.
+ *
+ */
 
 
 /*
@@ -50,13 +57,14 @@ struct MLPlugin_s {
 };
 /*
  *	MLPluginType (AKA struct MLPluginType_s) holds the info
- *	we use to track the set of all plugin handlers of a single kind.
+ *	we use to track the set of all plugins of a single kind.
  */
 struct MLPluginType_s {
 	GHashTable*		plugins;
 	void*			ud_pi_type;	/* per-plugin-type user data*/
 	MLPluginUniv*		universe;	/* Pointer to parent (up) */
-	MLPlugin*		pipi_ref;	/* Pointer to our plugin plugin */
+	MLPlugin*		pipi_ref;	/* Pointer to our plugin
+						   manager */
 };
 struct MLPluginUniv_s{
 	GHashTable*		pitypes;	/* containing
@@ -67,15 +75,18 @@ struct MLPluginUniv_s{
 						 */
 };
 
+#ifdef ENABLE_PLUGIN_MANAGER_PRIVATE
 /*
  *
- * From here to the end is specific to the PluginPlugin type of Plugin...
+ * From here to the end is specific to plugin managers.
+ * This data is only needed by plugin managers, and the plugin management
+ * system itself.
  *
  */
 typedef struct MLPluginOps_s		MLPluginOps;
 
 
-/* Interfaces imported by a PIHandler plugin */
+/* Interfaces imported by a PIManager plugin */
 struct MLPluginImports_s { 
 
 		/* Return current reference count */
@@ -116,9 +127,6 @@ struct MLPluginOps_s{
 	void		(*DelPluginEnv)(MLPluginType*);
 };
 
-#define	PLUGIN_PLUGIN	"Plugin"
-
-#define NEW(type)		(g_new(type,1))
-#define DELETE(obj)	{g_free(obj); obj = NULL;}
+#endif /*ENABLE_PLUGIN_MANAGER_PRIVATE*/
 
 #endif /* UPMLS_MLPLUGIN_H */

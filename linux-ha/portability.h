@@ -7,6 +7,12 @@
 #define	STRLEN(conststr)	((sizeof(conststr)/sizeof(char))-1)
 
 
+#ifdef BSD
+#	define SCANSEL_CAST	(void *)
+#else
+#	define SCANSEL_CAST	/* Nothing */
+#endif
+
 #  ifdef HAVE_CONFIG_H
 #	include <config.h>
 

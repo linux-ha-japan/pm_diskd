@@ -13,12 +13,13 @@
  * An Overview of UPMLS...
  *
  * UPMLS is fairly general and reasonably interesting module loading system.
- * These modules are sometimes referred to as plugins.  Here, we use the
+ * Loadable modules are sometimes referred to as plugins.  Here, we use the
  * two terms to mean two different things.
  *
  * This plugin and module loading system is quite general, and should be
  * directly usable by basically any project on any platform on which it runs
- * - which should be many, since everything is build with automake.
+ * - which should be many, since everything is build with automake
+ * and libtool.
  *
  * Some terminology...
  *
@@ -28,19 +29,23 @@
  *		plugins.  The system treats all modules as the same.
  *		In UNIX, these are dynamically loaded ".so" files.
  *
- * Plugin: A set of functions which implement a particular plug-in capability.
+ * Plugin: A set of functions which implement a particular plug-in capability
+ * 		(or interface)
  * 	Generally plugins are dynamically loaded as part of a module.
  * 	The system treats all plugins of the same type the same.
- * 	It is common to have one plugin inside of each module.  In this case,
- * 	the plugin name should match the module name.
+ * 	It is common to have exactly one plugin inside of each module.
+ * 	In this case, the plugin name should match the module name.
  *
  * Each plugin exports certain interfaces which it exports for its clients
  * to use.   We refer to these those "Ops".  Every plugin of the same type
- * "imports" the same interfaces, and exports the same "Ops".
+ * "imports" the same interfaces from its plugin manager,
+ * and exports the same "Ops".
  *
  * Each plugin is provided certain interfaces which it imports when it
- * is loaded.  We refer to these as "Imports".  Every plugin of a given
- * type imports the same interfaces.
+ * from its plugin manager when it is registered.  We refer to these as
+ * "Imports".  Every plugin of a given type imports the same interfaces.
+ *
+ * The story with modules is a little different...
  *
  * Every module exports a certain set of interfaces, regardless of what type
  * of plugins it may implement.  These are described in the MLModuleOps
@@ -108,16 +113,13 @@
  *
  *	Although we treat modules pretty much the same, they are still
  *	categorized into "types" - one type per directory.  These types
- *	generally (but not necessarily) correspond to plugin types.
+ *	generally correspond to plugin types.
  *
  *	One can only cause a module to be loaded - not a plugin.  But it is
  *	common to assume that loading a module named foo of type bar will
  *	cause a plugin named foo of type bar to be registered.  If one
  *	wants to implement automatic module loading in a given plugin type,
  *	this assumption is necessary.
- *
- *	Automatic plugin loading isn't necessary everywhere, but it's nice
- *	for some plugin types.
  *
  *	The general way this works is...
  *
@@ -138,7 +140,7 @@
  *
  * 	The mechanism of registering a plugin is largely the same for
  * 	every plugin.  However, the semantics of registering a plugins is
- * 	determined by the plugin loader for the particular type of plugin
+ * 	determined by the plugin manager for the particular type of plugin
  * 	being discussed.
  *
  ***************************************************************************
@@ -146,21 +148,23 @@
  ***************************************************************************
  *
  *	There is only one built in type of plugin.  That's the Plugin plugin.
- *	The plugin loader for the plugin of type "Plugin", named "Plugin"
+ *	The plugin manager for the plugin of type "Plugin", named "Plugin"
  *	inserts itself into the system in order to bootstrap things...
  *
  *	When an attempt is made to register a plugin of an unknown type, then
- *	the Plugin module of the appropriate name is loaded automatically.
- *	The plugins it registers then handle requests to register
- *	plugins whose type is the same as its plugin name.
+ *	the appropriate Plugin manager is loaded automatically.
+ *
+ *	It handles requests to register plugins whose type is the same
+ *	as its plugin name.  If the plugin manager's plugin name is foo,
+ *	then it is the plugin manager for all plugins of type foo.
  *
  * 	Types associated with plugins of type Plugin
  *
  *	MLPluginOps	The set of interfaces that every plugin
- *				handler exports
+ *				manager exports
  *	MLPluginImports	The set of interfaces which are supplied to
  *				(imported by) every plugin of type Plugin.
- *
+ *				(that is, every plugin manager).
  *
  *****************************************************************************
  *
@@ -172,8 +176,8 @@
  * The ml_module_init() function is called once when the module is loaded.
  *
  *
- * All other entry points are exported through parameters passed to
- * ml_module_init()
+ * All other entry points are registered (exported) through parameters
+ * passed to ml_module_init()
  *
  * Ml_module_init() then registers the module, and all the plugins which
  * this module implements.  The registration function is in the parameters
@@ -183,19 +187,18 @@
  *
  * THINGS IN THIS DESIGN WHICH ARE PROBABLY BROKEN...
  *
- * Not sufficient thought has been given to return codes, and error
- * indications similar to errno.
- *
- * Each of the plugin handlers needs to be able to get some kind of
+ * Each of the plugin needs to be able to get some kind of
  * user data passed to it - at least if it has been loaded manually...
  *
  * It may also be the case that the module loading environment needs
  * to be able to have some kind of user_data passed to it which it can
- * also pass along to any plugin handlers...
+ * also pass along to any plugin ...
  *
- * Does this mean that the plugin handlers don't need their own user_data?
+ * Maybe this should be handled by a sort of global user_data registration
+ * structure, so globals can be passed to plugins when they're registered.
  *
- * I dunno...  Probably not...
+ * A sort of "user_data" registry.  One for each plugin type and one
+ * for each plugin...  Or maybe it could be even more flexible...
  *
  * This is all so that these nice pristene, beautiful concepts can come out
  * and work well in the real world where plugins need to interact with
@@ -230,8 +233,8 @@
  *	,	Ourclose
  *	};
  *
- *	static MLModuleImports*	ModuleOps;
- *	static MLModule*	OurModule;
+ *	static const MLModuleImports*	ModuleOps;
+ *	static MLModule*		OurModule;
  *
  *	// Our module initialization and registration function
  *	// It gets called when the module gets loaded.
@@ -256,7 +259,7 @@
  *
  * Except for the ML_MODULETYPE and the ML_MODULE definitions, and changing
  * the names of various static variables and functions, every single module is
- * set up in pretty much the same way
+ * set up pretty much the same way
  *
  */
 
@@ -288,6 +291,11 @@
 #define ML_MODULE_INIT	EXPORTHELP2(ML_MODULETYPE, ML_INSERT, ML_MODULE \
 			,	mlINIT_FUNC)
 
+/*
+ *	Module loading return codes.  OK will always be zero.
+ *
+ *	There are many ways to fail, but only one kind of success ;-)
+ */
 
 typedef enum {
 	ML_OK=0,	/* Success */
@@ -312,28 +320,6 @@ typedef ML_rc (*MLModuleInitFun) (MLModule*us
 ,		const MLModuleImports* imports);
 
 /*
- * struct MLModule_s (typedef MLModule) is the structure which
- * represents/defines a module, and is used to identify which module is
- * being referred to in various function calls.
- *
- * NOTE: It may be the case that this definition should be moved to
- * another header file - since no one ought to be messing with them anyway ;-)
- *
- * I'm not sure that we're putting the right stuff in here, either...
- */
-
-struct MLModule_s {
-	char*		module_name;
-	MLModuleType*	moduletype;	/* Parent structure */
-	GHashTable*	Plugins;	/* Plugins registered by this module*/
-	int		refcnt;		/* Reference count for this module */
-	lt_dlhandle	dlhandle;	/* Reference to D.L. object */
-	MLModuleInitFun	dlinitfun;	/* Initialization function */
-
-	void*		ud_module;	/* Data needed by module-common code*/
-	/* Other stuff goes here ...  (?) */
-};
-/*
  * struct MLModuleOps_s (typedef MLModuleOps) defines the set of functions
  * exported by all modules...
  */
@@ -345,6 +331,10 @@ struct MLModuleOps_s {
 	void		(*setdebuglevel) (int);
 	void		(*close) (MLModule*);
 };
+
+/*
+ *	Logging levels for the "standard" log interface.
+ */
 
 typedef enum {
 	ML_FATAL= 1,	/* BOOM! Causes program to stop */
@@ -380,11 +370,17 @@ struct MLModuleImports_s {
 					/* Logging function		*/
 };
 
-/***************************************************************************
- *
- * Start of MLModuleType.h or something like that ;-)
- *
- ***************************************************************************/
+/* Exported functions */
+
+MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
+void		DelMLModuleUniv(MLModuleUniv*);
+
+ML_rc		MLLoadModule(MLModuleUniv* moduniv
+,	const char * moduletype
+,	const char * modulename);
+
+#ifdef ENABLE_ML_DEFS_PRIVATE
+/* Probably these should be moved to a different header file */
 
 /*
  * MLModuleType is the "class" for the basic module loading mechanism.
@@ -396,7 +392,9 @@ struct MLModuleImports_s {
  *
  * The general idea of these structures is as follows:
  *
- * The MLModuleUniv object contains information about all modules of all types.
+ * The MLModuleUniv object contains information about all modules of
+ * all types.
+ *
  * The MLModuleType object contains information about all the modules of a
  * specific type.
  *
@@ -407,29 +405,36 @@ struct MLModuleImports_s {
  * names should match the module name.
  */
 
-/* This is how we get started ;-) */
-MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
-void	DelMLModuleUniv(MLModuleUniv*);
-
-
-ML_rc
-MLLoadModule(MLModuleUniv* moduniv, const char * moduletype
-,	const char * modulename);
-
 
 /*
- * MLForEachModType calls 'fun2call' once for each module type in
- * a MLModuleUniverse
+ * struct MLModule_s (typedef MLModule) is the structure which
+ * represents/defines a module, and is used to identify which module is
+ * being referred to in various function calls.
+ *
+ * NOTE: It may be the case that this definition should be moved to
+ * another header file - since no one ought to be messing with them anyway ;-)
+ *
+ * I'm not sure that we're putting the right stuff in here, either...
  */
-extern void	MLForEachModType(MLModuleUniv* universe
-		,	void (*fun2call)(MLModuleType*, void* userdata)
-		,	void *userdata);
+
+struct MLModule_s {
+	char*		module_name;
+	MLModuleType*	moduletype;	/* Parent structure */
+	GHashTable*	Plugins;	/* Plugins registered by this module*/
+	int		refcnt;		/* Reference count for this module */
+	lt_dlhandle	dlhandle;	/* Reference to D.L. object */
+	MLModuleInitFun	dlinitfun;	/* Initialization function */
+
+	void*		ud_module;	/* Data needed by module-common code*/
+	/* Other stuff goes here ...  (?) */
+};
 
 /*
  *	MLModuleType		Information about all modules of a given type.
  *					(i.e.,  in a given directory)
  *				(AKA struct MLModuleType_s)
  */
+
 struct MLModuleType_s {
 	char *			moduletype;
 	MLModuleUniv*		moduniv; /* The universe to which we belong */
@@ -441,6 +446,7 @@ struct MLModuleType_s {
 	,			int plusminus);
 	char**	(*listmodules)(MLModuleType*, int* listlen);
 };
+
 /*
  *	MLModuleUniv (aka struct MLModuleUniv_s) is the structure which
  *	represents the universe of all MLModuleType objects.
@@ -454,4 +460,5 @@ struct MLModuleUniv_s {
 	struct MLPluginUniv_s*	piuniv; /* Parallel Universe of plugins */
 	MLModuleImports*	imports;
 };
+#endif /* ENABLE_ML_DEFS_PRIVATE */
 #endif /*UPMLS_MLMODULE_H */
