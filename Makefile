@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.1 1999/09/23 15:31:24 alanr Exp $
+#	$Id: Makefile,v 1.2 1999/09/23 15:50:55 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -34,6 +34,7 @@ HAPPP=$(VARRUN)/ppp.d
 DOCDIR=$(BRROOTDIR)/usr/doc/heartbeat
 INITSCRIPT=$(BRROOTDIR)/$(INITD)/$(PKG)
 RESOURCEDIR=$(BRROOTDIR)/etc/ha.d/resource.d
+SPECSRC=Specfile
 
 # Can't include the Build Root as a part of the compilation process
 B_HA=$(DESTDIR)/etc/ha.d
@@ -137,6 +138,7 @@ tar:            clean rpmclean
 		D=/usr/tmp/$$$$/$(OURDIR);			\
 		mkdir -p $$D;					\
 		find . -print | cpio -pdm $$D;			\
+		cd $$D/..;					\
 		$(TAR)  -cf - $(OURDIR) | gzip - > $(TARFILE);	\
 		rm -fr /usr/tmp/$$$$;
 
