@@ -115,7 +115,7 @@ nw_rpc100s_la_LDFLAGS	= -no-undefined -module -avoid-version
 rps10_la_SOURCES	= rps10.c expect.c
 rps10_la_LDFLAGS	= -no-undefined -module -avoid-version
 
-ssh_la_SOURCES		= ssh.c expect.c 
+ssh_la_SOURCES		= ssh.c
 ssh_la_LDFLAGS		= -no-undefined -module -avoid-version
 
 vacm_la_SOURCES		= vacm.c expect.c 

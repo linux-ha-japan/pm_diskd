@@ -21,6 +21,7 @@
  *
  */
 
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,7 +33,6 @@
 #include <sys/wait.h>
 
 #include <stonith/stonith.h>
-#include <stonith/expect.h>
 
 #define	DEVICE	"SSH STONITH device"
 #define WHITESPACE	" \t\n\r\f"
