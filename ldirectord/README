@@ -13,3 +13,5 @@ You must not install all of the Perl libraries LWP::UserAgent,
 Net::SSLeay, Net::FTP, simply comment out the functions You dont
 need, check_http, check_https or check_ftp.
 
+RPMS of these modules are available from 
+ftp://ultramonkey.sourceforge.net/pub/ultramonkey/  
