@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.49 2002/07/16 12:29:18 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.50 2002/07/27 05:47:56 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -1015,6 +1015,7 @@ sub add_real_server
 	my $realsrv=0;
 	my $request;
 	my $receive;
+	my $new_rsrv;
 
 	$flags =~ /(\w+)(.*)/ && ($1 eq "gate" || $1 eq "masq" || $1 eq "ipip")
 	    or &config_error($line, 
@@ -1031,12 +1032,12 @@ sub add_real_server
 			unless($request=~/^\//){
 				$request = "/" . $request;
 			}
-			push(@$rsrv, {"server"=>$ip, "port"=>$port, 
+			$new_rsrv = {"server"=>$ip, "port"=>$port, 
 				"forward"=>$fwd, "weight"=>$weight, 
-				"request"=>$request, "receive"=>$receive});
+				"request"=>$request, "receive"=>$receive};
 		} else {
-			push(@$rsrv, {"server"=>$ip, "port"=>$port, 
-				"forward"=>$fwd, "weight"=>$weight});
+			$new_rsrv = {"server"=>$ip, "port"=>$port, 
+				"forward"=>$fwd, "weight"=>$weight};
 		}
 	} elsif ($2 =~ /\s+\"(.*)\",\s*\"(.*)\"/) {
 		$request = $1;
@@ -1044,15 +1045,17 @@ sub add_real_server
 		unless($request=~/^\//){
 			$request = "/" . $request;
 		}
-		push(@$rsrv, {"server"=>$ip, "port"=>$port, 
+		$new_rsrv = {"server"=>$ip, "port"=>$port, 
 			"forward"=>$fwd, "request"=>$request, 
-			"receive"=>$receive});
+			"receive"=>$receive};
 	} else {
-		push(@$rsrv, {"server"=>$ip, "port"=>$port, "forward"=>$fwd});
+		$new_rsrv = {"server"=>$ip, "port"=>$port, "forward"=>$fwd};
 	}
 
-        my $real    = $vsrv->{"protocol"}.":".$ip.":".$port;
-	my $virtual = $vsrv->{"protocol"}.":".&get_virtual($vsrv);
+	push(@$rsrv, $new_rsrv);
+
+        my $real    = get_real_id_str($new_rsrv, $vsrv);
+	my $virtual = get_virtual_id_str($vsrv);
 	for my $r (@REAL){
 		if($r->{"real"} eq $real){
 			my $ref=$r->{"virtual"};
@@ -1373,6 +1376,8 @@ sub ld_main
 		my @real_checked;
 		foreach my $v (@VIRTUAL) {
 			my $real = $$v{real};
+			my $virtual_id = get_virtual_id_str($v);
+
 			# unfortunately LWP::Paralell::UserAgent
 			# does not work right now for https and
 			# has some major problems with http
@@ -1381,47 +1386,52 @@ sub ld_main
 			# $ua->redirect(0);
 			# $ua->max_hosts($#$real+1);
 			# $ua->max_req($#$real+1);
-			foreach my $r (@$real) {
-				unless(grep(/^$$v{protocol}:$$r{server}:$$r{port}$/, @real_checked)){
-					if ($$v{checktype} eq "negotiate" || $$r{num_connects}>=$$v{num_connects}) {
-						&ld_debug(2, "Checking negotiate: real server=$$r{server}:$$r{port} (virtual: " .  &get_virtual($v) . ")");
-						if ($$v{service} eq "http") {
-							$$r{num_connects} = 0 if (check_http($v, $r));
-							# my $req = new HTTP::Request(GET=>"$$r{url}");
-							# $ua->register($req, \&http_received);
-						} elsif ($$v{service} eq "https") {
-							$$r{num_connects} = 0 if (check_https($v, $r));
-						} elsif ($$v{service} eq "pop3") {
-							$$r{num_connects} = 0 if (check_pop3($v, $r));
-						} elsif ($$v{service} eq "imap") {
-							$$r{num_connects} = 0 if (check_imap($v, $r));
-						} elsif ($$v{service} eq "smtp") {
-							$$r{num_connects} = 0 if (check_smtp($v, $r));
-						} elsif ($$v{service} eq "ftp") {
-							$$r{num_connects} = 0 if (check_ftp($v, $r));
-						} elsif ($$v{service} eq "ldap") {
-							$$r{num_connects} = 0 if (check_ldap($v, $r));
-						} else {
-							$$r{num_connects} = 0 if (check_none($v, $r));
-						}
-					} elsif ($$v{checktype} eq "connect" and $$v{protocol} ne "udp") {
-						&ld_debug(2, "Checking connect: server=$$r{server}");
-						check_connect($v, $r);
-					} elsif ($$v{checktype} eq "off") {
-						&ld_debug(2, "Checking off: No real or fallback servers to be added\n");
-					} elsif ($$v{checktype} eq "on") {
-						&ld_debug(2, "Checking on: Real servers are added without any checks\n");
-						&service_set($v, $r, "up");
-					} elsif ($$v{checktype} eq "combined") {
-						&ld_debug(2, "Checking combined-connect: server=$$r{server}");
-						if (check_connect($v, $r)) {
-							$$r{num_connects}++;
-						} else {
-							$$r{num_connects} = 999999;
-						}
+			REAL: foreach my $r (@$real) {
+				my $real_id = get_real_id_str($r, $v);
+				foreach my $tmp_id (@real_checked) {
+					if($real_id eq $tmp_id) {
+						&ld_debug(3, "Already checked: real server=$real_id (virtual=$virtual_id)");
+						next REAL;
 					}
-					push(@real_checked, "$$v{protocol}:$$r{server}:$$r{port}");
 				}
+				if ($$v{checktype} eq "negotiate" || $$r{num_connects}>=$$v{num_connects}) {
+					&ld_debug(2, "Checking negotiate: real server=$real_id (virtual=$virtual_id)");
+					if ($$v{service} eq "http") {
+						$$r{num_connects} = 0 if (check_http($v, $r));
+						# my $req = new HTTP::Request(GET=>"$$r{url}");
+						# $ua->register($req, \&http_received);
+					} elsif ($$v{service} eq "https") {
+						$$r{num_connects} = 0 if (check_https($v, $r));
+					} elsif ($$v{service} eq "pop3") {
+						$$r{num_connects} = 0 if (check_pop3($v, $r));
+					} elsif ($$v{service} eq "imap") {
+						$$r{num_connects} = 0 if (check_imap($v, $r));
+					} elsif ($$v{service} eq "smtp") {
+						$$r{num_connects} = 0 if (check_smtp($v, $r));
+					} elsif ($$v{service} eq "ftp") {
+						$$r{num_connects} = 0 if (check_ftp($v, $r));
+					} elsif ($$v{service} eq "ldap") {
+						$$r{num_connects} = 0 if (check_ldap($v, $r));
+					} else {
+						$$r{num_connects} = 0 if (check_none($v, $r));
+					}
+				} elsif ($$v{checktype} eq "connect" and $$v{protocol} ne "udp") {
+					&ld_debug(2, "Checking connect: real server=$real_id (virtual=$virtual_id)");
+					check_connect($v, $r);
+				} elsif ($$v{checktype} eq "off") {
+					&ld_debug(2, "Checking off: No real or fallback servers to be added\n");
+				} elsif ($$v{checktype} eq "on") {
+					&ld_debug(2, "Checking on: Real servers are added without any checks\n");
+					&service_set($v, $r, "up");
+				} elsif ($$v{checktype} eq "combined") {
+					&ld_debug(2, "Checking combined-connect: real server=$real_id (virtual=$virtual_id)");
+					if (check_connect($v, $r)) {
+						$$r{num_connects}++;
+					} else {
+						$$r{num_connects} = 999999;
+					}
+				}
+				push(@real_checked, $real_id);
 			}
 			# $ua->wait($$v{checktimeout});
 		}
@@ -1713,7 +1723,7 @@ sub service_set()
 
         # Find the real server in @REAL
 	foreach $real (@REAL) {
-		if($real->{"real"} eq "$$v{protocol}:$$r{server}:$$r{port}"){
+		if($real->{"real"} eq get_real_id_str($r, $v)) {
 			$virtual = $real->{"virtual"};
 			last;
 		}
@@ -1723,8 +1733,14 @@ sub service_set()
 	# Check each virtual service for the real server and make
 	# changes as neccessary
 	foreach $v (@VIRTUAL){
-		my $qry=$$v{protocol} . ":" . &get_virtual($v);
-		if (grep(/^$qry$/, @$virtual)) {
+		my $tmp_id;
+		my $virtual_id = get_virtual_id_str($v);
+		foreach $tmp_id (@$virtual) {
+			if($virtual_id eq $tmp_id) {
+				last;
+			}
+		}
+		if ($virtual_id eq $tmp_id) {
 			if ($state=~/up/i) {
 				$$r{status}=0;
 				_service_up($v, $r);
@@ -2188,6 +2204,59 @@ sub get_virtual
 }
 
 
+# get_real_id_str
+# Get an id string for a real server
+# pre: r: Real service.
+#      protocol: protocol of the real service
+#                tcp or udp
+#      service: type of service
+# post: none
+# return: Id string for the real server
+
+sub get_real_id_str
+{
+	my ($r, $v) = (@_);
+
+	my $request = "";
+	my $receive = "";
+	my $check;
+	my $real;
+
+	if(defined($r->{"request"})) {
+		$request = $r->{"request"};
+	}
+	if(defined($r->{"receive"})) {
+		$request = $r->{"receive"};
+	}
+
+	if($v->{"checktype"} eq "negotiate" || $v->{"combined"} eq "negotiate") {
+		$check = $v->{"checktype"} . ":" . $v->{"service"};
+	}
+	else {
+		$check = $v->{"checktype"};
+	}
+
+
+        $real    = $check . ":" . $v->{"protocol"} . ":" 
+	         . $r->{"server"} . ":" . $r->{"port"}
+	         . ":" . quotemeta($request) . ":" . quotemeta($receive);
+}
+
+
+# get_virtual_id_str
+# Get an id string for a virtual service
+# pre: v: Virtual service
+# post: none
+# return: Id string for the virtual service
+
+sub get_virtual_id_str
+{
+	my ($v) = (@_);
+
+	my $virtual = $v->{"protocol"} . ":" .  &get_virtual($v);
+}
+
+
 # get_forward_flag
 # Get the ipvsadm flag corresponging to a forwarding mechanism
 # pre: forward: Name of forwarding mechanism. u
@@ -2445,4 +2514,3 @@ sub ld_gethostservbyname{
 	}
 	return($ip);
 }
-
