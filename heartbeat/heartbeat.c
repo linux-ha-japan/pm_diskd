@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.140 2001/10/03 18:09:51 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.141 2001/10/04 02:45:06 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2591,6 +2591,13 @@ send_cluster_msg(struct ha_msg* msg)
 	}
 
 	{
+	/*
+	 * Opening the FIFO for each message is a dumb idea.  It's slow,
+	 * it's hell on real time behavior (it accesses the filesystem for
+	 * the FIFO pathname for every message), and it doesn't work
+	 * reliably on FreeBSD.  An eminently bad idea.
+	 * That's why we don't do it (any more) ;-)
+	 */
 	        static int	ffd = -1;
 		int		length;
 		int		wrc;
@@ -2605,7 +2612,8 @@ send_cluster_msg(struct ha_msg* msg)
 
 		length=strlen(smsg);
 		if ((wrc = write(ffd, smsg, length)) != length) {
-			ha_perror("cannot write message to FIFO! [rc=%d]", wrc);
+			ha_perror("cannot write message to FIFO! [rc=%d]"
+			,	wrc);
 			rc = HA_FAIL;
 			close(ffd);
 			ffd = -1;
@@ -4271,6 +4279,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.141  2001/10/04 02:45:06  alan
+ * Added comments about the lousy realtime behavior of the old method
+ * of sending messages.  Changed the indentation of one line.
+ *
  * Revision 1.140  2001/10/03 18:09:51  alan
  * Changed the process titles a little so that the medium type is displayed.
  *
