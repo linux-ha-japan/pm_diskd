@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.6 1999/10/04 13:50:55 alanr Exp $
+#	$Id: Specfile,v 1.7 1999/10/05 04:44:39 alanr Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -38,15 +38,18 @@ It implements the following kinds of heartbeats:
 	serial ports used for heartbeats
   + Incorporated patch from Guenther Thomsen to clean up logging.
 	(you can now use syslog and/or file logs)
-  + You can send a SIGHUP to heartbeat control process to change authentication
-	parameters without restarting
   + Improved FreeBSD compatibility.
   + Changed resource acquisition and FIFO creation to occur in heartbeat itself
-	Sped up resource acquisiton on master restart.
+	Sped up resource acquisition on master restart.
+  + Fixed a bug where the FIFO doesn't get created correctly.
   + Changed resource relinquishment on heartbeat shutdown to occur in heartbeat,
 	instead of in the stop script.  This means you don't *really* have to
 	use the start/stop script if you don't want to.
-  + Fixed a bug where the FIFO doesn't get created.
+  + Added -k option to gracefully shut down current heartbeat instance
+  + Added -r option to cause currently running heartbeat to reread config files
+	(not completely implemented)
+  + You can send a SIGHUP to heartbeat control process to change authentication
+	parameters without restarting (see -r above :-))
 
 * Thu Sep 16 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>
