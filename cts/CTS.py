@@ -427,6 +427,10 @@ class ClusterManager(UserDict):
          "Return a list of resource type/instance pairs for the cluster"
          raise ValueError("Abstract Class member (ResourceGroups)")
 
+    def HasQuorum(self):
+         "Return TRUE if the cluster currently has quorum"
+         raise ValueError("Abstract Class member (ResourceGroups)")
+
 class Resource:
     '''
     This is an HA resource (not a resource group).
@@ -453,7 +457,7 @@ class Resource:
         '''
         raise ValueError("Abstract Class member (IsRunningOn)")
         return None
-        
+
     def IsWorkingCorrectly(self, nodename):
         '''
         This member function returns true if our resource is operating
@@ -470,18 +474,184 @@ class Resource:
     def __repr__(self):
         return "{" + self.ResourceType + "::" + self.Instance + "}"
 
+
+class ScenarioComponent:
+
+    def __init__(self, Env):
+	self.Env = Env
+
+    def IsApplicable(self):
+        '''Return TRUE if the current ScenarioComponent is applicable
+	in the given LabEnvironment given to the constructor.
+	'''
+
+        raise ValueError("Abstract Class member (IsApplicable)")
+
+    def SetUp(self, CM):
+        '''Set up the given ScenarioComponent'''
+        raise ValueError("Abstract Class member (Setup)")
+
+    def TearDown(self, CM):
+        '''Tear down (undo) the given ScenarioComponent'''
+        raise ValueError("Abstract Class member (Setup)")
+	
+	
+
+class Scenario:
+    (
+'''The basic idea of a scenario is that of an ordered list of
+ScenarioComponent objects.  Each ScenarioComponent is SetUp() in turn,
+and then after the tests have been run, they are torn down using TearDown()
+(in reverse order).
+
+A Scenario is applicable to a particular cluster manager iff each
+ScenarioComponent is applicable.
+
+A partially set up scenario is torn down if it fails during setup.
+''')
+
+    def __init__(self, Components):
+
+        "Initialize the Scenario from the list of ScenarioComponents"
+
+        for comp in Components:
+
+            if not issubclass(comp.__class__, ScenarioComponent):
+                raise ValueError("Init value must be subclass of"
+		" ScenarioComponent")
+        self.Components = Components
+
+
+    def IsApplicable(self):
+        (
+'''A Scenario IsApplicable() iff each of its ScenarioComponents IsApplicable()
+'''
+        )
+
+        for comp in self.Components:
+            if not comp.IsApplicable():
+                return None
+        return 1
+
+    def SetUp(self, CM):
+        '''Set up the Scenario. Return TRUE on success.'''
+
+        j=0
+        while j < len(self.Components):
+            if not self.Components[j].SetUp(CM):
+                # OOPS!  We failed.  Tear partial setups down.
+                CM.log("Tearing down partial setup")
+                self.TearDown(CM, j)
+                return None
+            j=j+1
+        return 1
+
+    def TearDown(self, CM, max=None):
+
+        '''Tear Down the Scenario - in reverse order.'''
+
+        if max == None:
+            max = len(self.Components)-1
+        j=max
+        while j >= 0:
+            self.Components[j].TearDown(CM)
+            j=j-1
+
+
+class InitClusterManager(ScenarioComponent):
+    (
+'''InitClusterManager is the most basic of ScenarioComponents.
+This ScenarioComponent simply starts the cluster manager on all the nodes.
+It is fairly robust as it waits for all nodes to come up before starting
+as they might have been rebooted or crashed for some reason beforehand.
+''')
+
+    def IsApplicable(self):
+        '''InitClusterManager is so generic it is always Applicable'''
+        return 1
+
+
+    def _IsNodeBooted(self, node):
+	'''Return TRUE if the given node is booted (responds to pings'''
+        return system("ping -nq -c1 -w1 %s >/dev/null 2>&1" % node) == 0
+
+
+    def _WaitForNodeToComeUp(self, node, Timeout=300):
+
+	'''Return TRUE when given node comes up, or FALSE if timeout'''
+
+        timeout=Timeout
+        anytimeouts=0
+	while timeout > 0:
+            if self._IsNodeBooted(node):
+                if anytimeouts:
+                     # Fudge to wait for the system to finish coming up
+                     time.sleep(30)
+                return 1
+
+            time.sleep(1)
+            if (not anytimeouts):
+                self.Env.log("Waiting for %s to come up" % node)
+                
+            anytimeouts=1
+            timeout = timeout - 1
+
+        self.Env.log("%s did not come up within %d tries" % (node, Timeout))
+        return None
+
+    def _WaitForAllNodesToComeUp(self, nodes, timeout=300):
+	'''Return TRUE when all nodes come up, or FALSE if timeout'''
+
+        for node in nodes:
+            if not self._WaitForNodeToComeUp(node, timeout):
+                return None
+        return 1
+
+
+
+    def SetUp(self, CM):
+        '''Basic Cluster Manager startup.  Start everything'''
+
+        CM.prepare()
+        #	Clear out the cobwebs ;-)
+
+        self.TearDown(CM)
+
+        # Now start the Cluster Manager on all the nodes.
+
+        CM.log("Starting Cluster Manager on all nodes")
+        CM.startall()
+        return 1
+
+
+    def TearDown(self, CM):
+        '''Set up the given ScenarioComponent'''
+
+        self._WaitForAllNodesToComeUp(CM.Env["nodes"])
+
+        # Stop the cluster manager everywhere
+
+        CM.log("Stopping Cluster Manager on all nodes")
+        CM.stopall()
+
+
 class RandomTests:
     '''
     A collection of tests which are run at random.
     '''
-    def __init__(self, cm, tests, Audits):
+    def __init__(self, scenario, cm, tests, Audits):
 
         self.CM = cm
         self.Env = cm.Env
+        self.Scenario = scenario
 
         for test in tests:
             if not issubclass(test.__class__, CTStests.CTSTest):
                 raise ValueError("Init value must be a subclass of CTSTest")
+        if not scenario.IsApplicable():
+                raise ValueError("Scenario not applicable in"
+                " given Environment")
+
         self.Tests=tests
         self.Stats = {"success":0, "failure":0, "BadNews":0}
         self.IndividualStats= {}
@@ -489,9 +659,14 @@ class RandomTests:
         self.Audits = Audits
 
     def run(self, max=1):
-        '''
-        Run the selected tests at random for the selected number of iterations.
-        '''
+        (
+'''
+Set up the given scenario, then run the selected tests at
+random for the selected number of iterations.
+''')
+
+        if not self.Scenario.SetUp(self.CM):
+            return None
 
         BadNews=LogWatcher(self.CM["LogFileName"], self.CM["BadRegexes"]
         ,	timeout=0)
@@ -534,6 +709,8 @@ class RandomTests:
                     self.CM.log("Audit " + audit.name() + " Failed.")
                     test.incr("auditfail")
                     self.Stats["auditfail"] = self.Stats["auditfail"] + 1
+
+        self.Scenario.TearDown(self.CM)
 
         for test in self.Tests:
             self.IndividualStats[test.name] = test.Stats
