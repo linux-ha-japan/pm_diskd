@@ -99,8 +99,8 @@ initialize_llm(mbr_private_t *mem, struct IPC_MESSAGE *msg)
 	mem->llm = (ccm_llm_t *)g_malloc(len);
 	memcpy(mem->llm, msg->msg_body, len);
 
-	mem->bornon = g_hash_table_new(g_int_hash, 
-				g_int_equal);
+	mem->bornon = g_hash_table_new(g_direct_hash, 
+				g_direct_equal);
 
 	numnodes = CLLM_GET_NODECOUNT(mem->llm);
 	mem->cookie = NULL;

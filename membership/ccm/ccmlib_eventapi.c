@@ -37,6 +37,7 @@ typedef struct oc_ev_cookie_s {
 	void			*data;
 } oc_ev_cookie_t;
 
+static guint token_counter=0;
 
 typedef struct oc_ev_s {
 	int		oc_flag;
@@ -181,8 +182,8 @@ oc_ev_register(oc_ev_t **token)
 	oc_ev_init();
 
 
-	rettoken = g_malloc(sizeof(__oc_ev_t));
-	*token = (oc_ev_t *)rettoken;
+	rettoken = (__oc_ev_t *)g_malloc(sizeof(__oc_ev_t));
+	*token = (oc_ev_t *)GUINT_TO_POINTER(token_counter++);
 
 	if(!rettoken) return ENOMEM;
 
@@ -195,7 +196,7 @@ oc_ev_register(oc_ev_t **token)
 		rettoken->oc_pipe[1] = -1;
 	}
 
-	g_hash_table_insert(tokenhash, *token, *token);
+	g_hash_table_insert(tokenhash, *token, rettoken);
 
 	return 0;
 }
@@ -205,13 +206,12 @@ oc_ev_register(oc_ev_t **token)
 int 
 oc_ev_unregister(oc_ev_t *tok)
 {
-	__oc_ev_t *token = (__oc_ev_t *)tok;
+	__oc_ev_t *token = (__oc_ev_t *)g_hash_table_lookup(tokenhash, 
+			tok);
 
+	if(token == NULL) return EINVAL;
 	if(token_invalid(token)) return EINVAL;
 
-	if(g_hash_table_lookup(tokenhash, token) == NULL){
-		return EINVAL;
-	}
 	
 	/*
 	 * delete all the event classes associated within
@@ -220,7 +220,7 @@ oc_ev_unregister(oc_ev_t *tok)
 	g_hash_table_foreach_remove(token->oc_eventclass, 
 			eventclass_remove_func, NULL);
 
-	g_hash_table_remove(tokenhash, token);
+	g_hash_table_remove(tokenhash, tok);
 	g_free(token);
 	return 0;
 }
@@ -232,10 +232,13 @@ oc_ev_set_callback(const oc_ev_t *tok,
 		oc_ev_callback_t *fn,
 		oc_ev_callback_t **prev_fn)
 {
-	const __oc_ev_t *token = (const __oc_ev_t *)tok;
 	class_t *class;
 	oc_ev_callback_t *pre_callback;
 
+	const __oc_ev_t *token =  (__oc_ev_t *)
+		g_hash_table_lookup(tokenhash, tok);
+
+	if(token == NULL) return EINVAL;
 	if(token_invalid(token)) return EINVAL;
 
 
@@ -263,9 +266,11 @@ oc_ev_set_callback(const oc_ev_t *tok,
 int 
 oc_ev_activate(const oc_ev_t *tok, int *fd)
 {
-	const __oc_ev_t *token = (const __oc_ev_t *)tok;
 	int ret;
+	const __oc_ev_t *token =  (__oc_ev_t *)
+		g_hash_table_lookup(tokenhash, tok);
 
+	if(token == NULL) return EINVAL;
 	if(token_invalid(token)) return EINVAL;
 
 	if(!g_hash_table_size(token->oc_eventclass))
@@ -295,8 +300,10 @@ oc_ev_activate(const oc_ev_t *tok, int *fd)
 int
 oc_ev_handle_event(const oc_ev_t *tok)
 {
-	const __oc_ev_t *token = (const __oc_ev_t *)tok;
+	const __oc_ev_t *token =  (__oc_ev_t *)
+		g_hash_table_lookup(tokenhash, tok);
 
+	if(token == NULL) return EINVAL;
 	if(token_invalid(token)) return EINVAL;
 
 	if(!g_hash_table_size(token->oc_eventclass))
@@ -326,9 +333,11 @@ oc_ev_callback_done(void *ck)
 int 
 oc_ev_is_my_nodeid(const oc_ev_t *tok, const oc_node_t *node)
 {
-	const __oc_ev_t *token = (const __oc_ev_t *)tok;
 	class_t  *class;
+	const __oc_ev_t *token =  (__oc_ev_t *)
+		g_hash_table_lookup(tokenhash, tok);
 
+	if(token == NULL) return EINVAL;
 	if(token_invalid(token)) return EINVAL;
 	if(!node) return EINVAL;
 

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.7 2002/07/16 11:47:53 lars Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.8 2002/08/01 20:08:04 lars Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -360,7 +360,8 @@ ping_read(struct hb_media* mp)
 		LOG(PIL_DEBUG, "%s", &icp.icmp_data[0]);
 	
 	}
-	msgstart = &icp.icmp_data[0];
+
+	msgstart = (buf.cbuf + hlen + ICMP_HDR_SZ);
 	return string2msg(msgstart, bufmax - msgstart);
 }
 
