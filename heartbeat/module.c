@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.12 2001/05/31 15:51:08 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.13 2001/05/31 16:22:32 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -211,30 +211,14 @@ comm_module_init(void)
 
         for (a = 0; a < n; a++) {
 		char *mod_path           = NULL;
-#if 0
-		char *help               = NULL;
-#endif
 		struct hb_media_fns*	fns;
 		int			ret;
 		int			pathlen;
 
-#if 0
-		/* should use d_type one day when libc6 implements it */
-		if ( !strcmp( namelist[a]->d_name, "." ) || 
-		     !strcmp( namelist[a]->d_name, ".." ) ) 
-			continue;
-#endif
-	  
-#if 0
-		help = strchr(namelist[a]->d_name, '.');
-		if ( !help )
-			continue;
-		if ( strcmp( help, ".la" ) ) 
-			continue;
-#endif
 		
 		pathlen = (strlen(COMM_MODULE_DIR) 
 		+	strlen(namelist[a]->d_name) + 2) * sizeof(char);
+
 		mod_path = (char*) ha_malloc(pathlen);
 		if (!mod_path) { 
 		        ha_log(LOG_ERR, "%s: Failed to alloc module path."
@@ -354,20 +338,9 @@ auth_module_init()
 	
         for (a = 0; a < n; a++) {
 	        char *mod_path         = NULL; 
-		char *help             = NULL;
 		struct auth_type* auth;
 		int			pathlen;
 		int ret;
-		
-		if ( !strcmp( namelist[a]->d_name, "." ) || 
-			!strcmp( namelist[a]->d_name, ".." ) ) 
-			continue;
-		
-		help = strchr(namelist[a]->d_name, '.');
-		if ( !help )
-			continue;
-		if ( strcmp( help, ".la" ) ) 
-			continue;
 		
 		pathlen = (strlen(AUTH_MODULE_DIR) +
 		      strlen(namelist[a]->d_name) + 2) * sizeof(char);
@@ -408,6 +381,11 @@ auth_module_init()
 			return(HA_FAIL);
 		}
 		
+		if (DEBUGMODULE) {
+			ha_log(LOG_DEBUG
+			,	"Loading authentication module %s:"
+			,	namelist[a]->d_name);
+		}
 		ret = generic_symbol_load(namelist[a]->d_name
 		,	auth_symbols, NR_AUTH_FNS
 		,	auth->dlhandler);
@@ -417,10 +395,11 @@ auth_module_init()
 		auth->needskey = auth_symbols[2].function;
 
 		if (ret == HA_FAIL) {
-                        ha_free(mod_path); 
-			ha_free(auth);
+                        ha_free(mod_path); mod_path = NULL;
+			ha_free(auth); auth=NULL;
                         for (a=0; a < n; a++) {
                                 free(namelist[a]);
+				namelist[a]=NULL;
                         } 
 			return ret;
 		}
@@ -432,10 +411,12 @@ auth_module_init()
 		auth->ref = 0;
 		
 		ha_free(mod_path);
+		mod_path = NULL;
 	}
 	
         for (a=0; a < n; a++) {
 		free(namelist[a]);
+		namelist[a] = NULL;
         } 
 	
 	return(HA_OK);

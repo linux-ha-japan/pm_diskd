@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.32 2001/05/31 01:02:27 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.33 2001/05/31 16:22:32 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -715,10 +715,21 @@ parse_authfile(void)
 	struct stat	keyfilestat;
 	int		j;
 
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"Beginning authentication parsing");
+	}
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"%d total authentication methods", MAXAUTH);
+	}
 	if ((f = fopen(KEYFILE, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot open keyfile [%s].  Stop."
 		,	KEYFILE);
 		return(HA_FAIL);
+	}
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Keyfile opened");
 	}
 
 	if (fstat(fileno(f), &keyfilestat) < 0
@@ -728,12 +739,29 @@ parse_authfile(void)
 		fclose(f);
 		return(HA_FAIL);
 	}
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Keyfile perms OK");
+	}
 	config->auth_time = keyfilestat.st_mtime;
 
 	/* Allow for us to reread the file without restarting... */
 	config->authmethod = NULL;
 	config->authnum = -1;
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"%d total authentication methods", MAXAUTH);
+	}
 	for (j=0; j < MAXAUTH; ++j) {
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			,	"Examining authentication method %d", j);
+			ha_log(LOG_DEBUG
+			,	"Method is: %s", config->auth_config[j]
+			.auth->authname);
+			ha_log(LOG_DEBUG
+			,	"Ref count is: %d"
+			,	config->auth_config[j].auth->ref);
+		}
 		if (config->auth_config[j].key != NULL) {
 			ha_free(config->auth_config[j].key);
 			config->auth_config[j].key=NULL;
@@ -832,6 +860,10 @@ parse_authfile(void)
 			,	authnum, KEYFILE);
 		}
 		rc = HA_FAIL;
+	}
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"Authentication parsing complete [%d]",  rc);
 	}
 	return(rc);
 }
