@@ -76,7 +76,7 @@ int hb_auth_atype (char **buffer)
 
 int hb_auth_nkey(void)
 {
-	return 1;
+	return 0;
 }
                         
 const unsigned char *
