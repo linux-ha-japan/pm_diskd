@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.2 1999/09/26 14:01:14 alanr Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.3 1999/10/01 14:34:51 alanr Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -917,7 +917,7 @@ ppp_udp_make_receive_sock(struct hb_media * mp) {
 #if !defined(SO_BINDTODEVICE)
 		if (errno == EADDRINUSE) {
 			/* This happens with multiple udp or ppp interfaces */
-			ha_log(LOG_NOTICE,
+			ha_log(LOG_NOTICE
 			,	"Someone already listening on port %d [%s]"
 			,	ei->port
 			,	mp->name);
@@ -1138,6 +1138,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.3  1999/10/01 14:34:51  alanr
+ * patch from Matt Soffen for FreeBSD.
+ *
  * Revision 1.2  1999/09/26 14:01:14  alanr
  * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
  *
