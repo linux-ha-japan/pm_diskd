@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.23 2002/10/21 10:17:18 horms Exp $
+#	$Id: heartbeat.in,v 1.24 2003/02/18 04:32:09 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -12,11 +12,34 @@
 #		We don't hate anyone, and like for everyone to use
 #		our software, no matter what OS or distribution you're using.
 #
+### BEGIN INIT INFO
+# Description:
+#	@HB_PKG@ is a basic high-availability subsystem for Linux-HA.
+#	It will start services at initialization, and when machines go up or down.
+#	This version will also perform IP address takeover using gratuitous ARPs.
+#	It works correctly for a 2-node configuration, and is extensible to larger
+#	configurations.
+#
+#	It implements the following kinds of heartbeats:
+#		- Bidirectional Serial Rings ("raw" serial ports)
+#		- UDP/IP broadcast (ethernet, etc)
+#		- UDP/IP multicast (ethernet, etc)
+#		- Unicast heartbeats
+#		- "ping" heartbeats (for routers, switches, etc.)
+#	   	(to be used for breaking ties in 2-node systems)
+#
+# Short-Description: Startup script high-availability services.
+# Required-Start: $network $time $syslog
+# Required-Stop: $network $time $syslog
+# Default-Start: 2 3 4 5
+# Default-Stop: 2 3 4 5
+### END INIT INFO
 # chkconfig: 2345 @HB_INITSTARTPRI@ @HB_INITSTOPPRI@
 # description: Startup script high-availability services.
 # processname: heartbeat
 # pidfile: @localstatedir@/run/heartbeat.pid
 # config: @sysconfdir@/ha.d/ha.cf
+
 
 HA_DIR=@sysconfdir@/ha.d; export HA_DIR
 CONFIG=$HA_DIR/ha.cf
@@ -367,6 +390,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.24  2003/02/18 04:32:09  alan
+#  Added some comments to the heartbeat init script necessary for LSB
+#  compatibility.
+#
 #  Revision 1.23  2002/10/21 10:17:18  horms
 #  hb api clients may now be built outside of the heartbeat tree
 #
