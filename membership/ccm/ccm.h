@@ -53,7 +53,7 @@
 
 // BEGINNING OF version request tracking interfaces
 typedef struct ccm_version_s {
-	struct  timeval time;
+	longclock_t time;
 	int	numtries;
 } ccm_version_t;
 void version_reset(ccm_version_t *);
@@ -117,8 +117,8 @@ int llm_get_index(llm_info_t *, const char *);
 /* ccm prototypes */
 int ccm_str2bitmap(const char *, unsigned char **);
 int ccm_bitmap2str(const unsigned char *, int , char **);
-void ccm_get_time(struct timeval *);
-int ccm_timeout(struct timeval *, struct timeval *, long );
+longclock_t ccm_get_time(void);
+int ccm_timeout(longclock_t, longclock_t, unsigned long);
 int ccm_need_control(void *);
 int ccm_take_control(void *);
 void* ccm_initialize(void);
@@ -135,7 +135,7 @@ typedef struct update_s {
 typedef struct ccm_update_s {
 	int	leader;
 	int	nodeCount;
-	struct timeval  inittime;
+	longclock_t  inittime;
 	update_t update[MAXNODE];
 	GSList *cl_head; // a linked list of cached cluster leader 
 				  //  requests 
@@ -160,7 +160,7 @@ void update_add_memlist_request(ccm_update_t *, llm_info_t *, const char *, cons
 void update_free_memlist_request(ccm_update_t *);
 void update_reset(ccm_update_t *);
 void update_init(ccm_update_t *);
-int update_timeout_expired(ccm_update_t *, long);
+int update_timeout_expired(ccm_update_t *, unsigned long);
 int update_any(ccm_update_t *);
 void update_add(ccm_update_t *, llm_info_t *, const char *, int, gboolean);
 void update_remove(ccm_update_t *, llm_info_t *, const char *);
@@ -192,7 +192,7 @@ typedef struct graph_s {
         int        graph_nodes;// no of nodes that had sent the join message
                                 //  whose bitmaps we are now expecting
         int        graph_rcvd; // no of nodes that have sent a memlistbitmap
-	struct timeval  graph_inittime; // the time graph got initialized
+	longclock_t  graph_inittime; // the time graph got initialized
 } graph_t;  
 graph_t * graph_init(void);
 void graph_free(graph_t *);

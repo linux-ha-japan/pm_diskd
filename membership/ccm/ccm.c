@@ -390,28 +390,24 @@ resp_reset(void)
 // BEGIN OF functions that track the time since a connectivity reply has
 // been sent to the leader.
 //
-static struct  timeval finallist_time;
+static longclock_t finallist_time;
 
 static void
 finallist_init(void)
 {
-	ccm_get_time(&finallist_time);
+	finallist_time = ccm_get_time();
 }
 
 static void
 finallist_reset(void)
 {
-	memset(&finallist_time, 0, sizeof(struct timeval));
+	finallist_time = 0;
 }
 
 static int
-finallist_timeout(long timeout)
+finallist_timeout(unsigned long timeout)
 {
-	struct timeval tmp;
-
-	ccm_get_time(&tmp);
-
-	return(ccm_timeout(&finallist_time, &tmp, timeout));
+	return(ccm_timeout(finallist_time, ccm_get_time(), timeout));
 }
 //
 // END OF functions that track the time since a connectivity reply has

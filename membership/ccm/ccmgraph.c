@@ -373,7 +373,7 @@ graph_init()
 	}
 
 	/* initialise the time */
-	ccm_get_time(&(gr->graph_inittime));
+	gr->graph_inittime = ccm_get_time();
 
 	return gr;
 }
@@ -381,11 +381,7 @@ graph_init()
 int
 graph_timeout_expired(graph_t *gr, long timeout)
 {
-	struct timeval tmp;
-
-	ccm_get_time(&tmp);
-
-	return(ccm_timeout(&(gr->graph_inittime), &tmp, timeout));
+	return(ccm_timeout(gr->graph_inittime, ccm_get_time(), timeout));
 }
 
 

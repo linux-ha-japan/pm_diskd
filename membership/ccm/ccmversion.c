@@ -25,7 +25,8 @@
 #define TIMEOUT 3
 #define MAXTRIES 3
 
-#define VERSION_GET_TIMER(ver) (&(ver->time))
+#define VERSION_GET_TIMER(ver) (ver->time)
+#define VERSION_SET_TIMER(ver, t) ver->time = t
 #define VERSION_GET_TRIES(ver) ver->numtries
 #define VERSION_RESET_TRIES(ver) ver->numtries = 0
 #define VERSION_INC_TRIES(ver) (ver->numtries)++
@@ -39,11 +40,7 @@ extern int global_debug;
 static int
 version_timeout_expired(ccm_version_t *ver)
 {
-	struct timeval tmp;
-
-	ccm_get_time(&tmp);
-
-	return(ccm_timeout(VERSION_GET_TIMER(ver), &tmp, TIMEOUT));
+	return(ccm_timeout(VERSION_GET_TIMER(ver), ccm_get_time(), TIMEOUT));
 }
 
 //
@@ -55,7 +52,7 @@ version_reset(ccm_version_t *ver)
 {
 	(void)_heartbeat_h_Id; /* keeping compiler happy */
 	(void)_ha_msg_h_Id; /* keeping compiler happy */
-	ccm_get_time(VERSION_GET_TIMER(ver));
+	VERSION_SET_TIMER(ver,ccm_get_time());
 	VERSION_RESET_TRIES(ver);
 }
 
@@ -75,7 +72,7 @@ version_retry(ccm_version_t *ver)
 			return FALSE;
 		} else {
 			VERSION_INC_TRIES(ver);
-			ccm_get_time(VERSION_GET_TIMER(ver));
+			VERSION_SET_TIMER(ver,ccm_get_time());
 			return TRUE;
 		}
 	}

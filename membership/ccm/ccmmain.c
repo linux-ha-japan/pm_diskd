@@ -51,7 +51,7 @@ static GSourceFuncs hb_input_SourceFuncs = {
 
 typedef struct hb_srcdata_s {
 	GPollFD 	hbpoll;
-	struct timeval  t;
+	longclock_t  	t;
 	char		timeflag;
 	GMainLoop	*mainloop;
 } hb_srcdata_t;
@@ -66,7 +66,7 @@ hb_input_prepare(gpointer source_data, GTimeVal* current_time
 	(void)_ha_msg_h_Id; /* Make compiler happy */
 
 	if(!sdata->timeflag){
-		ccm_get_time(&(sdata->t));
+		sdata->t = ccm_get_time();
 		sdata->timeflag = TRUE;
 	}
 	*timeout = 1*SECOND;
@@ -80,16 +80,13 @@ hb_input_check(gpointer source_data, GTimeVal* current_time
 
 	hb_srcdata_t *sdata = (hb_srcdata_t *)source_data;
 	GPollFD        *hbpoll =  (GPollFD *) &(sdata->hbpoll);
-	struct timeval  t;
-
-	ccm_get_time(&t);
 
 	/* return true only if there is a pending event or
 	 * if it is more the one second since the last
 	 * run of ccm algorithm. 
 	 */
 	if ((hbpoll->revents != 0) || 
-			ccm_timeout(&(sdata->t), &t, 1)){
+			ccm_timeout(sdata->t, ccm_get_time(), 1)){
 		sdata->timeflag = FALSE;
 		return TRUE;
 	}

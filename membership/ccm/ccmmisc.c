@@ -87,22 +87,10 @@ ccm_bitmap2str(const unsigned char *bitmap, int numBytes, char **memlist)
 //
 // return the current time 
 // 
-void 
-ccm_get_time(struct timeval *t1)
+longclock_t 
+ccm_get_time(void)
 {
-	struct tms tm;
-	long 	cps;
-	clock_t clk;
-
-	cps = (long)sysconf(_SC_CLK_TCK);
-	while((clk = times(&tm)) == -1) { 
-		sleep(1); 
-		continue; 
-	}
-
-	t1->tv_sec = clk/cps;
-	t1->tv_usec = ((clk%cps)*1000000)/cps;
-	return;
+	return time_longclock();
 }
 
 
@@ -112,30 +100,15 @@ ccm_get_time(struct timeval *t1)
 // false.
 // NOTE: 'timeout' is in seconds.
 int
-ccm_timeout(struct timeval *t1, struct timeval *t2, long timeout)
+ccm_timeout(longclock_t t1, longclock_t t2, unsigned long timeout)
 {
-	clock_t t1cl, t2cl, t3cl, interval, timeoutclks;
-	long cps;
+	longclock_t t1cl;
 
-	cps = sysconf(_SC_CLK_TCK);
 
-	timeoutclks = timeout*cps;
-	t1cl = (t1->tv_sec+(t1->tv_usec/1000000))*cps;
-	t2cl = (t2->tv_sec+(t2->tv_usec/1000000))*cps;
+	t1cl = add_longclock(t1 , secsto_longclock(timeout));
 
-	if (t1cl <= t2cl) {
-		interval = t2cl - t1cl;
-		if(interval > timeoutclks) 
-			return TRUE;
-		else
-			return FALSE;
-	} else {
-		t3cl = t1cl+timeoutclks;
-		if (t3cl > t1cl) 
-			return TRUE;
-		else if (t3cl < t2cl) 
-			return TRUE;
-		else 
-			return FALSE;
+	if(cmp_longclock(t1cl, t2) < 0) {
+		return TRUE;
 	}
+	return FALSE;
 }

@@ -144,7 +144,7 @@ update_reset(ccm_update_t *tab)
 	/* also note down the time. this should help us in 
 	 *  determining when to timeout
  	 */
-	ccm_get_time(&(UPDATE_GET_INITTIME(tab)));
+	UPDATE_SET_INITTIME(tab, ccm_get_time());
 	update_free_memlist_request(tab);
 }
 
@@ -163,13 +163,9 @@ update_init(ccm_update_t *tab)
 // were exchanged.
 //
 int
-update_timeout_expired(ccm_update_t *tab, long timeout)
+update_timeout_expired(ccm_update_t *tab, unsigned long timeout)
 {
-	struct timeval tmp;
-
-	ccm_get_time(&tmp);
-
-	return(ccm_timeout(&(UPDATE_GET_INITTIME(tab)), &tmp, timeout));
+	return(ccm_timeout(UPDATE_GET_INITTIME(tab), ccm_get_time(), timeout));
 }
 
 
