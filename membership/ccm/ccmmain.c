@@ -302,7 +302,7 @@ wait_channel_init(void)
 static void
 usage(const char *cmd)
 {
-	fprintf(stderr, "\nUsage: %s [-dv]", cmd);
+	fprintf(stderr, "\nUsage: %s [-dv]\n", cmd);
 }
 
 
@@ -312,28 +312,12 @@ usage(const char *cmd)
 static void
 ccm_debug(int signum) 
 {
-	/* FIXME!  stdio and cl_log calls can't be made on signals */
-	/* It will cause unpredictable crashes */
-
-	cl_log(LOG_DEBUG, "ccm_debug called with signal =%d",signum);
 	switch(signum) {
 	case SIGUSR1:
-		if(global_debug){
-			cl_log(LOG_DEBUG, "debug set off");
-			global_debug = 0;
-		} else {
-			global_debug = 1;
-			cl_log(LOG_DEBUG, "debug set on");
-		}
+		global_debug = !global_debug;
 		break;
 	case SIGUSR2:
-		if(global_verbose){
-			cl_log(LOG_DEBUG, "verbose set off");
-			global_verbose = 0;
-		} else {
-			global_verbose = 1;
-			cl_log(LOG_DEBUG, "verbose set on");
-		}
+		global_verbose = !global_verbose;
 		break;
 	}
 }
@@ -409,7 +393,6 @@ main(int argc, char **argv)
 	/* the clients wait channel is the other source of events.
 	 * This source delivers the clients connection events.
 	 * listen to this source at a relatively lower priority.
-	 * TOBEDONE
 	 */
 	wait_ch = wait_channel_init();
 	waitchan.fd = wait_ch->ops->get_select_fd(wait_ch);

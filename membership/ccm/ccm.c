@@ -3372,7 +3372,7 @@ ccm_initialize()
 	}
 
 
-	cl_log(LOG_ERR, "======================= Starting  Node Walk =="
+	cl_log(LOG_DEBUG, "======================= Starting  Node Walk =="
 			"=====================");
 	if (hb_fd->llc_ops->init_nodewalk(hb_fd) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot start node walk");
@@ -3402,7 +3402,7 @@ ccm_initialize()
 
 	cl_log(LOG_DEBUG, "======================== Ending  Node Walk ======"
 			"==================");
-	cl_log(LOG_ERR, "Total # of Nodes in the Cluster: %d", 
+	cl_log(LOG_DEBUG, "Total # of Nodes in the Cluster: %d", 
 						LLM_GET_NODECOUNT(llm));
 	
 	if (hb_fd->llc_ops->setmsgsignal(hb_fd, 0) != HA_OK) {
