@@ -10,11 +10,22 @@ are using for this capability.
 
 stonith -t rps10 -p "/dev/ttyS5 nodeb 0 " nodeb
 
+Currently supported devices:
 
-currently supported devices:
+ apcsmart:     APCSmart (tested with 2 old 900XLI)
+ baytech:      Baytech RPC5
+ meatware:     Alerts an operator to manually turn off a device.
+ nw_rpc100s:   Micro Energetics Night/Ware RPC100S
+ rps10:        Western Telematics RPS10
+ vacm_stonith: VA Linux Cluster Manager (see README.vacm)
 
- Baytech RPC5
- Western Telematics RPS10
- Micro Energetics Night/Ware RPC100S
- VACM (see README.vacm)
 
+To see the parameter syntax for a module, run the 'stonith' command and omit the 
+-p parameter.  For example:
+
+$ /usr/sbin/stonith -t rps10 test
+
+stonith: Invalid config file for rps10 device.
+stonith: Config file syntax: <serial_device> <node> <outlet> [ <node> <outlet> [...] ]
+All tokens are white-space delimited.
+Blank lines and lines beginning with # are ignored
