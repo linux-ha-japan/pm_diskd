@@ -185,7 +185,7 @@ main(int argc, char** argv)
 		char **	hostlist;
 
 		hostlist = s->s_ops->hostlist(s);
-		if (s == NULL) {
+		if (hostlist == NULL) {
 			syslog(LOG_ERR, "Could not list hosts for %s."
 			,	SwitchType);
 		}else{
