@@ -65,7 +65,7 @@ halib_PROGRAMS		= heartbeat send_arp findif api_test
 ## SOURCES
 heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
 			ha_malloc.c ha_msg.c ha_msg_internal.c lock.c \
-			module.c ha_if.h ha_msg.h hb_api.h hb_api_core.h \
+			module.c ha_if.h hb_api.h hb_api_core.h \
                         hb_md5.h hb_module.h hb_proc.h hb_sha1.h lock.h \
                         setproctitle.c setproctitle.h test.h
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \

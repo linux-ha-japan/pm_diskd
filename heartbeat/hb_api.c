@@ -888,14 +888,7 @@ api_remove_client_pid(pid_t c_pid, const char * reason)
 		return 0;
 	}
 
-	ha_log(LOG_ERR
-	,	"attempting to remove client pid %d", c_pid);
-	sync();
-	sleep(3);
 	api_remove_client(client, reason);
-	ha_log(LOG_ERR
-	,	"client pid %d removed OK", c_pid);
-	sleep(3);
 	return 1;
 }
 /*
