@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.26 2002/08/10 02:13:32 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.27 2002/09/17 20:48:06 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -232,6 +232,11 @@ int
 ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 {
 	int	j;
+
+	if (msg == NULL || name == NULL || value == NULL) {
+		ha_error("ha_msg_mod: NULL input.");
+		return HA_FAIL;
+	}
 	for (j=0; j < msg->nfields; ++j) {
 		if (strcmp(name, msg->names[j]) == 0) {
 			char *	newv = ha_malloc(strlen(value)+1);
@@ -440,6 +445,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.27  2002/09/17 20:48:06  alan
+ * Put in a check for NULL in ha_msg_mod().
+ *
  * Revision 1.26  2002/08/10 02:13:32  alan
  * Better error logging when ha_msg functions are given bad name/value pairs.
  *
