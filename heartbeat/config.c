@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.23 2000/12/06 09:11:31 jacob Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.24 2001/01/16 21:49:23 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -368,6 +368,9 @@ parse_config(const char * cfgfile, char *nodename)
 				if (hbmedia_types[j]->parse(bp) != HA_OK) {
 					errcount++;
 				}
+				sysmedia[nummedia]->vf = hbmedia_types[j];
+				hbmedia_types[j]->ref++;
+				nummedia++;
 				*bp = EOS;
 			}
 		}

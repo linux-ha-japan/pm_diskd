@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.15 2000/12/20 12:39:18 eric Exp $
+#	$Id: Makefile,v 1.16 2001/01/16 21:49:24 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -64,7 +64,7 @@ SHLIB  = libstonith.so
 
 S_OBJLIST =	stonith.o
 
-MODULES = null.o
+MODULES = null.o apcsmart.o
 
 S_HDRS    =	expect.h stonith.h
 
@@ -82,7 +82,7 @@ BINCMDS = $(STONITH)
 LIBFILES = $(ARFILE) $(SHLIB)
 
 
-# If you want the VA Linux Cluster stonith module installed, 
+# If you want the VA Linux Cluster stonith module (VACM) installed, 
 # uncomment the following line.  You must have the vacmclient library 
 #VACM_STONITH = vacm_stonith.so 
 PRODUCTS = $(BINCMDS) $(LIBS) baytech.so rps10.so nw_rpc100s.so $(VACM_STONITH)

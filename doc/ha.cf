@@ -61,6 +61,23 @@ logfacility	local0
 #
 #udp	eth0
 #
+#	Set up a multicast heartbeat medium
+#	mcast [dev] [mcast group] [port] [ttl] [loop]
+#
+#	[dev]		device to send/rcv heartbeats on
+#	[mcast group]	multicast group to join (class D multicast address
+#			224.0.0.0 - 239.255.255.255)
+#	[port]		udp port to sendto/rcvfrom (no real reason to differ
+#			from the port used for broadcast heartbeats)
+#	[ttl]		the ttl value for outbound heartbeats.  this effects
+#			how far the multicast packet will propagate.  (0-255)
+#	[loop]		toggles loopback for outbound multicast heartbeats.
+#			if enabled, an outbound packet will be looped back and
+#			received by the interface it was sent on. (0 or 1)
+#		
+#
+#mcast eth0 225.0.0.1 694 1 1
+#
 #	Watchdog is the watchdog timer.  If our own heart doesn't beat for
 #	a minute, then our machine will reboot.
 #

@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.39 2001/01/16 21:17:46 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.40 2001/01/16 21:49:23 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -132,6 +132,11 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.39 2001/01/16 21:17:
 
 #define	DEFAULTBAUD	B19200	/* Default serial link speed */
 #define	DEFAULTBAUDRATE	19200	/* Default serial link speed as int */
+
+/* multicast defaults */
+#define DEFAULT_MCAST_IPADDR "225.0.0.1" /* Default multicast group */
+#define DEFAULT_MCAST_TTL 1	/* Default multicast TTL */
+#define DEFAULT_MCAST_LOOP 0	/* Default mulitcast loopback option */
 
 #define HB_STATIC_PRIO	1	/* Used with soft realtime scheduling */
 
