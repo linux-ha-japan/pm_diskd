@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager.in,v 1.10 2003/07/01 19:01:20 alan Exp $
+#	$Id: ResourceManager.in,v 1.11 2003/07/22 09:50:23 alan Exp $
 #
 #	New haresources format:
 #
@@ -213,20 +213,36 @@ giveupresourcegroup() {
 
   ha_log "info: Releasing resource group: $*"
   shift
+  rc=0
   for j in `reverseargs $*`
   do
-    doscript $j stop >>$HA_DEBUGLOG 2>&1
+    if
+      doscript $j stop >>$HA_DEBUGLOG 2>&1
+    then
+      : $j stop succeeded
+    else
+      rc=$?
+    fi
   done
+  return $rc
 }
 
 # Arguments are: nodename resource1 resource2 ...
 acquireresourcegroup() {
   ha_log "info: Acquiring resource group: $*"
   shift
+  rc=0;
   for j in $*
   do
-    doscript $j start
+    if
+      we_own_resource $j || doscript $j start
+    then
+      : $j start succeeded
+    else
+      rc=$?
+    fi
   done
+  return $rc
 }
 
 #
@@ -361,10 +377,14 @@ esac
 
 #
 #	$Log: ResourceManager.in,v $
+#	Revision 1.11  2003/07/22 09:50:23  alan
+#	Added code to pay attention more to return codes in ResourceManager,
+#	and also to avoid starting any resource twice (barring race conditions).
+#
 #	Revision 1.10  2003/07/01 19:01:20  alan
 #	removed the checks to see if we already own a resource group
 #	before giving it up.
-#
+#	
 #	Revision 1.9  2003/05/17 05:28:46  alan
 #	Implemented a modified version of nice_failback allowing it to
 #	move subsets of resources around - not just all of them...
