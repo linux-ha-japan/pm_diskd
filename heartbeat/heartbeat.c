@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.80 2000/08/01 05:48:25 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.81 2000/08/11 00:30:07 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -233,7 +233,8 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.80 2000/08/01 05:48:
  *		bandwidth, low costs and fewer points of failure.
  *		The role of an ethernet hub is replaced by a mirror, which
  *		is less likely to fail.  But if it does, it might mean
- *		seven years of bad luck :-)
+ *		seven years of bad luck :-)  On the other hand, the "mirror"
+ *		could be a white painted board ;-)
  *
  *		The idea would be to make a bracket with the IrDA transceivers
  *		on them all facing the same way, then mount the bracket with
@@ -393,17 +394,19 @@ void	heartbeat_monitor(struct ha_msg * msg, int status, const char * iface);
 void	send_to_all_media(char * smsg, int len);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
 				const char *iface);
+void	healed_cluster_partition(struct node_info* node);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
 void	init_xmit_hist (struct msg_xmit_hist * hist);
 void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
-void	process_statusmsg(FILE * f);
+void	process_clustermsg(FILE * f);
 void	process_registermsg(FILE * f);
 void	nak_rexmit(int seqno, const char * reason);
-void	req_our_resources(void);
+void	req_our_resources(int getthemanyway);
 void	giveup_resources(void);
 void	make_realtime(void);
 void	make_normaltime(void);
+int	IncrGeneration(unsigned long * generation);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -667,6 +670,12 @@ initialize_heartbeat()
 
 	localdie = NULL;
 	starttime = time(NULL);
+
+	if (IncrGeneration(&config->generation) != HA_OK) {
+		ha_perror("Cannot get/increment generation number");
+		return(HA_FAIL);
+	}
+	ha_log(LOG_INFO, "Heartbeat generation: %d", config->generation);
 
 	if (stat(FIFONAME, &buf) < 0 ||	!S_ISFIFO(buf.st_mode)) {
 		ha_log(LOG_INFO, "Creating FIFO %s.", FIFONAME);
@@ -1162,7 +1171,7 @@ master_status_process(void)
 
 		/* Do we have input on our status message FIFO? */
 		if (FD_ISSET(fd, &inpset)) {
-			process_statusmsg(f);
+			process_clustermsg(f);
 			FD_CLR(fd, &inpset);
 			--selret;
 		}
@@ -1187,7 +1196,7 @@ master_status_process(void)
  * Process a message coming in from our status FIFO
  */
 void
-process_statusmsg(FILE * f)
+process_clustermsg(FILE * f)
 {
 	struct node_info *	thisnode;
 	struct ha_msg *		msg = NULL;
@@ -1501,7 +1510,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		/* Original ("normal") starting behavior */
 		if (!WeAreRestarting && !resources_requested_yet) {
 			resources_requested_yet=1;
-			req_our_resources();
+			req_our_resources(0);
 		}
 		return;
 	}
@@ -1614,7 +1623,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			if (rstate != R_STABLE && other_is_stable) {
 				ha_log(LOG_INFO
 				,	"local resource transition completed.");
-				req_our_resources();
+				req_our_resources(0);
 				newrstate = R_STABLE;
 				send_resources_held(rsc_msg[i_hold_resources],1);
 			}
@@ -1648,7 +1657,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 	if (rstate == R_RSCRCVD && now > local_takeover) {
 		newrstate = R_STABLE;
-		req_our_resources();
+		req_our_resources(0);
 		ha_log(LOG_INFO,"local resource transition completed.");
 		send_resources_held(rsc_msg[i_hold_resources], 1);
 	}
@@ -2386,7 +2395,7 @@ mark_node_dead(struct node_info *hip)
 			i_hold_resources |= FOREIGN_RSC;
 			/* case 1 - part 1 */
 			/* part 2 is done by the mach_down script... */
-			req_our_resources();
+			req_our_resources(0);
 		}
 
 		/* This often takes a few seconds. */
@@ -2423,6 +2432,15 @@ mark_node_dead(struct node_info *hip)
 	hip->anypacketsyet = 1;
 	ha_msg_del(hmsg);
 }
+void
+healed_cluster_partition(struct node_info *t)
+{
+	ha_log(LOG_WARNING
+	,	"Cluster node %s returning after partition"
+	,	t->nodename);
+	/* Request our resources.  The other guy probably has them ;-) */
+	req_our_resources(1);
+}
 
 struct fieldname_map {
 	const char *	from;
@@ -2458,7 +2476,7 @@ heartbeat_monitor(struct ha_msg * msg, int msgtype, const char * iface)
 }
 
 void
-req_our_resources()
+req_our_resources(int getthemanyway)
 {
 	FILE *	rkeys;
 	char	cmd[MAXLINE];
@@ -2470,8 +2488,9 @@ req_our_resources()
 
 	if (nice_failback) {
 
-		if ((other_holds_resources & FOREIGN_RSC) != 0
-		||	(i_hold_resources & LOCAL_RSC) != 0) {
+		if (((other_holds_resources & FOREIGN_RSC) != 0
+		||	(i_hold_resources & LOCAL_RSC) != 0)
+		&&	!getthemanyway) {
 
 			/* Someone already owns our resources */
 			return;
@@ -2814,7 +2833,7 @@ main(int argc, const char ** argv)
 					/* We expect to have those */
 					ha_log(LOG_INFO, "restart: acquiring"
 					" local resources.");
-					req_our_resources();
+					req_our_resources(0);
 				}else{
 					ha_log(LOG_INFO, "restart: "
 					" local resources already acquired.");
@@ -3129,9 +3148,13 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	const char *		cseq = ha_msg_value(msg, F_SEQ);
 	const char *		to = ha_msg_value(msg, F_TO);
 	const char *		type = ha_msg_value(msg, F_TYPE);
+	const char *		cgen = ha_msg_value(msg, F_HBGENERATION);
 	unsigned long		seq;
+	unsigned long		gen = 0;
 	int			IsToUs;
 	int			j;
+	int			isrestart = 0;
+	int			ishealedpartition = 0;
 
 	/* Some packet types shouldn't have sequence numbers */
 	if (type != NULL && strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1)
@@ -3145,11 +3168,37 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		return(DROPIT);
 	}
 
+	/* Extract the heartbeat generation number */
+	if (cgen != NULL) {
+		sscanf(cgen, "%lx", &gen);
+	}
+
 	/*
 	 * We need to do sequence number processing on every
 	 * packet, even those that aren't sent to us.
 	 */
 	IsToUs = (to == NULL) || (strcmp(to, curnode->nodename) == 0);
+
+	/* Does this looks like replay attack... */
+	if (gen < t->generation) {
+		ha_log(LOG_DEBUG
+		,	"should_drop_message: attempted replay attack"
+		" [%s]?", thisnode->nodename);
+		return(DROPIT);
+
+	/* Is this a message from a node that was dead? */
+	}else if (strcmp(thisnode->status, DEADSTATUS) == 0) {
+		if (gen == t->generation && gen > 0) {
+			/* They're now alive, but were dead. No restart. */
+			healed_cluster_partition(thisnode);
+			ishealedpartition=1;
+		}else{
+			isrestart = 1;
+			ha_log(LOG_INFO, "Heartbeat restart on node %s"
+			,	thisnode->nodename);
+		}
+	}
+	t->generation = gen;
 
 	/* Is this packet in sequence? */
 	if (t->last_seq == NOSEQUENCE || seq == (t->last_seq+1)) {
@@ -3247,18 +3296,8 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 			return(IsToUs ? KEEPIT : DROPIT);
 		}
 	}
-	/*
-	 * Is it a the result of a restart?
-	 *
-	 * We say it's the result of a restart
-	 *	IF the sequence number is a small or a lot smaller than
-	 *		the last known sequence number
-	 *	AND the timestamp on the packet is newer than the
-	 *		last known timestamp for that node.
-	 */
 
-	/* Does this look like a restart? */
-	if (seq < SEQGAP || ((seq+SEQGAP) < t->last_seq)) {
+	if (ishealedpartition || isrestart) {
 		const char *	sts;
 		time_t	newts = 0L;
 		if ((sts = ha_msg_value(msg, F_TIME)) == NULL
@@ -3267,20 +3306,13 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 			ha_log(LOG_ERR, "should_drop_message: bad timestamp");
 			return(DROPIT);
 		}
-		/* Is the timestamp newer, and the sequence number smaller? */
-		if (newts > thisnode->rmt_lastupdate) {
-			/* Yes.  Looks like a software restart to me... */
-			thisnode->rmt_lastupdate = newts;
-			ha_log(LOG_NOTICE  /* or just INFO ? */
-			,	"node %s seq restart %ld vs %ld"
-			,	thisnode->nodename
-			,	seq, t->last_seq);
-			t->nmissing = 0;
-			t->last_seq = seq;
-			t->last_rexmit_req = 0L;
-			t->last_iface = iface;
-			return(IsToUs ? KEEPIT : DROPIT);
-		}
+
+		thisnode->rmt_lastupdate = newts;
+		t->nmissing = 0;
+		t->last_seq = seq;
+		t->last_rexmit_req = 0L;
+		t->last_iface = iface;
+		return(IsToUs ? KEEPIT : DROPIT);
 	}
 	/* This is a duplicate packet (or a really old one we lost track of) */
 	if (DEBUGPKT) {
@@ -3561,6 +3593,52 @@ ParseTestOpts()
 	ha_log(LOG_INFO, "WARNING: Above Options Now Enabled.");
 }
 
+#ifndef HB_VERS_FILE
+	/* This may not be the right place to put this file */
+#	define HB_VERS_FILE VAR_RUN_D "/hb_generation"
+#endif
+
+#define	GENLEN	16	/* Number of chars on disk for gen # and '\n' */
+
+
+
+/*
+ *	Increment our generation number
+ *	It goes up each time we restart to prevent replay attacks.
+ */
+
+int
+IncrGeneration(unsigned long * generation)
+{
+	char		buf[GENLEN+1];
+	int		fd;
+
+	(void)_ha_msg_h_Id;
+	(void)_heartbeat_h_Id;
+
+	if ((fd = open(HB_VERS_FILE, O_RDONLY)) < 0
+	||	read(fd, buf, sizeof(buf)) < 1) {
+		ha_log(LOG_WARNING, "No Previous generation starting at 1");
+		snprintf(buf, sizeof(buf), "%*d", GENLEN, 0);
+	}
+	close(fd);
+
+	buf[GENLEN] = EOS;
+	sscanf(buf, "%lu", generation);
+	++(*generation);
+	snprintf(buf, sizeof(buf), "%*lu\n", GENLEN-1, *generation);
+
+	if ((fd = open(HB_VERS_FILE, O_WRONLY|O_CREAT)) < 0) {
+		return HA_FAIL;
+	}
+	if (write(fd, buf, GENLEN) != GENLEN || fsync(fd) < 0) {
+		close(fd);
+		return HA_FAIL;
+	}
+	close(fd);
+	return HA_OK;
+}
+
 #ifdef IRIX
 void
 setenv(const char *name, const char * value, int why)
@@ -3572,6 +3650,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.81  2000/08/11 00:30:07  alan
+ * This is some new code that does two things:
+ * 	It has pretty good replay attack protection
+ * 	It has sort-of-basic recovery from a split partition.
+ *
  * Revision 1.80  2000/08/01 05:48:25  alan
  * Fixed several serious bugs and a few minor ones for the heartbeat API.
  *

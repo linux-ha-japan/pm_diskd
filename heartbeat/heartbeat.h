@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.28 2000/07/29 20:14:21 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.29 2000/08/11 00:30:07 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -171,6 +171,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.28 2000/07/29 20:14:
 struct seqtrack {
 	clock_t		last_rexmit_req;
 	int		nmissing;
+	unsigned long	generation;	/* Heartbeat generation # */
 	unsigned long	last_seq;
 	unsigned long	seqmissing[MAXMISSING];
 	const char *	last_iface;
@@ -225,6 +226,7 @@ struct sys_config {
 	char	dbgfile[PATH_MAX];	/* path to debug file, if any */
         int     use_dbgfile;            /* Flag to use the debug file*/
 	int	rereadauth;		/* 1 if we need to reread auth file */
+	unsigned long	generation;	/* Heartbeat generation # */
 	int	authnum;
 	Stonith*	stonith;	/* Stonith method */
 	struct auth_info* authmethod;	/* auth_config[authnum] */

@@ -1700,13 +1700,13 @@ main(int argc, char ** argv)
 		exit(1);
 	}
 
-	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, NULL) != HA_OK) {
+	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, NULL) !=HA_OK){
 		fprintf(stderr, "Cannot set node status callback\n");
 		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(2);
 	}
 
-	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, NULL) != HA_OK) {
+	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, NULL)!=HA_OK){
 		fprintf(stderr, "Cannot set if status callback\n");
 		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(3);
@@ -1781,6 +1781,8 @@ main(int argc, char ** argv)
 		}
 		fprintf(stderr, "Got a message of type [%s] from [%s]\n"
 		,	type, orig);
+		ha_log_message(reply);
+		fprintf(stderr, "Message: %s\n", hb->llc_ops->errmsg(hb));
 		ZAPMSG(reply);
 	}
 

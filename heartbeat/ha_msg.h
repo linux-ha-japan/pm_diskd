@@ -20,7 +20,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.11 2000/07/26 05:17:19 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.12 2000/08/11 00:30:07 alan Exp $";
 #include <stdio.h>
 
 struct ha_msg {
@@ -51,6 +51,7 @@ struct ha_msg {
 #define	F_COMMENT	"info"		/* Comment */
 #define	F_TTL		"ttl"		/* Time To Live */
 #define F_AUTH          "auth"		/* Authentication string */
+#define F_HBGENERATION	"hg"		/* Heartbeat generation number */
 #define F_FIRSTSEQ      "firstseq"	/* Lowest seq # to retransmit */
 #define F_LASTSEQ       "lastseq"	/* Highest seq # to retransmit */
 #define F_RESOURCES	"rsc_hold"      /* What resources do we hold? */

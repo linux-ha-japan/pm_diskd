@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.3 2000/07/26 05:17:19 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.4 2000/08/11 00:30:07 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -155,11 +155,13 @@ STATIC	const char * ha_msg_timestamp(void);
 STATIC	const char * ha_msg_loadavg(void);
 STATIC	const char * ha_msg_from(void);
 STATIC	const char * ha_msg_ttl(void);
+STATIC	const char * ha_msg_hbgen(void);
 
 /* Each of these functions returns static data requiring copying */
 struct default_vals defaults [] = {
 	{F_ORIG,	ha_msg_from,	0},
 	{F_SEQ,		ha_msg_seq,	1},
+	{F_HBGENERATION,ha_msg_hbgen,	0},
 	{F_TIME,	ha_msg_timestamp,0},
 	{F_LOAD,	ha_msg_loadavg, 1},
 	{F_TTL,		ha_msg_ttl, 0},
@@ -406,6 +408,15 @@ ha_msg_ttl(void)
 	return(ttl);
 }
 
+STATIC	const char *
+ha_msg_hbgen(void)
+{
+	static char	hbgen[32];
+	snprintf(hbgen, sizeof(hbgen), "%lx", config->generation);
+	return(hbgen);
+}
+
+
 #ifdef TESTMAIN_MSGS
 int
 main(int argc, char ** argv)
@@ -428,6 +439,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.4  2000/08/11 00:30:07  alan
+ * This is some new code that does two things:
+ * 	It has pretty good replay attack protection
+ * 	It has sort-of-basic recovery from a split partition.
+ *
  * Revision 1.3  2000/07/26 05:17:19  alan
  * Added GPL license statements to all the code.
  *
