@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.52 2000/06/12 06:47:35 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.53 2000/06/12 22:03:11 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -155,7 +155,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.52 2000/06/12 06:47:
  *		be slightly more compatible with the way the code is currently
  *		 written.
  *
- *		I thought that perhaps I could set each machine to a different 
+ *		I thought that perhaps I could set each machine to a different
  *		interval in a +- 0.25 second range.  For example, one machine
  *		might heartbeat at 0.75 second interval, and another at a 1.25
  *		second interval.  The tendency would be then for the timers to
@@ -1032,6 +1032,8 @@ master_status_process(void)
 		const char *	from;
 		const char *	ts;
 		const char *	type;
+		int		action;
+		clock_t		messagetime;
 
 
 		if (send_status_now) {
@@ -1101,6 +1103,7 @@ master_status_process(void)
 			continue;
 		}
 		now = time(NULL);
+		messagetime = times(NULL);
 
 		/* Extract message type, originator, timestamp, auth*/
 		type = ha_msg_value(msg, F_TYPE);
@@ -1159,25 +1162,42 @@ master_status_process(void)
 		thisnode->anypacketsyet = 1;
 		check_comm_isup();
 
-
 		lnk = lookup_iface(thisnode, iface);
 
 		/* Is this message a duplicate, or destined for someone else? */
 
-		switch (should_drop_message(thisnode, msg, iface)) {
+		action=should_drop_message(thisnode, msg, iface);
+		heartbeat_monitor(msg, action, iface);
 
-			case DUPLICATE:
-			heartbeat_monitor(msg, DUPLICATE, iface);
-			continue;
-
+		switch (action) {
 			case DROPIT:
 			/* Ignore it */
-			heartbeat_monitor(msg, DROPIT, iface);
  			continue;
-		} 
+
+			case DUPLICATE:
+			case KEEPIT:
+
+			/* Even though it's a DUP, it could update link status*/
+			if (lnk) {
+				lnk->lastupdate = messagetime;
+				/* Is this from a link which was down? */
+				if (strcasecmp(lnk->status, LINKUP) != 0) {
+					strcpy(lnk->status, LINKUP);
+					ha_log(LOG_INFO
+					,	"Link %s:%s: status %s"
+					,	thisnode->nodename
+					,	lnk->name, lnk->status);
+				}
+			}
+
+			if (action == DUPLICATE) {
+				continue;
+			}
+			break;
+		}
+
 
 		thisnode->track.last_iface = iface;
-
 		if (heartbeat_comm_state == COMM_LINKSUP) {
 			/*
 			 * process_resources() will deal with T_STARTING
@@ -1218,14 +1238,10 @@ master_status_process(void)
 				continue;
 			}
 
-			heartbeat_monitor(msg, KEEPIT, iface);
 
 			thisnode->rmt_lastupdate = msgtime;
 
-			thisnode->local_lastupdate = times(NULL);
-			if (lnk) {
-				lnk->lastupdate = thisnode->local_lastupdate;
-			}
+			thisnode->local_lastupdate = messagetime;
 
 			thisnode->status_seqno = seqno;
 
@@ -1239,17 +1255,6 @@ master_status_process(void)
 				strcpy(thisnode->status, status);
 			}
 
-			/* Is this message from a link which was down? */
-			/* Should we ignore msgs from ourselves? */
-			if (lnk) {
-				if (strcasecmp(lnk->status, LINKUP) != 0) {
-					strcpy(lnk->status, LINKUP);
-					ha_log(LOG_INFO
-					,	"Link %s:%s: status %s"
-					,	thisnode->nodename
-					,	lnk->name, lnk->status);
-				}
-			}
 
 			/* Did we get a status update on ourselves? */
 			if (thisnode == curnode) {
@@ -1260,10 +1265,8 @@ master_status_process(void)
 				/* Forward to control process */
 				send_cluster_msg(msg);
 			}
-			heartbeat_monitor(msg, KEEPIT, iface);
 		}else{
 			notify_world(msg, thisnode->status);
-			heartbeat_monitor(msg, KEEPIT, iface);
 		}
 	}
 }
@@ -1345,7 +1348,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	/*
 	 * Deal with T_STARTING messages coming from the other side.
 	 *
-	 * These messages are a request for resource usage information. 
+	 * These messages are a request for resource usage information.
 	 * The appropriate reply is a T_RESOURCES message.
 	 */
 
@@ -1414,7 +1417,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		case R_STABLE:
 					break;
 
-		default:		ha_log(LOG_ERR,	T_RESOURCES 
+		default:		ha_log(LOG_ERR,	T_RESOURCES
 					" message in state %d", rstate);
 					return;
 		}
@@ -2034,9 +2037,9 @@ send_resources_held(const char *str, int stable)
                 ha_log(LOG_ERR, "Cannot send local starting msg");
                 return(HA_FAIL);
         }
-        if ((ha_msg_add(m, F_TYPE, T_RESOURCES) == HA_FAIL) 
+        if ((ha_msg_add(m, F_TYPE, T_RESOURCES) == HA_FAIL)
         ||  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
-        ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL) 
+        ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)
         ||  (ha_msg_add(m, F_RESOURCES, str) == HA_FAIL)
         ||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) == HA_FAIL)) {
                 ha_log(LOG_ERR, "send_resources_held: Cannot create local msg");
@@ -2067,7 +2070,7 @@ send_local_starting(void)
                 ha_log(LOG_ERR, "Cannot send local starting msg");
                 return(HA_FAIL);
         }
-        if ((ha_msg_add(m, F_TYPE, T_STARTING) == HA_FAIL) 
+        if ((ha_msg_add(m, F_TYPE, T_STARTING) == HA_FAIL)
         ||  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
         ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)) {
                 ha_log(LOG_ERR, "send_local_starting: "
@@ -2223,7 +2226,7 @@ void init_monitor()
 	}
 }
 
-/* 
+/*
  * Values of msgtype:
  *	KEEPIT
  *	DROPIT
@@ -2903,7 +2906,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	int			j;
 
 	/* Some packet types shouldn't have sequence numbers */
-	if (type != NULL && strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1) 
+	if (type != NULL && strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1)
 	==	0) {
 		return(KEEPIT);
 	}
@@ -2926,15 +2929,12 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		t->last_iface = iface;
 		return(IsToUs ? KEEPIT : DROPIT);
 	}else if (seq == t->last_seq) {
-		if(iface && t->last_iface && strcmp(iface, t->last_iface) == 0){ 
-			return (DUPLICATE);
-		}
 		/* Same as last-seen packet -- very common case */
 		if (DEBUGPKT) {
 			ha_log(LOG_DEBUG,
 			       "should_drop_message: Duplicate packet(1)");
 		}
-		return(DROPIT);
+		return(DUPLICATE);
 	}
 
 	/* Not in sequence... Hmmm... */
@@ -2942,8 +2942,6 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	/* Is it newer than the last packet we got? */
 
 	if (seq > t->last_seq) {
-
-		/* Yes.  Record the missing packets */
 		unsigned long	k;
 		unsigned long	nlost;
 		nlost = ((unsigned long)(seq - (t->last_seq+1)));
@@ -3346,6 +3344,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.53  2000/06/12 22:03:11  alan
+ * Put in a fix to the link status code, to undo something I'd broken, and also to simplify it.
+ * I changed heartbeat.sh so that it uses the -r flag to restart heartbeat instead
+ * of stopping and starting it.
+ *
  * Revision 1.52  2000/06/12 06:47:35  alan
  * Changed a little formatting to make things read nicer on an 80-column screen.
  *

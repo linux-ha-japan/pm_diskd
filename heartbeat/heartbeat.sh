@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.21 2000/06/12 06:11:09 alan Exp $
+#	$Id: heartbeat.sh,v 1.22 2000/06/12 22:03:11 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -197,6 +197,23 @@ StopHA() {
   fi
 }
 
+#
+#	Ask heartbeat to stop.  It will *keep* it's resources
+#
+StopHA() {
+  echo -n "Stopping High-Availability services: "
+
+  if
+    $HA_BIN/heartbeat -r # Restart, and keep your resources
+  then
+    echo_success
+    return 0
+  else
+    RC=$?
+    echo_failure $RC
+    return $RC
+  fi
+}
 
 RC=0
 # See how we were called.
@@ -222,10 +239,7 @@ case "$1" in
 	;;
 
   restart|reload)
-	StopHA
-	echo
-	StartHA
-	echo
+	RestartHA
 	RC=$?
 	;;
 
@@ -238,6 +252,11 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.22  2000/06/12 22:03:11  alan
+#  Put in a fix to the link status code, to undo something I'd broken, and also to simplify it.
+#  I changed heartbeat.sh so that it uses the -r flag to restart heartbeat instead
+#  of stopping and starting it.
+#
 #  Revision 1.21  2000/06/12 06:11:09  alan
 #  Changed resource takeover order to left-to-right
 #  Added new version of nice_failback.  Hopefully it works wonderfully!
