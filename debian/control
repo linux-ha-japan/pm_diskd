@@ -37,7 +37,6 @@ Package: libstonith0
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}
-Conflicts: heartbeat-stonith
 Description: Interface for remotely powering down a node in the cluster
  Library to andle stonith modules and to register objects with stonith.
 
