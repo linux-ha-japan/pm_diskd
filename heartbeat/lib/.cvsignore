@@ -1,6 +1,7 @@
 Makefile.in
 Makefile
 .deps
+BasicSanityCheck
 ResourceManager
 req_resource
 mach_down
