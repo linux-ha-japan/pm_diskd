@@ -65,6 +65,35 @@ logfacility	local0
 #	a minute, then our machine will reboot.
 #
 #watchdog /dev/watchdog
+#
+#       "Legacy" STONITH support
+#       Using this directive assumes that there is one stonith 
+#       device in the cluster.  Parameters to this device are 
+#       read from a configuration file. The format of this line is:
+#
+#         stonith <stonith_type> <configfile>
+#
+#       NOTE: it is up to you to maintain this file on each node in the
+#       cluster!
+#
+#stonith baytech /etc/ha.d/conf/stonith.baytech
+#
+#       STONITH support
+#       You can configure multiple stonith devices using this directive.
+#       The format of the line is:
+#         stonith_host <hostfrom> <stonith_type> <params...>
+#         <hostfrom> is the machine the stonith device is attached
+#              to or * to mean it is accessible from any host. 
+#         <stonith_type> is the type of stonith device (a list of
+#              supported drives is in /usr/lib/stonith.)
+#         <params...> are driver specific parameters.  To see the
+#              format for a particular device, run:
+#           stonith -l -t <stonith_type> 
+#
+#stonith_host *     baytech 10.0.0.3 mylogin mysecretpassword
+#stonith_host ken3  rps10 /dev/ttyS1 kathy 0 
+#stonith_host kathy rps10 /dev/ttyS1 ken3 0 
+#       
 #	Tell what machines are in the cluster
 #	node	nodename ...	-- must match uname -n
 #node	ken3
