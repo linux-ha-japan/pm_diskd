@@ -69,25 +69,26 @@ apphb_getrc(void)
 
 /* Register for application heartbeat services */
 int
-apphb_register(const char * appname)
+apphb_register(const char * appname, const char * appinstance)
 {
 	int	err;
 	struct IPC_MESSAGE Msg;
 	struct apphb_signupmsg msg;
-	static char path [] = PATH_ATTR;
-	static char sockpath [] = APPHBSOCKPATH;
+	static char path []	= PATH_ATTR;
+	static char sockpath []	= APPHBSOCKPATH;
 
 	if (hbcomm != NULL) {
 		errno = EEXIST;
 		return -1;
 	}
 
-	if (appname == NULL) {
+	if (appname == NULL || appinstance == NULL) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	if (strlen(appname) >= APPHB_OLEN) {
+	if (strlen(appname) >= APPHB_OLEN
+	||	strlen(appinstance) >= APPHB_OLEN) {
 		errno = ENAMETOOLONG;
 		return -1;
 	}
@@ -110,6 +111,7 @@ apphb_register(const char * appname)
 	/* Send registration message ... */
 	strncpy(msg.msgtype, REGISTER, sizeof(msg.msgtype));
 	strncpy(msg.appname, appname, sizeof(msg.appname));
+	strncpy(msg.appinstance, appinstance, sizeof(msg.appinstance));
 	msg.pid = getpid();
 	msg.uid = getuid();
 	msg.gid = getgid();

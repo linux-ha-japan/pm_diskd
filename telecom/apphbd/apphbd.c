@@ -66,7 +66,6 @@
  *	Notification plugin API exported functions
  *		cregister (pid_t pid, const char * appname
  *		,	void * clienthandle)
- *		cunregister(pid_t pid, const char * appname)
  *		status(pid_t pid, const char * appname, apphb_event_t what)
  *
  *	Notification plugin imported functions:
@@ -118,7 +117,10 @@ typedef struct apphb_client apphb_client_t;
  */
 struct apphb_client {
 	char *			appname;	/* application name */
+	char *			appinst;	/* application name */
 	pid_t			pid;		/* application pid */
+	uid_t			uid;		/* application UID */
+	gid_t			gid;		/* application GID */
 	guint			timerid;	/* timer source id */
 	guint			sourceid;	/* message source id */
 	long			timerms;	/* heartbeat timeout in ms */
@@ -151,8 +153,10 @@ typedef struct AppHBNotifyImports_s AppHBNotifyImports;
  * Plugin exported functions.
  */
 struct AppHBNotifyOps_s {
-	int (*cregister)(pid_t pid, const char * appname, void * handle);
-	int (*status)(const char * appname, pid_t pid, apphb_event_t event);
+	int (*cregister)(pid_t pid, const char * appname, const char * appinst
+	,	uid_t uid, gid_t gid, void * handle);
+	int (*status)(const char * appname, const char * appinst, pid_t pid
+	,	uid_t uid, gid_t gid, apphb_event_t event);
 };
 
 AppHBNotifyOps*	NotificationPlugins[MAXNOTIFYPLUGIN];
@@ -168,7 +172,7 @@ struct AppHBNotifyImports_s {
 ,	uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
 };
 
-static void apphb_notify(const char * appname, pid_t pid, apphb_event_t event);
+static void apphb_notify(apphb_client_t* client, apphb_event_t event);
 static long get_running_pid(gboolean * anypidfile);
 static void make_daemon(void);
 static int init_start(void);
@@ -234,7 +238,9 @@ static gboolean
 apphb_timer_popped(gpointer data)
 {
 	apphb_client_t*	client = data;
-	apphb_notify(client->appname, client->pid, APPHB_NOHB);
+	if (!client->deleteme) {
+		apphb_notify(client, APPHB_NOHB);
+	}
 	client->missinghb = TRUE;
 	client->timerid = 0;
 	return FALSE;
@@ -281,7 +287,7 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 	apphb_client_t*		client  = Client;
 
 	if (src->revents & G_IO_HUP) {
-		apphb_notify(client->appname, client->pid, APPHB_HUP);
+		apphb_notify(client, APPHB_HUP);
 		client->deleteme = TRUE;
 		return FALSE;
 	}
@@ -366,9 +372,10 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 {
 	struct apphb_signupmsg*	msg = Msg;
 	int			namelen = -1;
-	uid_t		uidlist[1];
-	gid_t		gidlist[1];
-	IPC_Auth*	clientauth;
+	uid_t			uidlist[1];
+	gid_t			gidlist[1];
+	IPC_Auth*		clientauth;
+	int			j;
 
 	if (client->appname) {
 		return EEXIST;
@@ -376,7 +383,9 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 
 	if (length < sizeof(*msg)
 	||	(namelen = strnlen(msg->appname, sizeof(msg->appname))) < 1
-	||	namelen >= sizeof(msg->appname)) {
+	||	namelen >= sizeof(msg->appname)
+	||	strnlen(msg->appinstance, sizeof(msg->appinstance))
+	>=	sizeof(msg->appinstance)) {
 		return EINVAL;
 	}
 
@@ -397,6 +406,16 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 	}
 	ipc_destroy_auth(clientauth);
 	client->appname = g_strdup(msg->appname);
+	client->appinst = g_strdup(msg->appinstance);
+	client->uid = msg->uid;
+	client->gid = msg->gid;
+
+	/* Tell the plugins something happened */
+	for (j=0; j < n_Notification_Plugins; ++j) {
+		NotificationPlugins[j]->cregister(client->pid
+		,	client->appname, client->appinst
+		,	client->uid, client->gid, client);
+	}
 	return 0;
 }
 
@@ -428,6 +447,7 @@ apphb_client_remove(apphb_client_t* client)
 		client->ch = NULL;
 	}
 	g_free(client->appname);
+	g_free(client->appinst);
 	memset(client, 0, sizeof(*client));
 }
 
@@ -437,7 +457,7 @@ apphb_client_disconnect(apphb_client_t* client , void * msg, int msgsize)
 {
 	/* We can't delete it right away... */
 	client->deleteme=TRUE;
-	apphb_notify(client->appname, client->pid, APPHB_HBUNREG);
+	apphb_notify(client, APPHB_HBUNREG);
 	return 0;
 }
 
@@ -459,7 +479,7 @@ static int
 apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
 {
 	if (client->missinghb) {
-		apphb_notify(client->appname, client->pid, APPHB_HBAGAIN);
+		apphb_notify(client, APPHB_HBAGAIN);
 		client->missinghb = FALSE;
 	}
 		
@@ -497,8 +517,9 @@ apphb_read_msg(apphb_client_t* client)
 
 
 		case IPC_FAIL:
-		syslog(LOG_CRIT, "OOPS! client %s (pid %d) read failure!"
-		,	client->appname, client->pid);
+		syslog(LOG_CRIT, "OOPS! client %s (pid %d) read failure! [%s]"
+		,	client->appname, client->pid
+		,	strerror(errno));
 		break;
 	}
 }
@@ -604,7 +625,7 @@ apphb_new_dispatch(gpointer Src, GTimeVal*now, gpointer user)
  * is interested in whatever way is desired.
  */
 static void
-apphb_notify(const char * appname, pid_t pid, apphb_event_t event)
+apphb_notify(apphb_client_t* client, apphb_event_t event)
 {
 	int	logtype = LOG_WARNING;
 	const char *	msg;
@@ -636,15 +657,16 @@ apphb_notify(const char * appname, pid_t pid, apphb_event_t event)
 		return;
 	}
 	if (event != APPHB_HBUNREG) {
-		syslog(logtype, "client '%s' (pid %d) %s"
-		,	appname, pid, msg);
+		syslog(logtype, "apphb client '%s' / '%s' (pid %d) %s"
+		,	client->appname, client->appinst, client->pid, msg);
 	}
 	
 	/* Tell the plugins something happened */
 	for (j=0; j < n_Notification_Plugins; ++j) {
-		NotificationPlugins[j]->status(appname, pid, event);
+		NotificationPlugins[j]->status(client->appname
+		,	client->appinst, client->pid
+		,	client->uid, client->gid, event);
 	}
-	
 }
 
 extern pid_t getsid(pid_t);
@@ -678,11 +700,11 @@ main(int argc, char ** argv)
 			case 'r':		/* Restart */
 			return init_restart();
 
-			case 'w':
+			case 'w':		/* Watchdog dev */
 			watchdogdev = optarg;
 			break;
 
-			case 'n':
+			case 'n':		/* Plugin */
 			load_notification_plugin(optarg);
 			break;
 		}

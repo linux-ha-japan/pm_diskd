@@ -65,9 +65,9 @@
  * EBADF:	 application heartbeat service not available
  * EINVAL:	 NULL 'appname' argument
  * ENOSPC:	 too many clients already registered
- * ENAMETOOLONG: appname argument is too long.
+ * ENAMETOOLONG: appname or appinstance argument is too long.
  */
-int apphb_register(const char * appname);
+int apphb_register(const char * appname, const char * appinstance);
 
 /*
  * apphb_unregister: unregister a process from heartbeat monitoring.

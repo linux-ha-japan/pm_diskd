@@ -75,10 +75,9 @@ doatest(void)
 	fprintf(stderr, "Sleep 5 (%ld)\n", (long)(getpid()));
 	sleep(5);
 	fprintf(stderr, "Client starting - pid: %ld\n", (long) getpid());
-	rc = apphb_register("test program");
+	rc = apphb_register("test program", "normal");
 	if (rc < 0) {
 		perror("registration failure");
-		sleep(5);
 		exit(1);
 	}
 	
@@ -114,4 +113,10 @@ doatest(void)
 		perror("apphb_unregister failure");
 		exit(5);
 	}
+	rc = apphb_register("test program", "HANGUP");
+	if (rc < 0) {
+		perror("second registration failure");
+		exit(1);
+	}
+	/* Now we leave without further adieu -- HANGUP */
 }
