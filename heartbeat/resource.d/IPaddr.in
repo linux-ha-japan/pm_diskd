@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.37 2003/03/14 12:29:56 horms Exp $
+#	$Id: IPaddr.in,v 1.38 2003/03/15 02:18:54 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -318,14 +318,21 @@ remove_conflicting_loopback() {
 	ifname="$2"
 
 	ha_log "info: Removing conflicting loopback $ifname."
-	if ! test -d "$VLDIR/"; then
-		mkdir -p "$VLDIR/"
-		ha_log "error: Could not create \"$VLDIR/\" conflicting" \
-			" loopback $ifname. not be restored."
+	if
+	  [ -d "$VLDIR/" ] || mkdir -p "$VLDIR/"
+	then
+	  : Directory $VLDIR now exists
+	else
+	  ha_log "ERROR: Could not create \"$VLDIR/\" conflicting" \
+	  " loopback $ifname cannot be restored."
 	fi
-	if ! echo $ifname > "$VLDIR/$ipaddr"; then
-		ha_log "error: Could not save conflicting loopback $ifname." \
-			"it will not be restored."
+	if 
+	  echo $ifname > "$VLDIR/$ipaddr"
+	then
+	  : Saved loopback information in $VLDIR/$ipaddr
+	else
+	  ha_log "ERROR: Could not save conflicting loopback $ifname." \
+	  "it will not be restored."
 	fi
 	delete_interface "$ipaddr" "$ifname"
 	# Forcibly remove the route (if it exists) to the loopback.
@@ -637,7 +644,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.37 2003/03/14 12:29:56 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.38 2003/03/15 02:18:54 horms Exp $"
 }
 
 #
@@ -684,6 +691,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.38  2003/03/15 02:18:54  horms
+# Fixed mkdir logic and removed bash-isms. Alan
+#
 # Revision 1.37  2003/03/14 12:29:56  horms
 # Restore of loopback device requires a tmp directory.
 # This is now autocreated as necessary.
