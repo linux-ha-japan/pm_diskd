@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.15 2002/04/09 12:45:36 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.16 2002/04/09 21:53:27 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -602,9 +602,13 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 	int	fd = tty->ttyfd;
 
 	for(cp=inbuf; cp < end; ++cp) {
+		int saverr;
 		errno = 0;
 		/* One read per char -- yecch  (but it's easy) */
 		rc = read(fd, cp, 1);
+		saverr = errno;
+		OurImports->CheckForEvents();
+		errno = saverr;
 		if (rc != 1) {
 			if (rc == 0 || errno == EINTR) {
 				LOG(PIL_CRIT, "EOF in ttygets [%s]: %s [%d]"
@@ -623,6 +627,13 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.16  2002/04/09 21:53:27  alan
+ * A large number of minor cleanups related to exit, cleanup, and process
+ * management.  It all looks reasonably good.
+ * One or two slightly larger changes (but still not major changes) in
+ * these same areas.
+ * Basically, now we wait for everything to be done before we exit, etc.
+ *
  * Revision 1.15  2002/04/09 12:45:36  alan
  * Put in changes to the bcast, mcast and serial code such that
  * interrupted system calls in reads are ignored.

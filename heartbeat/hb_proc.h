@@ -101,11 +101,13 @@ struct process_info {
 
 /* This figure contains a couple of probably unnecessary fudge factors */
 
-#define	MXPROCS	((PAGE_SIZE-3*sizeof(int))/sizeof(struct process_info)-1)
+#define	MXPROCS	((PAGE_SIZE-5*sizeof(int))/sizeof(struct process_info)-1)
 
 struct pstat_shm {
 	int	nprocs;
 	int	restart_after_shutdown;
+	int	giveup_resources;
+	int	i_hold_resources;
 	struct process_info info [MXPROCS];
 };
 

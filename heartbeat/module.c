@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.38 2002/01/16 22:02:59 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.39 2002/04/09 21:53:27 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -72,6 +72,7 @@ static void		RegisterNewMedium(struct hb_media* mp);
 static const char *	GetParameterValue(const char * name);
 static void		RegisterCleanup(void(*)(void));
 extern int		StringToBaud(const char *);
+extern void		process_pending_handlers(void);
 struct hb_media_imports	CommImports =
 {	GetParameterValue
 ,	RegisterNewMedium
@@ -79,6 +80,7 @@ struct hb_media_imports	CommImports =
 ,	ttyunlock
 ,	StringToBaud
 ,	RegisterCleanup
+,	process_pending_handlers
 };
 
 extern struct hb_media* sysmedia[];

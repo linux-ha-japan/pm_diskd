@@ -48,6 +48,8 @@ struct hb_media_imports {
 	int		(*devunlock)(const char *);	/* Unlock a device */
 	int		(*StrToBaud)(const char *);	/* Convert baudrate */
 	void		(*RegisterCleanup)(void(*)(void));
+	void		(*CheckForEvents)(void);	/* Check for signals */
+							/* etc.		     */
 	/* Actually there are lots of other dependencies that ought to
 	 * be handled, but this is a start ;-)
 	 */
