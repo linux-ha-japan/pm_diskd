@@ -90,7 +90,6 @@ api_process_request(struct ha_msg * msg)
 	||	(msgtype = ha_msg_value(msg, F_TYPE)) == NULL
 	||	(reqtype = ha_msg_value(msg, F_APIREQ)) == NULL
 	||	strcmp(msgtype, T_APIREQ) != 0)  {
-		ha_log_message(msg);
 		ha_log(LOG_ERR, "api_process_request: bad message");
 		return;
 	}
@@ -123,7 +122,7 @@ api_process_request(struct ha_msg * msg)
 
 	if (strcmp(reqtype, API_SIGNON) == 0) {
 		api_add_client(msg);
-		if (ha_msg_mod(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
+		if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
 			ha_log(LOG_ERR
 			,	"api_process_request: cannot add field/4");
 			ha_msg_del(resp); resp=NULL;
@@ -172,7 +171,7 @@ api_process_request(struct ha_msg * msg)
 			--debug_client_count;
 		}
 		client->desired_types = mask;
-		if (ha_msg_add(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
+		if (ha_msg_add(resp, F_APIRESULT, API_OK) != HA_OK) {
 			ha_log(LOG_ERR
 			,	"api_process_request: cannot add field/8.1");
 			ha_msg_del(resp); resp=NULL;
@@ -198,7 +197,7 @@ api_process_request(struct ha_msg * msg)
 				return;
 			}
 			if (ha_msg_mod(resp, F_APIRESULT
-			,	(j == last ? API_SUCCESS : API_MORE))
+			,	(j == last ? API_OK : API_MORE))
 			!=	HA_OK) {
 				ha_log(LOG_ERR
 				,	"api_process_request: "
@@ -228,7 +227,7 @@ api_process_request(struct ha_msg * msg)
 			ha_msg_del(resp); resp=NULL;
 			return;
 		}
-		if (ha_msg_mod(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
+		if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
 			ha_log(LOG_ERR
 			,	"api_process_request: cannot add field/8");
 			ha_msg_del(resp); resp=NULL;
@@ -237,10 +236,48 @@ api_process_request(struct ha_msg * msg)
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
-	}else if (strcmp(reqtype, "API_IFLIST") == 0) {
+	}else if (strcmp(reqtype, API_IFLIST) == 0) {
+		struct link * lnk;
 	/*
-	 *	List the set of our interfaces
+	 *	List the set of our interfaces for the given host
 	 */
+		int	j;
+		int	last = config->nodecount-1;
+		const char *		cnode;
+		struct node_info *	node;
+
+		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
+		|| (node = lookup_node(cnode)) == NULL) {
+			goto bad_req;
+		}
+
+		/* Find last link... */
+ 		for(j=0; (lnk = &node->links[j]) && lnk->name; ++j) {
+			last = j;
+                }            
+
+		for (j=0; j <= last; ++j) {
+			if (ha_msg_mod(resp, F_IFNAME
+			,	node->links[j].name) != HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_process_request: "
+				"cannot mod field/5");
+				ha_msg_del(resp); resp=NULL;
+				return;
+			}
+			if (ha_msg_mod(resp, F_APIRESULT
+			,	(j == last ? API_OK : API_MORE))
+			!=	HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_process_request: "
+				"cannot mod field/6");
+				ha_msg_del(resp); resp=NULL;
+				return;
+			}
+			api_send_client_msg(client, resp);
+		}
+		ha_msg_del(resp); resp=NULL;
+		return;
 	}else if (strcmp(reqtype, API_IFSTATUS) == 0) {
 	/*
 	 *	Return the status of the given interface for the given
@@ -263,7 +300,7 @@ api_process_request(struct ha_msg * msg)
 			ha_msg_del(resp); resp=NULL;
 			return;
 		}
-		if (ha_msg_mod(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
+		if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
 			ha_log(LOG_ERR
 			,	"api_process_request: cannot add field/10");
 			ha_msg_del(resp); resp=NULL;
@@ -273,7 +310,7 @@ api_process_request(struct ha_msg * msg)
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}else{
-ha_log(LOG_ERR, "Looking at unknown API request");
+		ha_log(LOG_ERR, "Unknown API request");
 	}
 
 bad_req:

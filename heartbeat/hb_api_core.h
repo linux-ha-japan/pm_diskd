@@ -44,7 +44,7 @@
 #define	API_IFSTATUS		"ifstatus"
 
 
-#define	API_SUCCESS		"OK"
+#define	API_OK			"OK"
 #define	API_FAILURE		"fail"
 #define	API_BADREQ		"badreq"
 #define	API_MORE		"ok/more"

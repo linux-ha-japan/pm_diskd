@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.12 2000/07/11 00:25:52 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.13 2000/07/11 14:42:42 alan Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -207,6 +207,7 @@ ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 			}
 			ha_free(msg->values[j]);
 			msg->values[j] = newv;
+			msg->vlens[j] = strlen(value);
 			strcpy(newv, value);
 			return(HA_OK);
 		}
@@ -386,6 +387,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.13  2000/07/11 14:42:42  alan
+ * More progress on API code.
+ *
  * Revision 1.12  2000/07/11 00:25:52  alan
  * Added a little more API code.  It looks like the rudiments are now working.
  *
