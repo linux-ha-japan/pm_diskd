@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.1 2002/03/11 22:24:23 alan Exp $
+# $Id: WAS.in,v 1.2 2002/03/12 23:15:36 alan Exp $
 # 
 # WAS
 #
@@ -50,6 +50,10 @@ usage() {
 	The 'monitor' operation reports whether the WAS seems to be working
 	The 'methods' operation reports on the methods $0 supports
 
+	The start and stop operations must be run as root.
+
+	The status operation is unable to report the root PID that
+	WebSphere is using unless run as root.
 	!
   exit 1
 
@@ -96,7 +100,12 @@ run() {
 GetWASPorts() {
   grep -i 'applicationserver' $1	|
 	grep port= 			|
-	sed -e 's%.*port=%%' -e 's%[ /].*%%' -e 's%"%%g'
+	sed -e 's%.*port= *"* *%%'	\
+		-e 's%[^0-9][^0-9]*.*$%%'
+	# Delete up to port=, throw away optional quote and optional
+	#	white space.
+	# Throw away everything after the first non-digit.
+	# This should leave us the port number all by itself...
 }
 
 GetWASSnoopPort() {
@@ -307,6 +316,7 @@ WAS_wait_4_start() {
 #
 WAS_stop() {
   # They don't return good return codes...
+  # And, they seem to allow anyone to stop WAS (!)
   run $WASBIN/stopServer.sh -configFile $1
   if
     WAS_status $1
