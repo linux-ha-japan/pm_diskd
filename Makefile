@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.67 2000/12/13 17:46:02 alan Exp $
+#	$Id: Makefile,v 1.68 2000/12/15 06:41:32 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -58,6 +58,7 @@ LIBDL = -ldl
 LIBINTL =
 PICFLAG = -fPIC
 CFLAGEXTRA =
+MAKE=gmake
 
 VARS=MAKE="$(MAKE)" 			\
 	PKG="$(PKG)"			\
@@ -69,7 +70,6 @@ VARS=MAKE="$(MAKE)" 			\
 	CFLAGEXTRA="$(CFLAGEXTRA)"		\
 	PICFLAG="$(PICFLAG)"
 
-MAKE=make
 MAKE_CMD = $(MAKE) $(VARS)
 
 NONKERNELDIRS= doc stonith heartbeat ldirectord
