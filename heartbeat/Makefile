@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.6 1999/10/05 06:17:03 alanr Exp $
+#	$Id: Makefile,v 1.7 1999/10/05 14:20:08 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -110,6 +110,7 @@ install_bin: all
 	$(INSTALL) -cm 755 $(RCCMDS) $(HARCD)
 	$(INSTALL) -cm 755 $(RESOURCECMDS) $(RESOURCEDIR)
 	$(INSTALL) -cm 755 $(ROOTFILES) $(HA)
+	if [ ! -d  $(BRROOTDIR)/$(INITD) ]; then mkdir -p $(BRROOTDIR)/$(INITD); fi
 	$(INSTALL) -cm 755 heartbeat.sh $(INITSCRIPT)
 
 rh-install_bin: install_bin
