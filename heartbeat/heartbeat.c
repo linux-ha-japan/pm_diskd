@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.267 2003/07/01 02:36:22 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.268 2003/07/01 10:12:26 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1723,7 +1723,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 		cl_log(LOG_WARNING
 		,   "process_status_message: new node [%s] in message"
 		,	from);
-		add_node(from, NORMALNODE);
+		add_node(from, NORMALNODE_I);
 		thisnode = lookup_node(from);
 		if (thisnode == NULL) {
 			return;
@@ -4123,6 +4123,9 @@ get_localnodeinfo(void)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.268  2003/07/01 10:12:26  horms
+ * Use defines for node types rather than arbitary strings
+ *
  * Revision 1.267  2003/07/01 02:36:22  alan
  * Several somewhat-related things in this change set:
  * Added new API call to get general parameters.

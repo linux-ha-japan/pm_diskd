@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.89 2003/07/01 02:36:22 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.90 2003/07/01 10:12:26 horms Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -386,7 +386,7 @@ init_config(const char * cfgfile)
 	}
 	for (j=0; j < config->nodecount; ++j) {
 		config->nodes[j].has_resources = DoManageResources;
-		if (config->nodes[j].nodetype == PINGNODE) {
+		if (config->nodes[j].nodetype == PINGNODE_I) {
 			config->nodes[j].dead_ticks
 			=	msto_longclock(config->deadping_ms);
 		}else{
@@ -554,7 +554,7 @@ parse_config(const char * cfgfile, char *nodename)
 	cticks = time_longclock();
 
 	for (i=0; i < config->nodecount; ++i) {
-		if (config->nodes[i].nodetype == PINGNODE) {
+		if (config->nodes[i].nodetype == PINGNODE_I) {
 			config->nodes[i].nlinks = 1;
 			for (j=0; j < nummedia; j++) {
 				struct link *lnk = &config->nodes[i].links[0];
@@ -864,7 +864,7 @@ add_node(const char * value, int nodetype)
 static int
 add_normal_node(const char * value)
 {
-	return add_node(value, NORMALNODE);
+	return add_node(value, NORMALNODE_I);
 }
 
 
@@ -1559,6 +1559,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.90  2003/07/01 10:12:26  horms
+ * Use defines for node types rather than arbitary strings
+ *
  * Revision 1.89  2003/07/01 02:36:22  alan
  * Several somewhat-related things in this change set:
  * Added new API call to get general parameters.

@@ -364,7 +364,7 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 	going_standby	= NOT;
 	
 
-	if (hip->nodetype == PINGNODE) {
+	if (hip->nodetype == PINGNODE_I) {
 		takeover_from_node(hip->nodename);
 		return;
 	}
@@ -884,7 +884,7 @@ takeover_from_node(const char * nodename)
 		ha_log(LOG_INFO
 		,	"Resource takeover cancelled - shutdown in progress.");
 		return;
-	}else if (hip->nodetype != PINGNODE) {
+	}else if (hip->nodetype != PINGNODE_I) {
 		ha_log(LOG_INFO
 		,	"Resources being acquired from %s."
 		,	hip->nodename);
@@ -906,7 +906,7 @@ takeover_from_node(const char * nodename)
 		return;
 	}
 
-	if (hip->nodetype == PINGNODE) {
+	if (hip->nodetype == PINGNODE_I) {
 		if (ha_msg_add(hmsg, F_COMMENT, "ping") != HA_OK) {
 			ha_log(LOG_ERR, "no memory to mark ping node dead");
 			ha_msg_del(hmsg);
@@ -922,7 +922,7 @@ takeover_from_node(const char * nodename)
 	/*
 	 * STONITH has already successfully completed, or wasn't needed...
 	 */
-	if (hip->nodetype != PINGNODE) {
+	if (hip->nodetype != PINGNODE_I) {
 		if (nice_failback) {
 
 			/* mach_down is out there acquiring foreign resources */
@@ -1874,6 +1874,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.28  2003/07/01 10:12:26  horms
+ * Use defines for node types rather than arbitary strings
+ *
  * Revision 1.27  2003/06/28 04:47:51  alan
  * Fixed some terrible, horrible, no good very bad reload bugs -- especially
  * with nice_failback turned on.  Yuck!

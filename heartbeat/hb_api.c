@@ -415,11 +415,11 @@ api_nodetype(const struct ha_msg* msg, struct ha_msg* resp
 		return I_API_BADREQ;
 	}
 	switch (node->nodetype) {
-		case PINGNODE:		ntype = "ping";
+		case PINGNODE_I:	ntype = PINGNODE;
 					break;
-		case NORMALNODE:	ntype = "normal";
+		case NORMALNODE_I:	ntype = NORMALNODE;
 					break;
-		default:		ntype = "unknown";
+		default:		ntype = UNKNOWNNODE;
 					break;
 	}
 			
@@ -450,7 +450,7 @@ api_iflist(const struct ha_msg* msg, struct ha_msg* resp
 			*failreason = "EINVAL";
 			return I_API_BADREQ;
 		}
-		if (node->nodetype == PINGNODE) {
+		if (node->nodetype == PINGNODE_I) {
 			return api_ping_iflist
 			(	msg, node, resp ,client, failreason);
 		}

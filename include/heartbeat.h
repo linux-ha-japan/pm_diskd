@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.36 2003/07/01 02:36:22 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.37 2003/07/01 10:12:26 horms Exp $";
 
 #ifdef SYSV
 #	include <sys/termio.h>
@@ -231,8 +231,11 @@ struct link {
 	TIME_T rmt_lastupdate; /* node's idea of last update time for this link */
 };
 
-#define	NORMALNODE	0
-#define	PINGNODE	1
+#define	NORMALNODE_I	0
+#define	PINGNODE_I	1
+#define	NORMALNODE      "normal"
+#define	PINGNODE        "ping"
+#define	UNKNOWNNODE     "unknown"
 
 struct node_info {
 	int		nodetype;
