@@ -30,6 +30,9 @@
 #define	TIME_F	"%lu"
 #define	TIME_X	"%lx"
 
+/* Needs to be defined before any other includes, otherwise some system
+ * headers do not behave as expected! Major black magic... */
+#define _GNU_SOURCE
 
 #ifdef __STDC__
 #       define  MKSTRING(s)     #s

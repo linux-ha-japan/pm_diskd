@@ -1,5 +1,5 @@
 /*
- * $Id: proc_ha.c,v 1.4 2003/01/31 10:02:10 lars Exp $
+ * $Id: proc_ha.c,v 1.5 2003/02/03 11:30:42 lars Exp $
  *
  * Linux-HA /proc interface
  *
@@ -44,6 +44,7 @@
 /*	Advice appreciated... :-) */
 
 
+#include <portability.h>
 #include <linux/malloc.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -51,7 +52,6 @@
 #include <linux/proc_fs.h>
 #include <linux/errno.h>
 #include <linux/types.h>
-#include <portability.h>
 
 #if LINUX_VERSION_CODE >= VERSION_CODE(2,1,0)
 #  include <asm/uaccess.h>
@@ -946,6 +946,11 @@ void cleanup_module(void)
 
 /****************************************************
  * $Log: proc_ha.c,v $
+ * Revision 1.5  2003/02/03 11:30:42  lars
+ * Changed all files including system headers to include portability.h first, so
+ * that global defines affecting the exported interfaces from the system headers
+ * are indeed global and apply consistently to all headers.
+ *
  * Revision 1.4  2003/01/31 10:02:10  lars
  * Various small code cleanups:
  * - Lots of "signed vs unsigned" comparison fixes

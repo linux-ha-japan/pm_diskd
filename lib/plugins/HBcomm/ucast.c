@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.12 2003/01/31 16:42:15 msoffen Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.13 2003/02/03 11:30:41 lars Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -659,7 +659,7 @@ static struct ip_private* new_ip_interface(const char *ifn,
 	/*
 	 * use address from gethostbyname
 	*/
-	ep->heartaddr = *((struct in_addr*)h->h_addr_list[0]);
+	memcpy(&ep->heartaddr, h->h_addr_list[0], sizeof(ep->heartaddr));
 
 	if (!(ep->interface = (char*)MALLOC(strlen(ifn)+1))) {
 		LOG(PIL_CRIT, "ucast: memory allocation error (line %d)",

@@ -21,7 +21,9 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.28 2003/01/31 10:02:09 lars Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.29 2003/02/03 11:30:40 lars Exp $";
+#include <portability.h>
+
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -35,7 +37,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.28 2003/01/31 10:02:
 #	define	SETATTR(fd, s)	tcsetattr(fd, TCSAFLUSH, s)
 #	define	FLUSH(fd)	tcflush(fd, TCIOFLUSH)
 #endif
-
 
 #include <limits.h>
 #include <syslog.h>

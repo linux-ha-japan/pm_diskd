@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.10 2003/01/31 10:02:09 lars Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.11 2003/02/03 11:30:41 lars Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -101,6 +101,7 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.10 2003/01/31 10:02:09 la
 				/* This tells us how many writes should fail */
 				/* with connection refused before we restart */
 				/* PPPd on our end */
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -117,7 +118,6 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.10 2003/01/31 10:02:09 la
 #if defined(SO_BINDTODEVICE)
 #	include <net/if.h>
 #endif
-#include <portability.h>
 #include <heartbeat.h>
 #include <clplumbing/cl_signal.h>
 
@@ -1212,6 +1212,11 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.11  2003/02/03 11:30:41  lars
+ * Changed all files including system headers to include portability.h first, so
+ * that global defines affecting the exported interfaces from the system headers
+ * are indeed global and apply consistently to all headers.
+ *
  * Revision 1.10  2003/01/31 10:02:09  lars
  * Various small code cleanups:
  * - Lots of "signed vs unsigned" comparison fixes

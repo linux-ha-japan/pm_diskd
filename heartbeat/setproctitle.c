@@ -1,4 +1,4 @@
-const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.5 2003/01/17 08:31:52 msoffen Exp $";
+const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.6 2003/02/03 11:30:40 lars Exp $";
 
 /*
  * setproctitle.c
@@ -54,6 +54,8 @@ const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.5 2003/01/17 0
  * with OpenSSL, and distribute the resulting executable, without including
  * the source code for OpenSSL in the source distribution.
  */
+
+#include <portability.h>
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>

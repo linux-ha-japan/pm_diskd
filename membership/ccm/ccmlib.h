@@ -20,6 +20,7 @@
  */
 #ifndef __CCMLIB_H_
 #define __CCMLIB_H_
+#include <portability.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -34,8 +35,6 @@
 #include <ocf/oc_event.h>
 void oc_ev_special(const oc_ev_t *, oc_ev_class_t , int );
 #endif
-
-#include <portability.h>
 
 #define NODEIDSIZE 255 /* if this value is changed change it 
 			  	also in ccm.h */
