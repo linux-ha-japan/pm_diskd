@@ -296,6 +296,7 @@ static int
 RPCRobustLogin(struct BayTech * bt)
 {
 	int	rc=S_OOPS;
+	int	j;
 
 	for (j=0; j < 5 && rc != S_OK; ++j) {
 		rc = RPCLogin(bt);

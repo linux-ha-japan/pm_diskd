@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.9 2000/11/06 10:43:29 jacob Exp $
+#	$Id: Makefile,v 1.10 2000/11/14 08:18:08 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -65,6 +65,7 @@ LIBS=  $(MODULES:.o=.so)
 BINDIR = $(BUILD_ROOT)/usr/sbin
 LIBDIR = $(BUILD_ROOT)/usr/lib
 MODDIR = $(LIBDIR)/$(STONITH)
+INCDIR = $(BUILD_ROOT)/usr/include
 
 CFLAGS := $(CFLAGS) -DSTONITH_MODULES='"$(MODDIR)"'
 
@@ -73,6 +74,8 @@ BINCMDS = $(STONITH)
 LIBFILES = $(ARFILE) $(SHLIB)
 
 PRODUCTS = $(BINCMDS) $(LIBS) baytech.so rps10.so nw_rpc100s.so
+
+INCFILES = stonith.h
 
 SPECSRC = Specfile
 
@@ -101,7 +104,7 @@ $(STONITH): $(ARFILE) main.o
 
 $(S_OBJLIST) : $(S_HDRS)
 
-install: install_bin install_lib
+install: install_bin install_lib install_inc
 
 install_bin: all
 	if [ ! -d $(BINDIR) ]; then mkdir -p $(BINDIR) ; fi
@@ -112,6 +115,9 @@ install_lib: $(LIBFILES) $(MODULES) baytech.so rps10.so nw_rpc100s.so
 	$(INSTALL) -cm 755 $(LIBFILES) $(LIBDIR)
 	mkdir -p $(MODDIR)
 	$(INSTALL) -cm 755 $(MODULES:.o=.so) baytech.so rps10.so nw_rpc100s.so $(MODDIR)
+
+install_inc:
+	$(INSTALL) -cm 644 $(INCFILES) $(INCDIR)
 
 clean:	
 	rm -f *.o *.swp .*.swp *.a *.so core make.out
