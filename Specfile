@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.25 1999/12/23 03:53:29 alan Exp $
+#	$Id: Specfile,v 1.26 1999/12/25 08:44:17 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -22,7 +22,7 @@ It implements the following kinds of heartbeats:
 	- Bidirectional Serial PPP/UDP Rings (using PPP)
 
 %changelog
-* Wed Dec 22 1999  Alan Robertson <alanr@henge.com>,
+* Sat Dec 25 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      and Guenther Thomsen <thomsen@cs.tu-berlin.de>
@@ -34,6 +34,8 @@ It implements the following kinds of heartbeats:
   + Added Stefan Salzer's <salt@cin.de> fix for a 'grep' in IPaddr which
 	wasn't specific enough and would sometimes get IPaddr confused on
 	IP addresses that prefix-matched.
+  + Added Lars Marowsky-Bree's suggestion to make the code almost completely
+	immune to jumping the clock backwards and forwards
 
 * Tue Nov 22 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,

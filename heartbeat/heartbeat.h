@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.15 1999/12/18 03:55:08 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.16 1999/12/25 08:44:17 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -147,7 +147,8 @@ struct node_info {
 	char	nodename[HOSTLENG];	/* Host name from config file */
 	char	status[STATUSLENG];	/* Status from heartbeat */
 	time_t	rmt_lastupdate;		/* node's idea of last update time */
-	time_t	local_lastupdate;	/* Date of last update in localtime */
+	unsigned long	status_seqno;	/* Seqno of last status update */
+	clock_t	local_lastupdate;	/* Date of last update in clock_t time */
 	struct seqtrack	track;
 };
 

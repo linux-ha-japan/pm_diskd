@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.3 1999/11/23 08:50:01 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.4 1999/12/25 08:44:17 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -480,7 +480,7 @@ add_node(const char * value)
 	strcpy(hip->status, INITSTATUS);
 	strcpy(hip->nodename, value);
 	hip->rmt_lastupdate = 0L;
-	hip->local_lastupdate = time(NULL);
+	hip->local_lastupdate = times(NULL);
 	hip->track.nmissing = 0;
 	hip->track.last_seq = NOSEQUENCE;
 	return(HA_OK);

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.36 1999/11/27 16:00:02 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.37 1999/12/25 08:44:17 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -758,8 +758,9 @@ master_status_process(void)
 {
 	struct node_info *	thisnode;
 	FILE *			f = fdopen(status_pipe[P_READFD], "r");
-	struct ha_msg *	msg = NULL;
-	int		resources_requested_yet = 0;
+	struct ha_msg *		msg = NULL;
+	int			resources_requested_yet = 0;
+	time_t			lastnow = 0L;
 
 
 	init_status_alarm();
@@ -768,8 +769,8 @@ master_status_process(void)
 	clearerr(f);
 
 	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
-		time_t	msgtime;
-		time_t	now;
+		time_t		msgtime;
+		time_t		now = time(NULL);
 		const char *	from;
 		const char *	ts;
 		const char *	type;
@@ -788,6 +789,13 @@ master_status_process(void)
 
 		/* Check to see we need to resend any rexmit requests... */
 		check_rexmit_reqs();
+
+		/* Check for clock jumps */
+		if (now < lastnow) {
+			ha_log(LOG_INFO, "Clock jumped backwards. Compensating.");
+			init_status_alarm();
+		}
+		lastnow = now;
 
 		msg = msgfromstream(f);
 
@@ -870,6 +878,8 @@ master_status_process(void)
 		/* Is this a status update message? */
 		if (strcasecmp(type, T_STATUS) == 0) {
 			const char *	status;
+			const char *	cseq;
+			long		seqno;
 
 
 			sscanf(ts, "%lx", &msgtime);
@@ -880,16 +890,24 @@ master_status_process(void)
 				F_STATUS " field");
 				continue;
 			}
+			if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
+				if (sscanf(cseq, "%lx", &seqno) != 1
+				||	seqno <= 0) {
+					continue;
+				}
+			}
 
 			/* Do we already have a newer status? */
-			if (msgtime < thisnode->rmt_lastupdate) {
+			if (msgtime < thisnode->rmt_lastupdate
+			&&	seqno < thisnode->status_seqno) {
 				continue;
 			}
 
 			heartbeat_monitor(msg);
 
 			thisnode->rmt_lastupdate = msgtime;
-			thisnode->local_lastupdate = time(NULL);
+			thisnode->local_lastupdate = times(NULL);
+			thisnode->status_seqno = seqno;
 
 			/* Is the status the same? */
 			if (strcasecmp(thisnode->status, status) != 0) {
@@ -1204,7 +1222,7 @@ reread_config_sig(int sig)
 void
 ding(int sig)
 {
-	static int dingtime = 1;
+	static int	dingtime = 1;
 	time_t		now = time(NULL);
 	signal(SIGALRM, ding);
 
@@ -1240,14 +1258,26 @@ AlarmUhOh(int sig)
 void
 check_node_timeouts(void)
 {
-	time_t	now = time(NULL);
+	clock_t	now = times(NULL);
 	struct node_info *	hip;
-	time_t	TooOld = now - config->deadtime_interval;
+	clock_t	dead_ticks = (CLK_TCK * config->deadtime_interval);
+	clock_t	TooOld = now - dead_ticks;
 	int	j;
 
+	/* We need to be careful to handle clock_t wrapround carefully */
+	if (now < dead_ticks) {
+		return;	/* Ignore timeouts during wraparound */
+			/* This doubles our timeout at this time */
+			/* Sorry. */
+	}
 
 	for (j=0; j < config->nodecount; ++j) {
 		hip= &config->nodes[j];
+		if (hip->local_lastupdate > now) {
+			/* This means wraparound has occurred */
+			/* Fudge it to make comparisons work */
+			hip->local_lastupdate = 0L;
+		}
 		/* If it's recently updated, or already dead, ignore it */
 		if (hip->local_lastupdate >= TooOld
 		||	strcmp(hip->status, DEADSTATUS) == 0 ) {
@@ -2224,7 +2254,7 @@ request_msg_rexmit(struct node_info *node, unsigned long lowseq, unsigned long h
 void
 check_rexmit_reqs(void)
 {
-	time_t	now = 0L;
+	clock_t	now = 0L;
 	int	j;
 
 	for (j=0; j < config->nodecount; ++j) {
@@ -2469,6 +2499,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.37  1999/12/25 08:44:17  alan
+ * Updated to new version stamp
+ * Added Lars Marowsky-Bree's suggestion to make the code almost completely
+ * immune from difficulties inherent in jumping the clock around.
+ *
  * Revision 1.36  1999/11/27 16:00:02  alan
  * Fixed a minor bug about where a continue should go...
  *
