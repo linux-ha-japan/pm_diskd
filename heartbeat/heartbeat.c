@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.155 2001/10/24 20:46:28 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.156 2001/10/25 05:06:30 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -725,13 +725,13 @@ ha_glib_msg_handler(const gchar *log_domain,	GLogLevelFlags log_level
 
 	switch(level) {
 		case G_LOG_LEVEL_ERROR:		ha_level = LOG_ERR; break;
-		case G_LOG_LEVEL_CRITICAL:	ha_level = LOG_ERR; break;	
-		case G_LOG_LEVEL_WARNING:	ha_level = LOG_WARNING; break;	
-		case G_LOG_LEVEL_MESSAGE:	ha_level = LOG_NOTICE; break;	
-		case G_LOG_LEVEL_INFO:		ha_level = LOG_INFO; break;	
-		case G_LOG_LEVEL_DEBUG:		ha_level = LOG_DEBUG; break;	
+		case G_LOG_LEVEL_CRITICAL:	ha_level = LOG_ERR; break;
+		case G_LOG_LEVEL_WARNING:	ha_level = LOG_WARNING; break;
+		case G_LOG_LEVEL_MESSAGE:	ha_level = LOG_NOTICE; break;
+		case G_LOG_LEVEL_INFO:		ha_level = LOG_INFO; break;
+		case G_LOG_LEVEL_DEBUG:		ha_level = LOG_DEBUG; break;
 
-		default:			ha_level = LOG_WARNING; break;	
+		default:			ha_level = LOG_WARNING; break;
 	}
 
 
@@ -1332,6 +1332,7 @@ master_status_process(void)
 			send_status_now = 1;
 			ClockJustJumped = 1;
 			standby_running = 0L;
+			other_is_stable = 1;
 		}else{
 			ClockJustJumped = 0;
 		}
@@ -1415,7 +1416,7 @@ master_status_process(void)
 		if (selret > 0) {
 			ha_log(LOG_DEBUG, "Processing %d API messages", selret);
 			process_api_msgs(&inpset, &exset);
-		}		
+		}
 	}
 }
 
@@ -1440,7 +1441,7 @@ process_clustermsg(FILE * f)
 	struct tms		proforma_tms;
 	const char *		cseq;
 	unsigned long		seqno = 0;
-	
+
 
 
 	if ((msg = if_msgfromstream(f, iface)) == NULL) {
@@ -1454,9 +1455,10 @@ process_clustermsg(FILE * f)
 		   time to enable the standby messages again... */
 		if (now >= standby_running) {
 			standby_running = 0L;
+			other_is_stable = 1;
+			going_standby = NOT;
 			ha_log(LOG_WARNING, "No reply to standby request"
 			".  Standby request cancelled.");
-			going_standby = NOT;
 		}
 	}
 
@@ -1612,7 +1614,7 @@ process_clustermsg(FILE * f)
 		ask_for_resources(msg);
 		goto psm_done;
 	}
-		
+
 	/* Is this a status update (i.e., "heartbeat") message? */
 	if (strcasecmp(type, T_STATUS) == 0
 	||	strcasecmp(type, T_NS_STATUS) == 0) {
@@ -1947,7 +1949,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	}
 	if (strcasecmp(type, T_SHUTDONE) == 0) {
 		if (thisnode != curnode) {
-			other_is_stable = 0;
+			other_is_stable = 1;
 		}else{
 			resourcestate = newrstate = R_SHUTDOWN;
 			i_hold_resources = 0;
@@ -2418,7 +2420,7 @@ reread_config_action(void)
 			signal_all(SIGTERM);
 			cleanexit(1);
 		}
-	
+
 	}
 
 	if (ParseTestOpts() && curproc->type == PROC_CONTROL) {
@@ -3203,6 +3205,13 @@ go_standby(enum standby who)
 	int		rc = 0;
 	pid_t		pid;
 
+	/*
+	 * We consider them unstable because they're about to pick up
+	 * our resources.
+	 */
+	if (who == ME) {
+		other_is_stable = 0;
+	}
 	/* We need to fork so we can make child procs not real time */
 
 	switch((pid=fork())) {
@@ -3278,7 +3287,7 @@ go_standby(enum standby who)
 	}
 	send_standby_msg(DONE);
 	exit(rc);
-	
+
 }
 
 void
@@ -3486,7 +3495,7 @@ main(int argc, char * argv[], char * envp[])
 		ha_log(LOG_ERR, "Allocation of hbmedia_types failed.");
 		cleanexit(1);
 	}
-	
+
 
 
 	setenv(HADIRENV, HA_D, 1);
@@ -3619,7 +3628,7 @@ main(int argc, char * argv[], char * envp[])
 			ha_log(LOG_INFO
 			,	"Signalling heartbeat pid %ld to reread"
 			" config files", running_hb_pid);
-	
+
 			if (kill(running_hb_pid, SIGHUP) >= 0) {
 				cleanexit(0);
 			}
@@ -3973,7 +3982,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 				, "should_drop_message: bad nak seq number");
 				return(DROPIT);
 			}
-			
+
 			ha_log(LOG_ERR , "%s: node %s seq %ld"
 			,	"Irretrievably lost packet"
 			,	thisnode->nodename, nseq);
@@ -4290,7 +4299,7 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 	hist->lastmsg = slot;
 }
 
-#define	MAX_REXMIT_BATCH	10	
+#define	MAX_REXMIT_BATCH	10
 void
 process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 {
@@ -4506,7 +4515,7 @@ IncrGeneration(unsigned long * generation)
 		close(fd);
 		return HA_FAIL;
 	}
-	
+
 	/*
 	 * Some UNIXes don't implement O_SYNC.
 	 * So we do an fsync here for good measure.  It can't hurt ;-)
@@ -4544,7 +4553,7 @@ ask_for_resources(struct ha_msg *msg)
 	TIME_T 		now = time(NULL);
 	int		message_ignored = 0;
 	const enum standby	orig_standby = going_standby;
-								
+
 	if (!nice_failback) {
 		ha_log(LOG_INFO
 		,	"Standby mode only implemented when nice_failback on");
@@ -4577,7 +4586,7 @@ ask_for_resources(struct ha_msg *msg)
 	/* Starting the STANDBY 3-phased protocol */
 
 	switch(going_standby) {
-	case NOT:	
+	case NOT:
 		if (!other_is_stable) {
 			ha_log(LOG_ERR, "standby message [%s] from %s"
 			" ignored.  Other side is in flux.", info, from);
@@ -4616,7 +4625,7 @@ ask_for_resources(struct ha_msg *msg)
 		break;
 
 	case ME:
-		/* Other node is alive, so give up our resources */	
+		/* Other node is alive, so give up our resources */
 		if (!msgfromme) {
 			standby_running = now + STANDBY_RSC_TO;
 			if (strcasecmp(info,"other") == 0) {
@@ -4647,7 +4656,7 @@ ask_for_resources(struct ha_msg *msg)
 		if (strcasecmp(info, "done") == 0) {
 			standby_running = now + STANDBY_RSC_TO;
 			if (!msgfromme) {
-				/* It's time to acquire resources */	
+				/* It's time to acquire resources */
 
 				ha_log(LOG_INFO
 				,	"standby: Acquire [%s] resources"
@@ -4669,6 +4678,7 @@ ask_for_resources(struct ha_msg *msg)
 	case DONE:
 		if (strcmp(info, "done")== 0) {
 			standby_running = 0L;
+			other_is_stable = 1;
 			going_standby = NOT;
 			if (msgfromme) {
 				ha_log(LOG_INFO
@@ -4708,6 +4718,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.156  2001/10/25 05:06:30  alan
+ * A few changes to tighten up the definition of "stability" so we
+ * don't complain about things falsely, nor do we prohibit attempting
+ * takeovers unnecessarily either.
+ *
  * Revision 1.155  2001/10/24 20:46:28  alan
  * A large number of patches.  They are in these categories:
  * 	Fixes from Matt Soffen
