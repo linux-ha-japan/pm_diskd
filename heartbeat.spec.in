@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.30 2002/08/01 20:08:03 lars Exp $
+#	$Id: heartbeat.spec.in,v 1.31 2002/08/02 13:41:36 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -52,17 +52,7 @@ machine in the cluster is not using a resource, pull the plug on the other
 machine. It's simple and reliable, albeit admittedly brutal.
 
 %changelog
-* Thu Jan 17 2002 Alan Robertson <alanr@unix.sh>,
-     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
-     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
-     Guenther Thomsen <thomsen@cs.tu-berlin.de>,
-     Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
-     Marcelo Tosatti <marcelo@conectiva.com.br>,
-     Horms <horms@vergenet.net>, Eric Ayers <eric.ayers@compgen.com>,
-     Mike Tilstra <conrad@sistina.com> 
-     Juan Pedro Paredes Caballero <juampe@retemail.es>
-     Andreas Piesk's <a.piesk@gmx.net>, Chris Wright <chris@wirex.com>
-
+* Thu Jan 17 2002 
 + Version 0.5.0 beta series
 
   + Cluster partitioning  now handled correctly (really!)
@@ -125,18 +115,9 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Various ldirectord fixes due to Horms
   + Minor patch from Lorn Kay to deal with loopback interfaces which might
 	have been put in by LVS direct routing
+  + Updated AUTHORS file and moved list of authors over
 
-* Fri Mar 16 2001 Alan Robertson <alanr@unix.sh>,
-     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
-     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
-     Guenther Thomsen <thomsen@cs.tu-berlin.de>,
-     Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
-     Marcelo Tosatti <marcelo@conectiva.com.br>,
-     Horms <horms@vergenet.net>, Eric Ayers <eric.ayers@compgen.com>,
-     Mike Tilstra <conrad@sistina.com> 
-     Juan Pedro Paredes Caballero <juampe@retemail.es>
-     Andreas Piesk's <a.piesk@gmx.net>, Chris Wright <chris@wirex.com>
-
+* Fri Mar 16 2001 
 + Version 0.4.9
 
   + Split into 3 rpms - heartbeat, heartbeat-stonith heartbeat-ldirectord
@@ -186,14 +167,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Added man pages
   + Added debian package support
 
-* Fri Jun 30 2000 Alan Robertson <alanr@unix.sh>,
-     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
-     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
-     Guenther Thomsen <thomsen@cs.tu-berlin.de>,
-     Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
-     Marcelo Tosatti <marcelo@conectiva.com.br>
-     and Horms <horms@vergenet.net>
-
+* Fri Jun 30 2000
 + Version 0.4.8
   + Incorporated ldirectord version 1.9 (fixes memory leak)
   + Made the order of resource takeover more rational:  Takeover is now
@@ -229,11 +203,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Lock heartbeat into memory, and raise our priority
   + Minor, but important fix from lclaudio to init uninited variable.
 
-* Sat Dec 25 1999  Alan Robertson <alanr@henge.com>,
-     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
-     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
-     and Guenther Thomsen <thomsen@cs.tu-berlin.de>
-
+* Sat Dec 25 1999
 + Version 0.4.7
   + Added the nice_failback feature. If the cluster is running when
 	the primary starts it acts as a secondary. (Luis Claudio Goncalves)
@@ -251,11 +221,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Added code from Michael Moerz <mike@cubit.at> to keep findif from
 	core dumping if /proc/route can't be read.
 
-* Mon Nov 22 1999  Alan Robertson <alanr@henge.com>,
-     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
-     Mitja Sarp <mitja@lysator.liu.se>,
-     and Guenther Thomsen <thomsen@cs.tu-berlin.de>
-
+* Mon Nov 22 1999
 + Version 0.4.6
   + Fixed timing problem in "heartbeat restart" so it's reliable now
   + Made start/stop status compatible with SuSE expectations
@@ -269,11 +235,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Turned on CTSRTS, enabling for flow control for serial ports.
   + Fixed a bug which kept it from working in non-English environments
 
-* Wed Oct 13 1999  Alan Robertson <alanr@henge.com>,
-     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
-     Mitja Sarp <mitja@lysator.liu.se>,
-     and Guenther Thomsen <thomsen@cs.tu-berlin.de>
-
+* Wed Oct 13 1999
 + Version 0.4.5
   + Mijta Sarp added a new feature to authenticate heartbeat packets
 	using a variety of strong authentication techniques
@@ -299,14 +261,12 @@ machine. It's simple and reliable, albeit admittedly brutal.
 	or free.
   + Implemented new memory management scheme, including memory stats
 
-* Thu Sep 16 1999  Alan Robertson <alanr@henge.com>,
-     Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>
+* Thu Sep 16 1999
 + Version 0.4.4
   + Fixed a stupid error in handling CIDR addresses in IPaddr.
   + Updated the documentation with the latest from Rudy.
 
-* Wed Sep 15 1999  Alan Robertson <alanr@henge.com>,
-     Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>
+* Wed Sep 15 1999
 + Version 0.4.3
   + Changed startup scripts to create /dev/watchdog if needed
   + Turned off loading of /proc/ha module by default.
@@ -327,8 +287,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   +  Made changes to work better with Red Hat 6.1, and SMP code.
   +  Sometimes it seems that the Master Control Process dies :-(
 
-* Sat Aug 14 1999  Alan Robertson <alanr@henge.com>,
-     Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>
+* Sat Aug 14 1999
 + Version 0.4.2
   + Implemented simple resource groups
   + Implemented application notification for groups starting/stopping
@@ -343,8 +302,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 	of control to the "master" node.
 	(Thanks to Holger Kiehl for reporting them, and testing fixes!)
 
-* Tue Jul 6 1999  Alan Robertson <alanr@henge.com> and
-     Volker Wiegand <Volker.Wiegand@SuSE.de>
+* Tue Jul 6 1999
 + Version 0.4.1
   + Fixed major memory leak in 0.4.0 (oops!)
   + Added code to eliminate duplicate packets and log lost ones
@@ -355,7 +313,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Added very preliminary kernel code for monitoring and controlling
 	heartbeat via /proc/ha.  Very cool, but not really done yet.
 
-* Wed Jun 30 1999 Alan Robertson <alanr@henge.com>
+* Wed Jun 30 1999
 + Version 0.4.0
   + Changed packet format from single line positional parameter style
 	to a collection of {name,value} pairs.  A vital change for the future.
@@ -365,7 +323,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Includes the first version of Volker Wiegand's Hardware Installation Guide
 	(it's pretty good for a first version!)
 
-* Wed Jun 09 1999 Alan Robertson <alanr@henge.com>
+* Wed Jun 09 1999
 + Version 0.3.2
   + Added UDP/PPP bidirectional serial ring heartbeat
 	(PPP ensures data integrity on the serial links)
@@ -374,12 +332,12 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + added timestamps to /var/log/ha-log messages
   + fixed a couple of other minor oversights.
 
-* Sun May 10 1999 Alan Robertson <alanr@henge.com>
+* Sun May 10 1999 
 + Version 0.3.1
   + Make ChangeLog file from RPM specfile
   + Made ipresources only install in the DOC directory as a sample
 
-* Sun May 09 1999 Alan Robertson <alanr@henge.com>
+* Sun May 09 1999
 + Version 0.3.0
   + Added UDP broadcast heartbeat (courtesy of Tom Vogt)
   + Significantly restructured code making it easier to add heartbeat media
@@ -390,7 +348,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + made manual daemon shutdown easier (only need to kill one)
   + moved the sample ha.cf file to the Doc directory
 
-* Sat Mar 27 1999 Alan Robertson <alanr@henge.com>
+* Sat Mar 27 1999
 + Version 0.2.0
   + Make an RPM out of it
   + Integrated IP address takeover gotten from Horms
