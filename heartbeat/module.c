@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.24 2001/06/16 12:19:08 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.25 2001/06/21 00:17:19 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -518,7 +518,7 @@ free_dirlist(struct dirent** dlist, int n)
 static int
 qsort_string_cmp(const void *a, const void *b)
 {
-	return(strcmp(*(const char **)a, *(const char **)b));
+	return(strcmp(*(const char * const *)a, *(const char * const *)b));
 }
 
 #define FREE_DIRLIST(dlist, n)	{free_dirlist(dlist, n); dlist = NULL;}
@@ -1306,12 +1306,9 @@ PiUnloadIfPossible(MLPlugin *epiinfo)
  *
  * PluginMgmt.c
  *
- * This code is for managing plugins, and interacting
+ * This code is for managing plugins, and interacting with them...
  *
  ****************************************************************************/
-#define MESSAGE	g_message
-#define WARNING	g_warning
-#define FATAL	g_error
  
 #ifdef __GNUC__
  
@@ -1389,7 +1386,7 @@ RegisterAPlugin(MLModule* modinfo
 	}
 	if ((piinfo = g_hash_table_lookup(pitype->plugins, pluginname))
 	!=	NULL) {
-		WARNING("Attempt to register duplicate plugin: %s/%s"
+		g_warning("Attempt to register duplicate plugin: %s/%s"
 		,	plugintype, pluginname);
 		return 0;
 	}
