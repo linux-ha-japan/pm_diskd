@@ -34,7 +34,6 @@
 #include <hb_resource.h>
 #include <heartbeat_private.h>
 #include <hb_api_core.h>
-#include <ha_config.h>
 #include <setproctitle.h>
 #include <clplumbing/cl_signal.h>
 #include <clplumbing/realtime.h>
@@ -1872,6 +1871,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.26  2003/06/24 06:40:49  alan
+ * Removed a redundant include of <ha_config.h>
+ *
  * Revision 1.25  2003/06/02 12:39:23  lars
  * Cleaned up a corrupted log message.
  *
