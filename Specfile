@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.91 2001/03/08 14:37:03 alan Exp $
+#	$Id: Specfile,v 1.92 2001/03/11 06:28:28 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -52,7 +52,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 
 %changelog
 
-* Sun Nov 12 2000 Alan Robertson <alanr@unix.sh>,
+* Sat 10 March 2001 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
@@ -65,10 +65,14 @@ machine. It's simple and reliable, albeit admittedly brutal.
 
 + Version 0.4.9 Beta series
   + Increased the retry count for the Baytech stonith module.
+  + Fixed a bug such that a machine wouldn't stay up more than 24 hours
+	after performing a Stonith operation. Robert_Macaulay@Dell.com
+	reported the bug.
+  + Properly parse the multicast option and install the module.
   + Removed the ppp support code from the build process.
-  + Fixed a long-standing bug in configuring the deprecated ppp option ;-)
+  + Fixed an old bug in configuring the deprecated ppp option ;-)
   + Added Brian Martin's client API library fix <bmartin@penguincomputing.com>
-    along with one suggested by 
+    along with one suggested by Chris Wright.
   + Fixed stonith library to support the RPC-3A.  Critical information,
         testing, and some of the code provided by Juri Haberland
         <juri.haberland@innominate.com>
