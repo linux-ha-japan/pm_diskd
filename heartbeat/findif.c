@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.26 2003/04/15 01:58:54 horms Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.27 2003/04/19 03:59:15 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -88,6 +88,8 @@ static const char _findif_c [] = "$Id: findif.c,v 1.26 2003/04/15 01:58:54 horms
 #include <arpa/inet.h>
 
 #define DEBUG 0
+
+int	OutputInCIDR=0;
 
 void ConvertQuadToInt (char *dest);
 
@@ -427,6 +429,7 @@ ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask)
 int
 main(int argc, char ** argv) {
 
+	char *	iparg;
 	char *	address = NULL;
 	char *	bcast_arg = NULL;
 	char *	netmaskbits = NULL;
@@ -436,6 +439,7 @@ main(int argc, char ** argv) {
 	char	best_if[MAXSTR];
 	char *	if_specified = NULL;
 	unsigned long	best_netmask = INT_MAX;
+	int		argerrs	= 0;
 
 	(void)_findif_c;
 	cmdname=argv[0];
@@ -444,12 +448,30 @@ main(int argc, char ** argv) {
 	memset(&addr_out, 0, sizeof(addr_out));
 	memset(&in, 0, sizeof(in));
 
-	if (argc < 2) {
+	switch (argc) {
+	case 2:	/* No -C argument */
+		if (argv[1][0] == '-') {
+			argerrs=1;
+		}
+		iparg=argv[1];
+		break;
+	case 3: /* Hopefully a -C argument */
+		if (strcmp(argv[1], "-C") != 0) {
+			argerrs=1;
+		}
+		OutputInCIDR=1;
+		iparg=argv[2];
+		break;
+	default:
+		argerrs=1;
+		break;
+	}
+	if (argerrs) {
 		usage();
 		return(1);
 	}
 
-	GetAddress (argv[1], &address, &netmaskbits, &bcast_arg
+	GetAddress (iparg, &address, &netmaskbits, &bcast_arg
 	,	 &if_specified);
 
 	/* Is the IP address we're supposed to find valid? */
@@ -522,17 +544,36 @@ main(int argc, char ** argv) {
 
 		/* Make things a bit more machine-independent */
 		best_netmask = htonl(best_netmask);
-		def_bcast = htonl(def_bcast);
-                printf("%s\tnetmask %d.%d.%d.%d\tbroadcast %d.%d.%d.%d\n"
-                ,       best_if
-                ,       (int)((best_netmask>>24) & 0xff)
-                ,       (int)((best_netmask>>16) & 0xff)
-                ,       (int)((best_netmask>>8) & 0xff)
-                ,       (int)(best_netmask & 0xff)
-                ,       (int)((def_bcast>>24) & 0xff)
-                ,       (int)((def_bcast>>16) & 0xff)
-                ,       (int)((def_bcast>>8) & 0xff)
-                ,       (int)(def_bcast & 0xff));
+		if (!OutputInCIDR) {
+			def_bcast = htonl(def_bcast);
+			printf("%s\tnetmask %d.%d.%d.%d\tbroadcast %d.%d.%d.%d\n"
+			,       best_if
+			,       (int)((best_netmask>>24) & 0xff)
+			,       (int)((best_netmask>>16) & 0xff)
+			,       (int)((best_netmask>>8) & 0xff)
+			,       (int)(best_netmask & 0xff)
+			,       (int)((def_bcast>>24) & 0xff)
+			,       (int)((def_bcast>>16) & 0xff)
+			,       (int)((def_bcast>>8) & 0xff)
+			,       (int)(def_bcast & 0xff));
+		}else{
+			int	j;
+
+			best_netmask = best_netmask & 0xFFFFFFFFUL;
+
+			for (j=0; j <= 32; ++j) {
+				if ((best_netmask >> j)&0x1) {
+					break;
+				}
+			}
+			printf("%s\tnetmask %d\tbroadcast %d.%d.%d.%d\n"
+			,       best_if
+			,	32-j
+			,       (int)((def_bcast>>24) & 0xff)
+			,       (int)((def_bcast>>16) & 0xff)
+			,       (int)((def_bcast>>8) & 0xff)
+			,       (int)(def_bcast & 0xff));
+		}
 	}
 	return(0);
 }
@@ -624,6 +665,10 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.27  2003/04/19 03:59:15  alan
+ * Put in an enhancement to findif to allow Tuomo Soini to get the output he
+ * wants in CIDR format.
+ *
  * Revision 1.26  2003/04/15 01:58:54  horms
  * turn debuging off
  *
