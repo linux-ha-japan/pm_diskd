@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.11 1999/10/27 02:56:19 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.12 1999/10/28 13:43:49 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -61,7 +61,11 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.11 1999/10/27 02:56:
 #	define	VAR_LOG_D	"/var/log"
 #endif
 #ifndef TTYLOCK_D
-#	define	TTY_LOCK_D	"/var/lock"
+#	if !defined(__FreeBSD__)
+#		define	TTY_LOCK_D	"/var/lock"
+#	else
+#		define	TTY_LOCK_D	"/var/spool/lock"
+#	endif
 #endif
 
 #define	DEFAULTLOG	VAR_LOG_D "/ha-log"
