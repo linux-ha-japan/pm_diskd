@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.6 2001/10/02 20:04:09 alan Exp $
+#	$Id: IPaddr.in,v 1.7 2001/10/03 13:54:16 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -50,11 +50,14 @@ find_interface() {
       *)	continue;;
     esac
 
+    #  This doesn't look right for a box with multiple NICs.
+    #  It looks like it always selects the first interface on
+    #  a machine.  Yet, we appear to use the results for this case too...
     case $SYSTYPE in
-      FreeBSD)	
-      		ha_log $ifname
-      		echo `echo "$ifname" | sed s'%:%%'`
-      		return 0;;
+      *BSD|SunOS)
+		ha_log $ifname
+		echo `echo "$ifname" | sed s'%:%%'`
+		return 0;;
     esac
 
     case $addr in
@@ -67,7 +70,7 @@ find_interface() {
 
 #
 #	Remove the IP alias for the requested IP address...
-#	
+#
 ip_stop() {
   BASEIP=`echo $1 | sed s'%/.*%%'`
   IF=`find_interface $BASEIP`
@@ -91,14 +94,21 @@ ip_stop() {
 
 
   case $SYSTYPE in
-	FreeBSD)	CMD="$ROUTE delete $BASEIP";;
-	*)		CMD="$ROUTE del -host $BASEIP";;
+	*BSD|SunOS)
+			CMD="$ROUTE delete $BASEIP"
+			;;
+
+	*)		CMD="$ROUTE del -host $BASEIP"
+			;;
   esac
+
   echo "info: $CMD"
   $CMD
 
   case $SYSTYPE in
-	FreeBSD)	CMD="$IFCONFIG $IF delete $BASEIP";;
+	*BSD|SunOS)
+			CMD="$IFCONFIG $IF delete $BASEIP";;
+
 	*)		CMD="$IFCONFIG $IF down";;
   esac
   ha_log "info: $CMD"
@@ -145,7 +155,7 @@ find_free_interface() {
   j=0
 
   case $SYSTYPE in
-	FreeBSD)
+	*BSD|SunOS)
 		echo $nicname;
 		return 0;;
 
@@ -180,7 +190,7 @@ ip_start() {
     *unning*)	exit 0;
   esac
 
-  BASEIP=`echo $1 | sed s'%/.*%%'` 
+  BASEIP=`echo $1 | sed s'%/.*%%'`
 
   if
     IFINFO=`find_free_interface $1`
@@ -192,8 +202,12 @@ ip_start() {
   IF=`echo "$IFINFO" | cut -f1`
 
   case $SYSTYPE in
-    FreeBSD)	;;
-    *)		IFEXTRA=`echo "$IFINFO" | cut -f2-`;;
+    *BSD|SunOS)
+		IFEXTRA=""
+		;;
+    *)
+		IFEXTRA=`echo "$IFINFO" | cut -f2-`
+		;;
   esac
 
 
@@ -202,12 +216,14 @@ ip_start() {
   then
     $HA_RCDIR/local_takeip $*
   fi
-  
+
 #
 #	The remaining code in this function taken from FAKE, by horms
 #
   case $SYSTYPE in
-    FreeBSD)	CMD="$IFCONFIG $IF inet $BASEIP alias"	;;
+    *BSD|SunOS)
+		CMD="$IFCONFIG $IF inet $BASEIP netmask 255.255.255.255 alias"
+							;;
     *)		CMD="$IFCONFIG $IF $BASEIP $IFEXTRA"	;;
   esac
 
@@ -221,7 +237,7 @@ ip_start() {
 	return $rc;;
   esac
 
-	
+
   ha_log "INFO: $ROUTE add -host $BASEIP dev $IF"
   $ROUTE add -host $BASEIP dev $IF
 
@@ -231,17 +247,18 @@ ip_start() {
       fgrep $TARGET_INTERFACE | \
       sed \
       's/^.*HWaddr \(..\):\(..\):\(..\):\(..\):\(..\):\(..\).*$/\1\2\3\4\5\6/')
-  
+
   if [ "${MACADDR:=NULL}" = "NULL" ]; then
-      ha_log "ERROR: Could not locate obtain hardware address for $TARGET_INTERFACE"
+      ha_log "ERROR: Could not locate obtain hardware address" \
+      "for $TARGET_INTERFACE"
   fi
- 
+
   ha_log "info: Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
 
   for j in 1 2 3 4 5
   do
    $SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff \
-     || ha_log "ERROR: Could not send gratuitous arp"
+   ||	ha_log "ERROR: Could not send gratuitous arp"
      sleep 2
   done &
 }
@@ -265,7 +282,7 @@ ip_monitor() {
   BASEIP=`echo $1 | sed s'%/.*%%'`
   OPTS=" -c 1 -w 2 -q"
   for j in 1 2 3
-  do 
+  do
     if
       ping $OPTS $BASEIP >/dev/null 2>&1
     then
@@ -319,12 +336,17 @@ case $2 in
   status)	ip_status $1;;
   monitor)	ip_monitor $1;;
   *)		usage
-  		exit 1
+ 		exit 1
 		;;
 esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.7  2001/10/03 13:54:16  alan
+# Merged in Matt Soffen's changes and added some of my own for IPaddr...
+#
+# CVg: Committing in .
+#
 # Revision 1.6  2001/10/02 20:04:09  alan
 # I added wehat should be a redundnat fix for Fabrice of France.
 # He says it isn't redundant.  It's clearly harmless.
