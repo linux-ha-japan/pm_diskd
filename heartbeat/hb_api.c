@@ -473,7 +473,6 @@ api_ping_iflist(const struct ha_msg* msg, struct node_info * node
 				"cannot mod field/2");
 				return I_API_IGN;
 			}
-			api_send_client_msg(client, resp);
 			return I_API_RET;
 		}
 	}
@@ -639,7 +638,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			case I_API_IGN:
 				goto freeandexitresp;
 			case I_API_RET:
-				if (ha_msg_add(resp, F_APIRESULT, API_OK)
+				if (ha_msg_mod(resp, F_APIRESULT, API_OK)
 				!=	HA_OK) {
 					ha_log(LOG_ERR
 					,	"api_process_request:"
