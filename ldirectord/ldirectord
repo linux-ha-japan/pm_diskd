@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details 
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.7 2000/05/02 10:06:16 jacob Exp $
+# $Id: ldirectord,v 1.8 2000/06/14 09:21:27 jacob Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # with help from: Horms <horms@vergenet.net>
 # This is GPL software. You should own a few hundred copies
@@ -200,7 +200,7 @@ $initializing;
 
 use Getopt::Std;
 use LWP::UserAgent;
-use Net::SSLeay;
+use LWP::Parallel::UserAgent;
 getopts("dh");
 
 # main code
@@ -546,6 +546,20 @@ sub ld_setup
 				 $$r{wght} = " ";
 			}
 			$$r{status} = -1;
+        		if (defined $$r{request} && defined $$r{receive}) {
+				my $uri = $$r{request};
+				$uri =~ s/^\///g;
+				if ($$r{request} =~ /$$v{service}:\/\//) {
+					$$r{url} = "$$r{request}";
+				} else {
+					$$r{url} = "$$v{service}:\/\/$$r{server}\/$uri";
+				}
+			} else {
+				my $uri = $$v{request};
+				$uri =~ s/^\///g;
+				$$r{url} = "$$v{service}:\/\/$$r{server}\/$uri";
+                		$$r{receive} = $$v{receive};
+			}
 		}
 		$$v{status} = -1;
 	}
@@ -672,12 +686,26 @@ sub ld_main
 		my @real_checked;
 		foreach $v (@VIRTUAL) {
 			my $real = $$v{real};
+			my $ua = new LWP::Parallel::UserAgent;
+			$ua->redirect(0);
+			#$ua->max_hosts($#$real+1);
+			#$ua->max_req($#$real+1);
 			foreach $r (@$real) {
 				unless(grep(/^$$v{protocol}:$$r{server}$/, @real_checked)){
-					check_server($v, $r);
+					if ($$v{service} eq "http") {
+						my $req = new HTTP::Request(GET=>"$$r{url}");
+						$ua->register($req, \&http_received);
+					} elsif ($$v{service} eq "https") {
+						# unfortunately LWP::Paralell::UserAgent
+						# does not work right now for https
+						check_http($v, $r);
+					} else {
+						check_server($v, $r);
+					}
 					push(@real_checked, "$$v{protocol}:$$r{server}");
 				}
 			}
+			$ua->wait($TIMEOUT);
 		}
 		check_cfgfile();
 		close(LOGFILE);
@@ -686,51 +714,58 @@ sub ld_main
 }
 
 
-sub check_server
+sub http_received
+# callbackfunction for Parallel::UserAgent
+{
+	my ($content, $respone, $proto) = @_;
+	my $req = $$respone{_request};
+	my $url = $$req{_uri};
+	if ($url =~ /(http\w?):\/\/([^\/:]+)(.*)/) {
+		my ($p, $s, $u) = ($1, $2, $3);
+		$url = "$p://$s:80$u" if ($p eq "http" && $u =~ /^\//);
+		$url = "$p://$s:443$u" if ($p eq "https" && $u =~ /^\//);
+	}
+	foreach $v (@VIRTUAL) {
+		my $real = $$v{real};
+		foreach $r (@$real) {
+			if ($url eq $$r{url}) {
+				my $receive_string = $$r{receive};
+				if (!($receive_string =~ /.+/) || $content =~ /$receive_string/) {
+					service_set($v, $r, "up");
+				} else {
+					service_set($v, $r, "down");
+				}
+			}
+		}
+	}
+	return C_ENDCON;
+}
+
+
+sub check_http
+# Do the complete servercheck here
 {
 	my ($v, $r) = @_;
-	my $uri;
-	if ($$v{service} eq "http") {
-		my $ua = new LWP::UserAgent;
-		$ua->agent("LinuxDirector/0.1" . $ua->agent);
-		$ua->timeout($TIMEOUT);
-		my $req;
-		my $receive_string;
-		if (defined $$r{request} && defined $$r{receive}) {
-			$uri = $$r{request};
-			$uri =~ s/^\///g;
-			if ($$r{request} =~ /http:\/\//) {
-				$req = new HTTP::Request(GET=>"$$r{request}");
-			} else {
-				$req = new HTTP::Request(GET=>"http:\/\/$$r{server}\/$uri");
-			}
-			$receive_string = $$r{receive};
-		} else {
-			$uri = $$v{request};
-			$uri =~ s/^\///g;
-			$req = new HTTP::Request(GET=>"http:\/\/$$r{server}\/$uri");
-			$receive_string = $$v{receive};
-		}
-		my $res = $ua->request($req);
-		if ($res->is_success && (!($receive_string =~ /.+/) || $res->content =~ /$receive_string/)) {
-			service_set($v, $r, "up");
-		} else {
-			service_set($v, $r, "down");
-		}
-	} elsif ($$v{service} eq "https") {
-		$uri = $$v{request};
-		$$r{server} =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/;
-		my ($page, $result, %headers) = &Net::SSLeay::get_https($1, $2, $uri);
-		my $receive_string = $$v{receive};
-		if (!($receive_string =~ /.+/) || $page =~ /$receive_string/) {
-			service_set($v, $r, "up");
-		} else {
-			service_set($v, $r, "down");
-		}
-	} elsif ($$v{service} eq "none") {
-	          service_set($v, $r, "up");
+	my $ua = new LWP::UserAgent;
+	$ua->agent("LinuxDirector/0.1".$ua->agent);
+	$ua->timeout($TIMEOUT);
+	my $req = new HTTP::Request(GET=>"$$r{url}");
+	my $res = $ua->request($req);
+	if ($res->is_success && (!($receive_string =~ /.+/) || $res->content =~ /$receive_string/)) {
+		service_set($v, $r, "up");
+	} else {
+		service_set($v, $r, "down");
 	}
 }
+
+
+sub check_server
+# dummy function for unknown services
+{
+	my ($v, $r) = @_;
+	service_set($v, $r, "up");
+}
+
 
 sub service_set()
 {
@@ -739,7 +774,7 @@ sub service_set()
 	my ($real, $virtual, $virt);
 	foreach $real (@REAL) {
 		if($real->{"real"} eq "$$v{protocol}:$$r{server}"){
-			$virtual=$real->{"virtual"};
+			$virtual = $real->{"virtual"};
 			last;
 		}
 	}
