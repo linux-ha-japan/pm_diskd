@@ -110,6 +110,22 @@ main(int argc, char** argv)
 		usage(cmdname);
 	}
 
+	if (listtypes) {
+		char **	typelist;
+
+		typelist = stonith_types();
+		if (s == NULL) {
+			syslog(LOG_ERR, "Could not list Stonith types.");
+		}else{
+			char **	this;
+
+			for(this=typelist; *this; ++this) {
+				printf("%s\n", *this);
+			}
+		}
+		return(0);
+	}
+
 	if (optfile == NULL && parameters == NULL) {
 		optfile = "/etc/ha.d/rpc.cfg";
 	}
@@ -178,20 +194,6 @@ main(int argc, char** argv)
 				printf("%s\n", *this);
 			}
 			s->s_ops->free_hostlist(hostlist);
-		}
-	}
-	if (listtypes) {
-		char **	typelist;
-
-		typelist = stonith_types();
-		if (s == NULL) {
-			syslog(LOG_ERR, "Could not list Stonith types.");
-		}else{
-			char **	this;
-
-			for(this=typelist; *this; ++this) {
-				printf("%s\n", *this);
-			}
 		}
 	}
 

@@ -34,7 +34,7 @@
 
 #define	MALLOC(n)	malloc(n)
 #define MALLOCT(t)	(t*)(malloc(sizeof(t)))
-#define FREE(p)		{free(p); p = NULL;}
+#define FREE(p)		{free(p); (p) = NULL;}
 
 struct symbol_str {
     char name[MAX_FUNC_NAME];
@@ -45,7 +45,8 @@ static int so_select (const struct dirent *dire);
 
 static int symbol_load(struct symbol_str symbols[], int len, void **handle);
 
-static int symbol_load(struct symbol_str symbols[], int len, void **handle)
+static int
+symbol_load(struct symbol_str symbols[], int len, void **handle)
 {
 	int  a;
 	char *error;
@@ -87,7 +88,7 @@ stonith_new(const char * type)
 	s->s_ops = MALLOCT(struct stonith_ops);
 
 	if (s->s_ops == NULL) {
-		free(s);
+		FREE(s);
 		return(NULL);
 	}
 
@@ -95,8 +96,8 @@ stonith_new(const char * type)
 				* sizeof(char));
 
 	if (obj_path == NULL) {
-		free(s->s_ops);
-		free(s);
+		FREE(s->s_ops);
+		FREE(s);
 		return(NULL);
 	}
 	
@@ -104,9 +105,9 @@ stonith_new(const char * type)
 
 	if ((s->dlhandle = dlopen(obj_path, RTLD_LAZY|RTLD_GLOBAL)) == NULL) {
 		syslog(LOG_ERR, "%s: %s\n", __FUNCTION__, dlerror());
-		free(s->s_ops);
-		free(s);
-		free(obj_path);
+		FREE(s->s_ops);
+		FREE(s);
+		FREE(obj_path);
 		return(NULL);
 	}
 
@@ -132,9 +133,9 @@ stonith_new(const char * type)
 	ret = symbol_load(syms, NR_STONITH_FNS, &s->dlhandle);
 	
 	if (ret != 0) {
-		free(s->s_ops);
-		free(s);
-		free(obj_path);
+		FREE(s->s_ops);
+		FREE(s);
+		FREE(obj_path);
 		return(NULL);
 	}
 
@@ -169,7 +170,7 @@ stonith_types(void)
 			FREE(*cp)
 		}
 		if (lastcount != n) {
-			free(lastret);
+			FREE(lastret);
 			lastret = NULL;
 		}
 	}
@@ -197,7 +198,7 @@ stonith_types(void)
 		/* strip ".so" */
 		list[i][len - 3] = '\0';
 
-		free(namelist[i]);
+		FREE(namelist[i]);
 	}
 
 	list[i] = NULL;

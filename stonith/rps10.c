@@ -201,21 +201,21 @@ static struct Etoken WTItokOff[] =	{ {"Off", 0, 0}, {NULL,0,0}};
 /* Accept either a CR/NL or an NL/CR */
 static struct Etoken WTItokCRNL[] =	{ {"\n\r",0,0},{"\r\n",0,0},{NULL,0,0}};
 
-static int	RPCConnect(struct WTI_RPS10 * ctx);
-static int	RPCDisconnect(struct WTI_RPS10 * ctx);
+static int	RPSConnect(struct WTI_RPS10 * ctx);
+static int	RPSDisconnect(struct WTI_RPS10 * ctx);
 
-static int	RPCReset(struct WTI_RPS10*, int unitnum, const char * rebootid);
+static int	RPSReset(struct WTI_RPS10*, int unitnum, const char * rebootid);
 #if defined(ST_POWERON) 
-static int	RPCOn(struct WTI_RPS10*, int unitnum, const char * rebootid);
+static int	RPSOn(struct WTI_RPS10*, int unitnum, const char * rebootid);
 #endif
 #if defined(ST_POWEROFF) 
-static int	RPCOff(struct WTI_RPS10*, int unitnum, const char * rebootid);
+static int	RPSOff(struct WTI_RPS10*, int unitnum, const char * rebootid);
 #endif
-static int	RPCNametoOutlet ( struct WTI_RPS10 * ctx, const char * host );
+static int	RPSNametoOutlet ( struct WTI_RPS10 * ctx, const char * host );
 
 int  	st_setconffile(Stonith *, const char * cfgname);
 int	st_setconfinfo(Stonith *, const char * info);
-static int RPC_parse_config_info(struct WTI_RPS10* ctx, const char * info);
+static int RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info);
 const char *
 		st_getinfo(Stonith * s, int InfoType);
 
@@ -231,43 +231,46 @@ void *	st_new(void);
  */
 
 #define	SEND(outlet, cmd, timeout)		{                       \
-	int return_val = RPCSendCommand(ctx, outlet, cmd, timeout);     \
+	int return_val = RPSSendCommand(ctx, outlet, cmd, timeout);     \
 	if (return_val != S_OK)  return return_val;                     \
 }
 
 #define	EXPECT(p,t)	{						\
-			if (RPCLookFor(ctx, p, t) < 0)			\
+			if (RPSLookFor(ctx, p, t) < 0)			\
 				return(errno == ETIME			\
 			?	S_TIMEOUT : S_OOPS);			\
 			}
+#ifdef WEDONTUSETHESE
 
 #define	NULLEXPECT(p,t)	{						\
-				if (RPCLookFor(ctx, p, t) < 0)		\
+				if (RPSLookFor(ctx, p, t) < 0)		\
 					return(NULL);			\
 			}
 
 #define	SNARF(s, to)	{						\
-				if (RPCScanLine(ctx,to,(s),sizeof(s))	\
+				if (RPSScanLine(ctx,to,(s),sizeof(s))	\
 				!=	S_OK)				\
 					return(S_OOPS);			\
 			}
 
 #define	NULLSNARF(s, to)	{					\
-				if (RPCScanLine(ctx,to,(s),sizeof(s))	\
+				if (RPSScanLine(ctx,to,(s),sizeof(s))	\
 				!=	S_OK)				\
 					return(NULL);			\
 				}
 
+#endif
+
 /* Look for any of the given patterns.  We don't care which */
 
 static int
-RPCLookFor(struct WTI_RPS10* ctx, struct Etoken * tlist, int timeout)
+RPSLookFor(struct WTI_RPS10* ctx, struct Etoken * tlist, int timeout)
 {
 	int	rc;
 	if ((rc = ExpectToken(ctx->fd, tlist, timeout, NULL, 0)) < 0) {
 		syslog(LOG_ERR, _("Did not find string: '%s' from" DEVICE ".")
 		,	tlist[0].string);
-		RPCDisconnect(ctx);
+		RPSDisconnect(ctx);
 		return(-1);
 	}
 	return(rc);
@@ -275,10 +278,10 @@ RPCLookFor(struct WTI_RPS10* ctx, struct Etoken * tlist, int timeout)
 
 
 /*
- * RPCSendCommand - send a command to the specified outlet
+ * RPSSendCommand - send a command to the specified outlet
  */
 static int
-RPCSendCommand (struct WTI_RPS10 *ctx, int outlet, char command, int timeout)
+RPSSendCommand (struct WTI_RPS10 *ctx, int outlet, char command, int timeout)
 {
 	char            writebuf[10]; /* all commands are 9 chars long! */
 	int		return_val;  /* system call result */
@@ -325,16 +328,16 @@ RPCSendCommand (struct WTI_RPS10 *ctx, int outlet, char command, int timeout)
 	/* suceeded! */
 	return S_OK;
 
-}  /* end RPCSendCommand() */
+}  /* end RPSSendCommand() */
 
 /* 
- * RPCReset - Reset (power-cycle) the given outlet number 
+ * RPSReset - Reset (power-cycle) the given outlet number 
  */
 static int
-RPCReset(struct WTI_RPS10* ctx, int unitnum, const char * rebootid)
+RPSReset(struct WTI_RPS10* ctx, int unitnum, const char * rebootid)
 {
 
-	if (gbl_debug) printf ("Calling RPCReset (%s)\n", WTIid);
+	if (gbl_debug) printf ("Calling RPSReset (%s)\n", WTIid);
 	
 	if (ctx->fd < 0) {
 		syslog(LOG_ERR, "%s: device %s is not open!", WTIid, 
@@ -372,15 +375,15 @@ RPCReset(struct WTI_RPS10* ctx, int unitnum, const char * rebootid)
 	
 	return(S_OK);
 
-} /* end RPCReset() */
+} /* end RPSReset() */
 
 
 #if defined(ST_POWERON) 
 /* 
- * RPCOn - Turn OFF the given outlet number 
+ * RPSOn - Turn OFF the given outlet number 
  */
 static int
-RPCOn(struct WTI_RPS10* ctx, int unitnum, const char * host)
+RPSOn(struct WTI_RPS10* ctx, int unitnum, const char * host)
 {
 
 	if (ctx->fd < 0) {
@@ -405,16 +408,16 @@ RPCOn(struct WTI_RPS10* ctx, int unitnum, const char * host)
 
 	return(S_OK);
 
-} /* end RPCOn() */
+} /* end RPSOn() */
 #endif
 
 
 #if defined(ST_POWEROFF) 
 /* 
- * RPCOff - Turn Off the given outlet number 
+ * RPSOff - Turn Off the given outlet number 
  */
 static int
-RPCOff(struct WTI_RPS10* ctx, int unitnum, const char * host)
+RPSOff(struct WTI_RPS10* ctx, int unitnum, const char * host)
 {
 
 	if (ctx->fd < 0) {
@@ -439,7 +442,7 @@ RPCOff(struct WTI_RPS10* ctx, int unitnum, const char * host)
 
 	return(S_OK);
 
-} /* end RPCOff() */
+} /* end RPSOff() */
 #endif
 
 
@@ -460,16 +463,16 @@ st_status(Stonith  *s)
 	if (gbl_debug) printf ("Calling st_status (%s)\n", WTIid);
 	
 	if (!ISWTIRPS10(s)) {
-		syslog(LOG_ERR, "invalid argument to RPC_status");
+		syslog(LOG_ERR, "invalid argument to RPS_status");
 		return(S_OOPS);
 	}
 	if (!ISCONFIGED(s)) {
 		syslog(LOG_ERR
-		,	"unconfigured stonith object in RPC_status");
+		,	"unconfigured stonith object in RPS_status");
 		return(S_OOPS);
 	}
 	ctx = (struct WTI_RPS10*) s->pinfo;
-	if (RPCConnect(ctx) != S_OK) {
+	if (RPSConnect(ctx) != S_OK) {
 		return(S_OOPS);
 	}
 
@@ -478,7 +481,7 @@ st_status(Stonith  *s)
 	   RPS-10 Ready 
 	*/
 
-	return(RPCDisconnect(ctx));
+	return(RPSDisconnect(ctx));
 }
 
 /*
@@ -503,12 +506,12 @@ st_hostlist(Stonith  *s)
 	if (gbl_debug) printf ("Calling st_hostlist (%s)\n", WTIid);
 	
 	if (!ISWTIRPS10(s)) {
-		syslog(LOG_ERR, "invalid argument to RPC_list_hosts");
+		syslog(LOG_ERR, "invalid argument to RPS_list_hosts");
 		return(NULL);
 	}
 	if (!ISCONFIGED(s)) {
 		syslog(LOG_ERR
-		,	"unconfigured stonith object in RPC_list_hosts");
+		,	"unconfigured stonith object in RPS_list_hosts");
 		return(NULL);
 	}
 
@@ -594,14 +597,28 @@ st_freehostlist (char ** hlist)
  *      stonith nodeb WTI_RPS10 /dev/ttyS0 nodea 0 
  *      stonith nodeb WTI_RPS10 /dev/ttyS1 nodec 0
  */
+/*
+ * 	OOPS!
+ *
+ * 	Most of the large block of comments above is incorrect as far as this
+ * 	module is concerned.  It is somewhat applicable to the heartbeat code,
+ * 	but not to this Stonith module.
+ *
+ * 	The format of parameter string for this module is:
+ *            <serial device> <remotenode> <outlet> [<remotenode> <outlet>] ...
+ */
 
 static int
-RPC_parse_config_info(struct WTI_RPS10* ctx, const char * info)
+RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 {
 	char *copy;
 	char *token;
 	char *outlet, *node;
+	int  anyconfigured = 0;
+
+#ifdef MAKE_EVERYBODY_SUFFER
 	char hostname[128];
+#endif
 
 	if (ctx->config) {
 		/* The module is already configured. */
@@ -621,6 +638,7 @@ RPC_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 	}
 
 	token = strtok (copy, " \t");
+#ifdef MAKE_EVERYBODY_SUFFER
 	
 	if (!token || strcmp(token, "stonith")) {
 		/* didn't get "stonith" prefix...  */
@@ -644,8 +662,8 @@ RPC_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 	}
 
 	/* OK, now we know we're on the correct node... 
-	   Check the module name 
-	*/
+	 * Check the module name 
+	 */
 	token = strtok (NULL, " \t");
 	if (!token || strcmp(token, WTIid)) {
 		syslog(LOG_ERR, "%s: module name %s doesn't match expected %s",
@@ -655,6 +673,7 @@ RPC_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 	
 	/* Grab the serial device */
 	token = strtok (NULL, " \t");
+#endif
 	if (!token) {
 		syslog(LOG_ERR, "%s: Can't find serial device on config line '%s'",
 		       WTIid, info);
@@ -677,7 +696,9 @@ RPC_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 		if ((sscanf (outlet, "%d", &outletnum) != 1)
 		    || outletnum < 0 
 		    || outletnum >= WTI_NUM_CONTROLLERS ) {
-			syslog(LOG_ERR, "%s: the outlet number %s must be a number between 0 and 9",
+			syslog(LOG_ERR
+			, "%s: the outlet number %s must be a number between"
+			" 0 and 9",
 			       WTIid, outlet);
 			goto token_error;
 		}
@@ -685,14 +706,15 @@ RPC_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 		ctx->controllers[outletnum].configured = 1;
 		ctx->controllers[outletnum].node = strdup(node);
 		ctx->controllers[outletnum].outletnum = outletnum;
+		++anyconfigured;
 	} 
 
 	/* free our private copy of the string we've been destructively 
-	   parsing with strtok()
-	*/
+	 * parsing with strtok()
+	 */
 	free(copy);
 	ctx->config = 1;
-	return S_OK;
+	return (anyconfigured ? S_OK : S_BADCONFIG);
 
 token_error:
 	free(copy);
@@ -726,7 +748,7 @@ static void dtrtoggle(int fd) {
 }
 
 /*
- * RPCConnect -
+ * RPSConnect -
  *
  * Connect to the given WTI_RPS10 device.  
  * Side Effects
@@ -741,7 +763,7 @@ static void dtrtoggle(int fd) {
  *
  */
 static int
-RPCConnect(struct WTI_RPS10 * ctx)
+RPSConnect(struct WTI_RPS10 * ctx)
 {
   	  
 	/* Open the serial port if it isn't already open */
@@ -805,7 +827,7 @@ RPCConnect(struct WTI_RPS10 * ctx)
 }
 
 static int
-RPCDisconnect(struct WTI_RPS10 * ctx)
+RPSDisconnect(struct WTI_RPS10 * ctx)
 {
 
   if (ctx->fd >= 0) {
@@ -821,7 +843,7 @@ RPCDisconnect(struct WTI_RPS10 * ctx)
 } 
 
 /*
- * RPCNametoOutlet - Map a hostname to an outlet number on this stonith device.
+ * RPSNametoOutlet - Map a hostname to an outlet number on this stonith device.
  *
  * Returns:
  *     0-9 on success ( the outlet number on the RPS10 )
@@ -829,7 +851,7 @@ RPCDisconnect(struct WTI_RPS10 * ctx)
  * 
  */
 static int
-RPCNametoOutlet ( struct WTI_RPS10 * ctx, const char * host )
+RPSNametoOutlet ( struct WTI_RPS10 * ctx, const char * host )
 {
 	int i=0;
 
@@ -865,27 +887,27 @@ st_reset(Stonith * s, int request, const char * host)
 	if (gbl_debug) printf ("Calling st_reset (%s)\n", WTIid);
 	
 	if (!ISWTIRPS10(s)) {
-		syslog(LOG_ERR, "invalid argument to RPC_reset_host");
+		syslog(LOG_ERR, "invalid argument to RPS_reset_host");
 		return(S_OOPS);
 	}
 	if (!ISCONFIGED(s)) {
 		syslog(LOG_ERR
-		,	"unconfigured stonith object in RPC_reset_host");
+		,	"unconfigured stonith object in RPS_reset_host");
 		return(S_OOPS);
 	}
 	ctx = (struct WTI_RPS10*) s->pinfo;
 
-	if ((rc = RPCConnect(ctx)) != S_OK) {
+	if ((rc = RPSConnect(ctx)) != S_OK) {
 		return(rc);
 	}
 
-	outletnum = RPCNametoOutlet(ctx, host);
+	outletnum = RPSNametoOutlet(ctx, host);
 
 	if (outletnum < 0) {
 		syslog(LOG_WARNING, _("%s %s "
 				      "doesn't control host [%s]."), 
 		       ctx->idinfo, ctx->unitid, host);
-		RPCDisconnect(ctx);
+		RPSDisconnect(ctx);
 		return(S_BADHOST);
 	}
 
@@ -893,23 +915,23 @@ st_reset(Stonith * s, int request, const char * host)
 
 #if defined(ST_POWERON) 
 		case ST_POWERON:
-			rc = RPCOn(ctx, outletnum, host);
+			rc = RPSOn(ctx, outletnum, host);
 			break;
 #endif
 #if defined(ST_POWEROFF)
 		case ST_POWEROFF:
-			rc = RPCOff(ctx, outletnum, host);
+			rc = RPSOff(ctx, outletnum, host);
 			break;
 #endif
 	case ST_GENERIC_RESET:
-		rc = RPCReset(ctx, outletnum, host);
+		rc = RPSReset(ctx, outletnum, host);
 		break;
 	default:
 		rc = S_INVAL;
 		break;
 	}
 
-	lorc = RPCDisconnect(ctx);
+	lorc = RPSDisconnect(ctx);
 
 	return(rc != S_OK ? rc : lorc);
 }
@@ -923,12 +945,12 @@ st_setconffile(Stonith* s, const char * configname)
 {
 	FILE *	cfgfile;
 
-	char	RPCid[256];
+	char	RPSid[256];
 
 	struct WTI_RPS10*	ctx;
 
 	if (!ISWTIRPS10(s)) {
-		syslog(LOG_ERR, "invalid argument to RPC_set_configfile");
+		syslog(LOG_ERR, "invalid argument to RPS_set_configfile");
 		return(S_OOPS);
 	}
 	ctx = (struct WTI_RPS10*) s->pinfo;
@@ -938,9 +960,15 @@ st_setconffile(Stonith* s, const char * configname)
 		return(S_BADCONFIG);
 	}
 
-	while (fgets(RPCid, sizeof(RPCid), cfgfile) != NULL){
+	while (fgets(RPSid, sizeof(RPSid), cfgfile) != NULL){
 
-		RPC_parse_config_info(ctx, RPCid);
+		switch (RPSid[0]){
+			case '\0': case '\n': case '\r': case '#':
+			continue;
+		}
+
+		/* We can really only handle one line. Wimpy. */
+		return RPS_parse_config_info(ctx, RPSid);
 	}
 	return(S_BADCONFIG);
 }
@@ -958,12 +986,12 @@ st_setconfinfo(Stonith* s, const char * info)
 	struct WTI_RPS10* ctx;
 
 	if (!ISWTIRPS10(s)) {
-		syslog(LOG_ERR, "RPC_provide_config_info: invalid argument");
+		syslog(LOG_ERR, "RPS_provide_config_info: invalid argument");
 		return(S_OOPS);
 	}
 	ctx = (struct WTI_RPS10 *)s->pinfo;
 
-	return(RPC_parse_config_info(ctx, info));
+	return(RPS_parse_config_info(ctx, info));
 }
 
 /*
@@ -973,10 +1001,10 @@ const char *
 st_getinfo(Stonith * s, int reqtype)
 {
 	struct WTI_RPS10* ctx;
-	char *		ret;
+	const char *	ret;
 
 	if (!ISWTIRPS10(s)) {
-		syslog(LOG_ERR, "RPC_idinfo: invalid argument");
+		syslog(LOG_ERR, "RPS_idinfo: invalid argument");
 		return NULL;
 	}
 	/*
@@ -990,14 +1018,27 @@ st_getinfo(Stonith * s, int reqtype)
 			break;
 
 		case ST_CONF_INFO_SYNTAX:
+#ifdef MAKE_EVERYBODY_SUFFER
 			ret = _("stonith <nodename> WTI_RPS10 <serial_device> <node> <outlet> [ <node> <outlet> [...] ]\n"
 			"All tokens are white-space delimited.\n");
+#else
+			ret = _("<serial_device> <node> <outlet> "
+			"[ <node> <outlet> [...] ]\n"
+			"All tokens are white-space delimited.\n");
+#endif
 			break;
 
 		case ST_CONF_FILE_SYNTAX:
+#ifdef MAKE_EVERYBODY_SUFFER
 			ret = _("stonith <nodename> WTI_RPS10 <serial_device> <node> <outlet> [ <node> <outlet> [...] ]\n"
 			"All tokens are white-space delimited.\n"
 			"Blank lines and lines beginning with # are ignored");
+#else
+			ret = _("<serial_device> <node> <outlet> "
+			"[ <node> <outlet> [...] ]\n"
+			"All tokens are white-space delimited.\n"
+			"Blank lines and lines beginning with # are ignored");
+#endif
 			break;
 
 		default:
@@ -1024,7 +1065,7 @@ st_destroy(Stonith *s)
 	ctx->WTIid = NOTwtiid;
 
 	/*  close the fd if open and set ctx->fd to invalid */
-	RPCDisconnect(ctx);
+	RPSDisconnect(ctx);
 	
 	if (ctx->device != NULL) {
 		FREE(ctx->device);
