@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.47 2003/02/11 21:55:04 yixiong Exp $
+#	$Id: heartbeat.spec.in,v 1.48 2003/02/11 22:00:07 yixiong Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -496,7 +496,6 @@ install -m 644 rc.config.heartbeat $TEMPL
 ###########################################################
 %files
 ###########################################################
-%define ENABLE_SNMP_SUBAGENT @SNMP_SUBAGENT_ENABLED@
 %defattr(-,root,root)
 %dir @sysconfdir@/ha.d
 @sysconfdir@/ha.d/harc
@@ -555,6 +554,12 @@ install -m 644 rc.config.heartbeat $TEMPL
 %doc doc/ha.cf 
 %doc doc/startstop
 %doc doc/haresources
+#
+# if ENABLE_SNMP_SUBAGENT=1; then
+#	install mib files and other subagent related stuff;
+# fi
+#
+%define ENABLE_SNMP_SUBAGENT @SNMP_SUBAGENT_ENABLED@
 %if %{ENABLE_SNMP_SUBAGENT}
 	@MIBS_DIR@/LINUX-HA-MIB.mib
 %endif
