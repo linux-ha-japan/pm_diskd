@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.215 2002/10/05 19:45:10 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.216 2002/10/07 04:39:15 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1056,10 +1056,18 @@ control_process(FILE * fp, int fifoofd)
 				fifoofd = -1;
 			}
 		}else if (feof(fp)) {
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"control_process: EOF on FIFO");
+			}
 			break;
 		}
 	}
 
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"control_process: waiting for child procs to die");
+	}
 	setmsrepeattimer(0);
 	/*
 	 * Sometimes kernels forget to deliver one or more of our
@@ -1287,6 +1295,7 @@ static int			ClockJustJumped = 0;
 static gboolean MSPFinalShutdown(gpointer p);
 static gboolean SendLocalStatus(gpointer p);
 static gboolean DumpAllProcStats(gpointer p);
+static gboolean EmergencyShutdown(gpointer p);
 
 /* The master status process */
 void
@@ -1400,7 +1409,7 @@ master_status_process(void)
 		hip->local_lastupdate = time_longclock();
 	}
 
-//	setmsrepeattimer(10);
+	setmsrepeattimer(100);
 	if (UseOurOwnPoll) {
 		g_main_set_poll_func(cl_glibpoll);
 	}
@@ -3804,6 +3813,13 @@ DumpAllProcStats(gpointer p)
 	return TRUE;
 }
 
+static gboolean
+EmergencyShutdown(gpointer p)
+{
+	emergency_shutdown();
+	return TRUE;	/* Shouldn't get called twice, but... */
+}
+
 /* Mark the given link dead */
 void
 change_link_status(struct node_info *hip, struct link *lnk, const char * newstat)
@@ -3845,12 +3861,25 @@ mark_node_dead(struct node_info *hip)
 		send_resources_held(NO_RESOURCES, 1, NULL);
 		/* Uh, oh... we're dead! */
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
-		kill(procinfo->info[0].pid, SIGTERM);
+		/* Bump up debug level */
+		debug_sig(SIGUSR1);
+		kill(procinfo->info[0].pid, SIGUSR1);
+
+		if (!shutdown_in_progress) {
+			if (kill(procinfo->info[0].pid, SIGTERM) < 0) {
+				ha_perror("Cannot signal CP (pid %ld)"
+				,	(long)procinfo->info[0].pid);
+				emergency_shutdown();
+			}
 #if 0
-		/* Or should we do this... ? */
-		cause_shutdown_restart(thisnode);
+			/* Or should we do this... ? */
+			cause_shutdown_restart(thisnode);
 #endif
 		
+		
+			/* Do something more drastic in 10 minutes */
+			Gmain_timeout_add(1000*10*60, EmergencyShutdown, NULL);
+		}
 		return;
 	}
 
@@ -3890,7 +3919,7 @@ takeover_from_node(const char * nodename)
 		ha_log(LOG_INFO
 		,	"Resource takeover cancelled - shutdown in progress.");
 		return;
-	}else{
+	}else if (hip->nodetype != PINGNODE) {
 		ha_log(LOG_INFO
 		,	"Resources being acquired from %s."
 		,	hip->nodename);
@@ -4328,7 +4357,7 @@ giveup_resources(void)
 		ha_log(LOG_INFO, "giveup_resources: current status: %s"
 		,	curnode->status);
 	}
-	shutdown_in_progress =1;
+	shutdown_in_progress = 1;
 	close_watchdog();
 	DisableProcLogging();	/* We're shutting down */
 	/* Kill all our managed children... */
@@ -5933,6 +5962,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.216  2002/10/07 04:39:15  alan
+ * Put in code to make shutdown problems easier to debug, and to hopefully keep shutdowns from
+ * hanging forever.
+ *
  * Revision 1.215  2002/10/05 19:45:10  alan
  * Make apphbd run at high priority and locked into memory.
  * Moved make_realtime() into the clplumbing library
