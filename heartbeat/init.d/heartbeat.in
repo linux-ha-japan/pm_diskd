@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.16 2002/08/12 14:37:53 msoffen Exp $
+#	$Id: heartbeat.in,v 1.17 2002/09/10 15:54:57 msoffen Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -205,6 +205,12 @@ StartHA() {
   then
     mv $HA_DIR/ipresources $HA_DIR/haresources
   fi
+  # Run pre-startup script if it exists
+  if
+    [  -f $HA_DIR/resource.d/startstop ]
+  then
+    $HA_DIR/resource.d/startstop start
+  fi
   #	Start heartbeat daemon
   if
     start_heartbeat
@@ -228,6 +234,12 @@ StartHA() {
 StopHA() {
   EchoNoNl "Stopping High-Availability services: "
 
+  # Run pre-shutdown script if it exists
+  if
+    [  -f $HA_DIR/resource.d/startstop ]
+  then
+    $HA_DIR/resource.d/startstop stop
+  fi
   if
     $HA_BIN/heartbeat -k &> /dev/null	# Kill it
   then
@@ -308,6 +320,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.17  2002/09/10 15:54:57  msoffen
+#  Added call on startup (if startstop scrip exists) to startstop script (not
+#  resource based - heartbeat startup/shutdown based).
+#
 #  Revision 1.16  2002/08/12 14:37:53  msoffen
 #  Replaced the last echononl with EchoNoNl.
 #
