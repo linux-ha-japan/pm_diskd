@@ -20,8 +20,8 @@ What gives?</a></li>
   <li><a href="ipfail">If my one of my ethernet connections goes away
 (cable severence, NIC failure, locusts), but my current primary node
 (the one with the services) is otherwise fine, no one can get to my
-services and I want to fail them over to my other cluster node.
-&nbsp;Is there a way to do this?</a><br>
+services and I want to fail them over to my other cluster node. &nbsp;Is
+there a way to do this?</a><br>
   </li>
   <li> <a href="#nettools">Every time my machine releases an IP alias,
 it loses the whole interface (i.e. eth0)!&nbsp; How do I fix this?</a></li>
@@ -35,11 +35,20 @@ nice failback ?</a></li>
   <li> <a href="#firewall">How to use heartbeat with ipchains firewall ?</a></li>
   <li> <a href="#heavy_load">How to tune heartbeat on heavily loaded
 system to avoid                       split-brain?</a></li>
+  <li><a href="serialerr">When heartbeat starts up I get this error
+message in my logs:</a>
+    <p><a href="serialerr">&nbsp;&nbsp;&nbsp; heartbeat:
+2003/01/12_10:03:07 WARN: process_clustermsg: node [&lt;hostname&gt;]
+failed authentication<br>
+    <br>
+What does this mean?</a></p>
+  </li>
   <li> <a href="#authkeys">When I try to start heartbeat i receive
 message:</a></li>
   <br>
-  <a href="#authkeys">"Starting High-Availability services: Heartbeat
-failure [rc=1]. Failed.</a> <br>
+  <a href="#authkeys">&nbsp;&nbsp;&nbsp; "Starting High-Availability
+services: Heartbeat failure [rc=1]. Failed.</a><br>
+  <br>
   <a href="#authkeys">and there is nothing in any of the log files and
 do messages. What is wrong ?</a> <li> <a href="#multiple_clusters">How
 to run multiple clusters on same network segment ?</a></li>
@@ -124,7 +133,7 @@ of these ping nodes, it will contact the other node in order to
 determine whether it or the ping node has the problem. &nbsp;If the
 cluster node has the problem, it will try to failover its resources (if
 it has any).</p>
-    <p>To use ipfail, you will need to add the following to you
+    <p>To use ipfail, you will need to add the following to your
 /etc/ha.d/ha.cf files:<br>
 &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; respawn hacluster
 /usr/lib/heartbeat/ipfail<br>
@@ -187,7 +196,11 @@ you don't do this, you may get "Cluster node ... returning after
 partition" which will cause heartbeat to restart on all machines in the
 cluster. Adding memory to the machine generally helps. Limiting workload
 on the machine generally helps. Some newer versions of heartbeat are a
-bit better about this than previous versions. </li>
+bit better about this than previous versions.</li>
+  <li><a name="serialerr"></a>It's common to get a single mangled
+packet on your serial interface when heartbeat starts up. &nbsp;This is
+an indicator that happened. &nbsp;It's harmless in this scenario.<br>
+  </li>
   <li> <a name="authkeys">It's probably a permissions problem on
 authkeys.</a>&nbsp; It wants it to be read only mode (400, 600 or
 700).&nbsp; Depending on where and when it discovers the problem, the
