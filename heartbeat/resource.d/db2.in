@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.5 2002/03/23 23:39:42 alan Exp $
+# $Id: db2.in,v 1.6 2002/05/16 14:56:28 alan Exp $
 # 
 # db2
 #
@@ -39,7 +39,7 @@ usage() {
 	The 'monitor' operation reports whether the database seems to be working
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.5 2002/03/23 23:39:42 alan Exp $
+	$Id: db2.in,v 1.6 2002/05/16 14:56:28 alan Exp $
 	!
   exit 1
 
@@ -149,7 +149,15 @@ db2_start() {
   if
     db2_status "$1"
   then
-    return 0
+    if
+      runasdb2 $db2bin/db2jstrt 
+    then
+      for DB in `db2_dblist`
+      do
+        runasdb2 $db2db2 activate database $DB
+      done
+    fi
+    return $?
   else
     echo "ERROR: DB2 UDB instance $1 not active!"
     return 1
@@ -179,6 +187,11 @@ db2_stop() {
   fi
   logasdb2 $db2db2 terminate
   logasdb2 $db2bin/db2_kill
+  pids=`our_db2_ps | grep db2jd | cut -d' ' -f1`
+  for j in $pids
+  do
+    runasdb2 kill -9 $j
+  done
   return $rc
 }
 
@@ -191,6 +204,11 @@ db2_status() {
   pscount=`runasdb2 $db2bin/db2_local_ps | grep ' db2[^ ]*$' | wc -l`
   test $pscount -ge 5
 }
+
+our_db2_ps() {
+  ps -u $db2admin | grep db2
+}
+
 
 db2_dblist() {
   runasdb2 $db2db2 list database directory	\
