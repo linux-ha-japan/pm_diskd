@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.169 2002/04/04 17:55:27 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.170 2002/04/07 13:54:06 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -421,7 +421,7 @@ void	check_comm_isup(void);
 int	send_resources_held(const char *str, int stable, const char * comment);
 int	send_standby_msg(enum standby state);
 int	send_local_starting(void);
-int	send_local_status(void);
+int	send_local_status(const char *);
 int	set_local_status(const char * status);
 void	process_resources(struct ha_msg* msg, struct node_info * thisnode);
 void	request_msg_rexmit(struct node_info *, unsigned long lowseq
@@ -901,7 +901,8 @@ initialize_heartbeat()
 	curproc = &procinfo->info[ourproc];
 	curproc->type = PROC_CONTROL;
 	curproc->pstat = RUNNING;
-	NewTrackedProc(getpid(), 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc), &CoreProcessTrackOps);
+	NewTrackedProc(getpid(), 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
+	,	&CoreProcessTrackOps);
 
 
 	/* Now the fun begins... */
@@ -990,7 +991,8 @@ initialize_heartbeat()
 	master_status_pid = pid;
 	ADDPROC(master_status_pid);
 	ourproc = procinfo->nprocs;
-	NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc), &CoreProcessTrackOps);
+	NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
+	,	&CoreProcessTrackOps);
 
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "master status process pid: %d\n", pid);
@@ -1307,25 +1309,122 @@ send_to_all_media(char * smsg, int len)
 }
 
 
+/*
+ *	What are our abstract input sources?
+ *
+ *	Queued signals to be handled ("polled" high priority)
+ *	Sending a heartbeat message (timeout-based) (high priority)
+ *	Retransmitting packets for the protocol (timed medium priority)
+ *	Timing out on heartbeats from other nodes (timed low priority)
+ *
+ *		We currently combine all our timed/polled events together.
+ *		The only one that has critical timing needs is sending
+ *		out heartbeat messages
+ *
+ *	Messages from the network (file descriptor medium-high priority)
+ *
+ *	API requests from clients (file descriptor medium-low priority)
+ *
+ *	Registration requests from clients (file descriptor low priority)
+ *
+ */
+
+/*
+ * Combined polled/timed events...
+ */
+static gboolean polled_input_prepare(gpointer source_data, GTimeVal* current_time
+,	gint* timeout, gpointer user_data);
+static gboolean polled_input_check(gpointer source_data, GTimeVal* current_time
+,	gpointer user_data);
+static gboolean polled_input_dispatch(gpointer source_data, GTimeVal* current_time
+,	gpointer user_data);
+static void polled_input_destroy(gpointer user_data);
+
+static GSourceFuncs polled_input_SourceFuncs = {
+	polled_input_prepare,
+	polled_input_check,
+	polled_input_dispatch,
+	polled_input_destroy,
+};
+
+
+/*
+ * Messages from the cluster are one of our inputs...
+ */
+static gboolean clustermsg_input_prepare(gpointer source_data
+,	GTimeVal* current_time, gint* timeout, gpointer user_data);
+static gboolean clustermsg_input_check(gpointer source_data
+,	GTimeVal* current_time, gpointer user_data);
+static gboolean clustermsg_input_dispatch(gpointer source_data
+,	GTimeVal* current_time, gpointer user_data);
+static void clustermsg_input_destroy(gpointer user_data);
+
+static GSourceFuncs clustermsg_input_SourceFuncs = {
+	clustermsg_input_prepare,
+	clustermsg_input_check,
+	clustermsg_input_dispatch,
+	clustermsg_input_destroy,
+};
+
+/*
+ * API registration requests are one of our inputs
+ */
+static gboolean APIregistration_input_prepare(gpointer source_data
+,	GTimeVal* current_time, gint* timeout, gpointer user_data);
+static gboolean APIregistration_input_check(gpointer source_data
+,	GTimeVal* current_time, gpointer user_data);
+static gboolean APIregistration_input_dispatch(gpointer source_data
+,	GTimeVal* current_time, gpointer user_data);
+static void APIregistration_input_destroy(gpointer user_data);
+
+static GSourceFuncs APIregistration_input_SourceFuncs = {
+	APIregistration_input_prepare,
+	APIregistration_input_check,
+	APIregistration_input_dispatch,
+	APIregistration_input_destroy,
+};
+
+/*
+ * Messages from registered API clients are also inputs
+ */
+static gboolean APIclients_input_prepare(gpointer source_data
+,	GTimeVal* current_time, gint* timeout, gpointer user_data);
+static gboolean APIclients_input_check(gpointer source_data
+,	GTimeVal* current_time, gpointer	user_data);
+static gboolean APIclients_input_dispatch(gpointer source_data
+,	GTimeVal* current_time , gpointer user_data);
+static void APIclients_input_destroy(gpointer user_data);
+
+/* NOT static! */
+GSourceFuncs APIclients_input_SourceFuncs = {
+	APIclients_input_prepare,
+	APIclients_input_check,
+	APIclients_input_dispatch,
+	APIclients_input_destroy,
+};
+void LookForClockJumps(void);
+
+static int			ClockJustJumped = 0;
+
 /* The master status process */
 void
 master_status_process(void)
 {
 	FILE *			f;
 	FILE *			regfifo;
-	struct ha_msg *		msg = NULL;
-	TIME_T			lastnow = 0L;
-	char			iface[MAXIFACELEN];
 	int			fd, regfd;
 	volatile struct process_info *	pinfo;
 	int			allstarted;
 	int			j;
-	int			ClockJustJumped = 0;
-	int			spawned_child_clients = 0;
+	GPollFD			ClusterMsgGFD;
+	GPollFD			APIRegistrationGFD;
+	GMainLoop*		mainloop;
 
 	init_status_alarm();
 	init_watchdog();
-	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
+
+	send_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
+
 	signal(SIGTERM, giveup_resources);
 	set_proc_title("%s: master status process", cmdname);
 
@@ -1336,7 +1435,7 @@ master_status_process(void)
 		cleanexit(1);
 	}
 
-	if ((fd = open(API_REGFIFO, O_RDWR)) < 0) {
+	if ((regfd = open(API_REGFIFO, O_RDWR)) < 0) {
 		ha_log(LOG_ERR
 		,	"master_status_process: Can't open " API_REGFIFO);
 		cleanexit(1);
@@ -1344,10 +1443,10 @@ master_status_process(void)
 	if (DEBUGPKT) {
 		ha_log(LOG_DEBUG
 		, "master_status_process: opened socket %d for REGISTER :%s"
-		,	fd, API_REGFIFO);
+		,	regfd, API_REGFIFO);
 	}
 
-	if ((regfifo = fdopen(fd, "r")) == NULL) {
+	if ((regfifo = fdopen(regfd, "r")) == NULL) {
 		ha_log(LOG_ERR
 		,	"master_status_process: Can't fdopen " API_REGFIFO);
 		cleanexit(1);
@@ -1355,6 +1454,7 @@ master_status_process(void)
 	fd = -1;
 	fd = fileno(f);			clearerr(f);
 	regfd = fileno(regfifo);	clearerr(regfifo);
+
 
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Waiting for child processes to start");
@@ -1380,6 +1480,22 @@ master_status_process(void)
 		,	"All your child process are belong to us");
 	}
 	curproc->pstat = RUNNING;
+
+	g_source_add(G_PRIORITY_HIGH, FALSE, &polled_input_SourceFuncs
+	,	NULL, NULL, NULL);
+
+	ClusterMsgGFD.fd = fd;
+	ClusterMsgGFD.events = G_IO_IN|G_IO_HUP|G_IO_ERR;
+	g_main_add_poll(&ClusterMsgGFD, G_PRIORITY_DEFAULT);
+	g_source_add(G_PRIORITY_DEFAULT, FALSE, &clustermsg_input_SourceFuncs
+	,	&ClusterMsgGFD,	f, NULL);
+
+	APIRegistrationGFD.fd = regfd;
+	APIRegistrationGFD.events = G_IO_IN|G_IO_HUP|G_IO_ERR;
+	g_main_add_poll(&APIRegistrationGFD, G_PRIORITY_LOW);
+	g_source_add(G_PRIORITY_LOW, FALSE, &APIregistration_input_SourceFuncs
+	,	&APIRegistrationGFD, regfifo, NULL);
+
 	/* Reset timeout times to "now" */
 	for (j=0; j < config->nodecount; ++j) {
 		struct node_info *	hip;
@@ -1388,120 +1504,268 @@ master_status_process(void)
 		hip->local_lastupdate = times(&proforma_tms);
 	}
 
-	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
-		TIME_T		now = time(NULL);
-		fd_set		inpset;
-		fd_set		exset;
-		int		ndesc;
-		int		selret;
+	mainloop = g_main_new(TRUE);
+	g_main_run(mainloop);
+}
 
-		process_pending_handlers();
 
-		/* Check for clock jumps */
-		if (now < lastnow) {
-			ha_log(LOG_INFO
-			,	"Clock jumped backwards. Compensating.");
-			init_status_alarm();
-			send_status_now = 1;
-			ClockJustJumped = 1;
-			standby_running = 0L;
-			other_is_stable = 1;
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				, "Clock Jump: other now stable");
-			}
-		}else{
-			ClockJustJumped = 0;
-		}
+/*
+ *	Queued signals to be handled ("polled" high priority)
+ *	Sending a heartbeat message (timeout-based) (high priority)
+ *	Retransmitting packets for the protocol (timed medium priority)
+ *	Timing out on heartbeats from other nodes (timed low priority)
+ */
 
-		if (send_status_now) {
-			send_status_now = 0;
-			send_local_status();
+void
+LookForClockJumps(void)
+{
+	static TIME_T	lastnow = 0L;
+	TIME_T		now = time(NULL);
 
-		}
-		if (dump_stats_now) {
-			dump_stats_now = 0;
-			dump_all_proc_stats();
-		}
-
-		/* Scan nodes and links to see if any have timed out */
-		if (!ClockJustJumped) {
-			/* We'll catch it again next time around... */
-			check_for_timeouts();
-		}
-
-		/* Check to see we need to resend any rexmit requests... */
-		check_rexmit_reqs();
-
-		/* See if our comm channels are working yet... */
-		check_comm_isup();
-		if (heartbeat_comm_state == COMM_LINKSUP
-		&&	!spawned_child_clients) {
-			spawned_child_clients = 1;
-			g_list_foreach(config->client_list
-			,	start_a_child_client, config->client_children);
-		}
-
-		lastnow = now;
-
-		*iface = EOS;
-
-		/*
-		 * Our messages can come from any one of the following sources:
-		 *
-		 *  - The heartbeat FIFO
-		 *  - The generic API registration request FIFO
-		 *  - Any of the API FIFOs for registered clients
-		 *
-		 * So, we wait in a select(2) call until a message comes in by
-		 * one of these paths.  We remember the file descriptor
-		 * for the first two cases.  All other file descriptors are
-		 * assumed to be for the API fifo cases.  If it's not, they'll
-		 * whine about it ;-)
-		 */
-		ndesc = compute_msp_fdset(&inpset, fd, regfd);
-		if (DEBUGPKTCONT) {
+	/* Check for clock jumps */
+	if (now < lastnow) {
+		ha_log(LOG_INFO
+		,	"Clock jumped backwards. Compensating.");
+		init_status_alarm();
+		send_status_now = 1;
+		ClockJustJumped = 1;
+		standby_running = 0L;
+		other_is_stable = 1;
+		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG
-			,	"Just ran compute_msp_fdset on"
-			" (fd : %d and regfd: %d) got ndesc: %d"
-			,	fd, regfd, ndesc);
+			, "Clock Jumped: other now stable");
 		}
-		exset = inpset;
-
-		/* It might be nice to look for exceptions on the API FIFOs */
-		selret = select(ndesc, &inpset, NULL, &exset, NULL);
-		if (selret <= 0) {
-			continue;	/* Timeout */
-		}
-
-		/* Do we have input on our status message FIFO? */
-		if (FD_ISSET(fd, &inpset)) {
-			if (DEBUGPKTCONT) {
-				ha_log(LOG_DEBUG
-			,	"got clustermsg on fd %d", fd);
-			}
-			process_clustermsg(f);
-			FD_CLR(fd, &inpset);
-			--selret;
-		}
-
-		/* Do we have input on the API registration FIFO? */
-		if (selret > 0 && FD_ISSET(regfd, &inpset)) {
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				,	"Processing register message from"
-				" regfd %d.\n", regfd);
-			}
-			process_registermsg(regfifo);
-			FD_CLR(regfd, &inpset);
-			--selret;
-		}
-
-		/* How about requests from our API clients? */
-		if (selret > 0) {
-			process_api_msgs(&inpset, &exset);
-		}
+	}else{
+		ClockJustJumped = 0;
 	}
+}
+
+static gboolean
+polled_input_prepare(gpointer source_data, GTimeVal* current_time
+,	gint* timeout, gpointer user_data)
+{
+
+	/* MUST set timeout FIXME!! */
+	*timeout = 1000;
+	LookForClockJumps();
+
+	return (pending_handlers != 0)
+	||	send_status_now
+	||	dump_stats_now
+	||	ClockJustJumped;
+}
+
+static clock_t	NextPoll = 0UL;
+static int	NextPollWraps = 0;
+static clock_t	NextPollWrapMax = 0;
+
+#define	POLL_INTERVAL	CLK_TCK
+
+static gboolean
+polled_input_check(gpointer source_data, GTimeVal* current_time
+,	gpointer	user_data)
+{
+	struct tms	proforma_tms;
+	clock_t		now = times(&proforma_tms);
+
+	LookForClockJumps();
+
+	return (now < CLK_TCK || now >= NextPoll);
+	if (NextPollWraps) {
+		return now <= NextPollWrapMax;
+	}else{
+		return now >= NextPoll;
+	}
+		
+	return	TRUE;
+}
+
+static gboolean
+polled_input_dispatch(gpointer source_data, GTimeVal* current_time
+,	gpointer	user_data)
+{
+	struct tms	proforma_tms;
+	clock_t		now = times(&proforma_tms);
+	static int	spawned_child_clients = 0;
+	static GTimeVal LastTime = {0L, 0L};
+
+	LastTime = *current_time;
+
+	NextPoll = now + POLL_INTERVAL;
+
+	if (NextPoll > now) {
+		NextPollWraps = 0;
+	}else{
+		NextPollWraps = 1;
+		NextPollWrapMax = 100 * POLL_INTERVAL;
+	}
+
+	LookForClockJumps();
+
+	if (pending_handlers) {
+		process_pending_handlers();
+	}
+	if (send_status_now) {
+		send_status_now = 0;
+		send_local_status(NULL);
+
+	}
+	if (dump_stats_now) {
+		dump_stats_now = 0;
+		dump_all_proc_stats();
+	}
+
+	/* Scan nodes and links to see if any have timed out */
+	if (!ClockJustJumped) {
+		/* We'll catch it again next time around... */
+		check_for_timeouts();
+	}
+
+	/* Check to see we need to resend any rexmit requests... */
+	check_rexmit_reqs();
+
+	/* See if our comm channels are working yet... */
+	check_comm_isup();
+	if (heartbeat_comm_state == COMM_LINKSUP
+	&&	!spawned_child_clients) {
+		spawned_child_clients = 1;
+		g_list_foreach(config->client_list
+		,	start_a_child_client, config->client_children);
+	}
+
+	return TRUE;
+}
+
+
+static void
+polled_input_destroy(gpointer user_data)
+{
+}
+
+
+static gboolean
+clustermsg_input_prepare(gpointer source_data, GTimeVal* current_time
+,	gint* timeout, gpointer user_data)
+{
+	return FALSE;
+}
+
+static gboolean
+clustermsg_input_check(gpointer source_data, GTimeVal* current_time
+,	gpointer	user_data)
+{
+	GPollFD*	gpfd = source_data;
+	return gpfd->revents != 0;
+}
+
+static gboolean
+clustermsg_input_dispatch(gpointer source_data, GTimeVal* current_time
+,	gpointer	user_data)
+{
+	FILE *		f = user_data;
+	GPollFD*	gpfd = source_data;
+
+
+	if (fileno(f) != gpfd->fd) {
+		/* Bad boojum! */
+		ha_log(LOG_ERR, "FD mismatch in clustermsg_input_dispatch");
+	}
+
+
+	/* Process the incoming cluster message */
+	process_clustermsg(f);
+	return TRUE;
+}
+
+
+static void
+clustermsg_input_destroy(gpointer user_data)
+{
+}
+
+static gboolean
+APIregistration_input_prepare(gpointer source_data, GTimeVal* current_time
+,	gint* timeout, gpointer user_data)
+{
+	return FALSE;
+}
+
+static gboolean
+APIregistration_input_check(gpointer source_data, GTimeVal* current_time
+,	gpointer	user_data)
+{
+	GPollFD*	gpfd = source_data;
+	return gpfd->revents != 0;
+}
+
+static gboolean
+APIregistration_input_dispatch(gpointer source_data, GTimeVal* current_time
+,	gpointer	user_data)
+{
+	GPollFD*	gpfd = source_data;
+	FILE *		regfifo = user_data;
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"Processing register message from"
+		" regfd %d.\n", gpfd->fd);
+	}
+	if (fileno(regfifo) != gpfd->fd) {
+		/* Bad boojum! */
+		ha_log(LOG_ERR
+		,	"FD mismatch in APIregistration_input_dispatch");
+	}
+	process_registermsg(regfifo);
+	return TRUE;
+}
+
+
+static void
+APIregistration_input_destroy(gpointer user_data)
+{
+}
+
+/*
+ * All the other input sources are static - they don't come and go as we run
+ * Our API clients can register and unregister at any time...
+ * Our user_data here is a client_proc_t* telling us which client sent us
+ * the message.
+ */
+
+static gboolean
+APIclients_input_prepare(gpointer source_data, GTimeVal* current_time
+,	gint* timeout, gpointer	user_data)
+{
+	return FALSE;
+}
+
+static gboolean
+APIclients_input_check(gpointer source_data, GTimeVal* current_time
+,	gpointer	user_data)
+{
+	GPollFD*	gpfd = source_data;
+	return gpfd->revents != 0;
+
+}
+
+static gboolean
+APIclients_input_dispatch(gpointer source_data, GTimeVal* current_time
+,	gpointer	user_data)
+{
+	GPollFD*	gpfd = source_data;
+	client_proc_t*	client = user_data;
+
+	if (gpfd != & client->gpfd) {
+		/* Bad boojum! */
+		ha_log(LOG_ERR, "GPFD mismatch in APIclients_input_dispatch");
+	}
+	/* Process a single API client request */
+	ProcessAnAPIRequest(client);
+	return TRUE;
+}
+
+static void
+APIclients_input_destroy(gpointer user_data)
+{
 }
 
 /*
@@ -1525,6 +1789,8 @@ process_clustermsg(FILE * f)
 	struct tms		proforma_tms;
 	const char *		cseq;
 	unsigned long		seqno = 0;
+	int			stgen;
+	const char *		cstgen;
 
 
 
@@ -1552,6 +1818,7 @@ process_clustermsg(FILE * f)
 	from = ha_msg_value(msg, F_ORIG);
 	ts = ha_msg_value(msg, F_TIME);
 	cseq = ha_msg_value(msg, F_SEQ);
+	cstgen = ha_msg_value(msg, F_STGEN);
 
 	if (!isauthentic(msg)) {
 		ha_log(LOG_WARNING
@@ -1590,6 +1857,9 @@ process_clustermsg(FILE * f)
 			goto psm_done;
 		}
 	}
+
+	stgen = (cstgen ? atoi(cstgen) : 0);
+
 	sscanf(ts, TIME_X, &msgtime);
 
 	if (ts == 0 || msgtime == 0) {
@@ -1732,7 +2002,7 @@ process_clustermsg(FILE * f)
 
 		/* Do we already have a newer status? */
 		if (msgtime < thisnode->rmt_lastupdate
-		&&	seqno < thisnode->status_seqno) {
+		&&		seqno < thisnode->status_seqno) {
 			goto psm_done;
 		}
 
@@ -1751,18 +2021,21 @@ process_clustermsg(FILE * f)
 			}
 		}
 
-		thisnode->rmt_lastupdate = msgtime;
-
-		thisnode->local_lastupdate = messagetime;
-
-		thisnode->status_seqno = seqno;
 
 		/* Is the node status the same? */
-		if (strcasecmp(thisnode->status, status) != 0) {
+		if (strcasecmp(thisnode->status, status) != 0
+		&& 	stgen >= thisnode->status_gen) {
 			ha_log(LOG_INFO
-			,	"Node %s: status %s"
+			,	"Status update for node %s: status %s"
 			,	thisnode->nodename
 			,	status);
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"Status seqno: %ld msgtime: %ld"
+				" status generation: %d"
+				,	seqno, msgtime, stgen);
+			}
+			
 			notify_world(msg, thisnode->status);
 			strncpy(thisnode->status, status
 			, 	sizeof(thisnode->status));
@@ -1775,6 +2048,12 @@ process_clustermsg(FILE * f)
 		if (thisnode == curnode) {
 			tickle_watchdog();
 		}
+
+		thisnode->rmt_lastupdate = msgtime;
+		thisnode->local_lastupdate = messagetime;
+		thisnode->status_seqno = seqno;
+		thisnode->status_gen = stgen;
+
 	}else if (strcasecmp(type, T_REXMIT) == 0) {
 		heartbeat_monitor(msg, PROTOCOL, iface);
 		if (thisnode != curnode) {
@@ -2210,7 +2489,7 @@ FilterNotifications(const char * msgtype)
 	}
 	rc = g_hash_table_lookup(RCScriptNames, msgtype) != NULL;
 
-	if (ANYDEBUG) {
+	if (DEBUGDETAILS) {
 		ha_log(LOG_DEBUG
 		,	"FilterNotifications(%s) => %d"
 		,	msgtype, rc);
@@ -2247,11 +2526,6 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	char *		tp;
 	int		pid, status;
 
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
-		,	"notify_world: invoking %s: OLD status: %s"
-		,	RC_ARG0,	(ostatus ? ostatus : "(none)"));
-	}
 	if (!DoManageResources) {
 		return;
 	}
@@ -2264,6 +2538,12 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	if (fp == NULL || strlen(fp) >= STATUSLENG
 	||	 !FilterNotifications(fp)) {
 		return;
+	}
+
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"notify_world: invoking %s: OLD status: %s"
+		,	RC_ARG0,	(ostatus ? ostatus : "(none)"));
 	}
 
 
@@ -2728,7 +3008,7 @@ restart_heartbeat(int quickrestart)
 	int			killsig = SIGTERM;
 
 	shutdown_in_progress = 1;
-	send_local_status();
+	send_local_status(NULL);
 	/*
 	 * We need to do these things:
 	 *
@@ -3069,7 +3349,7 @@ check_comm_isup(void)
 
 	if (heardfromcount >= config->nodecount) {
 		heartbeat_comm_state = COMM_LINKSUP;
-		set_local_status(ACTIVESTATUS);
+		send_local_status(ACTIVESTATUS);
 	}
 }
 
@@ -3079,13 +3359,14 @@ set_local_status(const char * newstatus)
 {
 	if (strcmp(newstatus, curnode->status) != 0
 	&&	strlen(newstatus) > 1 && strlen(newstatus) < STATUSLENG) {
+
+		/* We can't do this because of conflicts between the two
+		 * paths the updates otherwise arrive through...
+		 */
+
 		strncpy(curnode->status, newstatus, sizeof(curnode->status));
-		send_local_status();
+		send_local_status(newstatus);
 		ha_log(LOG_INFO, "Local status now set to: '%s'", newstatus);
-		if (DEBUGPKT) {
-			ha_log(LOG_DEBUG
-			,	"Local status now set to: %s", newstatus);
-		}
 		return(HA_OK);
 	}
 
@@ -3139,8 +3420,8 @@ send_cluster_msg(struct ha_msg* msg)
 			ffd = -1;
 		}
 		if (DEBUGPKTCONT) {
-			ha_log(LOG_DEBUG, "%d bytes written to %s"
-			,	length, FIFONAME);
+			ha_log(LOG_DEBUG, "%d bytes written to %s by %d"
+			,	length, FIFONAME, getpid());
 			ha_log(LOG_DEBUG, "Packet content: %s", smsg);
 		}
 #ifdef OPEN_FIFO_FOR_EACH_MESSAGE
@@ -3253,9 +3534,6 @@ send_local_starting(void)
 {
 	struct ha_msg * m;
 	int		rc;
-	char	    timestamp[16];
-
-	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (DEBUGDETAILS) {
 		ha_log(LOG_DEBUG, "Sending local starting msg");
@@ -3279,21 +3557,34 @@ send_local_starting(void)
 
 /* Send our local status out to the cluster */
 int
-send_local_status(void)
+send_local_status(const char * st)
 {
 	struct ha_msg *	m;
 	int		rc;
+	static int	statusgen=0;
+	int		gen=statusgen;
+	char		cgen[20];
 
+
+	if (st != NULL) {
+		++gen;
+	}else{
+		st = curnode->status;
+	}
+	snprintf(cgen, sizeof(cgen), "%d", gen);
 
 	if (DEBUGDETAILS){
-		ha_log(LOG_DEBUG, "Sending local status");
+		ha_log(LOG_DEBUG, "PID %d: Sending local status"
+		" curnode = %lx status: %s"
+		,	getpid(), (unsigned long)curnode, st);
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
 		ha_log(LOG_ERR, "Cannot send local status.");
 		return(HA_FAIL);
 	}
 	if (ha_msg_add(m, F_TYPE, T_STATUS) != HA_OK
-	||	ha_msg_add(m, F_STATUS, curnode->status) != HA_OK) {
+	||	ha_msg_add(m, F_STATUS, st) != HA_OK
+	||	ha_msg_add(m, F_STGEN, cgen) != HA_OK) {
 		ha_log(LOG_ERR, "send_local_status: "
 		"Cannot create local status msg");
 		rc = HA_FAIL;
@@ -3310,7 +3601,6 @@ void
 change_link_status(struct node_info *hip, struct link *lnk, const char * newstat)
 {
 	struct ha_msg *	lmsg;
-	char		timestamp[16];
 
 	if ((lmsg = ha_msg_new(6)) == NULL) {
 		ha_log(LOG_ERR, "no memory to mark link dead");
@@ -3320,8 +3610,6 @@ change_link_status(struct node_info *hip, struct link *lnk, const char * newstat
 	strncpy(lnk->status, newstat, sizeof(lnk->status));
 	ha_log(LOG_INFO, "Link %s:%s %s.", hip->nodename
 	,	lnk->name, lnk->status);
-
-	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (	ha_msg_add(lmsg, F_TYPE, T_IFSTATUS) != HA_OK
 	||	ha_msg_add(lmsg, F_NODE, hip->nodename) != HA_OK
@@ -3790,17 +4078,22 @@ giveup_resources(int dummy)
 	struct ha_msg *	m;
 
 
+	if (shutdown_in_progress) {
+		ha_log(LOG_INFO, "Heartbeat shutdown already underway.");
+		return;
+	}
+	if (ANYDEBUG) {
+		ha_log(LOG_INFO, "giveup_resources: current status: %s"
+		,	curnode->status);
+	}
 	DisableProcLogging();	/* We're shutting down */
-	ForEachProc(&AnonProcessTrackOps, KillTrackedProcess, GINT_TO_POINTER(SIGKILL));
+	ForEachProc(&AnonProcessTrackOps, KillTrackedProcess
+	,	GINT_TO_POINTER(SIGKILL));
 	i_hold_resources = NO_RSC ;
 	resourcestate = R_SHUTDOWN; /* or we'll get a whiny little comment
 				out of the resource management code */
 	if (nice_failback) {
 		send_resources_held(rsc_msg[i_hold_resources], 0, "shutdown");
-	}
-	if (shutdown_in_progress) {
-		ha_log(LOG_INFO, "Heartbeat shutdown already underway.");
-		return;
 	}
 	shutdown_in_progress =1;
 	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)", getpid());
@@ -4208,7 +4501,8 @@ signal_all(int sig)
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "pid %d: received signal %d", us, sig);
 		if (curproc) {
-			ha_log(LOG_DEBUG, "pid %d: type is %d", us, curproc->type);
+			ha_log(LOG_DEBUG, "pid %d: type is %d", us
+			,	curproc->type);
 		}
 	}
 
@@ -4239,6 +4533,7 @@ signal_all(int sig)
 			ha_perror("MSP signal failed");
 		}else if (sig == SIGQUIT) {
 			/* All Resources are now released.  Shut down. */
+			DisableProcLogging();
 			ha_log(LOG_INFO, "control process Received SIGQUIT");
 			sig = SIGTERM;
 		}
@@ -4577,6 +4872,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 			thisnode->rmt_lastupdate = 0L;
 			thisnode->local_lastupdate = 0L;
 			thisnode->status_seqno = 0L;
+			thisnode->status_gen = 0L;
 		}
 		t->generation = gen;
 	}
@@ -4721,7 +5017,8 @@ is_lost_packet(struct node_info * thisnode, unsigned long seq)
 }
 
 void
-request_msg_rexmit(struct node_info *node, unsigned long lowseq, unsigned long hiseq)
+request_msg_rexmit(struct node_info *node, unsigned long lowseq
+,	unsigned long hiseq)
 {
 	struct ha_msg*	hmsg;
 	char		low[16];
@@ -5121,12 +5418,12 @@ ask_for_resources(struct ha_msg *msg)
 	switch(going_standby) {
 	case NOT:
 		if (!other_is_stable) {
-			ha_log(LOG_ERR, "standby message [%s] from %s"
+			ha_log(LOG_WARNING, "standby message [%s] from %s"
 			" ignored.  Other side is in flux.", info, from);
 			return;
 		}
 		if (resourcestate != R_STABLE) {
-			ha_log(LOG_ERR, "standby message [%s] from %s"
+			ha_log(LOG_WARNING, "standby message [%s] from %s"
 			" ignored.  local resources in flux.", info, from);
 			return;
 		}
@@ -5254,6 +5551,84 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.170  2002/04/07 13:54:06  alan
+ * This is a pretty big set of changes ( > 1200 lines in plain diff)
+ *
+ * The following major bugs have been fixed
+ *  - STONITH operations are now a precondition for taking over
+ *    resources from a dead machine
+ *
+ *  - Resource takeover events are now immediately terminated when shutting
+ *    down - this keeps resources from being held after shutting down
+ *
+ *  - heartbeat could sometimes fail to start due to how it handled its
+ *    own status through two different channels.  I restructured the handling
+ *    of local status so that it's now handled almost exactly like handling
+ *    the status of remote machines
+ *
+ * There is evidence that all these serious bugs have been around a long time,
+ * even though they are rarely (if ever) seen.
+ *
+ * The following minor bugs have been fixed:
+ *
+ *  - the standby test now retries during transient conditions...
+ *
+ *  - the STONITH code for the test method "ssh" now uses "at" to schedule
+ *    the stonith operation on the other node so it won't hang when using
+ *    newer versions of ssh.
+ *
+ * The following new test was added:
+ *  - SimulStart - starting all nodes ~ simultaneously
+ *
+ * The following significant restructuring of the code occurred:
+ *
+ *  - Completely rewrote the process management and death-of-child code to
+ *    be uniform, and be based on a common semi-object-oriented approach
+ *    The new process tracking code is very general, and I consider it to
+ *    be part of the plumbing for the OCF.
+ *
+ *  - Completely rewrote the event handling code to be based on the Glib
+ *    mainloop paradigm. The sets of "inputs" to the main loop are:
+ *     - "polled" events like signals, and once-per-loop occurrances
+ *     - messages from the cluster and users
+ *     - API registration requests from potential clients
+ *     - API calls from clients
+ *
+ *
+ * The following minor changes were made:
+ *
+ *  - when nice_failback is taking over resources, since we always negotiate for
+ *    taking them over, so we no longer have a timeout waiting for the other
+ *    side to reply.  As a result, the timeout for waiting for the other
+ *    side is now much longer than it was.
+ *
+ *  - transient errors for standby operations now print WARN instead of EROR
+ *
+ *  - The STONITH and standby tests now don't print funky output to the
+ *    logs.
+ *
+ *  - added a new file TESTRESULTS.out for logging "official" test results.
+ *
+ * Groundwork was laid for the following future changes:
+ *  - merging the control and master status processes
+ *
+ *  - making a few other things not wait for process completion in line
+ *
+ *  - creating a comprehensive asynchronous action structure
+ *
+ *  - getting rid of the "interface" kludge currently used for tracking
+ *    activity on individual interfaces
+ *
+ * The following things still need to be tested:
+ *
+ *  - STONITH testing (including failures)
+ *
+ *  - clock jumps
+ *
+ *  - protocol retransmissions
+ *
+ *  - cross-version compatability of status updates (I added a new field)
+ *
  * Revision 1.169  2002/04/04 17:55:27  alan
  * Put in a whole bunch of new code to manage processes much more generally, and powerfully.
  * It fixes two important bugs:  STONITH wasn't waited on before we took over resources.

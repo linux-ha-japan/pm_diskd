@@ -117,17 +117,11 @@ static	uid_t		pid2uid(pid_t pid);
 static int		ClientSecurityIsOK(client_proc_t* client);
 static int		HostSecurityIsOK(void);
 
-#define	MAXFD	64
-#if  (MAXFD > FD_SETSIZE)
-#	undef MAXFD
-#	define	MAXFD	FD_SETSIZE
-#endif
 
 /*
  *	One client pointer per input FIFO.  It's indexed by file descriptor, so
  *	it's not densely populated.  We use this in conjunction with select(2)
  */
-static client_proc_t*	FDclients[MAXFD];
 
 /*
  * The original structure of this code was due to
@@ -224,7 +218,7 @@ api_audit_clients(void)
 
 
 		if (kill(client->pid, 0) < 0 && errno == ESRCH) {
-			ha_log(LOG_ERR, "api_audit_clients: client %d died"
+			ha_log(LOG_INFO, "api_audit_clients: client %d died"
 			,	client->pid);
 			api_remove_client(client, "died");
 			client=NULL;
@@ -279,7 +273,9 @@ api_signoff(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char **failreason) 
 { 
 		/* We send them no reply */
-		ha_log(LOG_INFO, "Signing client %d off", client->pid);
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG, "Signing client %d off", client->pid);
+		}
 		api_remove_client(client, "signoff");
 		return I_API_IGN;
 }
@@ -513,7 +509,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		/* Only named clients can send out packets to clients */
 
 		if (fromclient->iscasual) {
-			ha_log(LOG_ERR, "api_process_request: "
+			ha_log(LOG_INFO, "api_process_request: "
 			"general message from casual client!");
 			/* Bad Client! */
 			api_remove_client(fromclient, "badclient");
@@ -534,8 +530,8 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			"cannot add F_TOID field");
 			return;
 		}
-		if (ANYDEBUG) {
-			ha_log(LOG_INFO, "Sending API message to cluster...");
+		if (DEBUGDETAILS) {
+			ha_log(LOG_DEBUG, "Sending API message to cluster...");
 			ha_log_message(msg);
 		}
 
@@ -735,9 +731,11 @@ api_process_registration(struct ha_msg * msg)
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
-	ha_log(LOG_INFO, "Signing on API client %d (%s)"
-	,	client->pid
-	,	(client->iscasual? "'casual'" : client->client_id));
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Signing on API client %d (%s)"
+		,	client->pid
+		,	(client->iscasual? "'casual'" : client->client_id));
+	}
 	api_send_client_msg(client, resp);
 	ha_msg_del(resp); resp=NULL;
 }
@@ -858,7 +856,7 @@ api_flush_msgQ(client_proc_t* client)
 	}
 
 	if (kill(clientpid, nsig) < 0 && errno == ESRCH) {
-		ha_log(LOG_ERR, "api_send_client: client %d died"
+		ha_log(LOG_INFO, "api_send_client: client %d died"
 		,	client->pid);
 
 		closereason = "died";
@@ -944,9 +942,11 @@ api_remove_client(client_proc_t* req, const char * reason)
 				if (fd == maxfd) {
 					--maxfd;
 				}
-				FDclients[fd] = NULL;
 				fclose(client->input_fifo);
 				client->input_fifo = NULL;
+
+				g_main_remove_poll(&client->gpfd);
+				g_source_remove(client->g_source_id);
 			}
 			/* Clean up after casual clients */
 			if (client->iscasual) {
@@ -1002,7 +1002,7 @@ api_add_client(struct ha_msg* msg)
 		pid = atoi(cpid);
 	}
 	if (pid <= 0  || (kill(pid, 0) < 0 && errno == ESRCH)) {
-		ha_log(LOG_ERR
+		ha_log(LOG_WARNING
 		,	"api_add_client: bad pid [%d]", pid);
 		return 0;
 	}
@@ -1012,15 +1012,15 @@ api_add_client(struct ha_msg* msg)
 
 	if (client != NULL) {
 		if (kill(client->pid, 0) == 0 || errno != ESRCH) {
-			ha_log(LOG_ERR
+			ha_log(LOG_WARNING
 			,	"duplicate client add request");
 			return 0;
 		}else{
 			ha_log(LOG_ERR
-			,	"client pid %d [%s] died (readd)"
+			,	"client pid %d [%s] died (api_add_client)"
 			,	client->pid, fromid);
 		}
-		api_remove_client(client, "died (readd)");
+		api_remove_client(client, "bad add request");
 	}
 	if ((client = MALLOCT(client_proc_t)) == NULL) {
 		ha_log(LOG_ERR
@@ -1066,14 +1066,7 @@ api_add_client(struct ha_msg* msg)
 		return 0;
 	}
 	fifoifd=fileno(fifofp);
-	if (fifoifd >= MAXFD) {
-		ha_log(LOG_ERR
-		,	"Too many API clients [%d]", total_client_count);
-		api_remove_client(client, "toomany");
-		return 0;
-	}
 	client->input_fifo = fifofp;
-	FDclients[fifoifd] = client;
 	if (fifoifd > maxfd) {
 		maxfd = fifoifd;
 	}
@@ -1445,6 +1438,7 @@ ClientSecurityIsOK(client_proc_t* client)
 	return 1;
 }
 
+extern GSourceFuncs APIclients_input_SourceFuncs;
 /*
  * Open the request FIFO for the given client.
  */
@@ -1470,6 +1464,12 @@ open_reqfifo(client_proc_t* client)
 	if ((ret = fdopen(fd, "r")) != NULL) {
 		setbuf(ret, NULL);
 	}
+	client->gpfd.fd = fd;
+	client->gpfd.events = G_IO_IN|G_IO_HUP|G_IO_ERR;
+	g_main_add_poll(&client->gpfd, G_PRIORITY_DEFAULT);
+	client->g_source_id = g_source_add(G_PRIORITY_DEFAULT, FALSE
+	,	&APIclients_input_SourceFuncs
+	,	&client->gpfd, client, NULL);
 	return ret;
 }
 
@@ -1497,138 +1497,68 @@ pid2uid(pid_t pid)
 	return s.st_uid;
 }
 
-/* Compute the file descriptor set for select(2) */
-int
-compute_msp_fdset(fd_set* set, int fd1, int fd2)
-{
-	/* msp == Master Status Process */
-	int	fd;
-	int	newmax = -1;
-	int	newmin = MAXFD + 1;
-	int	pmax = (fd1 > fd2 ? fd1 : fd2);
 
-	g_assert(fd1 < FD_SETSIZE);
-	g_assert(fd2 < FD_SETSIZE);
-	g_assert(maxfd < MAXFD);
-
-	FD_ZERO(set);
-	FD_SET(fd1, set);
-	FD_SET(fd2, set);
-
-	for (fd=minfd; fd <= maxfd; ++fd) {
-		if (FDclients[fd]) {
-			FD_SET(fd, set);
-			newmax = fd;
-			if (fd < newmin) {
-				newmin = fd;
-			}
-		}
-		
-	}
-	maxfd = newmax;
-	minfd = newmin;
-	if (DEBUGPKT) {
-		ha_log (LOG_DEBUG
-		,	"fd1: %d, fd2: %d maxfd: %d, minfd: %d, pmax: %d"
-		,	fd1, fd2, maxfd, minfd, pmax);
-	}
-
-	return ((pmax > newmax ? pmax : newmax)+1);
-}
-
-/* Process select(2)ed API FIFOs for messages */
 void
-process_api_msgs(fd_set* inputs, fd_set* exceptions)
+ProcessAnAPIRequest(client_proc_t*	client)
 {
-	int		fd;
-	client_proc_t*	client = NULL;
+	struct ha_msg*	msg;
+	static int		consecutive_failures = 0;
 
-	/* Loop over the range of file descriptors open for our clients */
-	for (fd=minfd; fd <= maxfd; ++fd) {
-
-		/* Do we have a client on this file descriptor? */
-
-		if ((client = FDclients[fd]) != NULL) {
-			struct ha_msg*	msg;
-			static int		consecutive_failures = 0;
-
-			/* I'm not sure if this is ever happens... */
-			/* But if it does, we're ready for it ;-) */
-
-			if (FD_ISSET(fd, exceptions)) {
-				if (kill(client->pid, 0) < 0
-				&&	errno == ESRCH) {
-					ha_log(LOG_ERR
-					,	"Client pid %d died (exception)"
-					,	client->pid);
-					api_remove_client(client, "died");
-					continue;
-				}
-			}
-
-			/* Skip if no input for this client */
-			if (!FD_ISSET(fd, inputs)) {
-				continue;
-			}
-
-			/* Got a message from 'client' */
-			if (kill(client->pid, 0) < 0
-			&&	errno == ESRCH) {
-				ha_log(LOG_ERR
-				,	"Client pid %d died (input)"
-				,	client->pid);
-				api_remove_client(client, "died");
-				continue;
-			}
-
-			/* See if we can read the message */
-			if ((msg = msgfromstream(client->input_fifo)) == NULL) {
-
-				/* EOF? */
-				if (feof(client->input_fifo)) {
-					ha_log(LOG_INFO
-					,	"eof from client pid %d "
-					,	client->pid);
-					api_remove_client(client, "EOF");
-					continue;
-				}
-
-				/* Interrupted read? */
-				if (ferror(client->input_fifo)
-				&&	errno == EINTR) {
-					clearerr(client->input_fifo);
-					continue;
-				}
-
-				/* None of the above... */
-				ha_log(LOG_ERR, "No message from pid %d "
-				,	client->pid);
-				if (ferror(client->input_fifo)) {
-					ha_perror("API FIFO read error: pid %d"
-					,	client->pid);
-					clearerr(client->input_fifo);
-				}
-				++consecutive_failures;
-				/*
-				 * This used to happen because of EOF,
-				 * which is now handled above.  This is
-				 * good protection to have anyway ;-)
-				 */
-				if (consecutive_failures >= 10) {
-					ha_log(LOG_ERR
-					,	"Removing client pid %d "
-					,	client->pid);
-					api_remove_client(client, "noinput");
-					consecutive_failures = 0;
-				}
-				continue;
-			}
-			consecutive_failures = 0;
-
-			/* Process the API request message... */
-			api_heartbeat_monitor(msg, APICALL, "<api>");
-			api_process_request(client, msg);
-			ha_msg_del(msg); msg = NULL;
-		}
+	/* Supposedly got a message from 'client' */
+	if (kill(client->pid, 0) < 0 &&	errno == ESRCH) {
+		/* Oops... he's dead */
+		ha_log(LOG_INFO
+		,	"Client pid %d died (input)"
+		,	client->pid);
+		api_remove_client(client, "died");
+		return;
 	}
+
+	/* See if we can read the message */
+	if ((msg = msgfromstream(client->input_fifo)) == NULL) {
+
+		/* EOF? */
+		if (feof(client->input_fifo)) {
+			ha_log(LOG_INFO
+			,	"EOF from client pid %d "
+			,	client->pid);
+			api_remove_client(client, "EOF");
+			return;
+		}
+
+		/* Interrupted read? */
+		if (ferror(client->input_fifo) && errno == EINTR) {
+			clearerr(client->input_fifo);
+			return;
+		}
+
+		/* None of the above... */
+		ha_log(LOG_INFO, "No message from pid %d ", client->pid);
+
+		if (ferror(client->input_fifo)) {
+			ha_perror("API FIFO read error: pid %d"
+			,	client->pid);
+			clearerr(client->input_fifo);
+		}
+		++consecutive_failures;
+		/*
+		 * This used to happen because of EOF,
+		 * which is now handled above.  This is
+		 * good protection to have anyway ;-)
+		 */
+		if (consecutive_failures >= 10) {
+			ha_log(LOG_ERR
+			,	"Removing client pid %d "
+			,	client->pid);
+			api_remove_client(client, "noinput");
+			consecutive_failures = 0;
+		}
+		return;
+	}
+	consecutive_failures = 0;
+
+	/* Process the API request message... */
+	api_heartbeat_monitor(msg, APICALL, "<api>");
+	api_process_request(client, msg);
+	ha_msg_del(msg); msg = NULL;
 }

@@ -786,14 +786,16 @@ random for the selected number of iterations.
         while testcount <= max:
             test = self.Env.RandomGen.choice(self.Tests)
 
-            # Some tests need a node as an argument.
+            # Some tests want a node as an argument.
 
-            self.CM.log("Running test %s [%d]" % (test.name, testcount))
+            nodechoice = self.Env.RandomNode()
+            self.CM.log("Running test %s (%s)	[%d]"  % (test.name, nodechoice, testcount))
             testcount = testcount + 1
+            starttime=time.time()
             try:
-                ret=test()
+                ret=test(nodechoice)
             except TypeError:
-                ret=test(self.Env.RandomNode())
+                ret=test()
 
             if ret:
                 self.incr("success");
@@ -801,6 +803,18 @@ random for the selected number of iterations.
                 self.incr("failure");
         	# Better get the current info from the cluster...
                 self.CM.statall()
+            stoptime=time.time()
+            elapsed_time = stoptime - starttime
+            if not test.has_key("min_time"):
+                test["elapsed_time"] = elapsed_time
+                test["min_time"] = elapsed_time
+                test["max_time"] = elapsed_time
+            else:
+                test["elapsed_time"] = test["elapsed_time"] + elapsed_time
+                if elapsed_time < test["min_time"]:
+                    test["min_time"] = elapsed_time
+                if elapsed_time > test["max_time"]:
+                    test["max_time"] = elapsed_time
 
             for tries in 1,2,3,4,5,6,7,8,9,10:
                 match=BadNews.look()

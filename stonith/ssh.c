@@ -49,7 +49,7 @@
  */
 #define REBOOT_COMMAND "nohup sh -c '(sleep 2; nohup /sbin/reboot -nf) </dev/null >/dev/null 2>&1' &"
 #undef REBOOT_COMMAND
-#define REBOOT_COMMAND	"echo /sbin/reboot -nf | at now"
+#define REBOOT_COMMAND	"echo 'sleep 2; /sbin/reboot -nf' | at now"
 
 /*
  *    SSH STONITH device

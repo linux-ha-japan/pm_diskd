@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.16 2002/03/27 02:10:22 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.17 2002/04/07 13:54:06 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -232,6 +232,11 @@ controlfifo2msg(FILE * f)
 		return(NULL);
 	}
 
+	if (DEBUGPKTCONT) {
+		ha_log(LOG_DEBUG, "controlfifo2msg: input packet");
+		ha_log_message(ret);
+	}
+
 	noseqno = (strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1) == 0);
 
 	/* Add our default name=value pairs */
@@ -264,6 +269,10 @@ controlfifo2msg(FILE * f)
 	if (!add_msg_auth(ret)) {
 		ha_msg_del(ret);
 		ret = NULL;
+	}
+	if (DEBUGPKTCONT) {
+		ha_log(LOG_DEBUG, "controlfifo2msg: packet returned");
+		ha_log_message(ret);
 	}
 
 	return(ret);
@@ -486,6 +495,84 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.17  2002/04/07 13:54:06  alan
+ * This is a pretty big set of changes ( > 1200 lines in plain diff)
+ *
+ * The following major bugs have been fixed
+ *  - STONITH operations are now a precondition for taking over
+ *    resources from a dead machine
+ *
+ *  - Resource takeover events are now immediately terminated when shutting
+ *    down - this keeps resources from being held after shutting down
+ *
+ *  - heartbeat could sometimes fail to start due to how it handled its
+ *    own status through two different channels.  I restructured the handling
+ *    of local status so that it's now handled almost exactly like handling
+ *    the status of remote machines
+ *
+ * There is evidence that all these serious bugs have been around a long time,
+ * even though they are rarely (if ever) seen.
+ *
+ * The following minor bugs have been fixed:
+ *
+ *  - the standby test now retries during transient conditions...
+ *
+ *  - the STONITH code for the test method "ssh" now uses "at" to schedule
+ *    the stonith operation on the other node so it won't hang when using
+ *    newer versions of ssh.
+ *
+ * The following new test was added:
+ *  - SimulStart - starting all nodes ~ simultaneously
+ *
+ * The following significant restructuring of the code occurred:
+ *
+ *  - Completely rewrote the process management and death-of-child code to
+ *    be uniform, and be based on a common semi-object-oriented approach
+ *    The new process tracking code is very general, and I consider it to
+ *    be part of the plumbing for the OCF.
+ *
+ *  - Completely rewrote the event handling code to be based on the Glib
+ *    mainloop paradigm. The sets of "inputs" to the main loop are:
+ *     - "polled" events like signals, and once-per-loop occurrances
+ *     - messages from the cluster and users
+ *     - API registration requests from potential clients
+ *     - API calls from clients
+ *
+ *
+ * The following minor changes were made:
+ *
+ *  - when nice_failback is taking over resources, since we always negotiate for
+ *    taking them over, so we no longer have a timeout waiting for the other
+ *    side to reply.  As a result, the timeout for waiting for the other
+ *    side is now much longer than it was.
+ *
+ *  - transient errors for standby operations now print WARN instead of EROR
+ *
+ *  - The STONITH and standby tests now don't print funky output to the
+ *    logs.
+ *
+ *  - added a new file TESTRESULTS.out for logging "official" test results.
+ *
+ * Groundwork was laid for the following future changes:
+ *  - merging the control and master status processes
+ *
+ *  - making a few other things not wait for process completion in line
+ *
+ *  - creating a comprehensive asynchronous action structure
+ *
+ *  - getting rid of the "interface" kludge currently used for tracking
+ *    activity on individual interfaces
+ *
+ * The following things still need to be tested:
+ *
+ *  - STONITH testing (including failures)
+ *
+ *  - clock jumps
+ *
+ *  - protocol retransmissions
+ *
+ *  - cross-version compatability of status updates (I added a new field)
+ *
  * Revision 1.16  2002/03/27 02:10:22  alan
  * Finished (hopefully) the last bug fix.  Now it won't complain
  * if it authenticates a packet without a sequence number.  This was kinda

@@ -55,18 +55,19 @@ class HeartbeatCM(ClusterManager):
             "StopCmd"	     : "/usr/lib/heartbeat/heartbeat -k",
             "StatusCmd"	     : "/usr/lib/heartbeat/heartbeat -s",
             "RereadCmd"	     : "/usr/lib/heartbeat/heartbeat -r",
-            "Standby"	     : "/usr/lib/heartbeat/hb_standby",
+            "Standby"	     : "/usr/lib/heartbeat/hb_standby >/dev/null 2>&1",
             "TestConfigDir"  : "/etc/ha.d/testconfigs",
             "LogFileName"    : "/var/log/ha-log",
 
             # Patterns to look for in the log files for various occasions...
-            "Pat:We_started"   : "Local status now set to: 'active'",
-            "Pat:They_started" : "(%s): status active",
-            "Pat:We_stopped"   : "Heartbeat shutdown complete",
-            "Pat:They_stopped" : "node (%s): is dead",
-            "Pat:All_stopped"  : " (%s) heartbeat.*Heartbeat shutdown complete",
-            "Pat:StandbyOK"    : "Standby process done.*primary",
-            "Pat:StandbyNONE"  : "No reply to standby request",
+            "Pat:We_started"       : "(%s): status active",
+            "Pat:They_started"     : "(%s): status active",
+            "Pat:We_stopped"       : "Heartbeat shutdown complete",
+            "Pat:They_stopped"     : "node (%s): is dead",
+            "Pat:All_stopped"      : " (%s) heartbeat.*Heartbeat shutdown complete",
+            "Pat:StandbyOK"        : "Standby process done.*primary",
+            "Pat:StandbyNONE"      : "No reply to standby request",
+            "Pat:StandbyTRANSIENT" : "standby message.*ignored.* local resources in flux",
 
             # Bad news Regexes.  Should never occur.
             "BadRegexes"   : (

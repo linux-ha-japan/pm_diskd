@@ -27,8 +27,7 @@ Licensed under the GNU GPL.
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 import CTS
-import time
-import os
+import time, os, re
 
 
 #	List of all class objects for tests which we ought to
@@ -59,6 +58,15 @@ class CTSTest:
 #            raise ValueError("Must be a ClusterManager object")
         self.CM = cm
         self.timeout=120
+
+    def has_key(self, key):
+        return self.Stats.has_key(key)
+
+    def __setitem__(self, key, value):
+        self.Stats[key] = value
+        
+    def __getitem__(self, key):
+        return self.Stats[key]
 
     def incr(self, name):
         '''Increment (or initialize) the value associated with the given name'''
@@ -159,7 +167,7 @@ class StartTest(CTSTest):
 
         if node == self.CM.OurNode or self.CM.upcount() < 1:
             self.incr("us")
-            pat = self.uspat
+            pat = (self.uspat % node)
         else:
             self.incr("them")
             pat = (self.thempat % node)
@@ -293,7 +301,7 @@ class StonithTest(CTSTest):
         #	Figure out what log message to look for when it comes up
 
         if (self.CM.upcount() <= 1):
-            uppat = self.usstart
+            uppat = (self.usstart % node)
         else:
             uppat = (self.themstart % node)
 
@@ -427,8 +435,8 @@ class SimulStart(CTSTest):
 
 
          
-	watchpats = [ ]
-	waitingfornodes = { }
+        watchpats = [ ]
+        waitingfornodes = { }
         pat = self.CM["Pat:They_started"]
         for node in self.CM.Env["nodes"]:
           thispat = (pat % node)
@@ -438,17 +446,17 @@ class SimulStart(CTSTest):
         #	Start all the nodes - at about the same time...
         watch = CTS.LogWatcher(self.CM["LogFileName"], watchpats
         ,	timeout=self.CM["DeadTime"]+10)
-	watch.ReturnOnlyMatch()
+        watch.ReturnOnlyMatch()
 
         watch.setwatch()
         for node in self.CM.Env["nodes"]:
           self.CM.StartaCM(node)
 
-	#	We need to look matches to our patterns, and then
-	#	remove the corresponding node from "waitingfornodes".
-	#	We quit when there are no more nodes in "waitingfornodes"
+        #	We need to look matches to our patterns, and then
+        #	remove the corresponding node from "waitingfornodes".
+        #	We quit when there are no more nodes in "waitingfornodes"
         while len(waitingfornodes) > 0:
-	  match = watch.look()
+          match = watch.look()
           if not match:
             return self.failure("did not find start message")
           if waitingfornodes.has_key(match):
@@ -472,6 +480,7 @@ class StandbyTest(CTSTest):
         self.name="standby"
         self.successpat		= self.CM["Pat:StandbyOK"]
         self.nostandbypat	= self.CM["Pat:StandbyNONE"]
+        self.transient	        = self.CM["Pat:StandbyTRANSIENT"]
 
     def __call__(self, node):
         '''Perform the 'standby' test. '''
@@ -487,16 +496,33 @@ class StandbyTest(CTSTest):
             self.incr("standby")
             pat = self.successpat;
 
-        watch = CTS.LogWatcher(self.CM["LogFileName"], [pat]
-        ,	timeout=self.CM["DeadTime"]+10)
-        watch.setwatch()
+        #
+        # You could make a good argument that the cluster manager
+        # ought to give us good clues on when its a bad time to
+        # switch over to the other side, but heartbeat doesn't...
+        # It could also queue the request.  But, heartbeat
+        # doesn't do that either :-)
+        #
+        retrycount=0
+        while (retrycount < 10):
+            watch = CTS.LogWatcher(self.CM["LogFileName"]
+            ,	[pat, self.transient]
+            ,	timeout=self.CM["DeadTime"]+10)
+            watch.setwatch()
 
-        self.CM.rsh(node, self.CM["Standby"])
+            self.CM.rsh(node, self.CM["Standby"])
 
-        if watch.look():
-            return self.success()
-        else:
-            return self.failure("did not find pattern " + pat)
+            match = watch.look()
+            if match:
+                if re.search(self.transient, match):
+                    self.incr("retries")
+                    time.sleep(2);
+                    retrycount=retrycount+1
+                else:
+                    return self.success()
+            else:
+                break  # No point in retrying...
+        return self.failure("did not find pattern " + pat)
 
     def is_applicable(self):
         '''StandbyTest is applicable when the CM has a Standby command'''
@@ -504,7 +530,12 @@ class StandbyTest(CTSTest):
         if not self.CM.has_key("Standby"):
            return None
         else:
-            return os.access(self.CM["Standby"], os.X_OK)
+            #
+            # We need to strip off everything after the first blank
+            #
+            cmd=self.CM["Standby"];
+            cmd = cmd.split()[0]
+            return os.access(cmd, os.X_OK)
 
 #	Register StandbyTest as a good test to run
 AllTestClasses.append(StandbyTest)

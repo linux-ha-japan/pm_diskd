@@ -39,6 +39,8 @@ typedef struct client_process {
 	int     signal;		/* What signal to indicate new msgs with */
 	int     desired_types;	/* A bit mask of desired message types*/
 	struct client_process*  next;
+	GPollFD	gpfd;		/* Glib main Poll file descriptor */
+	guint	g_source_id;	/* return from g_source_add */
 }client_proc_t;
 
 /*
@@ -147,5 +149,7 @@ int api_ifstatus (const struct ha_msg* msg, struct ha_msg* resp
 
 int api_iflist (const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason);
+
+void ProcessAnAPIRequest(client_proc_t* client);
 
 #endif /* _HB_API_CORE_H */
