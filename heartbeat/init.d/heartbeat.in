@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.10 2001/10/25 16:12:06 alan Exp $
+#	$Id: heartbeat.in,v 1.11 2001/11/26 14:04:41 horms Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -94,7 +94,7 @@ fi
 if
   [ ! -f $CONFIG ]
 then
-  EchoNoNl "Heartbeat not configured."
+  EchoNoNl "Heartbeat not configured: $CONFIG not found."
   echo_failure 1
   exit 0
 fi
@@ -308,6 +308,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.11  2001/11/26 14:04:41  horms
+#  Log to stdout that <path>/ha.cf is missing if init script exits for that reason.
+#  (Horms)
+#
 #  Revision 1.10  2001/10/25 16:12:06  alan
 #  Put in a portability change on path names...
 #
