@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.31 2000/09/01 21:11:50 marcelo Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.32 2000/09/01 22:29:38 marcelo Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -280,7 +280,7 @@ struct hb_media_fns {
 	void *	dlhandler;
 };
 
-#define NR_HB_MEDIA_FNS 9 /* number of functions in hb_media_fns struct */
+#define NR_HB_MEDIA_FNS 10 /* number of functions in hb_media_fns struct */
 
 #define	MAXMSGHIST	100
 struct msg_xmit_hist {

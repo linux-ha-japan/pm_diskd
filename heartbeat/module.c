@@ -1,10 +1,11 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.1 2000/09/01 21:06:02 marcelo Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.2 2000/09/01 22:29:38 marcelo Exp $";
 /*
  * module: Dynamic module support code
  *
  * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
  * Copyright (C) 2000 Marcelo Tosatti <marcelo@conectiva.com.br>
- * Copyright (C) 2000 Conectiva S.A. 
+ * 
+ * Thanks to Conectiva S.A. for sponsoring Marcelo Tosatti work
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -111,6 +112,9 @@ int comm_module_init() {
 	strcpy(comm_symbols[8].name, "hb_dev_descr");
 	comm_symbols[8].mandatory = 1;
 
+	strcpy(comm_symbols[9].name, "hb_dev_isping");
+	comm_symbols[9].mandatory = 1;
+
 	n = scandir(COMM_MODULE_DIR, &namelist, &so_select, 0);
 
 	if(n < 0) { 
@@ -175,6 +179,7 @@ int comm_module_init() {
 		comm_symbols[6].function = (void **)&fns->write;
 		comm_symbols[7].function = (void **)&fns->mtype;
 		comm_symbols[8].function = (void **)&fns->descr;
+		comm_symbols[9].function = (void **)&fns->isping;
 
 		ret = generic_symbol_load(comm_symbols, NR_HB_MEDIA_FNS, 
 		 &fns->dlhandler);
