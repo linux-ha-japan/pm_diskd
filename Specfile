@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.72 2000/11/25 13:46:53 alan Exp $
+#	$Id: Specfile,v 1.73 2000/11/25 15:25:25 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -416,13 +416,35 @@ then
   if
     [ -d sbin/init.d  -a ! -L sbin/init.d ]
   then
-    ln -s sbin/init.d etc/init.d
+    ln -s ../sbin/init.d etc/init.d
   elif
     [ -d etc/rc.d/init.d ]
   then
-    ln -s sbin/rc.d/init.d etc/init.d
+    ln -s rc.d/init.d etc/init.d
   else
     # I give up!
+    echo "Warning: making directory /etc/init.d"
+    mkdir -p etc/init.d
+  fi
+fi
+%pre ldirectord
+#
+#  Multi-distribution kludge for init scripts...
+#
+if
+  [ ! -d etc/init.d ]
+then
+  if
+    [ -d sbin/init.d  -a ! -L sbin/init.d ]
+  then
+    ln -s ../sbin/init.d etc/init.d
+  elif
+    [ -d etc/rc.d/init.d ]
+  then
+    ln -s rc.d/init.d etc/init.d
+  else
+    # I give up!
+    echo "Warning: making directory /etc/init.d"
     mkdir -p etc/init.d
   fi
 fi
