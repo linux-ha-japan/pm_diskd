@@ -98,10 +98,10 @@ typedef struct llc_private {
 	llc_ifstatus_callback_t	if_callback;	/* IF status callback fcn */
 	void*			if_private;	/* IF status callback data */
 	struct gen_callback*	genlist;	/* List of general callbacks */
-	FILE*			MsgFIFO;	/* Message FIFO */
-	FILE*			ReplyFIFO;	/* Reply FIFO */
-	char			ReplyFIFOName[MXFIFOPATH];/* Reply FIFO name */
 	char			ReqFIFOName[MXFIFOPATH];/* Request FIFO name */
+	FILE*			RequestFIFO;	/* Request FIFO (write-only) */
+	char			ReplyFIFOName[MXFIFOPATH];/* Reply FIFO name */
+	FILE*			ReplyFIFO;	/* Reply FIFO (read-only) */
 	struct stringlist *	nodelist;	/* List of nodes from query */
 	struct stringlist *	iflist;		/* List of IFs from query */
 	struct MsgQueue *	firstQdmsg;	/* Message Queue */
@@ -245,6 +245,25 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	struct stat	sbuf;
 	llc_private_t* pi;
 
+	/*
+	 * A little explanation about our FIFOs...
+	 *
+	 * There is a Registration FIFO, a Request FIFO and a Reply FIFO
+	 * We write the Registration FIFO only once, to register ourselves
+	 * as a client.  As a result, it's a local variable (RegFIFO), in this
+	 * routine.
+	 * 
+	 * Whenever we make a request of heartbeat, we write it to the request
+	 * FIFO (ReqFIFO), and then heartbeat replies to us on our Reply FIFO,
+	 * (ReplyFIFO) which we then read to get the reply from heartbeat.
+	 *
+	 * So, the usage of FIFOs by the client library is as follows:
+	 *
+	 * RegFIFO	write-only (only used once)
+	 * ReqFIFO	write-only (used once per request)
+	 * ReplyFIFO	read-only (used per request or other msg received)
+	 */
+
 	if (!ISOURS(cinfo)) {
 		ha_log(LOG_ERR, "hb_api_signon: bad cinfo");
 		return HA_FAIL;
@@ -319,7 +338,13 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		return HA_FAIL;
 	}
 
-	/* We open it this way to keep the open from hanging... */
+	/* We open it this way to keep the open from hanging...
+	 * We really only need to read it (see the fdopen below), but if
+	 * we open it only for reading then we'll get an EPIPE until it
+	 * is opened by heartbeat (or something like that).  In any case,
+	 * we only need to read it, but we have to open it this way for
+	 * things to work right.
+	 */
 	if ((fd = open(pi->ReplyFIFOName, O_RDWR)) < 0) {
 		ha_log(LOG_ERR, "hb_api_signon: Can't open reply fifo %s"
 		,	pi->ReplyFIFOName);
@@ -367,7 +392,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		pi->SignedOn = 1;
 
 		/* Now heartbeat has opened our request FIFO open */
-		if ((pi->MsgFIFO = fopen(pi->ReqFIFOName, "w")) == NULL) {
+		if ((pi->RequestFIFO = fopen(pi->ReqFIFOName, "w")) == NULL) {
 			ha_log(LOG_ERR, "hb_api_signon: Can't open req fifo %s"
 			,	pi->ReqFIFOName);
 			ZAPMSG(reply);
@@ -408,9 +433,9 @@ hb_api_signoff(struct ll_cluster* cinfo)
 	}
 	
 	/* Send the message */
-	if (msg2stream(request, pi->MsgFIFO) != HA_OK) {
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("can't send message to MsgFIFO");
+		ha_perror("can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
 	if (!pi->iscasual && DoLock(HBPREFIX, OurClientID) != 0) {
@@ -418,7 +443,7 @@ hb_api_signoff(struct ll_cluster* cinfo)
 	}
 	ZAPMSG(request);
 	OurClientID = NULL;
-	(void)fclose(pi->MsgFIFO);	pi->MsgFIFO = NULL;
+	(void)fclose(pi->RequestFIFO);	pi->RequestFIFO = NULL;
 	(void)fclose(pi->ReplyFIFO);	pi->ReplyFIFO = NULL;
 	(void)unlink(pi->ReplyFIFOName);
 	(void)unlink(pi->ReqFIFOName);
@@ -498,9 +523,9 @@ hb_api_setfilter(struct ll_cluster* ci, unsigned fmask)
 	}
 	
 	/* Send the message */
-	if (msg2stream(request, pi->MsgFIFO) != HA_OK) {
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("can't send message to MsgFIFO");
+		ha_perror("can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
 	ZAPMSG(request);
@@ -561,8 +586,8 @@ hb_api_setsignal(ll_cluster_t* lcl, int nsig)
 	}
 	
 	/* Send message */
-	if (msg2stream(request, pi->MsgFIFO) != HA_OK) {
-		ha_perror("can't send message to MsgFIFO");
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
+		ha_perror("can't send message to RequestFIFO");
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
@@ -606,9 +631,9 @@ get_nodelist(llc_private_t* pi)
 	}
 
 	/* Send message */
-	if (msg2stream(request, pi->MsgFIFO) != HA_OK) {
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("can't send message to MsgFIFO");
+		ha_perror("can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
 	ZAPMSG(request);
@@ -664,9 +689,9 @@ get_iflist(llc_private_t* pi, const char *host)
 	}
 
 	/* Send message */
-	if (msg2stream(request, pi->MsgFIFO) != HA_OK) {
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("Can't send message to MsgFIFO");
+		ha_perror("Can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
 	ZAPMSG(request);
@@ -732,9 +757,9 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 	}
 
 	/* Send message */
-	if (msg2stream(request, pi->MsgFIFO) != HA_OK) {
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("Can't send message to MsgFIFO");
+		ha_perror("Can't send message to RequestFIFO");
 		return NULL;
 	}
 	ZAPMSG(request);
@@ -796,9 +821,9 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 	}
 
 	/* Send message */
-	if (msg2stream(request, pi->MsgFIFO) != HA_OK) {
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("Can't send message to MsgFIFO");
+		ha_perror("Can't send message to RequestFIFO");
 		return NULL;
 	}
 	ZAPMSG(request);
@@ -1469,7 +1494,7 @@ sendclustermsg(ll_cluster_t* lcl, struct ha_msg* msg)
 		return HA_FAIL;
 	}
 
-	return(msg2stream(msg, pi->MsgFIFO));
+	return(msg2stream(msg, pi->RequestFIFO));
 }
 
 /*
@@ -1498,7 +1523,7 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 		ha_log(LOG_ERR, "sendnodemsg: cannot set F_TO field");
 		return(HA_FAIL);
 	}
-	return(msg2stream(msg, pi->MsgFIFO));
+	return(msg2stream(msg, pi->RequestFIFO));
 }
 
 static char	APILogBuf[MAXLINE] = "";
