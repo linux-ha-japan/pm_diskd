@@ -134,6 +134,7 @@ int ccm_take_control(void *);
 void* ccm_initialize(void);
 int ccm_get_fd(void *);
 void ccm_send_init_state(void *);
+void ccm_check_memoryleak(void);
 
 // BEGINING OF update interfaces
 /* structure that keeps track of new joining requests. */

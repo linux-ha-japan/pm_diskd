@@ -21,7 +21,6 @@
  */
 #include <ccm.h>
 #include <clplumbing/cl_signal.h>
-#include <malloc.h>
 
 #define SECOND   1000
 #define OPTARGS  "dv"
@@ -64,21 +63,8 @@ static gboolean
 hb_timeout_dispatch(gpointer user_data)
 {	
 	if(global_debug) {
-		/* check for memory leaks */
-		struct mallinfo i;
-		static int arena=0;
-		i = mallinfo();
-		if(arena==0) {
-			arena = i.arena;
-		} else if(arena < i.arena) {
-			cl_log(LOG_WARNING, 
-				"leaking memory? previous arena=%d "
-				"present arena=%d", 
-				arena, i.arena);
-			arena=i.arena;
-		}
+		ccm_check_memoryleak();
 	}
-
 	return hb_input_dispatch(-1, user_data);
 }
 

@@ -20,6 +20,7 @@
  *
  */
 #include <ccm.h>
+#include <malloc.h>
 
 //
 // Convert a given string to a bitmap.
@@ -110,4 +111,22 @@ ccm_timeout(longclock_t t1, longclock_t t2, unsigned long timeout)
 		return TRUE;
 	}
 	return FALSE;
+}
+
+void
+ccm_check_memoryleak(void)
+{
+	/* check for memory leaks */
+	struct mallinfo i;
+	static int arena=0;
+	i = mallinfo();
+	if(arena==0) {
+		arena = i.arena;
+	} else if(arena < i.arena) {
+		cl_log(LOG_WARNING, 
+			"leaking memory? previous arena=%d "
+			"present arena=%d", 
+			arena, i.arena);
+		arena=i.arena;
+	}
 }
