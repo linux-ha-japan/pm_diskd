@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.11 2001/10/04 21:14:30 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.12 2001/10/25 14:34:17 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -320,9 +320,9 @@ ttysetup(int fd, const char * ourtty)
 #	define CBAUD	0
 #endif
 
-	ti.c_iflag &= ~(BRKINT|IGNBRK|IUCLC|IXANY|IXOFF|IXON|ICRNL|PARMRK);
+	ti.c_iflag &= ~(IGNBRK|IUCLC|IXANY|IXOFF|IXON|ICRNL|PARMRK);
 	/* Unsure if I want PARMRK or not...  It may not matter much */
-	ti.c_iflag |=  (INPCK|ISTRIP|IGNCR);
+	ti.c_iflag |=  (INPCK|ISTRIP|IGNCR|BRKINT);
 
 	ti.c_oflag &= ~(OPOST);
 	ti.c_cflag &= ~(CBAUD|CSIZE|PARENB);
@@ -384,6 +384,8 @@ opentty(char * serial_device)
 		LOG(PIL_WARN,"Error setting the close-on-exec flag: %s"
 		,	strerror(errno));
 	}
+	/* Cause the other guy to flush his I/O */
+	tcsendbreak(fd, 0);
 	return(fd);
 }
 
@@ -598,6 +600,17 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.12  2001/10/25 14:34:17  alan
+ * Changed the serial code to send a BREAK when one side first starts up their
+ * conversation.
+ * Configured the receiving code to flush I/O buffers when they receive a break
+ * Configured the code to ignore SIGINTs (except for their buffer flush effect)
+ * Configured the code to use SIGQUIT instead of SIGINT when communicating that
+ * the shutdown resource giveup is complete.
+ *
+ * This is all to fix a bug which occurs because of leftover out-of-date messages
+ * in the serial buffering system.
+ *
  * Revision 1.11  2001/10/04 21:14:30  alan
  * Patch from Reza Arbab <arbab@austin.ibm.com> to make it compile correctly
  * on AIX.

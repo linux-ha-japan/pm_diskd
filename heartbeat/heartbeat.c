@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.156 2001/10/25 05:06:30 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.157 2001/10/25 14:34:17 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1099,12 +1099,12 @@ control_process(FILE * fp)
 	/* Catch and propagate debugging level signals... */
 	signal(SIGUSR1, parent_debug_usr1_sig);
 	signal(SIGUSR2, parent_debug_usr2_sig);
-	signal(SIGINT, signal_all); /* From Master Status Process */
+	signal(SIGQUIT, signal_all); /* From Master Status Process */
 	siginterrupt(SIGALRM, 1);
 	siginterrupt(SIGTERM, 1);
 	siginterrupt(SIGUSR1, 1);
 	siginterrupt(SIGUSR2, 1);
-	siginterrupt(SIGINT, 1);
+	siginterrupt(SIGQUIT, 1);
 
 	set_proc_title("%s: control process", cmdname);
 
@@ -1582,10 +1582,10 @@ process_clustermsg(FILE * f)
 	    		heartbeat_monitor(msg, action, iface);
 			/* Tell init process we're going away */
 			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG, "Sending SIGINT to pid %d"
+				ha_log(LOG_DEBUG, "Sending SIGQUIT to pid %d"
 				,       processes[0]);
 			}
-			kill(processes[0], SIGINT);
+			kill(processes[0], SIGQUIT);
 			cleanexit(0);
 		}else{
 			/* Keep stale packets from changing status */
@@ -3713,12 +3713,12 @@ signal_all(int sig)
 			}
 			if (kill(master_status_pid, SIGTERM) >= 0) {
 				/* Tell master status proc to shut down */
-				/* He'll send us a SIGINT when done */
+				/* He'll send us a SIGQUIT when done */
 				/* Meanwhile, we'll just go on... */
 				return;
 			}
 			ha_perror("MSP signal failed");
-		}else if (sig == SIGINT) {
+		}else if (sig == SIGQUIT) {
 			/* All Resources are now released.  Shut down. */
 			sig = SIGTERM;
 		}
@@ -3827,13 +3827,14 @@ make_daemon(void)
 		}
 	}
 
+	IGNORESIG(SIGINT);
 	sigemptyset(&oursigset);
 	sigaddset(&oursigset, SIGHUP);
 	sigaddset(&oursigset, SIGTERM);
-	sigaddset(&oursigset, SIGINT);
+	sigaddset(&oursigset, SIGQUIT);
 	if (sigprocmask(SIG_UNBLOCK, &oursigset, NULL) < 0) {
 		fprintf(stderr
-		,	"%s: could not unblock SIGHUP/SIGTERM/SIGINT signals\n"
+		,	"%s: could not unblock SIGHUP/SIGTERM/SIGQUIT signals\n"
 		,	cmdname);
 	}
 
@@ -4678,7 +4679,6 @@ ask_for_resources(struct ha_msg *msg)
 	case DONE:
 		if (strcmp(info, "done")== 0) {
 			standby_running = 0L;
-			other_is_stable = 1;
 			going_standby = NOT;
 			if (msgfromme) {
 				ha_log(LOG_INFO
@@ -4718,6 +4718,17 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.157  2001/10/25 14:34:17  alan
+ * Changed the serial code to send a BREAK when one side first starts up their
+ * conversation.
+ * Configured the receiving code to flush I/O buffers when they receive a break
+ * Configured the code to ignore SIGINTs (except for their buffer flush effect)
+ * Configured the code to use SIGQUIT instead of SIGINT when communicating that
+ * the shutdown resource giveup is complete.
+ *
+ * This is all to fix a bug which occurs because of leftover out-of-date messages
+ * in the serial buffering system.
+ *
  * Revision 1.156  2001/10/25 05:06:30  alan
  * A few changes to tighten up the definition of "stability" so we
  * don't complain about things falsely, nor do we prohibit attempting
