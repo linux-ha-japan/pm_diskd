@@ -49,6 +49,8 @@ typedef struct ccm_meminfo_s {
 	int 		ev;
 	int		n;
 	int		trans;
+	int		q_overide; /* if set just assume we have quorum */
+				   /* if unset compute quorum if desired */
 	int 		member[0];
 } ccm_meminfo_t;
 

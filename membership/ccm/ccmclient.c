@@ -308,7 +308,8 @@ client_delete_all(void)
 
 
 void
-client_new_mbrship(int n,  int trans, int *member, void *borndata)
+client_new_mbrship(int n,  int trans, int *member, 
+		gboolean q_flag, void *borndata)
 {
 	/* creating enough heap memory in order to avoid allocation */
 	static struct born_s	bornbuffer[MAXNODE+10];
@@ -326,6 +327,7 @@ client_new_mbrship(int n,  int trans, int *member, void *borndata)
 	ccm->ev = CCM_NEW_MEMBERSHIP;
 	ccm->n = n;
 	ccm->trans = trans;
+	ccm->q_overide = q_flag;
 	memcpy(ccm->member, member, n*sizeof(int));
 
 	if(ipc_mem_message && --(ipc_mem_message->count)==0){

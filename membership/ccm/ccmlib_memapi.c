@@ -261,14 +261,16 @@ get_new_membership(mbr_private_t *private,
 	
 	int n_nodes = CLLM_GET_NODECOUNT(private->llm);
 
-	int size    = sizeof(mbr_track_t) + 
+	int size    = sizeof(oc_ev_membership_t) + 
 			2*n_nodes*sizeof(oc_node_t);
- 	newmbr = *mbr = (mbr_track_t *) g_malloc(size);
+
+ 	newmbr = *mbr = (mbr_track_t *) g_malloc(size+sizeof(int));
 
 
 
 	trans = OC_EV_SET_INSTANCE(newmbr,mbrinfo->trans);
 	n_members = OC_EV_SET_N_MEMBER(newmbr,mbrinfo->n);
+	OC_EV_SET_SIZE(newmbr, size);
 
 	j = OC_EV_SET_MEMB_IDX(newmbr,0);
 
@@ -414,7 +416,7 @@ mem_handle_event(class_t *class)
 	oc_memb_event_t oc_type;
 	void   *cookie;
 	int ret;
-	int quorum;
+	gboolean quorum;
 
 	if(!class_valid(class)) return FALSE;
 
@@ -452,6 +454,16 @@ mem_handle_event(class_t *class)
 				msg->msg_len, 
 				&mbr_track);
 
+
+			/* if ccm daemon informs us that we have quorum
+			 * by default, we do not have to compute quorum 
+			 */
+			if(((ccm_meminfo_t *)(msg->msg_body))->q_overide) {
+				quorum = TRUE;
+			} else {
+				quorum = mem_quorum(private, mbr_track);
+			}
+
 			/* if no quorum, delete the bornon dates for lost 
 			 * nodes, add  bornon dates for the new nodes and 
 			 * return
@@ -460,7 +472,6 @@ mem_handle_event(class_t *class)
 			 * for report the membership even when this node
 			 * has no quorum.
 			 */
-			quorum = mem_quorum(private, mbr_track);
 			if (!private->special && !quorum){
 				update_bornons(private, mbr_track);
 				private->client_report = FALSE;
@@ -484,7 +495,6 @@ mem_handle_event(class_t *class)
 				cookie = private->cookie;
 				mbr_track = (mbr_track_t *)
 					cookie_get_data(cookie);
-				size = OC_EV_GET_SIZE(mbr_track);
 			} else {
 				oc_type = quorum?
 					OC_EV_MS_NEW_MEMBERSHIP:
@@ -506,8 +516,8 @@ mem_handle_event(class_t *class)
 				cookie = cookie_construct(mem_callback_done, 
 						mem_free_func, mbr_track);
 				private->cookie = cookie;
-				OC_EV_SET_SIZE(mbr_track, size);
 			}
+			size = OC_EV_GET_SIZE(mbr_track);
 			break;
 
 		case CCM_EVICTED:
@@ -545,7 +555,7 @@ mem_handle_event(class_t *class)
 			cookie_ref(cookie);
 			private->callback(oc_type,
 				(uint *)cookie,
-				size, 
+				size,
 				mbr_track?&(mbr_track->m_mem):NULL);
 		}
 

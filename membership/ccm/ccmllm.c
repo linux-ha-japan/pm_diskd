@@ -37,6 +37,23 @@ llm_get_active_nodecount(llm_info_t *llm)
 	return count;
 }
 
+/* return TRUE if we are the only active node and all other nodes
+ * are stonith'ed
+ */
+gboolean
+llm_only_active_node(llm_info_t *llm)
+{
+	int  i;
+	for ( i = 0 ; i < LLM_GET_NODECOUNT(llm) ; i++ ) {
+		if(i == LLM_GET_MYNODE(llm)) continue;
+		if(strncmp(LLM_GET_STATUS(llm, i), 
+			STONITHSTATUS, STATUSSIZE) != 0) {
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
 //
 // return the nodename of the node with the specified uuid.
 //
@@ -87,6 +104,12 @@ llm_get_index(llm_info_t *llm, const char *node)
 
 //
 // Update the status of node 'nodename'.
+// return TRUE if the node transitioned to DEADSTATUS or STONITHSTATUS
+//
+// NOTE: STONITHSTATUS carries more information then DEADSTATUS
+// DEADSTATUS just means the node is assumed to be dead, probably because
+// of loss of connectivity or because of real death.
+// BUT STONITHSTATUS confirms that the node is really dead(killed).
 //
 int
 llm_status_update(llm_info_t *llm, const char *node, const char *status)
@@ -95,13 +118,22 @@ llm_status_update(llm_info_t *llm, const char *node, const char *status)
 
 	i = llm_get_index(llm, node);
 	if(i == -1) return FALSE;
-	if(strncmp(LLM_GET_STATUS(llm,i), status, STATUSSIZE) == 0) return FALSE;
+
+	/* if there is no status change for this node just return */
+	/*  FALSE 						  */
+	if(strncmp(LLM_GET_STATUS(llm,i), status, 
+			STATUSSIZE) == 0) {
+		return FALSE;
+	}
+
 	LLM_SET_STATUS(llm,i,status);
-	if(strncmp(status, "dead", STATUSSIZE) == 0) {
+	if((strncmp(status, DEADSTATUS, STATUSSIZE) == 0) || 
+		strncmp(status, STONITHSTATUS, STATUSSIZE) == 0) {
 		return TRUE;
 	}
 	return FALSE;
 }
+
 
 //
 // Get uuid of the node with given nodename.

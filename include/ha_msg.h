@@ -22,7 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.9 2002/11/28 17:10:05 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.10 2003/01/25 01:19:53 ram Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 
@@ -96,6 +96,12 @@ struct ha_msg {
 #define T_STARTING      "starting"      /* Starting Heartbeat		*/
 					/* (requesting resource report)	*/
 #define T_RESOURCES	"resource"      /* Resources report		*/
+
+/* Messages associated with stonith completion results */
+#define T_STONITH_OK		"OK"  	  /* stonith completed successfully */
+#define T_STONITH_BADHOST	"badhost" /* stonith failed */
+#define T_STONITH_BAD		"bad"	  /* stonith failed */
+#define T_STONITH_NOTCONFGD	"n_stnth" /* no stonith device configured */
 
 
 /* Allocate new (empty) message */

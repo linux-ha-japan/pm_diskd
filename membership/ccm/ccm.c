@@ -660,12 +660,15 @@ report_mbrs(ccm_info_t *info)
 		}
 	}
 
+
 	/* 
 	 * report to clients, the new membership 
 	 */
 	client_new_mbrship(CCM_GET_MEMCOUNT(info), 
 		CCM_GET_MAJORTRANS(info),
 		CCM_GET_MEMTABLE(info), 
+		(CCM_GET_MEMCOUNT(info)==1 
+		&& llm_only_active_node(CCM_GET_LLM(info))),
 		bornon);
 	return;
 }
@@ -3293,26 +3296,48 @@ ccm_control_process(ccm_info_t *info, ll_cluster_t * hb)
 		orig = ha_msg_value(reply, F_ORIG);
 		status = ha_msg_value(reply, F_STATUS);
 		if(strncmp(type, T_APICLISTAT, TYPESTRSIZE) == 0){
+			/* handle ccm status of on other nodes of the cluster */
 			ha_msg_del(reply);
 		       	if((reply = ccm_handle_hbapiclstat(info, orig, status)) 
 					== NULL) {
 				return 0;
 			}
 		} else if((strncmp(type, T_SHUTDONE, TYPESTRSIZE)) == 0) {
+			/* handle heartbeat shutdown message */
 			cl_log(LOG_DEBUG, "received shutdown orig=%s", orig);
+			ha_msg_del(reply);
 		       	if((reply = ccm_handle_shutdone(info, orig, status)) 
 					== NULL) {
 				return 1;
 			}
 		} else if((strcasecmp(type, T_STATUS) == 0
 			        || strcasecmp(type, T_NS_STATUS) == 0)) {
-
+			/* process only messages indicating heartbeat on some */
+			/* node has moved to active status */
 			int 	gen_val;
 			const char *gen = ha_msg_value(reply, F_HBGENERATION);
 
 			gen_val = atoi(gen?gen:"-1");
-
-			nodelist_update(orig, status, gen_val, info);
+			if(strcmp(status, ACTIVESTATUS) == 0) {
+				nodelist_update(orig, ACTIVESTATUS, gen_val, 
+						info);
+			}
+			ha_msg_del(reply);
+			return 0;
+		} else if(strcasecmp(type, T_STONITH) == 0) {
+			/* update any node death status only after stonith */
+			/* is complete irrespective of stonith being 	   */
+			/* configured or not. 				   */
+			/* NOTE: heartbeat informs us			   */
+			/* Receipt of this message indicates 'loss of	   */
+			/* connectivity or death' of some node		   */
+			const char *result = ha_msg_value(reply, F_APIRESULT);
+			const char *node = ha_msg_value(reply, F_NODE);
+			if(strcmp(result,T_STONITH_OK)==0){
+				nodelist_update(node, STONITHSTATUS, -1, info);
+			} else {
+				nodelist_update(node, DEADSTATUS, -1, info);
+			}
 			ha_msg_del(reply);
 			return 0;
 		}

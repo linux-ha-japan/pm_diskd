@@ -91,6 +91,7 @@ typedef struct llm_info_s { /* information about low level membership info */
 	int	   llm_mynode;	 //index of mynode
 	NodeList_t llm_nodes[MAXNODE];  //information of each node
 } llm_info_t;
+#define STONITHSTATUS  "stnth"
 #define LLM_GET_MYNODE(llm) llm->llm_mynode
 #define LLM_GET_NODECOUNT(llm) llm->llm_nodeCount
 #define LLM_GET_UUID(llm,i) llm->llm_nodes[i].NodeUuid
@@ -112,6 +113,7 @@ typedef struct llm_info_s { /* information about low level membership info */
 #define LLM_COPY(llm,dst,src) (llm->llm_nodes[dst] = llm->llm_nodes[src])
 #define LLM_GET_NODEIDSIZE(llm) NODEIDSIZE
 int llm_get_active_nodecount(llm_info_t *);
+gboolean llm_only_active_node(llm_info_t *);
 int llm_get_uuid(llm_info_t *, const char *);
 char *llm_get_nodeid_from_uuid(llm_info_t *, const int );
 int llm_nodeid_cmp(llm_info_t *, int , int );
@@ -236,7 +238,7 @@ void client_init(void);
 int  client_add(struct IPC_CHANNEL *);
 void client_delete(struct IPC_CHANNEL *);
 void client_delete_all(void);
-void client_new_mbrship(int n, int , int *, void *);
+void client_new_mbrship(int n, int , int *, gboolean, void *);
 void client_llm_init(llm_info_t *);
 void client_influx(void);
 void client_evicted(void);

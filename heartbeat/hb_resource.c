@@ -115,6 +115,7 @@ static int	ResourceMgmt_child_count = 0;
 static void	StartNextRemoteRscReq(void);
 static void	InitRemoteRscReqQueue(void);
 static int	send_standby_msg(enum standby state);
+static void 	send_stonith_msg(const char *, const char *);
 static void	go_standby(enum standby who);
 
 static	void	RscMgmtProcessRegistered(ProcTrack* p);
@@ -355,6 +356,7 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 			/* It will call takeover_from_node() later */
 			return;
 		}else{
+			send_stonith_msg(hip->nodename,T_STONITH_NOTCONFGD);
 			ha_log(LOG_WARNING, "No STONITH device configured.");
 			ha_log(LOG_WARNING, "Shared disks are not protected.");
 		}
@@ -1035,6 +1037,32 @@ send_standby_msg(enum standby state)
 	return(rc);
 }
 
+void
+send_stonith_msg(const char *nodename, const char *result)
+{
+	struct ha_msg*	hmsg;
+
+	if ((hmsg = ha_msg_new(6)) == NULL) {
+		ha_log(LOG_ERR, "no memory for " T_STONITH);
+	}
+
+	if (	hmsg != NULL
+	&& 	ha_msg_add(hmsg, F_TYPE, T_STONITH)    == HA_OK
+	&&	ha_msg_add(hmsg, F_NODE, nodename) == HA_OK
+	&&	ha_msg_add(hmsg, F_APIRESULT, result) == HA_OK) {
+		if (send_cluster_msg(hmsg) != HA_OK) {
+			ha_log(LOG_ERR, "cannot send " T_STONITH
+			" request for %s", nodename);
+		}
+	}else{
+		ha_log(LOG_ERR
+		,	"Cannot send reset reply message [%s] for %s", result
+		,	nodename);
+	}
+	ha_msg_del(hmsg);
+	return;
+}
+
 #define	STANDBY_INIT_TO_MS	10000L		/* ms timeout for initial reply */
 #define	HB_STANDBY_RSC_TO_MS	1200000L	/* resource handling timeout (ms)*/
 
@@ -1454,11 +1482,11 @@ hb_giveup_resources(void)
 	exit(0);
 }
 
+
 void
 Initiate_Reset(Stonith* s, const char * nodename)
 {
 	const char*	result = "bad";
-	struct ha_msg*	hmsg;
 	int		pid;
 	int		exitcode = 0;
 	struct StonithProcHelper *	h;
@@ -1496,7 +1524,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 	switch (s->s_ops->reset_req(s, ST_GENERIC_RESET, nodename)){
 
 	case S_OK:
-		result="OK";
+		result=T_STONITH_OK;
 		ha_log(LOG_INFO
 		,	"node %s now reset.", nodename);
 		exitcode = 0;
@@ -1508,33 +1536,16 @@ Initiate_Reset(Stonith* s, const char * nodename)
 		,	s->s_ops->getinfo(s, ST_DEVICEID)
 		,	nodename);
 		exitcode = 100;
-		result = "badhost";
+		result = T_STONITH_BADHOST;
 		break;
 
 	default:
 		ha_log(LOG_ERR, "Host %s not reset!", nodename);
 		exitcode = 1;
-		result = "bad";
+		result = T_STONITH_BAD;
 	}
 
-	if ((hmsg = ha_msg_new(6)) == NULL) {
-		ha_log(LOG_ERR, "no memory for " T_STONITH);
-	}
-
-	if (	hmsg != NULL
-	&& 	ha_msg_add(hmsg, F_TYPE, T_STONITH)    == HA_OK
-	&&	ha_msg_add(hmsg, F_NODE, nodename) == HA_OK
-	&&	ha_msg_add(hmsg, F_APIRESULT, result) == HA_OK) {
-		/* Send a Stonith message */
-		if (send_cluster_msg(hmsg) != HA_OK) {
-			ha_log(LOG_ERR, "cannot send " T_STONITH
-			" request for %s", nodename);
-		}
-	}else{
-		ha_log(LOG_ERR
-		,	"Cannot send reset reply message [%s] for %s", result
-		,	nodename);
-	}
+	send_stonith_msg(nodename,result);
 	exit (exitcode);
 }
 
@@ -1714,6 +1725,20 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.10  2003/01/25 01:19:52  ram
+ * 1. Fixed a bug in heartbeat. Heartbeat does not send out a stonith completion
+ * 	event if stonith device is not configured. Fixed it and made it
+ * 	to send a Stonith compeletion event with result as T_STONITH_NOTCONFGD.
+ * 2. Changed ccm to depend on STONITH COMPLETION event to trigger a new
+ * 	membership computation. Earlier it depended on connectivity status,
+ * 	to trigger a new membership. This is not entirely right.
+ * 	CCM by depending on stonith completion device can not only
+ * 	determine the new membership correctly, but also can deterministically
+ * 	conclude that it is the only partition in the cluster, and hence
+ * 	can ease computation of quorum(in a two node cluster).
+ * 3. Finally fixed a memory related bug in the ccm library reported during
+ * 	EVMS testing.
+ *
  * Revision 1.9  2003/01/15 19:14:18  alan
  * fixed an incorrect log message when a STONITH message couldn't be created.
  *
