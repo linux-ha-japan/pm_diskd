@@ -452,7 +452,7 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 		/* Original ("normal") starting behavior */
 		if (!WeAreRestarting && !resources_requested_yet) {
 			resources_requested_yet=1;
-			req_our_resources(0);
+			req_our_resources(FALSE);
 		}
 		return;
 	}
@@ -579,7 +579,7 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 				ha_log(LOG_INFO
 				,	"remote resource transition completed."
 				);
-				req_our_resources(0);
+				req_our_resources(FALSE);
 				newrstate = HB_R_STABLE;
 				hb_send_resources_held
 				(	rsc_msg[procinfo->i_hold_resources]
@@ -876,7 +876,7 @@ takeover_from_node(const char * nodename)
 		 */
 		/* case 1 - part 1 */
 		/* part 2 is done by the mach_down script... */
-		req_our_resources(0);
+		req_our_resources(FALSE);
 		/* req_our_resources turns on the HB_LOCAL_RSC bit */
 
 	}
@@ -1171,7 +1171,7 @@ ask_for_resources(struct ha_msg *msg)
 				,	"standby: Acquire [%s] resources"
 				,	from);
 				/* go_standby gets *all* resources */
-				/* req_our_resources(1); */
+				/* req_our_resources(TRUE); */
 				go_standby(OTHER);
 				going_standby = DONE;
 			}else{
@@ -1714,6 +1714,13 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.8  2002/11/28 17:10:05  alan
+ * We had a problem with local status updates getting all hosed sometimes
+ * (depending on timing).  This greatly simplifies the management of
+ * local status, and even takes a field out of the heartbeat packet.
+ *
+ * A fix like this was suggested by Horms.
+ *
  * Revision 1.7  2002/11/22 07:04:39  horms
  * make lots of symbols static
  *

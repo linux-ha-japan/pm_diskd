@@ -443,6 +443,11 @@ class SimulStart(CTSTest):
           watchpats.append(thispat)
           waitingfornodes[node] = node
 
+        pat = self.CM["Pat:We_started"]
+        for node in self.CM.Env["nodes"]:
+          thispat = (pat % node)
+          watchpats.append(thispat)
+
         #	Start all the nodes - at about the same time...
         watch = CTS.LogWatcher(self.CM["LogFileName"], watchpats
         ,	timeout=self.CM["DeadTime"]+10)
@@ -458,6 +463,7 @@ class SimulStart(CTSTest):
         while len(waitingfornodes) > 0:
           match = watch.look()
           if not match:
+            self.CM.log("Remaining nodes: " + repr(waitingfornodes))
             return self.failure("did not find start message")
           if waitingfornodes.has_key(match):
             del waitingfornodes[match]

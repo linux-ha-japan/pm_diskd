@@ -22,7 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.8 2002/10/30 22:25:40 ram Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.9 2002/11/28 17:10:05 alan Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 
@@ -52,7 +52,6 @@ struct ha_msg {
 #define	F_NODE		"node"		/* Node being described */
 #define	F_TO		"dest"		/* Destination (optional) */
 #define	F_STATUS	"st"		/* New status (type = status) */
-#define	F_STGEN		"stg"		/* Status generation */
 #define	F_TIME		"ts"		/* Timestamp */
 #define F_SEQ		"seq"		/* Sequence number */
 #define	F_LOAD		"ld"		/* Load average */

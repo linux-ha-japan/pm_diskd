@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.232 2002/11/26 08:26:31 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.233 2002/11/28 17:10:05 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -346,17 +346,15 @@ static void	check_comm_isup(void);
 
 
 
-static int	send_local_status(const char *);
-#ifdef ACTUALLY_USE_SET_LOCAL_STATUS
+static int	send_local_status(void);
 static int	set_local_status(const char * status);
-#endif /* ACTUALLY_USE_SET_LOCAL_STATUS */
 static void	request_msg_rexmit(struct node_info *, unsigned long lowseq
 ,		unsigned long hiseq);
 static void	check_rexmit_reqs(void);
 static void	mark_node_dead(struct node_info* hip);
 static void	change_link_status(struct node_info* hip, struct link *lnk
 ,		const char * new);
-static	void comm_now_up(void);
+static void	comm_now_up(void);
 static long	get_running_hb_pid(void);
 static void	make_daemon(void);
 static void hb_del_ipcmsg(IPC_Message* m);
@@ -1112,7 +1110,7 @@ master_status_process(void)
 	}
 
 	cl_make_realtime(-1, -1, 64);
-	send_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
+	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
 	set_proc_title("%s: master status process", cmdname);
 
@@ -1149,7 +1147,7 @@ master_status_process(void)
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Waiting for child processes to start");
 	}
-	send_local_status(NULL);
+	send_local_status();
 	/* Wait until all the child processes are really running */
 	do {
 		allstarted = 1;
@@ -1162,7 +1160,7 @@ master_status_process(void)
 					, pinfo->pstat);
 				}
 				allstarted=0;
-				send_local_status(NULL);
+				send_local_status();
 				sleep(1);
 			}
 		}
@@ -1171,7 +1169,7 @@ master_status_process(void)
 		ha_log(LOG_DEBUG
 		,	"All your child process are belong to us");
 	}
-	send_local_status(NULL);
+	send_local_status();
 	curproc->pstat = RUNNING;
 
 	g_source_add(G_PRIORITY_HIGH, FALSE, &polled_input_SourceFuncs
@@ -1359,8 +1357,12 @@ comm_now_up()
 	}
 	linksupbefore = 1;
 
+	if (ANYDEBUG){
+		cl_log(LOG_DEBUG
+		,	"Comm_now_up(): updating status to " ACTIVESTATUS);
+	}
 	/* Update our local status... */
-	send_local_status(ACTIVESTATUS);
+	set_local_status(ACTIVESTATUS);
 
 	send_local_starting();
 
@@ -1463,8 +1465,6 @@ process_clustermsg(FILE * f)
 	longclock_t		messagetime;
 	const char *		cseq;
 	unsigned long		seqno = 0;
-	int			stgen;
-	const char *		cstgen;
 
 
 
@@ -1502,7 +1502,6 @@ process_clustermsg(FILE * f)
 	from = ha_msg_value(msg, F_ORIG);
 	ts = ha_msg_value(msg, F_TIME);
 	cseq = ha_msg_value(msg, F_SEQ);
-	cstgen = ha_msg_value(msg, F_STGEN);
 
 	if (!isauthentic(msg)) {
 		ha_log(LOG_WARNING
@@ -1542,7 +1541,6 @@ process_clustermsg(FILE * f)
 		}
 	}
 
-	stgen = (cstgen ? atoi(cstgen) : 0);
 
 	sscanf(ts, TIME_X, &msgtime);
 
@@ -1671,7 +1669,7 @@ process_clustermsg(FILE * f)
 
 		/* Is the node status the same? */
 		if (strcasecmp(thisnode->status, status) != 0
-		&& 	stgen >= thisnode->status_gen) {
+		&&	thisnode != curnode) {
 			ha_log(LOG_INFO
 			,	"Status update for node %s: status %s"
 			,	thisnode->nodename
@@ -1679,8 +1677,7 @@ process_clustermsg(FILE * f)
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG
 				,	"Status seqno: %ld msgtime: %ld"
-				" status generation: %d"
-				,	seqno, msgtime, stgen);
+				,	seqno, msgtime);
 			}
 			
 			notify_world(msg, thisnode->status);
@@ -1699,7 +1696,6 @@ process_clustermsg(FILE * f)
 		thisnode->rmt_lastupdate = msgtime;
 		thisnode->local_lastupdate = messagetime;
 		thisnode->status_seqno = seqno;
-		thisnode->status_gen = stgen;
 
 	}else if (strcasecmp(type, T_REXMIT) == 0) {
 		heartbeat_monitor(msg, PROTOCOL, iface);
@@ -2171,7 +2167,7 @@ restart_heartbeat(void)
 	shutdown_in_progress = 1;
 	hb_close_watchdog();
 	return_to_orig_privs();
-	send_local_status(NULL);
+	send_local_status();
 	/*
 	 * We need to do these things:
 	 *
@@ -2335,14 +2331,6 @@ check_comm_isup(void)
 	}
 }
 
-#ifdef ACTUALLY_USE_SET_LOCAL_STATUS
-/* NB: This function isn't used at the moment, because
- *     it can create a loop when the status is sent,
- *     recieved by another node, and then sent back.
- *     Status updates about the local node from remote hosts
- *     should probably be ignored. But for the moment,
- *     leave things as is.
- */
 /* Set our local status to the given value, and send it out */
 static int
 set_local_status(const char * newstatus)
@@ -2355,7 +2343,7 @@ set_local_status(const char * newstatus)
 		 */
 
 		strncpy(curnode->status, newstatus, sizeof(curnode->status));
-		send_local_status(newstatus);
+		send_local_status();
 		ha_log(LOG_INFO, "Local status now set to: '%s'", newstatus);
 		return(HA_OK);
 	}
@@ -2363,7 +2351,6 @@ set_local_status(const char * newstatus)
 	ha_log(LOG_INFO, "Unable to set local status to: %s", newstatus);
 	return(HA_FAIL);
 }
-#endif /* ACTUALLY_USE_SET_LOCAL_STATUS */
 
 int
 send_cluster_msg(struct ha_msg* msg)
@@ -2451,34 +2438,24 @@ send_cluster_msg(struct ha_msg* msg)
 
 /* Send our local status out to the cluster */
 int
-send_local_status(const char * st)
+send_local_status()
 {
 	struct ha_msg *	m;
 	int		rc;
-	static int	statusgen=0;
-	int		gen=statusgen;
-	char		cgen[20];
 
 
-	if (st != NULL) {
-		++gen;
-	}else{
-		st = curnode->status;
-	}
-	snprintf(cgen, sizeof(cgen), "%d", gen);
 
 	if (DEBUGDETAILS){
 		ha_log(LOG_DEBUG, "PID %d: Sending local status"
 		" curnode = %lx status: %s"
-		,	(int) getpid(), (unsigned long)curnode, st);
+		,	(int) getpid(), (unsigned long)curnode, curnode->status);
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
 		ha_log(LOG_ERR, "Cannot send local status.");
 		return(HA_FAIL);
 	}
 	if (ha_msg_add(m, F_TYPE, T_STATUS) != HA_OK
-	||	ha_msg_add(m, F_STATUS, st) != HA_OK
-	||	ha_msg_add(m, F_STGEN, cgen) != HA_OK) {
+	||	ha_msg_add(m, F_STATUS, curnode->status) != HA_OK) {
 		ha_log(LOG_ERR, "send_local_status: "
 		"Cannot create local status msg");
 		rc = HA_FAIL;
@@ -2493,7 +2470,7 @@ send_local_status(const char * st)
 gboolean
 hb_send_local_status(gpointer p)
 {
-	send_local_status(NULL);
+	send_local_status();
 	return TRUE;
 }
 
@@ -3281,7 +3258,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 				"returning after partition"
 				,	thisnode->nodename);
 				if (DoManageResources) {
-					send_local_status(NULL);
+					send_local_status();
 					Gmain_timeout_add(2000
 					,	CauseShutdownRestart, NULL);
 				}
@@ -3296,7 +3273,6 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 			thisnode->rmt_lastupdate = 0L;
 			thisnode->local_lastupdate = 0L;
 			thisnode->status_seqno = 0L;
-			thisnode->status_gen = 0L;
 			thisnode->has_resources = TRUE;
 		}
 		t->generation = gen;
@@ -3907,6 +3883,13 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.233  2002/11/28 17:10:05  alan
+ * We had a problem with local status updates getting all hosed sometimes
+ * (depending on timing).  This greatly simplifies the management of
+ * local status, and even takes a field out of the heartbeat packet.
+ *
+ * A fix like this was suggested by Horms.
+ *
  * Revision 1.232  2002/11/26 08:26:31  horms
  * process latent ipc information as neccessary
  *
