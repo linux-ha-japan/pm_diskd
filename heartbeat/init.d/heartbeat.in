@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.21 2002/10/11 03:13:09 horms Exp $
+#	$Id: heartbeat.in,v 1.22 2002/10/15 13:41:31 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -240,6 +240,39 @@ StopHA() {
   fi
 }
 
+StatusHA() {
+  $HA_BIN/heartbeat -s
+}
+
+StandbyHA() {
+  nice_failback=`ha_parameter nice_failback | tr "on" "ON"`
+  echo "nice_failback: $nice_failback"
+  if
+    [ "$nice_failback" = "ON" ]
+  then
+    if
+      StatusHA >/dev/null 2>&1
+    then
+      Echo "Attempting to enter standby mode."
+      Echo
+      EchoNoNl "Attempting to enter standby mode"
+      if
+        $HA_BIN/hb_standby
+      then
+        # It's impossible to tell how long this will take.
+        echo_success
+      else
+        echo_failure $?
+      fi
+    else
+       Echo "Heartbeat is not currently running."
+    fi
+  else
+    Echo "Standby mode requires that nice_failback be enabled."
+    Echo "nice_failback is not enabled.  Cannot enter standby mode."
+  fi
+}
+
 #
 #	Ask heartbeat to restart.  It will *keep* its resources
 #
@@ -263,7 +296,7 @@ RunStartStop() {
   if
     [  -f $HA_DIR/resource.d/startstop ]
   then
-    $HA_DIR/resource.d/startstop  $1
+    $HA_DIR/resource.d/startstop  "$@"
   fi
 }
 
@@ -272,7 +305,7 @@ RC=0
 
 case "$1" in
   start)
-	RunStartStop "pre-start"
+	RunStartStop pre-start
 	StartHA
 	RC=$?
 	Echo
@@ -282,21 +315,28 @@ case "$1" in
 	  [ ! -d $LOCKDIR ] && mkdir -p $LOCKDIR
 	  touch $LOCKDIR/$SUBSYS
 	fi
-	RunStartStop "post-start"
+	RunStartStop post-start $RC
 	;;
+
+  standby)
+	StandbyHA
+        RC=$?;;
+
+  status)
+	StatusHA
+	RC=$?;;
 
   stop)
 	RunStartStop "pre-stop"
 	StopHA
 	RC=$?
 	Echo
-	[ $RC -eq 0 ] && rm -f $LOCKDIR/$SUBSYS
-	RunStartStop "post-stop"
-	;;
-
-  status)
-	status heartbeat
-	RC=$?
+        if
+          [ $RC -eq 0 ]
+        then
+          rm $LOCKDIR/$SUBSYS
+        fi
+        RunStartStop post-stop $RC
 	;;
 
   restart)
@@ -327,6 +367,12 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.22  2002/10/15 13:41:31  alan
+#  Switched heartbeat over to use the GSource library functions.
+#  Added the standby capability to the heartbeat init script
+#  Changed the proctrack library code to use cl_log() instead of g_log().
+#  Removed a few unused header files.
+#
 #  Revision 1.21  2002/10/11 03:13:09  horms
 #  Minor cleanup of output from a "restart"
 #

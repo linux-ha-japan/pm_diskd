@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.220 2002/10/08 13:43:59 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.221 2002/10/15 13:41:30 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -257,6 +257,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.220 2002/10/08 13:43
 #include <clplumbing/cl_poll.h>
 #include <clplumbing/realtime.h>
 #include <clplumbing/uids.h>
+#include <clplumbing/GSource.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api_core.h>
@@ -273,6 +274,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.220 2002/10/08 13:43
 #define	ONEDAY	(24*60*60)
 #define	PRI_SENDSTATUS	G_PRIORITY_HIGH
 #define	PRI_DUMPSTATS	G_PRIORITY_LOW
+#define	PRI_AUDITCLIENT	G_PRIORITY_LOW
 #define	PRI_APIREGISTER	(G_PRIORITY_LOW-1)
 #define	PRI_CLUSTERMSG	G_PRIORITY_DEFAULT
 
@@ -1248,57 +1250,14 @@ static GSourceFuncs polled_input_SourceFuncs = {
 /*
  * Messages from the cluster are one of our inputs...
  */
-static gboolean clustermsg_input_prepare(gpointer source_data
-,	GTimeVal* current_time, gint* timeout, gpointer user_data);
-static gboolean clustermsg_input_check(gpointer source_data
-,	GTimeVal* current_time, gpointer user_data);
-static gboolean clustermsg_input_dispatch(gpointer source_data
-,	GTimeVal* current_time, gpointer user_data);
-static void clustermsg_input_destroy(gpointer user_data);
+static gboolean clustermsg_input_dispatch(int fd, gpointer user_data);
 
-static GSourceFuncs clustermsg_input_SourceFuncs = {
-	clustermsg_input_prepare,
-	clustermsg_input_check,
-	clustermsg_input_dispatch,
-	clustermsg_input_destroy,
-};
 
 /*
  * API registration requests are one of our inputs
  */
-static gboolean APIregistration_input_prepare(gpointer source_data
-,	GTimeVal* current_time, gint* timeout, gpointer user_data);
-static gboolean APIregistration_input_check(gpointer source_data
-,	GTimeVal* current_time, gpointer user_data);
-static gboolean APIregistration_input_dispatch(gpointer source_data
-,	GTimeVal* current_time, gpointer user_data);
-static void APIregistration_input_destroy(gpointer user_data);
+static gboolean APIregistration_input_dispatch(int fd, gpointer user_data);
 
-static GSourceFuncs APIregistration_input_SourceFuncs = {
-	APIregistration_input_prepare,
-	APIregistration_input_check,
-	APIregistration_input_dispatch,
-	APIregistration_input_destroy,
-};
-
-/*
- * Messages from registered API clients are also inputs
- */
-static gboolean APIclients_input_prepare(gpointer source_data
-,	GTimeVal* current_time, gint* timeout, gpointer user_data);
-static gboolean APIclients_input_check(gpointer source_data
-,	GTimeVal* current_time, gpointer	user_data);
-static gboolean APIclients_input_dispatch(gpointer source_data
-,	GTimeVal* current_time , gpointer user_data);
-static void APIclients_input_destroy(gpointer user_data);
-
-/* NOT static! */
-GSourceFuncs APIclients_input_SourceFuncs = {
-	APIclients_input_prepare,
-	APIclients_input_check,
-	APIclients_input_dispatch,
-	APIclients_input_destroy,
-};
 void LookForClockJumps(void);
 
 static int			ClockJustJumped = 0;
@@ -1318,8 +1277,8 @@ master_status_process(void)
 	volatile struct process_info *	pinfo;
 	int			allstarted;
 	int			j;
-	GPollFD			ClusterMsgGFD;
-	GPollFD			APIRegistrationGFD;
+	GFDSource*		ClusterMsgGFD;
+	GFDSource*		APIRegistrationGFD;
 	GMainLoop*		mainloop;
 
 	init_watchdog();
@@ -1392,27 +1351,32 @@ master_status_process(void)
 	g_source_add(G_PRIORITY_HIGH, FALSE, &polled_input_SourceFuncs
 	,	NULL, NULL, NULL);
 
-	ClusterMsgGFD.fd = fd;
-	ClusterMsgGFD.events = G_IO_IN|G_IO_HUP|G_IO_ERR;
-	g_main_add_poll(&ClusterMsgGFD, PRI_CLUSTERMSG);
-	g_source_add(PRI_CLUSTERMSG, FALSE, &clustermsg_input_SourceFuncs
-	,	&ClusterMsgGFD,	f, NULL);
+	ClusterMsgGFD = G_main_add_fd(PRI_CLUSTERMSG, fd, FALSE
+	,	clustermsg_input_dispatch, f, NULL);
 
-	APIRegistrationGFD.fd = regfd;
-	APIRegistrationGFD.events = G_IO_IN;
-	g_main_add_poll(&APIRegistrationGFD, PRI_APIREGISTER);
-	g_source_add(PRI_APIREGISTER, FALSE, &APIregistration_input_SourceFuncs
-	,	&APIRegistrationGFD, regfifo, NULL);
+	APIRegistrationGFD = G_main_add_fd(PRI_APIREGISTER, regfd, FALSE
+	, 	APIregistration_input_dispatch, regfifo, NULL);
 
 	if (ANYDEBUG) {
 		cl_log(LOG_DEBUG
 		,	"Starting local status message @ %ld ms intervals"
 		,	config->heartbeat_ms);
 	}
+
+	/* Things to do on a periodic basis... */
+
+		/* Send out local status periodically... */
 	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
 	,	SendLocalStatus, NULL, NULL);
+
+		/* Dump out memory stats periodically... */
 	Gmain_timeout_add_full(PRI_DUMPSTATS, ONEDAY*1000
 	,	DumpAllProcStats, NULL, NULL);
+
+		/* Audit clients for liveness periodically */
+	Gmain_timeout_add_full(PRI_AUDITCLIENT, 10*1000
+	,	api_audit_clients, NULL, NULL);
+
 	/* Reset timeout times to "now" */
 	for (j=0; j < config->nodecount; ++j) {
 		struct node_info *	hip;
@@ -1476,7 +1440,7 @@ polled_input_prepare(gpointer source_data, GTimeVal* current_time
 static longclock_t	NextPoll = 0UL;
 static longclock_t	local_takeover_time = 0L;
 
-#define	POLL_INTERVAL	250
+#define	POLL_INTERVAL	250 /* milliseconds */
 
 static gboolean
 polled_input_check(gpointer source_data, GTimeVal* current_time
@@ -1491,6 +1455,7 @@ polled_input_check(gpointer source_data, GTimeVal* current_time
 		,	cmp_longclock(now, NextPoll) >= 0);
 	}
 
+	/* FIXME:?? should this say pending_handlers || cmp...? */
 	return (cmp_longclock(now, NextPoll) >= 0);
 }
 
@@ -1516,6 +1481,11 @@ polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 	/* Scan nodes and links to see if any have timed out */
 	if (!ClockJustJumped) {
 		/* We'll catch it again next time around... */
+		/* I'm not sure we really need to check for clock jumps
+		 * any more since we now use longclock_t for everything
+		 * and don't use time_t or clock_t anything critical.
+		 */
+
 		check_for_timeouts();
 	}
 
@@ -1572,36 +1542,16 @@ polled_input_destroy(gpointer user_data)
 }
 
 
-static gboolean
-clustermsg_input_prepare(gpointer source_data, GTimeVal* current_time
-,	gint* timeout, gpointer user_data)
-{
-	if (DEBUGDETAILS){
-		cl_log(LOG_DEBUG,"clustermsg_input_prepare()");
-	}
-	return FALSE;
-}
 
 static gboolean
-clustermsg_input_check(gpointer source_data, GTimeVal* current_time
-,	gpointer	user_data)
-{
-	GPollFD*	gpfd = source_data;
-	return gpfd->revents != 0;
-}
-
-static gboolean
-clustermsg_input_dispatch(gpointer source_data, GTimeVal* current_time
-,	gpointer	user_data)
+clustermsg_input_dispatch(int fd, gpointer user_data)
 {
 	FILE *		f = user_data;
-	GPollFD*	gpfd = source_data;
-
 
 	if (DEBUGDETAILS){
 		cl_log(LOG_DEBUG,"clustermsg_input_dispatch()");
 	}
-	if (fileno(f) != gpfd->fd) {
+	if (fileno(f) != fd) {
 		/* Bad boojum! */
 		ha_log(LOG_ERR, "FD mismatch in clustermsg_input_dispatch");
 	}
@@ -1613,38 +1563,17 @@ clustermsg_input_dispatch(gpointer source_data, GTimeVal* current_time
 }
 
 
-static void
-clustermsg_input_destroy(gpointer user_data)
-{
-}
 
 static gboolean
-APIregistration_input_prepare(gpointer source_data, GTimeVal* current_time
-,	gint* timeout, gpointer user_data)
+APIregistration_input_dispatch(int fd,	gpointer user_data)
 {
-	return FALSE;
-}
-
-static gboolean
-APIregistration_input_check(gpointer source_data, GTimeVal* current_time
-,	gpointer	user_data)
-{
-	GPollFD*	gpfd = source_data;
-	return gpfd->revents != 0;
-}
-
-static gboolean
-APIregistration_input_dispatch(gpointer source_data, GTimeVal* current_time
-,	gpointer	user_data)
-{
-	GPollFD*	gpfd = source_data;
 	FILE *		regfifo = user_data;
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG
-		,	"Processing register message from"
-		" regfd %d.\n", gpfd->fd);
+		,	"Processing register message from regfd %d.\n"
+		,	fd);
 	}
-	if (fileno(regfifo) != gpfd->fd) {
+	if (fileno(regfifo) != fd) {
 		/* Bad boojum! */
 		ha_log(LOG_ERR
 		,	"FD mismatch in APIregistration_input_dispatch");
@@ -1653,55 +1582,6 @@ APIregistration_input_dispatch(gpointer source_data, GTimeVal* current_time
 	return TRUE;
 }
 
-
-static void
-APIregistration_input_destroy(gpointer user_data)
-{
-}
-
-/*
- * All the other input sources are static - they don't come and go as we run
- * Our API clients can register and unregister at any time...
- * Our user_data here is a client_proc_t* telling us which client sent us
- * the message.
- */
-
-static gboolean
-APIclients_input_prepare(gpointer source_data, GTimeVal* current_time
-,	gint* timeout, gpointer	user_data)
-{
-	return FALSE;
-}
-
-static gboolean
-APIclients_input_check(gpointer source_data, GTimeVal* current_time
-,	gpointer	user_data)
-{
-	GPollFD*	gpfd = source_data;
-	return gpfd->revents != 0;
-
-}
-
-static gboolean
-APIclients_input_dispatch(gpointer source_data, GTimeVal* current_time
-,	gpointer	user_data)
-{
-	GPollFD*	gpfd = source_data;
-	client_proc_t*	client = user_data;
-
-	if (gpfd != & client->gpfd) {
-		/* Bad boojum! */
-		ha_log(LOG_ERR, "GPFD mismatch in APIclients_input_dispatch");
-	}
-	/* Process a single API client request */
-	ProcessAnAPIRequest(client);
-	return TRUE;
-}
-
-static void
-APIclients_input_destroy(gpointer user_data)
-{
-}
 
 static gboolean
 MSPFinalShutdown(gpointer p)
@@ -2648,8 +2528,10 @@ reaper_action(int waitflags)
 	||	(pid == -1 && errno == EINTR)) {
 
 		if (pid > 0) {
+#if 0
 			/* If they're in the API client table, remove them... */
 			api_remove_client_pid(pid, "died");
+#endif
 
 			ReportProcHasDied(pid, status);
 		}
@@ -4528,8 +4410,8 @@ main(int argc, char * argv[], char * envp[])
 	|	G_LOG_LEVEL_WARNING	| G_LOG_LEVEL_MESSAGE
 	|	G_LOG_LEVEL_INFO	| G_LOG_LEVEL_DEBUG
 	|	G_LOG_FLAG_RECURSION	| G_LOG_FLAG_FATAL
-
 	,	cl_glib_msg_handler, NULL);
+
 	cl_log_enable_stderr(TRUE);
 	g_log_set_always_fatal((GLogLevelFlags)0);
 
@@ -5997,6 +5879,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.221  2002/10/15 13:41:30  alan
+ * Switched heartbeat over to use the GSource library functions.
+ * Added the standby capability to the heartbeat init script
+ * Changed the proctrack library code to use cl_log() instead of g_log().
+ * Removed a few unused header files.
+ *
  * Revision 1.220  2002/10/08 13:43:59  alan
  * Put in some more pairs of grab/drop privileges around sending
  * signals.

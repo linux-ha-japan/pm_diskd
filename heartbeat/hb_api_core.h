@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <glib.h>
 #include <clplumbing/longclock.h>
+#include <clplumbing/GSource.h>
 #include <ha_msg.h>
 
 /*
@@ -36,17 +37,18 @@ typedef struct client_process {
 	pid_t	pid;		/* PID of client process */
 	uid_t	uid;		/* UID of client  process */
 	int	iscasual;	/* 1 if this is a "casual" client */
-	int		beingremoved;	/* 1 if client is being removed */
-	FILE*		input_fifo;	/* Input FIFO file pointer */
-	int		output_fifofd;	/* Output FIFO file descriptor */
-	GList*		msgQ;		/* Queue of msgs for client */
-	int		msgcount;	/* length of client message queue */
-	int    	 signal;		/* What signal to indicate new msgs */
-	int   	  desired_types;	/* A bit mask of desired message types*/
+	int	isindispatch;	/* TRUE if we're in dispatch now */
+	const char*removereason;/* non-NULL if client is being removed */
+	FILE*	input_fifo;	/* Input FIFO file pointer */
+	int	output_fifofd;	/* Output FIFO file descriptor */
+	GList*	msgQ;		/* Queue of msgs for client */
+	int	msgcount;	/* length of client message queue */
+	int    	signal;		/* What signal to indicate new msgs */
+	int   	desired_types;	/* A bit mask of desired message types*/
 	struct client_process*  next;
-	GPollFD		gpfd;		/* Glib main Poll file descriptor */
-	guint		g_source_id;	/* return from g_source_add */
-	guint		g_app_hb_id;	/* Application heartbeat timer id */
+	GFDSource*		g_source_id;	/* return from G_main_add_fd() */
+	int			fd;	/* FD that goes with g_source_id */
+	
 	longclock_t	next_app_hb;	/* Next application heartbeat time */
 	longclock_t	app_hb_ticks;	/* ticks between app heartbeats */
 }client_proc_t;
@@ -117,7 +119,7 @@ void api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface);
 void api_process_registration(struct ha_msg *msg);
 void process_api_msgs(fd_set* inputs, fd_set* exceptions);
 int  compute_msp_fdset(fd_set* set, int fd1, int fd2);
-void api_audit_clients(void);
+gboolean api_audit_clients(gpointer p);
 
 /* Return code for API query handlers */
 

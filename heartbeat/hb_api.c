@@ -111,7 +111,7 @@ static void api_send_client_status(client_proc_t* client, const char * status
 ,	const char *	reason);
 static void api_flush_msgQ(client_proc_t* client);
 static void api_clean_clientQ(client_proc_t* client);
-static void api_remove_client(client_proc_t* client, const char * reason);
+static void api_remove_client_int(client_proc_t* client, const char * reason);
 static int api_add_client(struct ha_msg* msg);
 static client_proc_t*	find_client(const char * fromid, const char * pid);
 static FILE*		open_reqfifo(client_proc_t* client);
@@ -184,6 +184,10 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 
 		if ((msgtype & client->desired_types) != 0) {
 			api_send_client_msg(client, msg);
+			if (client->removereason && !client->isindispatch) {
+				api_remove_client_pid(client->pid
+				,	client->removereason);
+			}
 		}
 
 		/* If this is addressed to us, then no one else should get it */
@@ -194,39 +198,26 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 }
 /*
  *	Periodically clean up after dead clients...
+ *	In case we somehow miss them...
  */
-void
-api_audit_clients(void)
+gboolean
+api_audit_clients(gpointer p)
 {
-	static clock_t	audittime = 0L;
-	static clock_t	lastnow = 0L;
-	clock_t		now;
 	client_proc_t*	client;
 	client_proc_t*	nextclient;
-	struct tms	proforma_tms;
-
-
-	/* Allow for clock wraparound */
-	now = times(&proforma_tms);
-	if (now > lastnow && now < audittime) {
-		lastnow = now;
-		return;
-	}
-
-	lastnow = now;
-	audittime = now + (CLK_TCK * 10); /* Every 10 seconds */
 
 	for (client=client_list; client != NULL; client=nextclient) {
 		nextclient=client->next;
 
-
 		if (kill(client->pid, 0) < 0 && errno == ESRCH) {
 			ha_log(LOG_INFO, "api_audit_clients: client %ld died"
 			,	(long) client->pid);
-			api_remove_client(client, "died");
+			client->removereason = NULL;
+			api_remove_client_pid(client->pid, "died-audit");
 			client=NULL;
 		}
 	}
+	return TRUE;
 }
 
 
@@ -280,7 +271,7 @@ api_signoff(const struct ha_msg* msg, struct ha_msg* resp
 			ha_log(LOG_DEBUG, "Signing client %ld off"
 			,	(long) client->pid);
 		}
-		api_remove_client(client, API_SIGNOFF);
+		client->removereason = API_SIGNOFF;
 		return I_API_IGN;
 }
 
@@ -515,7 +506,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			ha_log(LOG_INFO, "api_process_request: "
 			"general message from casual client!");
 			/* Bad Client! */
-			api_remove_client(fromclient, "badclient");
+			fromclient->removereason = "badclient";
 			return;
 		}
 
@@ -601,7 +592,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 	/* See if this client FIFOs are (still) properly secured */
 
 	if (!ClientSecurityIsOK(client)) {
-		api_remove_client(client, "security");
+		client->removereason = "security";
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
@@ -819,7 +810,6 @@ api_flush_msgQ(client_proc_t* client)
 	int		nsig;
 	int		writeok=0;
 	pid_t		clientpid = client->pid;
-	const char *	closereason = NULL;
 
 	fifoname = client_fifo_name(client, 0);
 
@@ -827,7 +817,7 @@ api_flush_msgQ(client_proc_t* client)
 		client->output_fifofd = open(fifoname, O_WRONLY|O_NDELAY);
 	}
 	if(client->output_fifofd < 0) {
-		if (client->beingremoved) {
+		if (client->removereason) {
 			return;
 		}
 
@@ -842,7 +832,7 @@ api_flush_msgQ(client_proc_t* client)
 			 */
 			ha_perror("api_flush_msgQ: can't open %s", fifoname);
 		}
-		api_remove_client(client, "FIFOerr");
+		client->removereason = "FIFOerr";
 
 		return;
 	}
@@ -857,7 +847,7 @@ api_flush_msgQ(client_proc_t* client)
 		rc=write(client->output_fifofd, msgstring, msglen);
 		if (rc != msglen) {
 			if (rc < 0 && errno == EPIPE) {
-				closereason = "EPIPE";
+				client->removereason = "EPIPE";
 				break;
 			}
 			if (rc < 0 && errno == EINTR) {
@@ -885,18 +875,11 @@ api_flush_msgQ(client_proc_t* client)
 	if (kill(clientpid, nsig) < 0 && errno == ESRCH) {
 		ha_log(LOG_INFO, "api_send_client: client %ld died"
 		,	(long) client->pid);
-		closereason = "died";
-	} else if (!ClientSecurityIsOK(client)) {
-		closereason = "security";
+		client->removereason = "died";
+	}else if (!ClientSecurityIsOK(client)) {
+		client->removereason = "security";
 	}
 
-	/*
-	 * We do the remove_client last so that "client" remains valid until
-	 * the bitter end, and we don't get surprised by a NULL pointer ;-)
-	 */
-	if (closereason) {
-		api_remove_client(client, closereason);
-	}
 }
 
 void
@@ -929,24 +912,34 @@ api_remove_client_pid(pid_t c_pid, const char * reason)
 		return 0;
 	}
 
-	api_remove_client(client, reason);
+	client->removereason = reason;
+	G_main_del_fd(client->g_source_id);
 	return 1;
+}
+static void
+G_remove_client(gpointer Client)
+{
+	client_proc_t*	client = Client;
+	const char *	reason;
+
+	reason = client->removereason ? client->removereason : "?";
+
+	api_remove_client_int(client, reason);
 }
 /*
  *	Make this client no longer a client ;-)
+ *	Should only be called by G_remove_client().
+ *	G_remove_client gets called by the API code when the API object
+ *	gets removed. It can also get called by G_main_del_fd().
  */
 
 static void
-api_remove_client(client_proc_t* req, const char * reason)
+api_remove_client_int(client_proc_t* req, const char * reason)
 {
 	client_proc_t*	prev = NULL;
 	client_proc_t*	client;
 
-	if (req->beingremoved) {
-		return;
-	}
-	req->beingremoved = 1;
-
+		
 	api_send_client_status(req, LEAVESTATUS, reason);
 
 	--total_client_count;
@@ -960,20 +953,24 @@ api_remove_client(client_proc_t* req, const char * reason)
 	for (client=client_list; client != NULL; client=client->next) {
 		/* Is this the client? */
 		if (client->pid == req->pid) {
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"api_remove_client_int: removing"
+				" pid [%ld] reason: %s"
+				,	(long)req->pid, reason);
+			}
 			/* Close the input FIFO */
 			if (client->input_fifo != NULL) {
-				int	fd = fileno(client->input_fifo);
+				int	fd = client->fd;
 				if (fd == maxfd) {
 					--maxfd;
 				}
 				fclose(client->input_fifo);
 				client->input_fifo = NULL;
 
-				g_main_remove_poll(&client->gpfd);
 				if (UseOurOwnPoll) {
-					cl_poll_ignore(client->gpfd.fd);
+					cl_poll_ignore(client->fd);
 				}
-				g_source_remove(client->g_source_id);
 			}
 			close(client->output_fifofd);
 			client->output_fifofd = -1;
@@ -998,7 +995,7 @@ api_remove_client(client_proc_t* req, const char * reason)
 		}
 		prev = client;
 	}
-	ha_log(LOG_ERR,	"api_remove_client: could not find pid [%ld]"
+	ha_log(LOG_ERR,	"api_remove_client_int: could not find pid [%ld]"
 	,	(long) req->pid);
 }
 
@@ -1051,7 +1048,7 @@ api_add_client(struct ha_msg* msg)
 			,	"client pid %ld [%s] died (api_add_client)"
 			,	(long) client->pid, fromid);
 		}
-		api_remove_client(client, "bad add request");
+		client->removereason = "bad add request";
 	}
 	if ((client = MALLOCT(client_proc_t)) == NULL) {
 		ha_log(LOG_ERR
@@ -1087,14 +1084,14 @@ api_add_client(struct ha_msg* msg)
 	/* Make sure their FIFOs are properly secured */
 	if (!ClientSecurityIsOK(client)) {
 		/* No insecure clients allowed! */
-		api_remove_client(client, "security");
+		client->removereason = "security";
 		return 0;
 	}
 	if ((fifofp=open_reqfifo(client)) <= 0) {
 		ha_log(LOG_ERR
 		,	"Unable to open API FIFO for client %s"
 		,	client->client_id);
-		api_remove_client(client, "fifo open");
+		client->removereason = "fifo open";
 		return 0;
 	}
 	fifoifd=fileno(fifofp);
@@ -1470,7 +1467,9 @@ ClientSecurityIsOK(client_proc_t* client)
 	return 1;
 }
 
-extern GSourceFuncs APIclients_input_SourceFuncs;
+static gboolean
+APIclients_input_dispatch(int fd, gpointer user_data);
+
 /*
  * Open the request FIFO for the given client.
  */
@@ -1507,12 +1506,9 @@ open_reqfifo(client_proc_t* client)
 		setbuf(ret, NULL);
 #endif
 	}
-	client->gpfd.fd = fd;
-	client->gpfd.events = G_IO_IN|G_IO_HUP|G_IO_ERR;
-	g_main_add_poll(&client->gpfd, G_PRIORITY_DEFAULT);
-	client->g_source_id = g_source_add(G_PRIORITY_DEFAULT, FALSE
-	,	&APIclients_input_SourceFuncs
-	,	&client->gpfd, client, NULL);
+	client->fd = fd;
+	client->g_source_id = G_main_add_fd(G_PRIORITY_DEFAULT, fd, FALSE
+	,	APIclients_input_dispatch, client, G_remove_client);
 	return ret;
 }
 
@@ -1540,6 +1536,35 @@ pid2uid(pid_t pid)
 	return s.st_uid;
 }
 
+static gboolean
+APIclients_input_dispatch(int fd, gpointer user_data)
+{
+	client_proc_t*	client = user_data;
+
+	if (fd != client->fd) {
+		/* Bad boojum! */
+		ha_log(LOG_ERR
+		,	"APIclients_input_dispatch fd mismatch"
+		": %d vs %d for pid %ld"
+		,	fd, client->fd, (long)client->pid);
+		return FALSE;
+	}
+	if (client->removereason) {
+		return FALSE;
+	}
+
+	/* Process a single API client request */
+	client->isindispatch = TRUE;
+	ProcessAnAPIRequest(client);
+	client->isindispatch = FALSE;
+
+	if (client->removereason) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 
 void
 ProcessAnAPIRequest(client_proc_t*	client)
@@ -1553,7 +1578,7 @@ ProcessAnAPIRequest(client_proc_t*	client)
 		ha_log(LOG_INFO
 		,	"Client pid %ld died (input)"
 		,	(long)client->pid);
-		api_remove_client(client, "died");
+		client->removereason = "died";
 		return;
 	}
 
@@ -1565,7 +1590,7 @@ ProcessAnAPIRequest(client_proc_t*	client)
 			ha_log(LOG_INFO
 			,	"EOF from client pid %ld"
 			,	(long)client->pid);
-			api_remove_client(client, "EOF");
+			client->removereason = "EOF";
 			return;
 		}
 
@@ -1594,7 +1619,7 @@ ProcessAnAPIRequest(client_proc_t*	client)
 			ha_log(LOG_ERR
 			,	"Removing client pid %ld"
 			,	(long)client->pid);
-			api_remove_client(client, "noinput");
+			client->removereason = "noinput";
 			consecutive_failures = 0;
 		}
 		return;
