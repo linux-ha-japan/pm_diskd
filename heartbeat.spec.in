@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.51 2003/02/13 18:18:52 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.52 2003/02/17 04:29:04 horms Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -9,15 +9,16 @@ Group: Utilities
 Packager: Alan Robertson <alanr@unix.sh>
 Source: http://linux-ha.org/download/@HB_PKG@-@VERSION@.tar.gz
 Buildroot: /var/tmp/@HB_PKG@-root
-BuildPrereq: glib-devel, lynx, @UCDSNMPDEVEL@, perl, iputils, /usr/bin/ssh, openssl-devel
+BuildPrereq: glib-devel, lynx, @UCDSNMPDEVEL@, perl, iputils, /usr/bin/ssh, openssl-devel, libnet
+# libnet available from www.ultramonkey.org and others
 Requires: sysklogd
 
 %package ldirectord
 Summary: Monitor daemon for maintaining high availability resources
 Group: Utilities
-Requires: perl, perl-libwww-perl perl-Net-SSLeay, ipvsadm
+Requires: perl, perl-libwww-perl perl-Net-SSLeay, ipvsadm, perl-HTML-Parser
 # perl-libwww-perl, perl-net-ssleay available from
-# ultramonkey.sourceforge.net and others
+# www.ultramonkey.org and others
 
 %package stonith
 Requires: telnet
