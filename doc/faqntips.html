@@ -2,7 +2,7 @@
 <html>
 <head>
    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-   <meta name="GENERATOR" content="Mozilla/4.77 [en] (X11; U; Linux 2.4.4 i686) [Netscape]">
+   <meta name="GENERATOR" content="Mozilla/4.77 [en] (X11; U; Linux 2.4.4-4GB i686) [Netscape]">
    <title>Faq'n Tips</title>
 </head>
 <body bgcolor="#FFFFFF">
@@ -25,7 +25,7 @@
 
 <li>
 <a href="#nettools">Every time my machine releases an IP alias, it loses
-the whole interface (i.e eth0)!&nbsp; How do I fix this?</a></li>
+the whole interface (i.e. eth0)!&nbsp; How do I fix this?</a></li>
 
 <li>
 <a href="#manyIPs">I want a lot of IP addresses as resources (more than
@@ -44,17 +44,23 @@ connections it seems to work fine.</a></li>
 <a href="#firewall">How to use heartbeat with ipchains firewall ?</a></li>
 
 <li>
-<a href="#authkeys">When I try to start heartbeat i receive messsage:</a></li>
+<a href="#heavy_load">How to tune heartbeat on heavily loaded system ?</a></li>
+
+<li>
+<a href="#authkeys">When I try to start heartbeat i receive message:</a></li>
 
 <br><a href="#authkeys">"Starting High-Availability services: Heartbeat
 failure [rc=1]. Failed.</a>
 <br><a href="#authkeys">and there is nothing in any of the log files and
-do messages. What is wrong ?</a>
+do messages. What is wrong</a>
 <li>
 <a href="#CVS">How to get latest CVS version of heartbeat ?</a></li>
 
 <li>
 <a href="#other_os">Heartbeat on other OSs.</a></li>
+
+<li>
+<a href="#last_hope">If nothing helps, what should I do ?</a></li>
 </ol>
 
 <hr width="100%">
@@ -70,23 +76,23 @@ else.</li>
 <a NAME="what_is_it"></a>HA (High availability Cluster) - This is a cluster
 that allows a host (or hosts) to become Highly Available, that means if
 one node goes down (or a service on that node goes down) another node can
-pick up the service or node and take over from the failed machine. <a href="http://www.linux-ha.org">www.linux-ha.org</a></li>
+pick up the service or node and take over from the failed machine. <a href="http://www.linux-ha.org">http://linux-ha.org</a></li>
 
-<br>Computing Cluster - This is what a beuwolf cluster is. It allows distributed
+<br>Computing Cluster - This is what a Beowulf cluster is. It allows distributed
 computing over off the shelf components. In this case it is usually cheap
-ia32 machines. <a href="http://www.beowulf.org">http://www.beowulf.org/</a>
+IA32 machines. <a href="http://www.beowulf.org">http://www.beowulf.org/</a>
 <br>Load balancing clusters - This is what the Linux Virtual Server project
 does. In this scenario you have one machine with load balances requests
 to a certain server (apache for example) over a farm of servers. <a href="http://www.linuxvirtualserver.org">www.linuxvirtualserver.org</a>
-<br>All of these sites have howtos etc on them. For a general overview
-on clustering under Linux, look at the Clustering-HOWTO.
+<br>All of these sites have howtos etc. on them. For a general overview
+on clustering under Linux, look at the Clustering HOWTO.
 <li>
 <a NAME="res_scr"></a>Resource scripts are basically (extended) System
 V init scripts. They have to support stop, start, and status operations.&nbsp;
 In the future we will also add support for a "monitor" operation for monitoring
 services as you requested. The IPaddr script implements this new "monitor"
 operation now (but heartbeat doesn't use that function of it). For more
-info see Resource-HOWTO.</li>
+info see Resource HOWTO.</li>
 
 <li>
 <a NAME="mon"></a>Heartbeat itself was not designed for monitoring various
@@ -102,7 +108,7 @@ them usual way (perl Makefile.pl &amp;&amp; make &amp;&amp; make test &amp;&amp;
 make install).
 <p>3. Mon is software for monitoring different network resources. It can
 ping computers, connect to various ports, monitor WWW, MySQL etc. In case
-of disfunction of some resources it triggerrs some scripts.
+of dysfunction of some resources it triggers some scripts.
 <p>4. Unpack mon in some directory. Best starting point is README file.
 Complete documentation is in &lt;dir>/doc, where &lt;dir> is place where
 you unpacked mon package.
@@ -111,10 +117,10 @@ you unpacked mon package.
 <br>create dir /etc/mon
 <br>copy auth.cf from &lt;dir>/etc to /etc/mon
 <p>Now, mon is prepared to work. You need to create your own mon.cf file,
-where you should point to resources mon shuould watch and actions mon will
+where you should point to resources mon should watch and actions mon will
 start in case
-<br>of disfunction and when resources are available again. All monitoromg
-scripts are in /usr/lib/mon/mon.d/. At the beginnig of every script you
+<br>of dysfunction and when resources are available again. All monitoring
+scripts are in /usr/lib/mon/mon.d/. At the beginning of every script you
 can find explanation how to use it.
 <br>All alert scripts are placed in /usr/lib/mon/alert.d/. Those are scripts
 triggered in case something went wrong. In case you are using ipvs on theirs
@@ -136,7 +142,7 @@ This is done via "ifconfig lo:2 x.x.x.3 netmask 255.255.255.255 -arp" etc....</l
 
 <li>
 <a NAME="serial"></a>It will work, however if anything makes your ethernet
-/ IP stack fail, you will lose both connections. You definetely should
+/ IP stack fail, you will lose both connections. You definitely should
 run the cables differently, depending on how important your data is...</li>
 
 <li>
@@ -150,7 +156,7 @@ and when it comes back (failback). This mode is required if you wish to
 run an active-active configuration.
 <br>Nice failback mode:
 <br>In this mode, there is no natural affinity between a resource group
-and a particular node in the cluster (haresources file nonwithstanding).
+and a particular node in the cluster (haresources file notwithstanding).
 Instead, there is an affinity between a resource group and whatever machine
 it is currently running on. Failovers occur *only* when a machine which
 is providing a service goes out of service. There is no concept of failback
@@ -158,12 +164,24 @@ in this mode. This mode minimizes service interruptions, but cannot run
 an active-active configuration.
 <li>
 <a NAME="firewall"></a>To make heartbeat work with ipchains, you must accept
-incoming and outgoing traffic on 694 UDP port. Add something like:</li>
+incoming and outgoing traffic on 694 UDP port. Add something like</li>
 
 <br>/sbin/ipchains -A output -i ethN -p udp -s &lt;source_IP> -d &lt;dest_IP>&nbsp;
 -j ACCEPT
 <br>/sbin/ipchains -A input -i ethN -p udp -s &lt;source_IP> -d &lt;dest_IP>&nbsp;
 -j ACCEPT
+<li>
+<a NAME="heavy_load"></a>Since the default probably isn't reasonable for
+most linux systems under heavy load (sorry!), here is suggestion:</li>
+
+<br>Set deadtime to 60 seconds or higher
+<br>Set warntime to whatever you *want* your deadtime to be.
+<br>Run your system under heavy load for a few weeks.
+<br>Look at your logs for the longest time either system went without hearing
+a heartbeat.
+<br>Set your deadtime to 1.5-2 times that amount.&nbsp; Set warntime to
+that amount.
+<br>Continue to monitor logs for warnings about long heartbeat times.
 <li>
 <a NAME="authkeys"></a>It's probably a permissions problem on authkeys.&nbsp;
 It wants it to be read only mode (400, 600 or 700).&nbsp; Depending on
@@ -184,13 +202,36 @@ through the web using viewcvs at <a href="http://cvs.linux-ha.org/viewcvs/viewcv
 
 <li>
 <a NAME="other_os"></a>Heartbeat is currently being ported to use automake.</li>
+
+<li>
+<a NAME="last_hope"></a>Please be sure that you read all documentation
+and searched mail list archives. If you still can't find a solution you
+can post questions to the mailing list. Please include following:</li>
+
+<ul>
+<li>
+What OS are you running.</li>
+
+<li>
+What version (distro/kernel).</li>
+
+<li>
+How did you install heartbeat (tar.gz, rpm, src.rpm or manual installation)
+.</li>
+
+<li>
+Include the of your logs which describes errors.&nbsp; Send them as attachments.<br>
+Please don't send "cleaned up" logs.&nbsp; The real logs have more information
+in them than cleaned up versions.&nbsp; Always include at least a little
+irrelevant data before and after the events in question so that we know
+nothing was missed.&nbsp; Don't edit the logs unless you really have some
+super-secret high-security reason for doing so.</li>
+</ul>
 </ol>
 
 <hr width="100%">
-<p>Rev 0.0.3
-<br>(c) 2001 Dusan Djordjevic
-<br><a href="mailto:dj.dule@linux.org.yu">dj.dule@linux.org.yu</a>
-<br>(c) 2000 Rudy Pawul <br>
-  <a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a> 
+<p>Rev 0.0.4
+<br>(c) 2000 Rudy Pawul <a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a>
+<br>(c) 2001 Dusan Djordjeviic <a href="dj.dule@linux.org.yu">dj.dule@linux.org.yu</a>
 </body>
 </html>
