@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.2 2001/06/28 20:35:00 alan Exp $
+# $Id: Filesystem.in,v 1.3 2001/11/23 20:14:24 alan Exp $
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
@@ -59,6 +59,7 @@ FSCK=/sbin/fsck
 FUSER=/sbin/fuser
 MOUNT=/bin/mount
 UMOUNT=/bin/umount
+BLOCKDEV=@BLOCKDEV@
 
 check_util () {
     if [ ! -x "$1" ] ; then
@@ -79,6 +80,21 @@ cat <<-EOT;
 	EOT
 }
 
+#
+#	Make sure the kernel does the right thing with the FS buffers
+#	This function should be called after unmounting and before mounting
+#	It may not be necessary in 2.4 and later kernels, but it shouldn't hurt
+#	anything either...
+#
+#	It's really a bug that you have to do this at all...
+#
+flushbufs() {
+  if
+    [ "$BLOCKDEV" != "" -a -x "$BLOCKDEV" ]
+  then
+    $BLOCKDEV --flushbufs $1
+  fi
+}
 # Check the arguments passed to this script
 DEVICE=$1
 MOUNTPOINT=$2
@@ -119,9 +135,7 @@ case "$4" in
 start)
 
 	# See if the device is already mounted.
-	# NOTE: this will not work right if you have more than 10 partitions
-	#       on a single device.
-	$MOUNT | grep -e "^$DEVICE" >/dev/null
+	$MOUNT | grep -e "^$DEVICE " >/dev/null
 	if [ $? -ne 1 ] ; then
 	    ha_log "ERROR: Device $DEVICE is already mounted!"
 	    exit 1;
@@ -135,7 +149,7 @@ start)
 	else
 	    # This warning is sometimes bogus - the driver is often compiled
 	    # into the kernel.
-	    ha_log "WARNING: Couldn't insert SCSI module."
+	    : ha_log "WARNING: Couldn't insert SCSI module."
 	fi
 
 	# Insert Filesystem module
@@ -170,6 +184,7 @@ start)
 	  fi	
 	fi
 
+	flushbufs $DEVICE
 	# Mount the filesystem.
 	if
 	  $MOUNT -t $FSTYPE $DEVICE $MOUNTPOINT
@@ -189,8 +204,7 @@ start)
 stop)
 
 	# See if the device is currently mounted
-	# NOTE: this will not work right if you have more than 10 devices!
-	$MOUNT | grep -e "^$DEVICE" >/dev/null
+	$MOUNT | grep -e "^$DEVICE " >/dev/null
 	if [ $? -ne 1 ] ; then
 
 		# Kill all processes open on filesystem
@@ -211,6 +225,7 @@ stop)
 	else
 		ha_log "WARNING: Filesystem $MOUNTPOINT not mounted?"
 	fi
+	flushbufs $DEVICE
 
 # end of stop)
 ;;
