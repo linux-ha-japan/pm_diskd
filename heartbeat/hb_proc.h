@@ -26,8 +26,10 @@
 #	define _HB_PROC_H 1
 
 #ifndef PAGE_SIZE
-#	if defined(linux)
+#	ifdef MIN
 #		undef MIN
+#	endif
+#	ifdef MAX
 #		undef MAX
 #	endif
 #	include <sys/param.h>
