@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.27 2001/06/23 15:52:06 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.28 2001/06/24 05:42:25 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -77,7 +77,6 @@ module_error (void)
 
 /* #define MODULESUFFIX	".so" */
 #define MODULESUFFIX	LTDL_SHLIB_EXT
-#define	STRLEN(s)	(sizeof(s)-1)
 
 static int
 so_select (const struct dirent *dire)

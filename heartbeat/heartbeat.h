@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.55 2001/06/23 07:01:48 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.56 2001/06/24 05:42:25 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -117,7 +117,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.55 2001/06/23 07:01:
 #define	HA_FAILEXIT	1
 #define	WHITESPACE	" \t\n\r\f"
 #define	DELIMS		", \t\n\r\f"
-#define	EOS		'\0'
 #define	COMMENTCHAR	'#'
 #define	STATUS		"STATUS"
 #define	INITSTATUS	"init"		/* Status of a node we've never heard from */
@@ -184,8 +183,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.55 2001/06/23 07:01:
 #define HA_FUNCS	HA_D "/shellfuncs"
 
 #define	RC_ARG0		"harc"
-#define	DIMOF(a)		((sizeof(a)/sizeof(a[0])))
-#define STRLEN(conststr)	(sizeof(conststr)-1)
 
 
 /* Which side of a pipe is which? */
