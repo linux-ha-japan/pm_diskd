@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.68 2000/11/14 17:14:20 alan Exp $
+#	$Id: Specfile,v 1.69 2000/11/15 10:03:40 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -89,7 +89,7 @@ machine. It's simple and reliable, albiet admittedly brutal.
   + Added Raid1 and Filesystem resource scripts
   + Split into 3 rpms - heartbeat, heartbeat-stonith heartbeat-ldirectord
   + Added -M (don't manage resources) flag to allow "observer" nodes
-	(doesn't work with nice_failback on other 2 nodes)
+	(doesn't yet work with nice_failback on other 2 nodes)
   + Fixed a bug which kept you from logging to both syslog and files
   + Fixed a bug where shutdown stopped giving out heartbeats before the
 	resources were taken over.
@@ -387,12 +387,23 @@ install -m 644 rc.config.heartbeat $TEMPL
 rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_DIR/%PKG%-%VERS%
 %pre
+#
+#	This isn't perfect.  But getting every distribution
+#	to agree on group id's seems hard to me :-(
+#
 if
   grep '^%APIGROUP%:' etc/group >/dev/null
 then
-  : OK
+  : OK group %APIGROUP% already present
 else
-  usr/sbin/groupadd -g %APIGID% %APIGROUP%
+  GROUPOPT="-g %APIGID%"
+  if
+    usr/sbin/groupadd $GROUPOPT %APIGROUP%
+  then
+    : OK we were able to add group %APIGROUP%
+  else
+    usr/sbin/groupadd %APIGROUP%
+  fi
 fi
 %post
 #
