@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.19 1999/11/07 04:06:57 alan Exp $
+#	$Id: Specfile,v 1.20 1999/11/10 21:26:27 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -35,6 +35,7 @@ It implements the following kinds of heartbeats:
   + added a little more substance to the error recovery for the HB protocol.
   + Fixed a bug for logging from shell scripts
   + Added a little logging for initial resource acquisition
+  + Added #!/bin/sh to the front of shell scripts
 
 * Wed Oct 13 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
