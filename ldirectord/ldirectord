@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.64 2003/04/18 03:06:38 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.65 2003/04/18 04:37:25 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -628,12 +628,14 @@ sub read_config
 			push(@VIRTUAL, \%vsrv);
 			while(<CFGFILE>) {
 				$line++;
-				$_ =~ s/\t/    /g;
-				unless ($_ =~ /^ {4,}(.+)/) {
+				if(m/\s*#/) {
+					next;
+				}
+				s/\t/    /g;
+				unless (/^ {4,}(.+)/) {
 					last;
 				}
 				my $rcmd = $1;
-				next if ($rcmd =~ /^#/);
 				if ($rcmd =~ /^real\s*=\s*(.*)/) {
 					push @rsrv_todo, [$1, $line];
 				} elsif ($rcmd =~ /^request\s*=\s*\"(.*)\"/) {
