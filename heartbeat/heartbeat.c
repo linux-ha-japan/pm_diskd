@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.216 2002/10/07 04:39:15 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.217 2002/10/07 17:57:40 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -931,7 +931,7 @@ read_child(struct hb_media* mp)
 	make_realtime(-1, -1, 32);
 	curproc->pstat = RUNNING;
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
-	become_nobody(0);
+	drop_privs(-1, -1);
 
 	process_pending_handlers();
 	for (;;) {
@@ -993,7 +993,7 @@ write_child(struct hb_media* mp)
 	siginterrupt(SIGALRM, 1);
 	signal(SIGALRM, ignore_signal);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
-	become_nobody(0);
+	drop_privs(-1, -1);
 	curproc->pstat = RUNNING;
 
 	for (;;) {
@@ -2411,6 +2411,7 @@ void
 check_auth_change(struct sys_config *conf)
 {
 	if (conf->rereadauth) {
+		return_to_orig_privs();
 		/* parse_authfile() resets 'rereadauth' */
 		if (parse_authfile() != HA_OK) {
 			/* OOPS.  Sayonara. */
@@ -2419,6 +2420,7 @@ check_auth_change(struct sys_config *conf)
 			force_shutdown();
 			cleanexit(1);
 		}
+		return_to_dropped_privs();
 	}
 }
 
@@ -3356,6 +3358,7 @@ reread_config_action(void)
 		 * We are not the control process, and we received a SIGHUP
 		 * signal.  This means the authentication file has changed.
 		 */
+		return_to_orig_privs();
 		if (parse_authfile() != HA_OK) {
 			/* OOPS.  Sayonara. */
 			ha_log(LOG_ERR
@@ -3363,6 +3366,7 @@ reread_config_action(void)
 			force_shutdown();
 			cleanexit(1);
 		}
+		return_to_dropped_privs();
 
 	}
 
@@ -5962,6 +5966,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.217  2002/10/07 17:57:40  alan
+ * Changed the privilege dropping code a bit.
+ *
  * Revision 1.216  2002/10/07 04:39:15  alan
  * Put in code to make shutdown problems easier to debug, and to hopefully keep shutdowns from
  * hanging forever.
