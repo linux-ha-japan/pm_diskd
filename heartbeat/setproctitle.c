@@ -1,4 +1,4 @@
-const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.1 2001/09/06 16:14:35 horms Exp $";
+const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.2 2001/09/07 01:18:15 alan Exp $";
 
 /*
  * setproctitle.c
@@ -75,17 +75,19 @@ const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.1 2001/09/06 1
 
 static char **Argv = NULL;
 static char *LastArgv = NULL;
+extern char **environ;
 
 void init_set_proc_title(int argc, char *argv[], char *envp[])
 {
 #ifdef HAVE___PROGNAME
   extern char *__progname, *__progname_full;
 #endif /* HAVE___PROGNAME */
-  extern char **environ;
   
   int i, envpsize;
   char **p;
   
+  (void)_setproctitle_h_Id;
+  (void)_setproctitle_c_Id;
   /* Move the environment so setproctitle can use the space.
    */
   for(i = envpsize = 0; envp[i] != NULL; i++)
@@ -142,8 +144,11 @@ void set_proc_title(const char *fmt,...)
 #if PF_ARGV_TYPE == PF_ARGV_PSTAT
    union pstun pst;
 #endif /* PF_ARGV_PSTAT */
+  int i;
+#if PF_ARGV_TYPE == PF_ARGV_WRITEABLE
+  int maxlen = (LastArgv - Argv[0]) - 2;
   char *p;
-  int i,maxlen = (LastArgv - Argv[0]) - 2;
+#endif
 #endif /* HAVE_SETPROCTITLE */
 
   va_start(msg,fmt);
