@@ -82,7 +82,7 @@
 #endif
 
 #if HAVE_SIGIGNORE 
-#	if |defined(linux)
+#	if !defined(linux)
 #		define IGNORESIG(s) sigignore(s)
 #	endif
 #else
