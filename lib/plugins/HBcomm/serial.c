@@ -1,4 +1,4 @@
-const static char _serial_c_Id [] = "$Id: serial.c,v 1.25 2003/04/15 23:09:52 alan Exp $";
+const static char _serial_c_Id [] = "$Id: serial.c,v 1.26 2003/05/21 21:55:07 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -382,7 +382,7 @@ opentty(char * serial_device)
 {
 	int	fd;
 
-	if ((fd=open(serial_device, O_RDWR)) < 0 ) {
+	if ((fd=open(serial_device, O_RDWR|O_NOCTTY)) < 0 ) {
 		LOG(LOG_CRIT, "cannot open %s: %s", serial_device
 		,	strerror(errno));
 		return(fd);
@@ -669,6 +669,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.26  2003/05/21 21:55:07  alan
+ * Put in a bug fix from Carson Gaspar <carson@taltos.org> to open our
+ * serial ttys with O_NOCTTY to avoid having them become our controlling
+ * ttys.
+ *
  * Revision 1.25  2003/04/15 23:09:52  alan
  * Continuing saga of the semi-major heartbeat process restructure.
  *
