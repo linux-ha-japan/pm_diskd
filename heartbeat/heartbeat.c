@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.55 2000/06/13 04:20:41 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.56 2000/06/13 17:59:53 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -394,7 +394,7 @@ void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 void	init_xmit_hist (struct msg_xmit_hist * hist);
 void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
 void	nak_rexmit(int seqno, const char * reason);
-void	req_our_resources(int stablestate);
+void	req_our_resources(void);
 void	giveup_resources(void);
 void	make_realtime(void);
 void	make_normaltime(void);
@@ -1337,7 +1337,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		/* Original ("normal") starting behavior */
 		if (!WeAreRestarting && !resources_requested_yet) {
 			resources_requested_yet=1;
-			req_our_resources(rstate == R_STABLE);
+			req_our_resources();
 		}
 		return;
 	}
@@ -1378,17 +1378,9 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		if (takeover_in_progress) {
 			ha_log(LOG_WARNING
 			,	"T_STARTING received during takeover.");
-			/* Does it matter? */
-			if ((i_hold_resources & FOREIGN_RSC) == 0) {
-				/* OOPS!  It matters! */
-				/* We could always just fudge this */
-				i_hold_resources |= FOREIGN_RSC;
-				ha_log(LOG_WARNING
-				,	"Fudging i_hold_resources!");
-			}
 		}
 		send_resources_held(rsc_msg[i_hold_resources]
-		,	newrstate == R_STABLE);
+		,	rstate == R_STABLE);
 	}
 
 	/* Manage resource related messages... */
@@ -1435,24 +1427,27 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 			const char *	f_stable;
 
-			if ((f_stable = ha_msg_value(msg, F_ISSTABLE)) != NULL
-			&&	strcmp(f_stable, "1") == 0
-			&&	! other_is_stable) {
-				ha_log(LOG_INFO, "remote resource"
-				" transition completed.");
-				other_is_stable = 1;
-			}else if (f_stable != NULL) {
-				other_is_stable = 0;
+			/* f_stable is NULL when message comes by takeover script */
+			if ((f_stable = ha_msg_value(msg, F_ISSTABLE)) != NULL) {
+				if (strcmp(f_stable, "1") == 0) {
+					if (!other_is_stable) {
+						ha_log(LOG_INFO, "remote resource"
+						" transition completed.");
+						other_is_stable = 1;
+					}
+				}else{
+					other_is_stable = 0;
+				}
 			}
+
 			other_holds_resources=UPD_RSC(other_holds_resources,n);
 
-			if (rstate != R_BOTHSTARTING && rstate != R_STABLE) {
-				/* I wonder if there's a timing hole here? */
-				/* I also wonder if BOTHSTARTING is OK here */
+			if (rstate != R_STABLE && other_is_stable) {
 				ha_log(LOG_INFO
 				,	"local resource transition completed.");
+				req_our_resources();
 				newrstate = R_STABLE;
-				req_our_resources(newrstate == R_STABLE);
+				send_resources_held(rsc_msg[i_hold_resources], 1);
 			}
 		}else{
 			const char *	comment = ha_msg_value(msg, F_COMMENT);
@@ -1484,8 +1479,15 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	if (!WeAreRestarting) {
 		if (rstate == R_RSCRCVD && now > local_takeover) {
 			newrstate = R_STABLE;
+			req_our_resources();
 			ha_log(LOG_INFO,"local resource transition completed.");
-			req_our_resources(newrstate == R_STABLE);
+			send_resources_held(rsc_msg[i_hold_resources], 1);
+		}
+	}
+
+	if (rstate != newrstate) {
+		if (ANYDEBUG) {
+			ha_log(LOG_INFO, "STATE %d => %d", rstate, newrstate);
 		}
 	}
 
@@ -2167,18 +2169,24 @@ mark_node_dead(struct node_info *hip)
 	if (hip == curnode) {
 		/* We may die too soon for this to actually be received */
 		/* But, we tried ;-) */
-		send_resources_held(NO_RESOURCES, 0);
+		send_resources_held(NO_RESOURCES, 1);
 		/* Uh, oh... we're dead! */
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
 	}else{
 		if (nice_failback) {
 			other_holds_resources = NO_RSC;
-			other_is_stable = 0;	/* Until mach_down completes */
+			other_is_stable = 1;	/* Not going anywhere */
 			takeover_in_progress = 1;
+			/*
+			 * We MUST do this now, or the other side might come back up
+			 * and think they can own their own resources when they do
+			 * due to receiving an interim T_RESOURCE message from us.
+			 */
+			i_hold_resources |= FOREIGN_RSC;
 			/* case 1 - part 1 */
 			/* part 2 is done by the mach_down script... */
-			req_our_resources(1);
+			req_our_resources();
 		}
 	}
 	hip->anypacketsyet = 1;
@@ -2307,7 +2315,7 @@ heartbeat_monitor(struct ha_msg * msg, int msgtype, const char * iface)
 }
 
 void
-req_our_resources(int stablestate)
+req_our_resources()
 {
 	FILE *	rkeys;
 	char	cmd[MAXLINE];
@@ -2326,8 +2334,11 @@ req_our_resources(int stablestate)
 			return;
 		}
 
+		/*
+		 * We MUST do this now, or the other side might think they can
+		 * can have our resources, due to an interim T_RESOURCE message
+		 */
 		i_hold_resources |= LOCAL_RSC;
-		send_resources_held(rsc_msg[i_hold_resources], stablestate);
 	}
 
 	/* We need to fork so we can make child procs not real time */
@@ -2343,7 +2354,6 @@ req_our_resources(int stablestate)
 
 	make_normaltime();
 	signal(SIGCHLD, SIG_DFL);
-	ha_log(LOG_INFO, "Requesting our resources.");
 	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
@@ -2385,11 +2395,11 @@ req_our_resources(int stablestate)
 	if (rsc_count == 0) {
 		ha_log(LOG_INFO, "No local resources [%s]", cmd);
 		if (nice_failback) {
-			send_resources_held(NO_RESOURCES, stablestate);
+			send_resources_held(NO_RESOURCES, 0);
 		}
 	}else {
 		if (nice_failback) {
-			send_resources_held(LOCAL_RESOURCES, stablestate);
+			send_resources_held(LOCAL_RESOURCES, 0);
 		}
 
 		if (ANYDEBUG) {
@@ -3355,6 +3365,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.56  2000/06/13 17:59:53  alan
+ * Fixed the nice_failback code to change the way it handles states.
+ *
  * Revision 1.55  2000/06/13 04:20:41  alan
  * Fixed a bug for handling logfile.  It never worked, except by the default case.
  * Fixed a bug related to noting when various nodes were out of transition.
