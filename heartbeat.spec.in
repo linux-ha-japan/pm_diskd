@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.49 2003/02/13 17:37:43 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.50 2003/02/13 17:57:34 alan Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -68,7 +68,7 @@ implementing any number of interfaces.
 
 %changelog
 * Thu Feb 13 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
-+ Version 1.0.0 beta series
++ Version 1.0.1 beta series
 
   0.4.9g:
   + Changed default deadtime, warntime, and heartbeat interval
@@ -93,7 +93,8 @@ implementing any number of interfaces.
   + Changed ipfail to log things at same level heartbeat does
 
 
-
+* Sat Nov 30 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
++ Version 0.5 beta series (now renamed to 1.0.1 beta series).
   0.4.9f:
   + Added pre-start, pre-stop, post-stop and pre-stop constructs in init script
   + various IPC fixes
