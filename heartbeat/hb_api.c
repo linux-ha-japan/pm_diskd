@@ -579,6 +579,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 
 	if ((client = find_client(fromid, pid)) == NULL) {
 		ha_log(LOG_ERR, "api_process_request: msg from non-client");
+		ha_msg_del(resp); resp=NULL;
 		return;
 	}
 
@@ -590,6 +591,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		,	fromclient->pid
 		,	client->client_id
 		,	fromclient->client_id);
+		ha_msg_del(resp); resp=NULL;
 		return;
 	}
 
