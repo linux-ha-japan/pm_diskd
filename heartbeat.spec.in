@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.32 2002/08/10 02:26:12 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.33 2002/08/18 01:35:54 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -497,7 +497,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %files stonith
 ###########################################################
 %defattr(-,root,root)
-@includedir@/stonith
+@stonith_includedir@
 @libdir@/libstonith.*
 @libdir@/stonith/*.so*
 @sbindir@/stonith
@@ -508,8 +508,9 @@ install -m 644 rc.config.heartbeat $TEMPL
 %files pils
 ###########################################################
 %defattr(-,root,root)
-@includedir@/pils
+@pils_includedir@
 @libdir@/libpils.*
+@pils_plugindir@
 
 ###########################################################
 %clean

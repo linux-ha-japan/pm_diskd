@@ -28,8 +28,7 @@ CFLAGS			= @CFLAGS@
 
 ## libraries
 
-halibdir		= $(libdir)/@HEARTBEATPKG@
-plugindir		= $(halibdir)/plugins/InterfaceMgr
+plugindir		= $(pils_plugindir)/InterfaceMgr
 plugin_LTLIBRARIES	= generic.la
 
 generic_la_SOURCES	= generic.c
