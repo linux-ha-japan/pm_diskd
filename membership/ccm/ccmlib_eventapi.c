@@ -26,16 +26,19 @@
 #define __CCM_LIBRARY__
 #include <ccmlib.h>
 
-void * cookie_construct(void (*f)(uint *), void *data);
+void *cookie_construct(void (*f)(void *), void (*free_f)(void *), void *);
 void * cookie_get_data(void *ck);
 void * cookie_get_func(void *ck);
-void cookie_destruct(void *ck);
+void cookie_ref(void *ck);
+void cookie_unref(void *ck);
 
 static GHashTable  *tokenhash = NULL;
 
 typedef struct oc_ev_cookie_s {
-	void		 	(*func) (uint *);
+	void		 	(*func) (void *);
+	void		 	(*freefunc) (void *);
 	void			*data;
+	int			refcount;
 } oc_ev_cookie_t;
 
 static guint token_counter=0;
@@ -54,11 +57,13 @@ typedef struct oc_ev_s {
  */
 
 void *
-cookie_construct(void (*f)(uint *), void *data)
+cookie_construct(void (*f)(void *), void (*free_f)(void *), void *data)
 {
 	oc_ev_cookie_t *cookie = g_malloc(sizeof(oc_ev_cookie_t));
 	cookie->func = f;
 	cookie->data = data;
+	cookie->freefunc = free_f;
+	cookie->refcount = 1;
 	return (void *)cookie;
 }
 
@@ -76,12 +81,27 @@ cookie_get_func(void *ck)
 	if(!cookie) return NULL;
 	return cookie->func;
 }
+
 void
-cookie_destruct(void *ck)
+cookie_unref(void *ck)
 {
 	oc_ev_cookie_t *cookie = (oc_ev_cookie_t *)ck;
 	if(!cookie) return;
-	g_free(cookie);
+	if(--cookie->refcount == 0) {
+		 if(cookie->freefunc){
+			 cookie->freefunc(cookie->data);
+		 }
+		g_free(cookie);
+	}
+	return;
+}
+
+void
+cookie_ref(void *ck)
+{
+	oc_ev_cookie_t *cookie = (oc_ev_cookie_t *)ck;
+	if(!cookie) return;
+	++cookie->refcount;
 	return;
 }
 

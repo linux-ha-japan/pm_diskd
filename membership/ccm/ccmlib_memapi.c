@@ -26,7 +26,6 @@
 
 /* structure to track the membership delivered to client */
 typedef struct mbr_track_s {
-	int			m_count;
 	int			m_size;
 	oc_ev_membership_t 	m_mem;
 } mbr_track_t;
@@ -60,9 +59,6 @@ typedef struct mbr_private_s {
 #define OC_EV_INC_N_IN(m)  m->m_mem.m_n_in++
 #define OC_EV_INC_N_OUT(m)  m->m_mem.m_n_out++
 
-#define OC_EV_SET_COUNT(m,count)  m->m_count=count
-#define OC_EV_INC_COUNT(m)  ++m->m_count
-#define OC_EV_DEC_COUNT(m)  --m->m_count
 
 #define OC_EV_SET_SIZE(m,size)  m->m_size=size
 #define OC_EV_SET_DONEFUNC(m,f)  m->m_func=f
@@ -88,10 +84,11 @@ typedef struct mbr_private_s {
 /* prototypes of external functions used in this file 
  * Should be made part of some header file 
  */
-void * cookie_construct(void (*f)(void *), void *);
-void * cookie_get_data(void *);
-void * cookie_get_func(void *);
-void   cookie_destruct(void *);
+void *cookie_construct(void (*f)(void *), void (*free_f)(void *), void *);
+void * cookie_get_data(void *ck);
+void * cookie_get_func(void *ck);
+void cookie_ref(void *ck);
+void cookie_unref(void *ck);
 
 
 
@@ -326,16 +323,19 @@ get_new_membership(mbr_private_t *private,
 }
 
 static void
+mem_free_func(void *data)
+{
+	mbr_track_t  *mbr_track =  (mbr_track_t *)data;
+
+	if(mbr_track) g_free(mbr_track);
+
+	return;
+}
+
+static void
 mem_callback_done(void *cookie)
 {
-	mbr_track_t  *mbr_track =  
-		(mbr_track_t *)cookie_get_data(cookie);
-	if(mbr_track) {
-		if(OC_EV_DEC_COUNT(mbr_track) == 0){
-			cookie_destruct(cookie);
-			g_free(mbr_track);
-		}
-	}
+	cookie_unref(cookie);
 	return;
 }
 
@@ -400,7 +400,7 @@ mem_handle_event(class_t *class)
 	struct IPC_MESSAGE *msg;
 	mbr_private_t *private;
 	struct IPC_CHANNEL *ch;
-	mbr_track_t *mbr_track, *old_oc_mem;
+	mbr_track_t *mbr_track;
 	int	size;
 	int	type;
 	oc_memb_event_t oc_type;
@@ -474,19 +474,10 @@ mem_handle_event(class_t *class)
 			} else {
 				oc_type = OC_EV_MS_NEW_MEMBERSHIP;
 				update_bornons(private, mbr_track);
+				cookie_unref(private->cookie);
 				cookie = cookie_construct(mem_callback_done, 
-						mbr_track);
-
-				old_oc_mem = (mbr_track_t *)
-					cookie_get_data(private->cookie);
-				if(old_oc_mem &&
-					(OC_EV_DEC_COUNT(old_oc_mem) == 0)){
-					cookie_destruct(private->cookie);
-					g_free(old_oc_mem);
-				}
-
+						mem_free_func, mbr_track);
 				private->cookie = cookie;
-				OC_EV_SET_COUNT(mbr_track, 1);
 				OC_EV_SET_SIZE(mbr_track, size);
 			}
 			break;
@@ -495,19 +486,35 @@ mem_handle_event(class_t *class)
 			oc_type = OC_EV_MS_EVICTED;
 			private->client_report = TRUE;
 			/* FALL THROUGH */
+
 		case CCM_INFLUX:
-			oc_type = OC_EV_MS_NOT_PRIMARY;
+
+			if(type==CCM_INFLUX)
+				oc_type = OC_EV_MS_NOT_PRIMARY;
+
+
+
 			cookie = private->cookie;
 			if(cookie) {
 				mbr_track = (mbr_track_t *)
-						cookie_get_data(cookie);
-				size = OC_EV_GET_SIZE(mbr_track);
+					cookie_get_data(cookie);
+				size=mbr_track? OC_EV_GET_SIZE(mbr_track): 0;
+			} else {
+				/* if no cookie exists, create one.
+				 * This can happen if no membership 
+				 * has been delivered.
+				 */
+				mbr_track=NULL;
+				size=0;
+				cookie = private->cookie = 
+					cookie_construct(mem_callback_done,
+						NULL,NULL);
 			}
 			break;
 		}
 
-		if(private->callback && private->client_report){
-			OC_EV_INC_COUNT(mbr_track);
+		if(private->callback && private->client_report && cookie){
+			cookie_ref(cookie);
 			private->callback(oc_type,
 				(uint *)cookie,
 				size, 

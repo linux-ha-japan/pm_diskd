@@ -972,7 +972,9 @@ static void
 ccm_remove_new_joiner(ccm_info_t *info, const char *orig)
 {
 	int idx = llm_get_index(CCM_GET_LLM(info), orig)+1;
-	g_slist_remove(CCM_GET_JOINERHEAD(info), GINT_TO_POINTER(idx));
+	CCM_SET_JOINERHEAD(info, 
+			g_slist_remove(CCM_GET_JOINERHEAD(info), 
+				GINT_TO_POINTER(idx)));
 	return;
 }
 //

@@ -284,8 +284,6 @@ client_delete(struct IPC_CHANNEL *ipc_client)
 				!=NULL){
 		g_hash_table_remove(ccm_hashclient, ipc_client);
 		g_free(ccm_client);
-		ipc_client->ops->resume_io(ipc_client);
-		ipc_client->ops->destroy(ipc_client);
 	}
 	return;
 }

@@ -43,6 +43,8 @@
 #include <assert.h>
 #include <glib.h>
 #include <ipc.h>
+#include <clplumbing/Gmain_timeout.h>
+#include <clplumbing/GSource.h>
 #include <base64.h>
 
 #include <heartbeat.h>
