@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.131 2001/09/07 05:46:39 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.132 2001/09/07 05:48:30 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1046,7 +1046,7 @@ control_process(FILE * fp)
 	/* Catch and propagate debugging level signals... */
 	signal(SIGUSR1, parent_debug_sig);
 	signal(SIGUSR2, parent_debug_sig);
-	signal(SIGTERM, giveup_resources_and_signal_all_handler);
+	signal(SIGTERM, giveup_resources_and_signal_all_sig);
 	siginterrupt(SIGALRM, 1);
 
         set_proc_title("%s: control process", cmdname);
@@ -4055,6 +4055,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.132  2001/09/07 05:48:30  horms
+ * Changed recently added _handler funciotns to _sig to match previously defined signal handlers. Horms
+ *
  * Revision 1.131  2001/09/07 05:46:39  horms
  * Changed recently added _handler funciotns to _sig to match previously defined signal handlers. Horms
  *
