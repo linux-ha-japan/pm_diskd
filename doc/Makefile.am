@@ -34,7 +34,8 @@ CLEANFILES              = $(txtfiles) ChangeLog
 SPECSRC 		= $(top_builddir)/heartbeat.spec
 
 OTHER_DOCS              = AUTHORS COPYING ChangeLog \
-                                README authkeys ha.cf startstop haresources
+                                README authkeys ha.cf startstop haresources \
+				apphbd.cf recoverymgrd.conf
 
 doc_DATA		= $(OTHER_DOCS) $(txtfiles) $(htmlfiles) 
 

@@ -50,6 +50,7 @@
 #include <clplumbing/cl_poll.h>
 #include <clplumbing/uids.h>
 #include <clplumbing/recoverymgr_cs.h>
+#include <clplumbing/lsb_exitcodes.h>
 #include <apphb_notify.h>
 #include <recoverymgr.h>
 
@@ -57,17 +58,18 @@
 #include "recoverymgrd.h"
 #include "configfile.h"
 
-#define DEBUG
 
 /* indicates how many microseconds between heartbeats */
 #define HBINTERVAL_USEC		2000
 
-#define DEBUG
+#define CONFIG_FILE	"./recoverymgrd.conf"
+
+#define DEBUG 
 #define         DBGMIN          1
 #define         DBGDETAIL       3
-int             debug = 0;
-
-
+int             debug = 10;
+const char* cmdname = "recoverymgrd";
+extern FILE* yyin;
 /** The main event loop */
 GMainLoop*      mainloop = NULL;
 GHashTable 	*scripts; /* location for recovery info */
@@ -90,13 +92,35 @@ yywrap(void)
         return 1;
 }
 
-int 
-parseConfigFile(void)
+void 
+print_hash(gpointer key, gpointer value, gpointer userdata)
 {
+	char* key_str = key;
+	char* value_str = value;
+	cl_log(LOG_INFO, "key[%s], value[%s]\n", key_str, value_str);
+}
+
+gboolean
+parseConfigFile(const char* conf_file)
+{
+   gboolean retval = TRUE;
    scripts = g_hash_table_new(g_str_hash, g_int_equal);
-
-   yyparse();
-
+   
+   if((yyin = fopen(conf_file,"r")) == NULL){
+   	cl_log(LOG_ERR, "Cannot open configure file:[%s]"
+			, conf_file);
+	;
+	return(FALSE);
+   }
+   
+   if(yyparse()){
+   	retval = FALSE;
+   };
+   fclose(yyin);
+   if(debug > DBGMIN){
+   	g_hash_table_foreach(scripts, print_hash, NULL); 
+   }
+   return retval;
 }
 
 
@@ -104,24 +128,24 @@ int main(int argc, char *argv[])
 {
    	int rc; 
    	int retval = 0;  
-   
-   	cl_log_set_entity(argv[0]);
+   	const char* conf_file = CONFIG_FILE;
+	
+	if(argc == 2){
+		conf_file = argv[1];
+	}else if(argc > 2){
+		printf("Usage: %s [config_file]\n", cmdname);
+		exit(LSB_EXIT_NOTCONFIGED);
+	}
+   	
+	cl_log_set_entity(argv[0]);
    	cl_log_enable_stderr(TRUE);
    	cl_log_set_facility(LOG_USER);
    	cl_log(LOG_INFO, "Starting %s", argv[0]);
-
    	signal(SIGCHLD, sigchld_handler);
-
-/*
-   if (argc <= 1)
-   {
-      printf("Usage: %s config_file\n", argv[0]);
-      return (0);	      
-   }*/
-
-	parseConfigFile();
-
-   /* parseFile(argv[1]); */
+	
+	if(parseConfigFile(conf_file) == FALSE){
+		exit(LSB_EXIT_NOTCONFIGED);
+	};
 
    /* make self a daemon */
 #ifndef DEBUG
@@ -630,9 +654,22 @@ recoverymgr_client_event(recoverymgr_client_t *client, void *Msg, int msgsize)
 
 	/* FINISH HERE  -- confirm that client is the apphbd 
    	   or at least one that is permitted to request recovery (?)*/	
-
+	
+        if (debug >= DBGMIN) {
+                cl_log(LOG_DEBUG
+                ,       "recoverymgr_client_event: client: [%s]/[%s] pid [%ld]"
+                " (uid,gid)(%ld,%ld)"
+		" message type [%s]"
+                ,       msg->appname
+                ,       msg->appinstance
+                ,       (long)msg->pid
+                ,       (long)msg->uid
+                ,       (long)msg->gid
+		,	msg->msgtype);
+        }
+	
 	info = g_hash_table_lookup(scripts, msg->appname);
- 	if (NULL == info)	
+	if (NULL == info)	
  	{
 		cl_log(LOG_INFO, "No script available to recover %s\n", msg->appname);
 		return 0;
@@ -644,7 +681,7 @@ recoverymgr_client_event(recoverymgr_client_t *client, void *Msg, int msgsize)
 
 		return 0;
 	}
-
+	
         recover_app(info, msg->event); 
 
   	return 0;
@@ -671,6 +708,8 @@ recover_app(RecoveryInfo *info, int eventindex)
 		child_setup_function(info);
         	if (debug >= DBGDETAIL) 
 		{
+   			cl_log(LOG_INFO, "current euid[%ld]", (long)geteuid());
+   			cl_log(LOG_INFO, "current egid[%ld]", (long)getegid());
 			cl_log(LOG_DEBUG,"script = %s\n", info->scriptname);
 			cl_log(LOG_DEBUG,"args = %s\n", info->event[eventindex].args);
 		}
@@ -680,7 +719,7 @@ recover_app(RecoveryInfo *info, int eventindex)
  	 	if (execl(info->scriptname, info->scriptname,
 			  info->event[eventindex].args, NULL) < 0)
 		{
-			cl_perror("Failed to exec recovery script for %ss\n", info->appname);
+			cl_perror("Failed to exec recovery script for %s\n", info->appname);
 			_exit(EXIT_FAILURE);
 		}
 	}
@@ -696,7 +735,7 @@ recover_app(RecoveryInfo *info, int eventindex)
 void 
 child_setup_function(RecoveryInfo *info)
 {
-   	if (info == NULL)
+	if (info == NULL)
    	{
         	if (debug >= DBGDETAIL) 
 		{
@@ -704,20 +743,21 @@ child_setup_function(RecoveryInfo *info)
 		}
       		return;
    	}
-
-   	if (0 != seteuid((uid_t)info->uid))
+   	/* Change both uid, and euid since we are root */
+	if ( 0 != setgid(info->gid))
    	{
         	if (debug >= DBGDETAIL) 
 		{
-      			cl_log(LOG_INFO, "Unable to set uid for recovery of %s\n", info->appname);
+			cl_log(LOG_INFO, "error:[%s]", strerror(errno));
+      			cl_log(LOG_INFO, "Unable to setgid for recovery of %s\n", info->appname);
 		}
    	}
-  
-   	if (0 != setegid(info->gid))
+	if ( 0 != setuid(info->uid))
    	{
         	if (debug >= DBGDETAIL) 
 		{
-      			cl_log(LOG_INFO, "Unable to set uid for recovery of %s\n", info->appname);
+			cl_log(LOG_INFO, "error:[%s]", strerror(errno));
+			cl_log(LOG_INFO, "Unable to setuid for recovery of %s\n", info->appname);
 		}
    	}
 }

@@ -72,7 +72,7 @@ int recover_app(RecoveryInfo *info, int eventindex);
 void child_setup_function(RecoveryInfo *info);
 gboolean hash_remove_func(gpointer key, gpointer value, gpointer user_data);
 
-int parseConfigFile(void);
+gboolean parseConfigFile(const char* conf_file);
 void yyerror(const char *str);
 int yywrap(void);
 extern int yyparse(void);

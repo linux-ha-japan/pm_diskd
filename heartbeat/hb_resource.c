@@ -288,6 +288,9 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				if (nice_failback) {
 					setenv(HANICEFAILBACK, "yes", 1);
 				}
+				/* Make sure we perform as expected */
+				setenv("LC_ALL","POSIX",1);
+				
 				if (ANYDEBUG) {
 					ha_log(LOG_DEBUG
 					,	"notify_world: Running %s %s"
@@ -1729,6 +1732,25 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.15  2003/03/18 11:36:25  lars
+ * Patch by Adam Li <adam.li@intel.com>:
+ *
+ * - man page updated for apphbd
+ * - Sample apphbd configure file: doc/apphbd.cf
+ * - Updated telecom/apphbd/apphbtest.c to make the output more understandable.
+ *   New test cases added. However, the new test cases are not enabled by default
+ *   (yet).
+ * - Updated configure.in and other a few Makefile.am to enable compile of apphbd
+ *   plugin recmgr and recovery manager.
+ * - Bug fixes for recovery manager:
+ *   - recoverymgrd cannot read more than one recovery script from configuration
+ *     file.
+ *   - recoverymgrd cannot set euid and egid for recovery scripts according to
+ *     config file; order of setuid/setgid corrected.
+ *   - Make sure that the specified user and group exists in the system by using
+ *     getpwnam() and getgrnam()
+ *   - Read configuration from file instead of using stdin in recoverymgrd
+ *
  * Revision 1.14  2003/03/05 16:51:08  alan
  * Fixed a problem reported by Paul Porcelli and others.
  *

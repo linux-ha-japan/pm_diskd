@@ -38,9 +38,9 @@ typedef struct
 typedef struct
 {
         char            appname[CONFIGSTRINGLENGTH];
-        char            uid[CONFIGUIDLENGTH];
-        char            gid[CONFIGGIDLENGTH];
-        char            scriptname[CONFIGSTRINGLENGTH];
+	uid_t		uid;
+	gid_t		gid;
+	char            scriptname[CONFIGSTRINGLENGTH];
         EventAction     event[MAXEVENTS];
 
 } RecoveryInfo;

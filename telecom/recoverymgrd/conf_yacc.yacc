@@ -23,6 +23,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <grp.h>
+#include <pwd.h>
+#include <sys/types.h>
 #include <apphb_notify.h>
 #include <glib.h>
 
@@ -30,7 +33,7 @@
 #include "libgen.h" /* for basename() */
 
 extern int yylex(void);
-
+/* #define DEBUG */
 %}
 
 %token PID APPHB_HUP_L APPHB_NOHB_L APPHB_HBAGAIN_L APPHB_HBWARN_L 
@@ -43,21 +46,26 @@ extern int yylex(void);
 commands: command commands 
 	| command
 	{
-		/* The appname is the key */
-		g_hash_table_insert(scripts, current->appname, current);
 	}
 
 command: userinfo FILENAME OPEN_CURLY events 
 	{
+#ifdef DEBUG
 		int i;
+#endif
 		strncpy(current->scriptname, $2, CONFIGSTRINGLENGTH);
 
 		tempname = strdup(current->scriptname);
 		strncpy(current->appname,basename(tempname), CONFIGSTRINGLENGTH);
 		free(tempname);
+#ifdef DEBUG
+		printf("insert to hash table: [%s][%s]\n", current->appname
+			, current);
+#endif
+		g_hash_table_insert(scripts, current->appname, current);
 
 #ifdef DEBUG
-		printf("uid= %s\ngid=%s\n", current->uid, current->gid);
+		printf("uid=%ld\ngid=%ld\n", current->uid, current->gid);
 		printf("scriptname = %s\n", current->scriptname);
 		printf("appname = %s\n", current->appname);
 		
@@ -72,11 +80,13 @@ command: userinfo FILENAME OPEN_CURLY events
 userinfo: WORD COLON WORD
 	{
 		int i;
+		struct passwd* mypasswd = NULL;
+		struct group* mygroup = NULL;
 		current = (RecoveryInfo *) malloc(sizeof(RecoveryInfo));
 		if (!current)
 		{
 		   printf("out of memory. Failed to parse config file\n");
-		   /* TODO: stop parser as failed */
+		   return(5);
 		}
 		else 
 		{
@@ -85,9 +95,31 @@ userinfo: WORD COLON WORD
 		      current->event[i].inuse = FALSE;
 		      current->event[i].args[0] = '\0';
 	 	   }
+		   /*
 		   strncpy(current->uid, $1, CONFIGUIDLENGTH);
 		   strncpy(current->gid, $3, CONFIGGIDLENGTH);			
-		}
+		   */
+		   mypasswd = getpwnam($1);
+		   mygroup = getgrnam($3);
+		   if(mypasswd){   
+			current->uid = mypasswd->pw_uid;
+			current->gid = mypasswd->pw_gid;
+			if(mygroup){
+				if(mygroup->gr_gid != current->gid){
+					printf("User [%s] is not in group [%s]\n"
+					, $1, $3);
+					return(1);
+				}
+			}else{
+		   		printf("Cannot find group id for group:[%s]\n"
+					, $3);
+				return(2);
+			}
+		   }else{
+		   	printf("Cannot find user id for user:[%s]\n", $1);
+			return(3);
+		   } 	
+		 }
 	}
 
 events: eventdef events
@@ -103,7 +135,7 @@ eventdef: event EQUALS STRING
 		printf("string(yylval) = %s\n", yylval);
 		printf("strlen = %d\n", strlen($3));
 #endif
-		if (!current || eventindex >= MAXEVENTS) return;
+		if (!current || eventindex >= MAXEVENTS) return(4);
 
 		current->event[eventindex].inuse = TRUE;
 

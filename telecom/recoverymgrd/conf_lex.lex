@@ -37,7 +37,7 @@ APPHB_HBWARN		return APPHB_HBWARN_L;
 APPHB_HBUNREG		return APPHB_HBUNREG_L;
 \".+\"			yylval=(char *)strdup(yytext); return STRING; 
 [a-zA-Z][a-zA-Z0-9]*	yylval=(char *)strdup(yytext); return WORD; 
-[a-zA-Z0-9\/.-]+	yylval=(char *)strdup(yytext); return FILENAME;
+[_a-zA-Z0-9\/.-]+	yylval=(char *)strdup(yytext); return FILENAME;
 [ \t]+			/* ignore whitespace */;
 \n			/* ignore */;
 \{			return OPEN_CURLY;
