@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.40 2003/04/15 23:05:01 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.41 2003/04/18 06:09:46 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -414,7 +414,7 @@ msgfromstream(FILE * f)
 		if(!getsret) {
 			break;
 		}
-		if(!strcmp(buf, MSG_START)) {
+		if(strcmp(buf, MSG_START) == 0) {
 			break;
 		}
 	}
@@ -436,9 +436,9 @@ msgfromstream(FILE * f)
 		}
 
 		if(strlen(buf) > MAXLINE - 2) {
-			ha_log(LOG_DEBUG, "msgfromstream: message may be "
-					"too long and thus truncated: [%s]",
-					buf);
+			ha_log(LOG_DEBUG
+			,	"msgfromstream: field too long [%s]"
+			,	buf);
 		}
 
 		if(!strcmp(buf, MSG_END)) {
@@ -560,7 +560,7 @@ hamsg2ipcmsg(struct ha_msg* m, IPC_Channel* ch)
 	ret->msg_private = NULL;
 	ret->msg_ch = ch;
 	ret->msg_body = s;
-	ret->msg_len = strlen(s)+1;
+	ret->msg_len = m->stringlen;
 
 	return ret;
 }
@@ -700,6 +700,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.41  2003/04/18 06:09:46  alan
+ * Fixed an off-by-one error in writing messages to the FIFO.
+ * Also got rid of some now-unused functions, and fixed a minor glitch in BasicSanitCheck.
+ *
  * Revision 1.40  2003/04/15 23:05:01  alan
  * Added new message copying function, and code
  * to check the integrity of messages.  Too slow now, will turn it down later.

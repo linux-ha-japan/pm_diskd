@@ -150,6 +150,7 @@ RemoveConfigFiles() {
 }
 
 SaveConfigFiles() {
+  cd $HADIR
   if
     [ ! -d .cfsave ]
   then
@@ -159,7 +160,7 @@ SaveConfigFiles() {
 }
 
 RestoreConfigFiles() {
-  mv $HADIR.cfsave/* $HADIR
+  mv $HADIR/.cfsave/* $HADIR
 }
 
 HBStart() {

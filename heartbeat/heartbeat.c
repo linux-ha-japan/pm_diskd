@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.250 2003/04/16 13:07:59 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.251 2003/04/18 06:09:46 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -286,6 +286,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.250 2003/04/16 13:07
 #define	PRI_AUDITCLIENT	G_PRIORITY_LOW
 #define	PRI_APIREGISTER	(G_PRIORITY_LOW-1)
 #define	PRI_CLUSTERMSG	G_PRIORITY_DEFAULT
+#define	PRI_FIFOMSG	PRI_CLUSTERMSG-1
 
 
 static int		verbose = 0;
@@ -393,10 +394,6 @@ static void	start_a_child_client(gpointer childentry, gpointer pidtable);
 static void read_child(struct hb_media* mp);
 static void write_child(struct hb_media* mp);
 static void fifo_child(IPC_Channel* chan);		/* Reads from FIFO */
-#ifdef OLDCODE
-static void control_process(IPC_Channel* fifochildipc);
-static void master_status_process(void);		/* The real biggie */
-#endif
 static void master_control_process(IPC_Channel* fifoproc);/* The biggie ;-) */
 
 pid_t		processes[MAXPROCS];
@@ -475,7 +472,7 @@ init_procinfo()
 	 *
 	 * Not all the Shared memory implementations have as clear a
 	 * description of this fact as Linux, but they all work this way
-	 * anyway (as far as we have ever tested).
+	 * anyway (for all we've tested).
 	 */
 	if (shmctl(ipcid, IPC_RMID, NULL) < 0) {
 		ha_perror("Cannot IPC_RMID proc status shared memory id");
@@ -896,15 +893,15 @@ fifo_child(IPC_Channel* chan)
 		ha_perror("FIFO open (O_RDONLY) failed.");
 		exit(1);
 	}
+	open(FIFONAME, O_WRONLY);	/* Keep reads from getting EOF */
 	flags = fcntl(fiforfd, F_GETFL);
-	open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
-	fifo = fdopen(fiforfd, "r");
-	if (fifo == NULL) {
-		ha_perror("FIFO fdopen failed.");
-		exit(1);
-	}
 	flags &= ~O_NONBLOCK;
 	fcntl(fiforfd, F_SETFL, flags);
+	fifo = fdopen(fiforfd, "r");
+	if (fifo == NULL) {
+		cl_perror("FIFO fdopen failed.");
+		exit(1);
+	}
 
 	cl_make_realtime(-1, hb_realtime_prio, 16, 32);
 	drop_privs(0, 0);	/* Become nobody */
@@ -917,10 +914,10 @@ fifo_child(IPC_Channel* chan)
 
 		if (msg) {
 			IPC_Message*	m;
-#if 0
-			ha_log(LOG_DEBUG, "Fifo_child message:");
-			ha_log_message(msg);
-#endif
+			if (DEBUGDETAILS) {
+				ha_log(LOG_DEBUG, "fifo_child message:");
+				ha_log_message(msg);
+			}
 			m = hamsg2ipcmsg(msg, chan);
 			if (m) {
 				/* Send frees "m" "at the right time" */
@@ -934,10 +931,11 @@ fifo_child(IPC_Channel* chan)
 			
 		}else if (feof(fifo)) {
 			if (ANYDEBUG) {
+				return_to_orig_privs();
 				ha_log(LOG_DEBUG
 				,	"fifo_child: EOF on FIFO");
 			}
-			exit(0);
+			exit(2);
 		}
 	}
 }
@@ -1010,6 +1008,9 @@ FIFO_child_msg_dispatch(IPC_Channel* source, gpointer user_data)
 {
 	struct ha_msg*	msg = msgfromIPC(source);
 
+	if (DEBUGDETAILS) {
+		ha_log(LOG_DEBUG, "FIFO_child_msg_dispatch() called.");
+	}
 	if (msg != NULL) {
 		/* send_cluster_msg disposes of "msg" */
 		send_cluster_msg(msg);
@@ -1148,8 +1149,8 @@ master_control_process(IPC_Channel* fifoproc)
 	, 	APIregistration_input_dispatch, regfifo, NULL);
 
 	/* We only read from this source, we never write to it */
-	FifoChildSource = G_main_add_IPC_Channel(PRI_CLUSTERMSG, fifoproc
-	,	FALSE, FIFO_child_msg_dispatch, &msghist, NULL);
+	FifoChildSource = G_main_add_IPC_Channel(PRI_FIFOMSG, fifoproc
+	,	FALSE, FIFO_child_msg_dispatch, NULL, NULL);
 
 	if (ANYDEBUG) {
 		cl_log(LOG_DEBUG
@@ -2466,14 +2467,19 @@ send_cluster_msg(struct ha_msg* msg)
 		char *	smsg = NULL;
 
 		return_to_orig_privs();
+		if (DEBUGDETAILS) {
+			ha_log(LOG_INFO, "Writing type [%s] message to FIFO"
+			,	type);
+		}
 
 		/*
 		 * Convert the message to a string, and write it to the FIFO
 		 * It will then get written to the cluster properly.
+		 * NOTE: stringlen includes room for the EOS byte.
 		 */
 		if (	(smsg = msg2string(msg)) == NULL
 		||	(ffd = open(FIFONAME, O_WRONLY|O_NDELAY)) < 0
-		||	write(ffd, smsg, msg->stringlen) != msg->stringlen){
+		||	write(ffd, smsg, msg->stringlen-1) != msg->stringlen-1){
 			cl_perror("Cannot write message to " FIFONAME
 			" [%d vs %d]", getpid(), processes[0]);
 			ha_log_message(msg);
@@ -2482,6 +2488,10 @@ send_cluster_msg(struct ha_msg* msg)
 		}
 		return_to_dropped_privs();
 		if (smsg) {
+			if (DEBUGDETAILS) {
+				ha_log(LOG_INFO, "FIFO message [type %s] written"
+				, type);
+			}
 			ha_free(smsg);
 		}
 		close(ffd);
@@ -3476,17 +3486,11 @@ process_outbound_packet(struct msg_xmit_hist*	msghist
 		add2_xmit_hist (msghist, msg, seqno);
 	}
 
-	len = strlen(smsg);
 
-#ifdef OLDCODE
-	/* Copy the message to the status process */
-	write(statusfd, smsg, len);
-	/* FIXME!!!  */
-#else
 	/* Direct message to "loopback" processing */
 	process_clustermsg(msg, NULL);
-#endif
 
+	len = msg->stringlen - 1;
 	send_to_all_media(smsg, len);
 	ha_free(smsg);
 
@@ -3850,8 +3854,8 @@ process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 
 			/* If it didn't convert, throw original message away */
 			if (smsg != NULL) {
-				len = strlen(smsg);
 				hist->lastrexmit[msgslot] = now;
+				len = msg->stringlen-1;
 				send_to_all_media(smsg, len);
 			}
 
@@ -4020,6 +4024,10 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.251  2003/04/18 06:09:46  alan
+ * Fixed an off-by-one error in writing messages to the FIFO.
+ * Also got rid of some now-unused functions, and fixed a minor glitch in BasicSanitCheck.
+ *
  * Revision 1.250  2003/04/16 13:07:59  alan
  * Dropped the read_child_dispatch() NULL link message because it can occur
  * "normally" when we get garbled packets (particularly from serial ports).

@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.34 2003/04/15 23:06:53 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.35 2003/04/18 06:09:46 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -37,143 +37,6 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.34 2003/04/15 23:
 #define		CRNL		"\r\n"
 
 
-/* Return the next message found in the stream and copies */
-/* the iface in "iface"  */
-
-struct ha_msg *
-if_msgfromstream(FILE * f, char *iface)
-{
-	char		buf[MAXLINE];
-	const char *	bufmax = buf + sizeof(buf);
-	char *		getsret;
-	struct ha_msg*	ret;
-	
-
-	(void)_ha_msg_c_Id;
-	(void)_heartbeat_h_Id;
-	(void)_ha_msg_h_Id;
-	(void)_heartbeat_private_h_Id;
-	clearerr(f);
-
-	if(!(getsret=fgets(buf, MAXLINE, f))) { 
-		if (!ferror(f) || errno != EINTR) 
-			ha_log(LOG_ERR, "if_msgfromstream: cannot get message");
-		return(NULL);
-	}
-
-	/* Try to find the interface in the message. */
-
-	if (!strcmp(buf, IFACE)) {
-		/* Found interface name header, get interface name. */
-		if(!(getsret=fgets(buf, MAXLINE, f))) { 
-			if (!ferror(f) || errno != EINTR)
-				ha_log(LOG_ERR, "if_msgfromstream: "
-						"cannot get message");
-			return(NULL);
-		}
-		if (iface) { 
-			int len = strlen(buf);
-			if(len < MAXIFACELEN) {
-				strncpy(iface, buf, len);
-				iface[len -1] = EOS;
-			}
-		}
-	}
-
-	if (strcmp(buf, MSG_START)) { 	
-		/* Skip until we find a MSG_START (hopefully we skip nothing) */
-		while ((getsret=fgets(buf, MAXLINE, f)) != NULL
-		&&	strcmp(buf, MSG_START) != 0) {
-			/* Nothing */
-		}
-	}
-
-	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
-		/* Getting an error with EINTR is pretty normal */
-		if (!ferror(f) || errno != EINTR) {
-			ha_log(LOG_ERR, "if_msgfromstream: "
-					"cannot get message");
-		}
-		return(NULL);
-	}
-
-	/* Add Name=value pairs until we reach MSG_END or EOF */
-	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
-	&&	strcmp(buf, MSG_END) != 0) {
-
-		/* Add the "name=value" string on this line to the message */
-		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
-			ha_log(LOG_INFO
-			,	"NV failure (if_msgfromsteam)(%s): [%s]"
-			,	iface, buf);
-			ha_msg_del(ret);
-			return(NULL);
-		}
-	}
-	return(ret);
-}
-
-/*
- *	Output string encoding both message and interface it came in on.
- */
-char *
-msg2if_string(const struct ha_msg *m, const char *iface) 
-{
-
-	int	j;
-	char *	buf;
-	char *	bp;	/* current position in output string (buf)
-			 * Maintaining this makes this code lots faster because
-			 * otherwise strcat is pretty slow
-			 */
-	int	ifaceLen;
-	int	mlen;
-
-	if (m->nfields <= 0) {
-		ha_log(LOG_ERR, "msg2if_string: Message with zero fields");
-		return(NULL);
-	}
-
-	ifaceLen = strlen(iface);
-
-	/* Note: m->stringlen is # of chars to convert "m" to a plain string */
-	mlen = STRLEN(IFACE) + ifaceLen + STRLEN("\n") + m->stringlen;
-
-	buf = ha_malloc(mlen * sizeof(char ));
-
-	if (buf == NULL) {
-		ha_log(LOG_ERR, "msg2if_string: no memory for string");
-	}else{
-		/* Prepend information indicating incoming "interface" */
-		strcpy(buf, IFACE);
-		bp = buf + STRLEN(IFACE);
-
-		strcat(bp, iface);
-		bp += ifaceLen;
-
-		strcat(bp, "\n");
-		bp += STRLEN("\n");
-
-		/* Append the normal (plain) string representation of the message */
-		strcat(buf, MSG_START);
-		for (j=0; j < m->nfields; ++j) {
-
-			strcat(bp, m->names[j]);
-			bp += m->nlens[j];
-
-			strcat(bp, "=");
-			bp += STRLEN("=");
-
-			strcat(bp, m->values[j]);
-			bp += m->vlens[j];
-
-			strcat(bp, "\n");
-			bp += STRLEN("\n");
-		}
-		strcat(bp, MSG_END);
-	}
-	return(buf);
-}
 
 
 #define	SEQ	"seq"
@@ -209,6 +72,11 @@ add_control_msg_fields(struct ha_msg* ret)
 	const char *	type;
 	int		j;
 	int		noseqno;
+
+	(void)_ha_msg_c_Id;
+	(void)_heartbeat_h_Id;
+	(void)_ha_msg_h_Id;
+	(void)_heartbeat_private_h_Id;
 
 	if ((type = ha_msg_value(ret, F_TYPE)) == NULL) {
 		ha_log(LOG_ERR, "No type (add_control_msg_fields): ");
@@ -498,6 +366,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.35  2003/04/18 06:09:46  alan
+ * Fixed an off-by-one error in writing messages to the FIFO.
+ * Also got rid of some now-unused functions, and fixed a minor glitch in BasicSanitCheck.
+ *
  * Revision 1.34  2003/04/15 23:06:53  alan
  * Lots of new code to support the semi-massive process restructuriing.
  *
