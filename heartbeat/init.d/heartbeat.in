@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.7 2001/10/13 09:42:51 alan Exp $
+#	$Id: heartbeat.in,v 1.8 2001/10/24 20:46:29 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -59,7 +59,7 @@ INSMOD=/sbin/insmod
 US=`uname -n`
 
 # Set this to a 1 if you want to automatically load kernel modules
-USE_MODULES=1
+USE_MODULES=@USE_MODULES@
 
 [ -x $HA_BIN/heartbeat ] || exit 0
 
@@ -305,6 +305,13 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.8  2001/10/24 20:46:29  alan
+#  A large number of patches.  They are in these categories:
+#  	Fixes from Matt Soffen
+#  	Fixes to test environment things - including changing some ERRORs to
+#  		WARNings and vice versa.
+#  	etc.
+#
 #  Revision 1.7  2001/10/13 09:42:51  alan
 #  Incorporated a small patch from Matt Soffen
 #

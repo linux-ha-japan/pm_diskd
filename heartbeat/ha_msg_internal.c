@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.12 2001/09/29 19:08:24 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.13 2001/10/24 20:46:28 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -94,7 +94,7 @@ if_msgfromstream(FILE * f, char *iface)
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf) != HA_OK) {
 			ha_error("NV failure (if_msgfromsteam):");
-			ha_error(buf);
+			ha_log(LOG_INFO, "%s", buf);
 			ha_msg_del(ret);
 			return(NULL);
 		}
@@ -221,7 +221,7 @@ controlfifo2msg(FILE * f)
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf) != HA_OK) {
 			ha_error("NV failure (controlfifo2msg):");
-			ha_error(buf);
+			ha_log(LOG_INFO, "%s", buf);
 			ha_msg_del(ret);
 			return(NULL);
 		}
@@ -467,6 +467,13 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.13  2001/10/24 20:46:28  alan
+ * A large number of patches.  They are in these categories:
+ * 	Fixes from Matt Soffen
+ * 	Fixes to test environment things - including changing some ERRORs to
+ * 		WARNings and vice versa.
+ * 	etc.
+ *
  * Revision 1.12  2001/09/29 19:08:24  alan
  * Wonderful security and error correction patch from Emily Ratliff
  * 	<ratliff@austin.ibm.com>

@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.19 2001/08/21 15:37:13 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.20 2001/10/24 20:46:28 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -183,8 +183,8 @@ ha_msg_add_nv(struct ha_msg* msg, const char * nvline)
 	/* How many characters before the '='? */
 	if ((namelen = strcspn(nvline, EQUAL)) <= 0
 	||	nvline[namelen] != '=') {
-		ha_error("ha_msg_add_nv: line doesn't contain '='");
-		ha_error(nvline);
+		ha_log(LOG_WARNING, "ha_msg_add_nv: line doesn't contain '='");
+		ha_log(LOG_INFO, nvline);
 		return(HA_FAIL);
 	}
 	valp = nvline + namelen +1; /* Point just *past* the '=' */
@@ -420,6 +420,13 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.20  2001/10/24 20:46:28  alan
+ * A large number of patches.  They are in these categories:
+ * 	Fixes from Matt Soffen
+ * 	Fixes to test environment things - including changing some ERRORs to
+ * 		WARNings and vice versa.
+ * 	etc.
+ *
  * Revision 1.19  2001/08/21 15:37:13  alan
  * Put in code to make sure the calls in msg2stream get checked for errors...
  *

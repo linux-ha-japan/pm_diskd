@@ -109,7 +109,7 @@ class ResourceAudit(ClusterAudit):
                     +	" served by different nodes: "
                     +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
                     self.CM.log("Resource " + repr(resource)
-                    +	" served too many times: "
+                    +	" served by different nodes: "
                     +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
                     Fatal = 1
 

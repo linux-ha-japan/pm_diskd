@@ -93,20 +93,29 @@ then
 	!
 fi
 
+echo aclocal $ACLOCAL_FLAGS
 aclocal $ACLOCAL_FLAGS
 
 if
+  echo autoheader --version  < /dev/null > /dev/null 2>&1
   autoheader --version  < /dev/null > /dev/null 2>&1
 then
+  echo autoheader
   autoheader
 fi
 
+echo libtoolize --ltdl --force --copy
 libtoolize --ltdl --force --copy
+
+echo automake --add-missing --include-deps
 automake --add-missing --include-deps
+
+echo autoconf
 autoconf
 
 cd $HERE
 
+echo $CONFIG "$@"
 $CONFIG "$@"
 
 echo "Now type 'gmake' to compile the system."

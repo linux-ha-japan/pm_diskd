@@ -55,7 +55,7 @@ class Logger:
 
 class SysLog(Logger):
     defaultsource="CTS"
-    defaultlevel=7
+    defaultlevel= (23 << 3)
 
     def __init__(self, labinfo):
 
@@ -307,7 +307,7 @@ if __name__ == '__main__':
     Tests = TestList(cm)
 
     tests = RandomTests(scenario, cm, Tests, Audits)
-    overall, detailed = tests.run(5000)
+    overall, detailed = tests.run(2000)
  
     cm.log("****************")
     cm.log("Overall Results:" + repr(overall))

@@ -55,6 +55,7 @@ class HeartbeatCM(ClusterManager):
             "StopCmd"	     : "/usr/lib/heartbeat/heartbeat -k",
             "StatusCmd"	     : "/usr/lib/heartbeat/heartbeat -s",
             "RereadCmd"	     : "/usr/lib/heartbeat/heartbeat -r",
+            "Standby"	     : "/usr/lib/heartbeat/hb_standby",
             "TestConfigDir"  : "/etc/ha.d/testconfigs",
             "LogFileName"    : "/var/log/ha-log",
 
@@ -64,6 +65,8 @@ class HeartbeatCM(ClusterManager):
             "Pat:We_stopped"   : "Heartbeat shutdown complete",
             "Pat:They_stopped" : "node %s: is dead",
             "Pat:All_stopped"  : " %s heartbeat.*Heartbeat shutdown complete",
+            "Pat:StandbyOK"    : "Standby process done.*primary",
+            "Pat:StandbyNONE"  : "No reply to standby request",
 
             # Bad news Regexes.  Should never occur.
             "BadRegexes"   : (
@@ -72,6 +75,8 @@ class HeartbeatCM(ClusterManager):
              	r"Both machines own .* resources!",
              	r"No one owns .* resources!",
              	r", exiting\.",
+             	r"ERROR:",
+             	r"CRIT.*:",
             ),
         })
         self._finalConditions()
@@ -222,13 +227,19 @@ class HBResource(Resource):
             [ -f "$dir/$T" -a  -x "$dir/$T" ]
           then
             "$dir/$T" $I ''' + operation + '''
-            exit 0
+            exit $?
           fi
         done;
         exit 1;'''
 
+	#print "Running " + Script + "\n"
+
         line = self.CM.rsh.readaline(nodename, Script)
-        return re.search(pattern, line)
+        if  re.search(pattern, line):
+	  return 1
+	else:
+	  #return self.CM.rsh.lastrc == 0
+	  return 0
 
         
     def IsWorkingCorrectly(self, nodename):

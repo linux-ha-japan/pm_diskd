@@ -19,8 +19,9 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
-initddir		= $(sysconfdir)/init.d
+initddir		= @INITDIR@
 
 initd_SCRIPTS		= heartbeat
 
 EXTRA_DIST              = heartbeat.in
+

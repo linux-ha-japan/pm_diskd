@@ -395,9 +395,54 @@ class IPaddrtest(CTSTest):
         '''IPaddrtest is always applicable (but shouldn't be)'''
         return 1
 
+###################################################################
+class StandbyTest(CTSTest):
+###################################################################
+    '''Put a node in standby mode'''
+    def __init__(self, cm):
+        CTSTest.__init__(self,cm)
+        self.name="standby"
+        self.successpat		= self.CM["Pat:StandbyOK"]
+        self.nostandbypat	= self.CM["Pat:StandbyNONE"]
+
+    def __call__(self, node):
+        '''Perform the 'standby' test. '''
+        self.incr("calls")
+
+        if self.CM.ShouldBeStatus[node] == self.CM["down"]:
+            return self.skipped()
+
+        if self.CM.upcount() < 2:
+            self.incr("nostandby")
+            pat = self.nostandbypat;
+        else:
+            self.incr("standby")
+            pat = self.successpat;
+
+        watch = CTS.LogWatcher(self.CM["LogFileName"], [pat]
+        ,	timeout=self.CM["DeadTime"]+10)
+        watch.setwatch()
+
+        self.CM.rsh(node, self.CM["Standby"])
+
+        if watch.look():
+            return self.success()
+        else:
+            return self.failure("did not find pattern " + pat)
+
+    def is_applicable(self):
+        '''StandbyTest is applicable when the CM has a Standby attribute'''
+	return self.CM.has_key("Standby")
+
+#	Register StandbyTest as a good test to run
+AllTestClasses.append(StandbyTest)
+
 
 def TestList(cm):
     result = []
     for testclass in AllTestClasses:
-        result.append(testclass(cm))
+	bound_test = testclass(cm)
+	if bound_test.is_applicable():
+		result.append(bound_test)
+    # result = [StandbyTest(cm)]
     return result

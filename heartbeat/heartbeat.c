@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.154 2001/10/24 00:24:44 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.155 2001/10/24 20:46:28 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -381,6 +381,7 @@ void	reread_config_sig(int sig);
 void	reread_config_action(void);
 void	ding_sig(int sig);
 void	ding_action(void);
+void	ignore_signal(int sig);
 void	false_alarm_sig(int sig);
 void	false_alarm_action(void);
 void    process_pending_handlers(void);
@@ -464,6 +465,17 @@ enum comm_state {
 	COMM_LINKSUP
 };
 enum comm_state	heartbeat_comm_state = COMM_STARTING;
+
+enum rsc_state {
+	R_INIT,			/* Links not up yet */
+	R_STARTING,		/* Links up, start message issued */
+	R_BOTHSTARTING,		/* Links up, start msg received & issued  */
+				/* BOTHSTARTING now equiv to STARTING (?) */
+	R_RSCRCVD,		/* Resource Message received */
+	R_STABLE,		/* Local resources acquired, too... */
+	R_SHUTDOWN,		/* We're in shutdown... */
+};
+static enum rsc_state	resourcestate = R_INIT;
 
 #define	ADDPROC(p)					\
 	{if ((p) > 0 && (p) != -1){			\
@@ -1054,8 +1066,9 @@ write_child(struct hb_media* mp)
 	FILE *	ourfp		= fdopen(ourpipe, "r");
 
 	siginterrupt(SIGALRM, 1);
-	curproc->pstat = RUNNING;
+	signal(SIGALRM, ignore_signal);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
+	curproc->pstat = RUNNING;
 
 	for (;;) {
 		struct ha_msg * msgp = if_msgfromstream(ourfp, NULL);
@@ -1441,7 +1454,8 @@ process_clustermsg(FILE * f)
 		   time to enable the standby messages again... */
 		if (now >= standby_running) {
 			standby_running = 0L;
-			ha_log(LOG_ERR, "Standby processing timed out.");
+			ha_log(LOG_WARNING, "No reply to standby request"
+			".  Standby request cancelled.");
 			going_standby = NOT;
 		}
 	}
@@ -1451,6 +1465,20 @@ process_clustermsg(FILE * f)
 	from = ha_msg_value(msg, F_ORIG);
 	ts = ha_msg_value(msg, F_TIME);
 	cseq = ha_msg_value(msg, F_SEQ);
+
+	if (!isauthentic(msg)) {
+		ha_log(LOG_WARNING
+		,       "process_status_message: node [%s]"
+		" failed authentication", from ? from : "?");
+		if (ANYDEBUG) {
+			ha_log_message(msg);
+		}
+		goto psm_done;
+	}else if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,       "process_status_message: node [%s] auth  ok"
+		,	from ? from :"?");
+	}
 
 	if (from == NULL || ts == NULL || type == NULL || cseq == NULL) {
 		ha_log(LOG_ERR
@@ -1464,19 +1492,6 @@ process_clustermsg(FILE * f)
 		goto psm_done;
 	}
 
-	if (!isauthentic(msg)) {
-		ha_log(LOG_DEBUG
-		,       "process_status_message: node [%s]"
-		" failed authentication", from);
-		if (ANYDEBUG) {
-			ha_log_message(msg);
-		}
-		goto psm_done;
-	}else if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
-		,       "process_status_message: node [%s] auth  ok"
-		,	from);
-	}
 
 
 	thisnode = lookup_node(from);
@@ -1576,7 +1591,7 @@ process_clustermsg(FILE * f)
 			thisnode->local_lastupdate = messagetime;
 			thisnode->status_seqno = seqno;
 	    		if (ANYDEBUG) {
-		    		ha_log(LOG_ERR
+		    		ha_log(LOG_DEBUG
 				,	"Received T_SHUTDONE from '%s':"
 				" now marked dead."
 				,	thisnode->nodename);
@@ -1752,29 +1767,18 @@ process_registermsg(FILE *regfifo)
  * mach_down.
  */
 
-enum rsc_state {
-	R_INIT,			/* Links not up yet */
-	R_STARTING,		/* Links up, start message issued */
-	R_BOTHSTARTING,		/* Links up, start msg received & issued  */
-				/* BOTHSTARTING now equiv to STARTING (?) */
-	R_RSCRCVD,		/* Resource Message received */
-	R_STABLE,		/* Local resources acquired, too... */
-	R_SHUTDOWN,		/* We're in shutdown... */
-};
-
 #define	UPD_RSC(cur, up)	((up == NO_RSC) ? NO_RSC : ((up)|(cur)))
 
 void
 process_resources(struct ha_msg* msg, struct node_info * thisnode)
 {
 	static int		resources_requested_yet = 0;
-	static enum rsc_state	rstate = R_INIT;
 	static clock_t		local_takeover = 0L;
 
 	const char *		type;
 	struct tms		proforma_tms;
 	clock_t			now = times(&proforma_tms);
-	enum rsc_state		newrstate = rstate;
+	enum rsc_state		newrstate = resourcestate;
 	int			first_time = 1;
 
 	if ((type = ha_msg_value(msg, F_TYPE)) == NULL
@@ -1792,14 +1796,14 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	}
 
 	if (first_time && WeAreRestarting) {
-		rstate = newrstate = R_STABLE;
+		resourcestate = newrstate = R_STABLE;
 	}
 
 	/* Otherwise, we're in the nice_failback case */
 
-	if (rstate == R_INIT && heartbeat_comm_state == COMM_LINKSUP) {
+	if (resourcestate == R_INIT && heartbeat_comm_state == COMM_LINKSUP) {
 		send_local_starting();
-		newrstate = rstate = R_STARTING;
+		newrstate = resourcestate = R_STARTING;
 	}
 
 	/*
@@ -1811,7 +1815,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 	 if (strcasecmp(type, T_STARTING) == 0 && (thisnode != curnode)) {
 
-		switch(rstate) {
+		switch(resourcestate) {
 
 		case R_RSCRCVD:
 		case R_STABLE:
@@ -1824,7 +1828,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 		default:
 			ha_log(LOG_ERR, T_STARTING " message in state %d"
-			,	rstate);
+			,	resourcestate);
 			return;
 
 		}
@@ -1834,7 +1838,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			,	"T_STARTING received during takeover.");
 		}
 		send_resources_held(rsc_msg[i_hold_resources]
-		,	rstate == R_STABLE, NULL);
+		,	resourcestate == R_STABLE, NULL);
 	}
 
 	/* Manage resource related messages... */
@@ -1859,16 +1863,18 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			return;
 		}
 
-		switch (rstate) {
+		switch (resourcestate) {
 
 		case R_BOTHSTARTING:
 		case R_STARTING:	newrstate = R_RSCRCVD;
 		case R_RSCRCVD:
 		case R_STABLE:
+		case R_SHUTDOWN:
 					break;
 
 		default:		ha_log(LOG_ERR,	T_RESOURCES
-					" message in state %d", rstate);
+					" message received in state %d"
+					,	resourcestate);
 					return;
 		}
 
@@ -1897,7 +1903,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 			other_holds_resources=UPD_RSC(other_holds_resources,n);
 
-			if (rstate != R_STABLE && other_is_stable) {
+			if (resourcestate != R_STABLE && other_is_stable) {
 				ha_log(LOG_INFO
 				,	"remote resource transition completed."
 				);
@@ -1934,7 +1940,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 					/* Probably unnecessary */
 					other_is_stable = 1;
 				}else if (strcmp(comment, "shutdown") == 0) {
-					rstate = newrstate = R_SHUTDOWN;
+					resourcestate = newrstate = R_SHUTDOWN;
 				}
 			}
 		}
@@ -1943,25 +1949,25 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		if (thisnode != curnode) {
 			other_is_stable = 0;
 		}else{
-			rstate = newrstate = R_SHUTDOWN;
+			resourcestate = newrstate = R_SHUTDOWN;
 			i_hold_resources = 0;
 		}
 	}
 
-	if (rstate == R_RSCRCVD && now > local_takeover) {
+	if (resourcestate == R_RSCRCVD && now > local_takeover) {
 		newrstate = R_STABLE;
 		req_our_resources(0);
 		ha_log(LOG_INFO,"local resource transition completed.");
 		send_resources_held(rsc_msg[i_hold_resources], 1, NULL);
 	}
 
-	if (rstate != newrstate) {
+	if (resourcestate != newrstate) {
 		if (ANYDEBUG) {
-			ha_log(LOG_INFO, "STATE %d => %d", rstate, newrstate);
+			ha_log(LOG_INFO, "STATE %d => %d", resourcestate, newrstate);
 		}
 	}
 
-	rstate = newrstate;
+	resourcestate = newrstate;
 
 	if (newrstate == R_RSCRCVD && local_takeover == 0L) {
 		local_takeover = now + (CLK_TCK * RQSTDELAY);
@@ -2474,6 +2480,12 @@ ding_action(void)
 }
 
 void
+ignore_signal(int sig)
+{
+	signal(sig, ignore_signal);
+}
+
+void
 false_alarm_sig(int sig)
 {
 	signal(sig, false_alarm_sig);
@@ -2483,9 +2495,7 @@ false_alarm_sig(int sig)
 void
 false_alarm_action(void)
 {
-	if (ANYDEBUG) {
-		ha_log(LOG_ERR, "Unexpected alarm in process %d", getpid());
-	}
+	ha_log(LOG_ERR, "Unexpected alarm in process %d", getpid());
 }
 
 
@@ -3486,7 +3496,7 @@ main(int argc, char * argv[], char * envp[])
 	init_procinfo();
 
 	if (module_init() != HA_OK) {
-		ha_log(LOG_ERR, "Heartbeat not started: error reading modules.");
+		ha_log(LOG_ERR, "Heartbeat not started: module init error.");
 		return(HA_FAIL);
 	}
 
@@ -4018,8 +4028,10 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 			}
 		}else if (gen > t->generation) {
 			isrestart = 1;
-			ha_log(LOG_INFO, "Heartbeat restart on node %s"
-			,	thisnode->nodename);
+			if (t->generation > 0) {
+				ha_log(LOG_INFO, "Heartbeat restart on node %s"
+				,	thisnode->nodename);
+			}
 			thisnode->rmt_lastupdate = 0L;
 			thisnode->local_lastupdate = 0L;
 			thisnode->status_seqno = 0L;
@@ -4049,7 +4061,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		unsigned long	k;
 		unsigned long	nlost;
 		nlost = ((unsigned long)(seq - (t->last_seq+1)));
-		ha_log(LOG_ERR, "%lu lost packet(s) for [%s] [%lu:%lu]"
+		ha_log(LOG_WARNING, "%lu lost packet(s) for [%s] [%lu:%lu]"
 		,	nlost, thisnode->nodename, t->last_seq, seq);
 
 		if (nlost > SEQGAP) {
@@ -4350,7 +4362,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			/* Found it!	Let's send it again! */
 			firstslot = msgslot -1;
 			foundit=1;
-			if (ANYDEBUG) {
+			if (1) {
 				ha_log(LOG_INFO, "Retransmitting pkt %lu"
 				,	thisseq);
 			}
@@ -4555,7 +4567,7 @@ ask_for_resources(struct ha_msg *msg)
 
 	if (standby_running && now < standby_running
 	&&	strcasecmp(info, "me") == 0) {
-		ha_log(LOG_INFO
+		ha_log(LOG_ERR
 		,	"Standby in progress"
 		"- new request from %s ignored [%ld secs left]"
 		,	from, standby_running - now);
@@ -4566,6 +4578,16 @@ ask_for_resources(struct ha_msg *msg)
 
 	switch(going_standby) {
 	case NOT:	
+		if (!other_is_stable) {
+			ha_log(LOG_ERR, "standby message [%s] from %s"
+			" ignored.  Other side is in flux.", info, from);
+			return;
+		}
+		if (resourcestate != R_STABLE) {
+			ha_log(LOG_ERR, "standby message [%s] from %s"
+			" ignored.  local resources in flux.", info, from);
+			return;
+		}
 		if (strcasecmp(info, "me") == 0) {
 			standby_running = now + STANDBY_INIT_TO;
 			other_is_stable = 0;
@@ -4573,7 +4595,8 @@ ask_for_resources(struct ha_msg *msg)
 			if (msgfromme) {
 				/* We want to go standby */
 				if (ANYDEBUG) {
-					ha_log(LOG_INFO, "i_hold_resources: %d"
+					ha_log(LOG_INFO
+					,	"i_hold_resources: %d"
 					,	i_hold_resources);
 				}
 				going_standby = ME;
@@ -4665,7 +4688,7 @@ ask_for_resources(struct ha_msg *msg)
 	}
 	if (message_ignored){
 		ha_log(LOG_ERR
-		,	"Ignored standby message %s from %s in state %d"
+		,	"Ignored standby message '%s' from %s in state %d"
 		,	info, from, orig_standby);
 	}
 	if (ANYDEBUG) {
@@ -4685,6 +4708,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.155  2001/10/24 20:46:28  alan
+ * A large number of patches.  They are in these categories:
+ * 	Fixes from Matt Soffen
+ * 	Fixes to test environment things - including changing some ERRORs to
+ * 		WARNings and vice versa.
+ * 	etc.
+ *
  * Revision 1.154  2001/10/24 00:24:44  alan
  * Moving in the direction of being able to get rid of one of our
  * control processes.

@@ -50,8 +50,9 @@ logfacility	local0
 #hopfudge 1
 #	
 #	serial	serialportname ...
-#serial	/dev/ttyS0
-#serial	/dev/cuaa0
+#serial	/dev/ttyS0	# Linux
+#serial	/dev/cuaa0	# FreeBSD
+#serial	/dev/cua/a	# Solaris
 #
 #
 #	Baud rate for serial ports...
@@ -64,7 +65,8 @@ logfacility	local0
 #
 #	What interfaces to heartbeat over?
 #
-#udp	eth0
+#udp	eth0	# Linux
+#udp	le0	# Solaris
 #
 #	Set up a multicast heartbeat medium
 #	mcast [dev] [mcast group] [port] [ttl] [loop]

@@ -36,6 +36,7 @@ apicasualdir		= $(havarlibdir)/casual
 hafifo			= $(havarlibdir)/fifo
 apireg			= $(havarlibdir)/register
 apigid			= @APIGID@
+gliblib			= @GLIBLIB@
 
 
 CFLAGS			= @CFLAGS@	\
@@ -70,7 +71,7 @@ heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
 			$(top_builddir)/replace/libreplace.la	\
 			$(top_builddir)/lib/pils/libpils.la	\
-			$(top_builddir)/libltdl/libltdlc.la
+			$(top_builddir)/libltdl/libltdlc.la $(gliblib)
 
 heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \

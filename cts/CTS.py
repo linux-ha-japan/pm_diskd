@@ -47,7 +47,7 @@ class RemoteExec:
 
     def __init__(self):
         #	-n: no stdin, -x: no X11
-        self.Command = "/usr/bin/ssh -n -x"
+        self.Command = "/usr/bin/ssh -l root -n -x"
 	#	-B: batch mode, -q: no stats (quiet)
         self.CpCommand = "/usr/bin/scp -B -q"
 
@@ -101,7 +101,7 @@ class RemoteExec:
         p.tochild.close()
         result = p.fromchild.readline()
         p.fromchild.close()
-        p.wait()
+        self.lastrc = p.wait()
         return result
 
     def cp(self, *args):
@@ -207,8 +207,9 @@ class ClusterManager(UserDict):
 
 
     def __InitialConditions(self):
-        if os.geteuid() != 0:
-           raise ValueError("Must Be Root!")
+        #if os.geteuid() != 0:
+        #  raise ValueError("Must Be Root!")
+	None
 
     def _finalConditions(self):
         for key in self.keys():
@@ -788,8 +789,9 @@ random for the selected number of iterations.
             for tries in 1,2,3,4,5,6,7,8,9,10:
                 match=BadNews.look()
                 if match:
-                   self.CM.log(match)
-                   self.incr("BadNews");
+                   if not re.search(" CTS: ", match):
+                      self.CM.log(match)
+                      self.incr("BadNews");
                 else:
                   break
             else:
@@ -802,6 +804,12 @@ random for the selected number of iterations.
                     self.CM.log("Audit " + audit.name() + " Failed.")
                     test.incr("auditfail")
                     self.incr("auditfail")
+	    #os.system("ssh -l root sgi1 uname -a")
+	    #os.system("ssh -l root sgi1 /sbin/ifconfig eth0:0")
+	    #os.system("ssh -l root sgi1 /sbin/ifconfig eth0:1")
+	    #os.system("ssh -l root sgi2 uname -a")
+	    #os.system("ssh -l root sgi2 /sbin/ifconfig eth0:0")
+	    #os.system("ssh -l root sgi2 /sbin/ifconfig eth0:1")
 
         self.Scenario.TearDown(self.CM)
 
