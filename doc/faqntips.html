@@ -2,7 +2,7 @@
 <html>
 <head>
    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-   <meta name="GENERATOR" content="Mozilla/4.77 [en] (X11; U; Linux 2.4.4-4GB i686) [Netscape]">
+   <meta name="GENERATOR" content="Mozilla/4.77 [en] (X11; U; Linux 2.4.8 i686) [Netscape]">
    <title>Faq'n Tips</title>
 </head>
 <body bgcolor="#FFFFFF">
@@ -52,7 +52,11 @@ connections it seems to work fine.</a></li>
 <br><a href="#authkeys">"Starting High-Availability services: Heartbeat
 failure [rc=1]. Failed.</a>
 <br><a href="#authkeys">and there is nothing in any of the log files and
-do messages. What is wrong</a>
+do messages. What is wrong ?</a>
+<li>
+<a href="#multiple_clusters">How to run multiple clusters on same network
+segment ?</a></li>
+
 <li>
 <a href="#CVS">How to get latest CVS version of heartbeat ?</a></li>
 
@@ -194,6 +198,11 @@ places.</li>
 in your setup
 <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; c) /var/log/messages
 <li>
+<a NAME="multiple_clusters"></a>Use multicast and give each its own multicast
+group. If you need to/want to use broadcast, then run each cluster on
+different port numbers.</li>
+
+<li>
 <a NAME="CVS"></a>There&nbsp; is&nbsp; a&nbsp; CVS repository for Linux-HA.
 You can find it at cvs.linux-ha.org.&nbsp; Read&nbsp; only&nbsp; access
 is via login guest, password guest, module name linux-ha. More details
@@ -220,18 +229,18 @@ How did you install heartbeat (tar.gz, rpm, src.rpm or manual installation)
 .</li>
 
 <li>
-Include the of your logs which describes errors.&nbsp; Send them as attachments.<br>
-Please don't send "cleaned up" logs.&nbsp; The real logs have more information
-in them than cleaned up versions.&nbsp; Always include at least a little
-irrelevant data before and after the events in question so that we know
-nothing was missed.&nbsp; Don't edit the logs unless you really have some
-super-secret high-security reason for doing so.</li>
-</ul>
+Include the of your logs which describes errors.&nbsp; Send them as attachments.</li>
+
+<br>Please don't send "cleaned up" logs.&nbsp; The real logs have more
+information in them than cleaned up versions.&nbsp; Always include at least
+a little irrelevant data before and after the events in question so that
+we know nothing was missed.&nbsp; Don't edit the logs unless you really
+have some super-secret high-security reason for doing so.</ul>
 </ol>
 
 <hr width="100%">
-<p>Rev 0.0.4
+<p>Rev 0.0.5
 <br>(c) 2000 Rudy Pawul <a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a>
-<br>(c) 2001 Dusan Djordjeviic <a href="dj.dule@linux.org.yu">dj.dule@linux.org.yu</a>
+<br>(c) 2001 Dusan Djordjevic <a href="mailto:dj.dule@linux.org.yu">dj.dule@linux.org.yu</a>
 </body>
 </html>
