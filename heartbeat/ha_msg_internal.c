@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.14 2001/10/25 14:17:28 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.15 2002/03/15 14:26:36 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -278,6 +278,27 @@ add_msg_auth(struct ha_msg * m)
 	char *	bp = msgbody;
 	int	j;
 
+	{
+		const char *	from;
+		const char *	ts;
+		const char *	type;
+		const char *	cseq;
+
+		/* Extract message type, originator, timestamp, auth */
+		type = ha_msg_value(m, F_TYPE);
+		from = ha_msg_value(m, F_ORIG);
+		ts = ha_msg_value(m, F_TIME);
+		cseq = ha_msg_value(m, F_SEQ);
+
+		if (from == NULL || ts == NULL || type == NULL || cseq == NULL) {
+			ha_log(LOG_ERR
+			,	"add_msg_auth: %s:  from %s"
+			,	"missing from/ts/type/seqno"
+			,	(from? from : "<?>"));
+			ha_log_message(m);
+		}
+	}
+
 	check_auth_change(config);
 	msgbody[0] = EOS;
 	for (j=0; j < m->nfields; ++j) {
@@ -467,6 +488,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.15  2002/03/15 14:26:36  alan
+ * Added code to help debug the current missing to/from/ts/,etc. problem...
+ *
  * Revision 1.14  2001/10/25 14:17:28  alan
  * Changed a few of the errors into warnings.
  *

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.165 2002/02/21 21:43:33 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.166 2002/03/15 14:26:36 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1506,7 +1506,11 @@ process_clustermsg(FILE * f)
 
 	if (from == NULL || ts == NULL || type == NULL || cseq == NULL) {
 		ha_log(LOG_ERR
-		,	"process_status_message: missing from/ts/type/seqno");
+		,	"process_status_message: %s: iface %s, from %s"
+		,	"missing from/ts/type/seqno"
+		,	iface
+		,	(from? from : "<?>"));
+		ha_log_message(msg);
 		goto psm_done;
 	}
 	sscanf(cseq, "%lx", &seqno);
@@ -5048,6 +5052,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.166  2002/03/15 14:26:36  alan
+ * Added code to help debug the current missing to/from/ts/,etc. problem...
+ *
  * Revision 1.165  2002/02/21 21:43:33  alan
  * Put in a few fixes to make the client API work more reliably.
  * Put in a few changes to the process exit handling code which
