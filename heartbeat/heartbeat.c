@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.119 2001/06/28 12:16:44 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.120 2001/07/02 19:12:57 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1143,16 +1143,29 @@ master_status_process(void)
 	fd = fileno(f);			clearerr(f);
 	regfd = fileno(regfifo);	clearerr(regfifo);
 
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Waiting for child processes to start");
+	}
 	/* Wait until all the child processes are really running */
 	do {
 		allstarted = 1;
 		for (pinfo=procinfo->info; pinfo < curproc; ++pinfo) {
 			if (pinfo->pstat == FORKED) {
+				if (ANYDEBUG) {
+					ha_log(LOG_DEBUG
+					, "Waiting for pid %d type %d stat %d"
+					, pinfo->pid, pinfo->type
+					, pinfo->pstat);
+				}
 				allstarted=0;
 				sleep(1);
 			}
 		}
 	}while (!allstarted);
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"All your child processes are belong to us");
+	}
 	curproc->pstat = RUNNING;
 	/* Reset timeout times to "now" */
 	for (j=0; j < config->nodecount; ++j) {
@@ -4007,6 +4020,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.120  2001/07/02 19:12:57  alan
+ * Added debugging code around startup of child processes.
+ *
  * Revision 1.119  2001/06/28 12:16:44  alan
  * Committed the *rest* of Juri Haberland's script patch that I thought I
  * had already applied :-(.
