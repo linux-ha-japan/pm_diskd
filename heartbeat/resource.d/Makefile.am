@@ -39,3 +39,7 @@ Raid1: Raid1.in
 Filesystem: Filesystem.in
 	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' < $< > $@
 	chmod +x $@
+
+MailTo: MailTo.in
+	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' < $< > $@
+	chmod +x $@
