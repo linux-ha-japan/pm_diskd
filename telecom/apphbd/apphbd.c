@@ -54,30 +54,14 @@
  *		timeout source.  This would probably more efficient for
  *		large numbers of clients.  But, it may not matter ;-)
  *
- *	- Implement command line option parsing:
- *		for notification plugins to load
- *		for the name of a watchdog device to open
- *		for the group id members must belong to
- *		for the name of configuration file to use?
- *
  *	- Implement a reload option for config file?
  *
  *
- *	Notification plugin API exported functions
- *		cregister (pid_t pid, const char * appname
- *		,	void * clienthandle)
- *		status(pid_t pid, const char * appname, apphb_event_t what)
- *
- *	Notification plugin imported functions:
- *		authenticate_client(void * handle, uidlist, gidlist)
- *			This returns TRUE if the app at apphandle
- *			properly authenticates according to the gidlist
- *			and the uidlist.
  */
 
-#include <syslog.h>
 #include <portability.h>
 #include <stdio.h>
+#include <syslog.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
@@ -95,6 +79,7 @@
 #include <clplumbing/ipc.h>
 #include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/apphb_cs.h>
+#include <clplumbing/cl_log.h>
 #include <pils/generic.h>
 #include <pils/plugin.h>
 
@@ -265,7 +250,7 @@ apphb_prepare(gpointer Src, GTimeVal*now, gint*timeout, gpointer Client)
 		return FALSE;
 	}
 	if (debug >= DBGDETAIL) {
-		 syslog(LOG_DEBUG, "apphb_prepare: client: %ld\n"
+		 cl_log(LOG_DEBUG, "apphb_prepare: client: %ld\n"
 		,	(long)client->pid);
 	}
 	return FALSE;
@@ -280,7 +265,7 @@ apphb_check(gpointer Src, GTimeVal*now, gpointer Client)
 
 
 	if (debug >= DBGDETAIL) {
-		syslog(LOG_DEBUG, "apphb_check: client: %ld, revents: 0x%x"
+		cl_log(LOG_DEBUG, "apphb_check: client: %ld, revents: 0x%x"
 		,	(long)client->pid, src->revents);
 	}
 	client->ch->ops->resume_io(client->ch);
@@ -297,7 +282,7 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 	apphb_client_t*		client  = Client;
 
 	if (debug >= DBGDETAIL) {
-		syslog(LOG_DEBUG, "apphb_dispatch: client: %ld, revents: 0x%x"
+		cl_log(LOG_DEBUG, "apphb_dispatch: client: %ld, revents: 0x%x"
 		,	(long)client->pid, src->revents);
 	}
 	if (src->revents & G_IO_HUP) {
@@ -429,7 +414,7 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 	client->gid = msg->gid;
 
 	if (debug >= DBGMIN) {
-		syslog(LOG_DEBUG
+		cl_log(LOG_DEBUG
 		,	"apphb_client_register: client: [%s]/[%s] pid %ld"
 		" (uid,gid) = (%ld,%ld)\n"
 		,	client->appname
@@ -454,7 +439,7 @@ void
 apphb_client_remove(apphb_client_t* client)
 {
 	if (debug >= DBGMIN) {
-		syslog(LOG_DEBUG, "apphb_client_remove: client: %ld\n"
+		cl_log(LOG_DEBUG, "apphb_client_remove: client: %ld\n"
 		,	(long)client->pid);
 	}
 	if (client->sourceid) {
@@ -550,7 +535,7 @@ apphb_read_msg(apphb_client_t* client)
 
 
 		case IPC_FAIL:
-		syslog(LOG_CRIT, "OOPS! client %s (pid %d) read failure! [%s]"
+		cl_log(LOG_CRIT, "OOPS! client %s (pid %d) read failure! [%s]"
 		,	client->appname, client->pid
 		,	strerror(errno));
 		break;
@@ -620,7 +605,7 @@ apphb_new_prepare(gpointer src, GTimeVal*now, gint*timeout
 ,	gpointer user)
 {
 	if (debug >= DBGDETAIL) {
-		syslog(LOG_DEBUG, "apphb_new_prepare");
+		cl_log(LOG_DEBUG, "apphb_new_prepare");
 	}
 	return FALSE;
 }
@@ -631,7 +616,7 @@ apphb_new_check(gpointer Src, GTimeVal*now, gpointer user)
 {
 	GPollFD*	src = Src;
 	if (debug >= DBGDETAIL) {
-		syslog(LOG_DEBUG, "apphb_new_check: revents: 0x%x"
+		cl_log(LOG_DEBUG, "apphb_new_check: revents: 0x%x"
 		,	src->revents);
 	}
 	return src->revents != 0;
@@ -647,7 +632,7 @@ apphb_new_dispatch(gpointer Src, GTimeVal*now, gpointer user)
 	GPollFD*				src = Src;
 
 	if (debug >= DBGMIN) {
-		syslog(LOG_DEBUG, "apphb_new_dispatch: revents: 0x%x"
+		cl_log(LOG_DEBUG, "apphb_new_dispatch: revents: 0x%x"
 		,	src->revents);
 	}
 	newchan = conn->ops->accept_connection(conn, NULL);
@@ -702,7 +687,7 @@ apphb_notify(apphb_client_t* client, apphb_event_t event)
 		return;
 	}
 	if (event != APPHB_HBUNREG) {
-		syslog(logtype, "apphb client '%s' / '%s' (pid %d) %s"
+		cl_log(logtype, "apphb client '%s' / '%s' (pid %d) %s"
 		,	client->appname, client->appinst, client->pid, msg);
 	}
 	
@@ -729,6 +714,10 @@ main(int argc, char ** argv)
 	const char *	watchdogdev = NULL;
 
 	cmdname = argv[0];
+
+	cl_log_set_entity(cmdname);
+	cl_log_enable_stderr(TRUE);
+	cl_log_set_facility(LOG_USER);
 
 	if (argc < 2) {
 		return init_start();
@@ -803,7 +792,7 @@ init_start(void)
 	wconn = ipc_wait_conn_constructor(IPC_ANYTYPE, wconnattrs);
 
 	if (wconn == NULL) {
-		syslog(LOG_CRIT, "UhOh! Failed to create wconn!");
+		cl_log(LOG_CRIT, "UhOh! Failed to create wconn!");
 		exit(1);
 	}
 
@@ -821,7 +810,7 @@ init_start(void)
 
 	/* Create the mainloop and run it... */
 	mainloop = g_main_new(FALSE);
-	syslog(LOG_INFO, "Starting %s", cmdname);
+	cl_log(LOG_INFO, "Starting %s", cmdname);
 	if (watchdogfd >= 0) {
 		Gmain_timeout_add(1000, tickle_watchdog_timer, NULL);
 	}
@@ -840,9 +829,7 @@ make_daemon(void)
 	FILE *	lockfd;
 
 	if ((pid = get_running_pid(NULL)) > 0) {
-		fprintf(stderr, "%s: already running: [pid %ld].\n"
-		,	cmdname, pid);
-		syslog(LOG_CRIT, "already running: [pid %ld]."
+		cl_log(LOG_CRIT, "already running: [pid %ld]."
 		,	pid);
 		close_watchdog();
 		exit(1);
@@ -851,8 +838,7 @@ make_daemon(void)
 	pid = fork();
 
 	if (pid < 0) {
-		fprintf(stderr, "%s: cannot start daemon.\n", cmdname);
-		syslog(LOG_CRIT, "cannot start daemon.\n");
+		cl_log(LOG_CRIT, "cannot start daemon.\n");
 		exit(1);
 	}else if (pid > 0) {
 		exit(0);
@@ -860,9 +846,7 @@ make_daemon(void)
 
 	lockfd = fopen(PIDFILE, "w");
 	if (lockfd == NULL) {
-		fprintf(stderr,  "%s: cannot create pid file\n" PIDFILE
-		,	cmdname);
-		syslog(LOG_CRIT, "cannot create pid file" PIDFILE);
+		cl_log(LOG_CRIT, "cannot create pid file" PIDFILE);
 		exit(1);
 	}else{
 		pid = getpid();
@@ -872,6 +856,7 @@ make_daemon(void)
 
 	umask(022);
 	getsid(0);
+	cl_log_enable_stderr(FALSE);
 	for (j=0; j < 3; ++j) {
 		close(j);
 		(void)open("/dev/null", j == 0 ? O_RDONLY : O_RDONLY);
@@ -983,22 +968,22 @@ open_watchdog(const char * dev)
 {
 
  	if (watchdogfd >= 0 || watchdogdev == NULL) {
-		syslog(LOG_WARNING, "Watchdog device already open.");
+		cl_log(LOG_WARNING, "Watchdog device already open.");
 		return FALSE;
 	}
 	watchdogfd = open(dev, O_WRONLY);
 	if (watchdogfd >= 0) {
 		if (fcntl(watchdogfd, F_SETFD, FD_CLOEXEC)) {
-			syslog(LOG_WARNING, "Error setting the "
+			cl_log(LOG_WARNING, "Error setting the "
 			"close-on-exec flag for watchdog");
 		}
-		syslog(LOG_NOTICE, "Using watchdog device: %s"
+		cl_log(LOG_NOTICE, "Using watchdog device: %s"
 		,       watchdogdev);
 		tickle_watchdog();
 		watchdogdev = dev;
 		return TRUE;
 	}else{
-		syslog(LOG_ERR, "Cannot open watchdog device: %s"
+		cl_log(LOG_ERR, "Cannot open watchdog device: %s"
 		,       watchdogdev);
 	}
 	return FALSE;
@@ -1009,7 +994,7 @@ close_watchdog(void)
 {
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "V", 1) != 1) {
-			syslog(LOG_CRIT
+			cl_log(LOG_CRIT
 			,	"Watchdog write magic character failure:"
 			" closing %s!\n"
 			,       watchdogdev);
@@ -1024,7 +1009,7 @@ tickle_watchdog(void)
 {
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "", 1) != 1) {
-			syslog(LOG_CRIT
+			cl_log(LOG_CRIT
 			,	"Watchdog write failure: closing %s!\n"
 			,       watchdogdev);
 			close_watchdog();
@@ -1066,7 +1051,7 @@ load_notification_plugin(const char * pluginname)
 		if ((rc = PILLoadPlugin(pisys, "InterfaceMgr", "generic"
 		,	&RegistrationRqsts)) !=	PIL_OK) {
 
-			syslog(LOG_ERR
+			cl_log(LOG_ERR
 			,       "ERROR: cannot load generic interface manager"
 		       " [%s/%s]: %s"
 			,       "InterfaceMgr", "generic"
@@ -1077,12 +1062,12 @@ load_notification_plugin(const char * pluginname)
 	rc = PILLoadPlugin(pisys, "AppHBNotification"
 	,        pluginname, NULL);
 	if (rc != PIL_OK) {
-		syslog(LOG_ERR, "cannot load plugin %s", pluginname);
+		cl_log(LOG_ERR, "cannot load plugin %s", pluginname);
 		return;
 	}
 	if ((exports = g_hash_table_lookup(Notifications, pluginname))
 	== NULL) {
-		syslog(LOG_ERR, "cannot find plugin %s", pluginname);
+		cl_log(LOG_ERR, "cannot find plugin %s", pluginname);
 		return;
 	}
 	NotificationPlugins[n_Notification_Plugins] = exports;

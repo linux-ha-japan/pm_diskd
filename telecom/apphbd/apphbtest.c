@@ -2,7 +2,7 @@
  * apphbtest:	application heartbeat test program
  *
  * This program registers with the application heartbeat server
- * and just issues heartbeats from time to time...
+ * and issues heartbeats from time to time...
  *
  * Copyright(c) 2002 Alan Robertson <alanr@unix.sh>
  *
@@ -29,14 +29,22 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <syslog.h>
+#include <clplumbing/cl_log.h>
 #include <apphb.h>
 
 void doatest(int delaysecs);
+long	pid;
+
 int
 main(int argc,char ** argv)
 {
 	int	j;
 	int	max = 1;
+
+	cl_log_set_entity(argv[0]);
+	cl_log_enable_stderr(TRUE);
+	pid = getpid();
 
 	if (argc > 1 && atoi(argv[1]) > 0) {
 		max = atoi(argv[1]);
@@ -55,7 +63,7 @@ main(int argc,char ** argv)
 			exit(0);
 			break;
 		case -1:
-			fprintf(stderr, "Can't fork!\n");
+			cl_perror("Can't fork!");
 			exit(1);
 			break;
 		default:
@@ -74,20 +82,22 @@ doatest(int delaysecs)
 	
 	if (delaysecs) {
 		fprintf(stderr, "Sleep %d (%ld)\n"
-		,	delaysecs, (long)(getpid()));
+		,	delaysecs, pid);
 		sleep(delaysecs);
 	}
-	fprintf(stderr, "Client starting - pid: %ld\n", (long) getpid());
+	cl_log_set_facility(LOG_USER);
+	cl_log(LOG_INFO, "Client registering - pid: %ld", pid);
+	
 	rc = apphb_register("test program", "normal");
 	if (rc < 0) {
-		perror("registration failure");
+		cl_perror("registration failure");
 		exit(1);
 	}
 	
-	fprintf(stderr, "Client setting 2 second heartbeat period\n");
+	fprintf(stderr, "Client setting 2 second heartbeat period");
 	rc = apphb_setinterval(2000);
 	if (rc < 0) {
-		perror("setinterval failure");
+		cl_perror("setinterval failure");
 		exit(2);
 	}
 
@@ -96,7 +106,7 @@ doatest(int delaysecs)
 		fprintf(stderr, "+");
 		rc = apphb_hb();
 		if (rc < 0) {
-			perror("apphb_hb failure");
+			cl_perror("apphb_hb failure");
 			exit(3);
 		}
 
@@ -106,20 +116,21 @@ doatest(int delaysecs)
 	fprintf(stderr, "!");
 	rc = apphb_hb();
 	if (rc < 0) {
-		perror("late apphb_hb failure");
+		cl_perror("late apphb_hb failure");
 		exit(4);
 	}
 
-	fprintf(stderr, "Client unregistering\n");
+	cl_log(LOG_INFO, "Client %ld unregistering", pid);
 	rc = apphb_unregister();
 	if (rc < 0) {
-		perror("apphb_unregister failure");
+		cl_perror("apphb_unregister failure");
 		exit(5);
 	}
 	rc = apphb_register("test program", "HANGUP");
 	if (rc < 0) {
-		perror("second registration failure");
+		cl_perror("second registration failure");
 		exit(1);
 	}
 	/* Now we leave without further adieu -- HANGUP */
+	cl_log(LOG_INFO, "Client %ld HANGUP!", pid);
 }
