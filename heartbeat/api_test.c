@@ -19,6 +19,55 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+/*
+ *	This code is pretty close to working in the state it's in.
+ *
+ *	However:
+ *
+ *	It needs to be revamped.  It and the server code have several
+ *	security holes which come as part of this architecture.
+ *
+ *	1) Any application can send a message to any other application
+ *		This is no good.  It means they all have to mutually
+ *		trust each other.
+ *
+ *	2) You have to be root to use this API
+ *
+ *	3) The setting of a signal to be sent to an application is
+ *		a huge security hole, you can kill any process that
+ *		way.
+ *
+ *	4) The debug mode is a security hole.  You can read anyone's
+ *		messages.
+ *
+ *
+ *	The cure to all these problems is the same:
+ *
+ *	Have each application have it's own FIFO for
+ *		sending requests to heartbeat, and one for getting responses.
+ *
+ *	Set the permissions on this fifo directory to require
+ *		root permissions to create/delete.  The apps don't create
+ *		these FIFOs, and heartbeat doesn't remove them.
+ *
+ *	Create a casual subdirectory which is sticky and writable
+ *		by whoever you want.  The apps create/delete these FIFOs,
+ *		and heartbeat can clean them up too (like it does now).
+ *
+ *	Whenever it reads a message it checks the permissions of the
+ *		FIFO it came from, and validates the request accordingly.
+ *
+ *	You can validate the pid from comparing the owner of the FIFO
+ *		with the uid of the owner of /proc/pid.  They should
+ *		match.
+ *
+ *	You can validate "root" permissions for "sniffing" in a similar way
+ *		if you want to.  On the other hand, sniffing these is
+ *		no worse than sniffing the ethernet, which you already
+ *		assume might happen...
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
