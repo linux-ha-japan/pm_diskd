@@ -528,7 +528,7 @@ st_hostlist(Stonith  *s)
 		if (ret == NULL) {
 			syslog(LOG_ERR, "out of memory");
 		} else {
-			ret[numnames-1]=NULL; /* null terminate the array */
+			ret[numnames]=NULL; /* null terminate the array */
 			for (i=0;i<WTI_NUM_CONTROLLERS;i++) {
 				if (ctx->controllers[i].configured) {
 					numnames--;
