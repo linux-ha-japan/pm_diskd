@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.8 2002/04/16 13:39:12 lars Exp $
+# $Id: Filesystem.in,v 1.9 2003/03/13 14:58:52 alan Exp $
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
@@ -8,19 +8,23 @@
 # Original Release: 25 Oct 2000
 #          Support: linux-ha-dev@lists.tummy.com
 #
-# usage: ./Filesystem <device> <directory> <fstype> {start|stop|status}
+# usage: ./Filesystem <device> <directory> <fstype> [<options>] {start|stop|status}
 #
 #<device>    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
+#		Or a -U or -L option for mount, or an NFS mount specification
 #<directory> : the mount point for the filesystem
 #<fstype>    : name of the filesystem type. e.g. ext2
+#<options>   : options to be given to the mount command via -o
 #
 #
 # An example usage in /etc/ha.d/haresources: 
 #       node1  10.0.0.170 Filesystem::/dev/sda1::/data1::ext2
 #  or
 #       node1  10.0.0.170 Filesystem::-Ldata1::/data1::ext2
+#  or
+#       node1  10.0.0.170 Filesystem::server:/data1::/data1::nfs::ro
 #
-# This assumes you want to manage a filesystem on a shared scsi bus.
+# This assumes you want to manage a filesystem on a shared (scsi) bus.
 # Do not put this filesystem in /etc/fstab.  This script manages all of
 # that for you.
 #
@@ -53,10 +57,9 @@
 #
 #	If you don't do this, don't blame us when you scramble your disk.
 # 
-#
 #	Note:  the ServeRAID controller does prohibit concurrent acess
-#	So you don't actually need STONITH, but redundant comm is still
-#	an excellent idea.
+#	In this case, you don't actually need STONITH, but redundant comm is
+#	still an excellent idea.
 #
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
@@ -84,14 +87,15 @@ check_util () {
 usage() {
 
 cat <<-EOT;
-	usage: $0 <device> <directory> <fstype> {start|stop|status}
+	usage: $0 <device> <directory> <fstype> [<options>] {start|stop|status}
 
 	<device>    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
-			OR -LFileSystemLabel
+	              OR -LFileSystemLabel OR -Uuuid or an NFS specification
 	<directory> : the mount point for the filesystem
 	<fstype>    : name of the filesystem type. e.g. ext2
+	<options>   : options to be given as -o options to mount.
 
-	$Id: Filesystem.in,v 1.8 2002/04/16 13:39:12 lars Exp $
+	$Id: Filesystem.in,v 1.9 2003/03/13 14:58:52 alan Exp $
 	EOT
 }
 
@@ -108,7 +112,7 @@ flushbufs() {
     [ "$BLOCKDEV" != "" -a -x "$BLOCKDEV" ]
   then
     case $1 in
-      -*)		;;
+      -*|[^/]*:/*)	;;
       *)		$BLOCKDEV --flushbufs $1;;
     esac
   fi
@@ -120,6 +124,8 @@ FSTYPE=$3
 
 case $DEVICE in
   -*) # Oh... An option to mount instead...  Typically -U or -L
+	;;
+  [^/]*:/*)	# An NFS filesystem specification...
 	;;
   *)	if [ ! -b "$DEVICE" ] ; then
 	  ha_log "ERROR: Couldn't find device $DEVICE. Expected /dev/??? to exist"
@@ -148,8 +154,15 @@ check_util $FUSER
 check_util $MOUNT
 check_util $UMOUNT
 
+case $# in
+  4)	operation=$4; options="";;
+  5)	operation=$5; options="-o $4";;
+  *)	usage; exit 1;;
+esac
+  
+
 # Look for the 'start', 'stop' or status argument
-case "$4" in
+case "$operation" in
 
 #
 # START: Start up the filesystem
@@ -175,7 +188,7 @@ start)
 
 	if
 	  case $FSTYPE in
-	    ext3|reiserfs|xfs|jfs|vfat|fat)	false;;
+	    ext3|reiserfs|xfs|jfs|vfat|fat|nfs)	false;;
 	    *)				true;;
 	  esac
         then
@@ -195,7 +208,7 @@ start)
 	flushbufs $DEVICE
 	# Mount the filesystem.
 	if
-	  $MOUNT -t $FSTYPE $DEVICE $MOUNTPOINT
+	  $MOUNT -t $FSTYPE $options $DEVICE $MOUNTPOINT
         then
 	  : Mount worked!
         else
@@ -212,9 +225,9 @@ start)
 stop)
 
 	# See if the device is currently mounted
-	$MOUNT | grep -e " on $MOUNTPOINT " >/dev/null
-	if [ $? -ne 1 ] ; then
-
+	if
+	  $MOUNT | grep -e " on $MOUNTPOINT " >/dev/null
+	then
 		# Kill all processes open on filesystem
 		$FUSER -mk $MOUNTPOINT
 

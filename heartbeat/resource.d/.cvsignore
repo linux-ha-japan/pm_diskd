@@ -6,6 +6,7 @@ db2
 Filesystem
 ICP
 IPaddr
+Delay
 LVM
 LinuxSCSI
 MailTo
