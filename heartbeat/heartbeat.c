@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.271 2003/07/13 12:43:30 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.272 2003/07/14 04:10:31 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1343,11 +1343,6 @@ LookForClockJumps(void)
 		cl_log(LOG_INFO
 		,	"Clock jumped backwards. Compensating.");
 		ClockJustJumped = 1;
-		other_is_stable = 1;
-		if (ANYDEBUG) {
-			cl_log(LOG_DEBUG
-			, "Clock Jumped: other now stable");
-		}
 	}else{
 		ClockJustJumped = 0;
 	}
@@ -4126,6 +4121,11 @@ get_localnodeinfo(void)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.272  2003/07/14 04:10:31  alan
+ * Changed the "clock just jumped" code to do nothing nowadays.
+ * It's not really needed, but it's good information because it can mess up
+ * other systems that aren't so tolerant of this kind of nonsense.
+ *
  * Revision 1.271  2003/07/13 12:43:30  alan
  * Changed the recovery code to shut down *un*gracefully if resource
  * takeover doesn't finish when it should.  This should trigger
