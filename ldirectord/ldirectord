@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.38 2001/09/07 04:17:39 horms Exp $
+# $Id: ldirectord,v 1.39 2001/10/01 13:03:15 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -115,7 +115,7 @@ This directive might also be used to restart B<ldirectord> automatically
 after the configuration file changed on disk. However, if B<autoreload>
 is set to yes, the configuration is reloaded anyway.
 
-B<fallback = >I<ip_address|hostname[:portnumber|sercvicename]>
+B<fallback = >I<ip_address|hostname[:portnumber|sercvicename]> [B<gate>|B<masq>|B<ipip>]
 
 the server onto which a webservice is redirected if all real
 servers are down. Typically this would be 127.0.0.1 with
@@ -256,7 +256,7 @@ L<ipvsadm>, L<heartbeat>
 
 Jacob Rief <jacob.rief@tiscover.com>
 
-Horms <horms@vergenet.net>, <horms@valinux.com>
+Horms <horms@vergenet.net>
 
 =cut
 
@@ -575,6 +575,7 @@ sub read_config
 			$vsrv{negotiatetimeout} = 0;
 			$vsrv{num_connects} = 0;
 			push(@VIRTUAL, \%vsrv);
+                        #flim
 			while(<CFGFILE>) {
 				$line++;
 				$_ =~ s/\t/    /g;
@@ -668,7 +669,7 @@ sub read_config
 					$vsrv{sitename} = $1;
 				} elsif ($rcmd =~ /^fallback\s*=\s*(.*)/) {    # Allow specification of a virtual-specific fallback host
 					$fallback_line=$line;
-					$vsrv{fallback} = $1
+					$vsrv{fallback}=parse_fallback($line, $1);
 				} else {
 					&config_error($line, "Unknown command $_");
 				}
@@ -680,7 +681,7 @@ sub read_config
 			# for a virtual service has been parsed.
 
 			&_ld_read_config_fallback_resolve($fallback_line, 
-				\%vsrv);
+				$vsrv{protocol}, $vsrv{fallback});
 			&_ld_read_config_virtual_resolve($virtual_line, \%vsrv,
 				$ip_port);
 			&_ld_read_config_real_resolve(\%vsrv, \@rsrv_todo);
@@ -702,13 +703,21 @@ sub read_config
 			$1 =~ /(\d+)/ && $1 or &config_error($line, "invalid checkinterval value");
 			$CHECKINTERVAL = $1;
 		} elsif ($_ =~ /^fallback\s*=\s*(.*)/) {
-			my $tcp=&ld_gethostservbyname($1, "tcp");
-			my $udp=&ld_gethostservbyname($1, "udp");
+                        my $tcp = &ld_gethostservbyname($1, "tcp");
+			my $udp = &ld_gethostservbyname($1, "udp");
+                        my $tcp_fb;
+                        my $udp_fb;
 			if(!defined($tcp) and !defined($udp)){
 			    &config_error($line, 
 			    	"invalid address for fallback server");
 			}
-			$FALLBACK = { "tcp" => $tcp, "udp" => $udp };
+                        if(defined($tcp)) {
+			        $tcp_fb=&parse_fallback($line, $tcp);
+                        }
+                        if(defined($udp)) {
+			        $udp_fb=&parse_fallback($line, $udp);
+                        }
+			$FALLBACK = { "tcp" => $tcp_fb, "udp" => $udp_fb };
 		} elsif ($_ =~ /^autoreload\s*=\s*(.*)/) {
 			($1 eq "yes" || $1 eq "no")
 			    or &config_error($line, "autoreload must be 'yes' or 'no'");
@@ -803,14 +812,18 @@ sub _ld_read_config_virtual_resolve
 
 sub _ld_read_config_fallback_resolve
 {
-	my($line, $vsrv)=(@_);
+	my($line, $protocol, $fallback)=(@_);
 
-	if($vsrv->{fallback}){
-		$vsrv->{fallback}=&ld_gethostservbyname($vsrv->{fallback}, 
-			$vsrv->{protocol}) 
-		or &config_error($line, 
-			"invalid address for fallback server");
-	}
+        my $ip_port;
+
+        unless($fallback) {
+                return;
+        }
+
+	$fallback->{server}=&ld_gethostservbyname(
+                $fallback->{server}, $protocol) 
+	        or &config_error($line, 
+		        "invalid address for fallback server");
 }
 
 
@@ -1004,9 +1017,52 @@ sub add_real_server
 }
 
 
+# parse_fallback
+# Parse a fallback server
+# pre: line: line number real server was read from
+#      fallback: line read from configuration file
+#                Should be of the form
+#                ip_address|hostname[:port|:service_name] [gate|masq|ipip]
+# post: fallback is parsed
+# return: Reference to hash of the form
+#         { server => blah, forward => blah }
+#         Debugging message will be reported and programme will exit
+#         on error.
+
+sub parse_fallback
+{
+	my ($line, $fallback) = (@_);
+
+	my $ip_port;
+	my $fwd;
+
+        $fallback =~ /^\s*(\S+)(\s+(\S+))?\s*/ or
+                  &config_error($line, "invalid fallback server: $fallback");
+
+        $ip_port=$1;
+        $fwd=$3;
+
+
+        if($fwd) {
+                ($fwd eq "gate" || $fwd eq "masq" || $fwd eq "ipip")
+	        or &config_error($line, 
+	    	        "forward method must be gate, masq or ipip");
+        }
+        else {
+          $fwd="gate"
+        }
+
+	return({"server"=>$ip_port, "forward"=>$fwd});
+}
+
+
 sub config_error
 {
 	my ($line, $msg) = @_;
+
+        chomp($msg);
+        $msg .= "\n";
+
 	if (defined $opt_d || $initializing==1) {
 		if ($line>0) {
 			print STDERR "Error [$pid] reading file $CONFIG at line $line: $msg";
@@ -1047,15 +1103,7 @@ sub ld_setup
 		}
 		my $real = $$v{real};
 		for my $r (@$real) {
-			if ($$r{forward} eq "masq") {
-				$$r{forw} = "-m";
-			} elsif ($$r{forward} eq "gate") {
-				$$r{forw} = "-g";
-			} elsif ($$r{forward} eq "ipip") {
-				$$r{forw} = "-i";
-			} else {
-				$$r{forw} = " ";
-			}
+                        $$r{forw} = get_forward_flag($$r{forward});
 			if (defined $$r{weight}) {
 				 $$r{wght} = "-w $$r{weight}";
 			} else {
@@ -1700,7 +1748,9 @@ sub fallback_on
 
 	my $fallback=&fallback_find($v);
 	if (defined $fallback and $$v{status}==0) {
-                _restore_service($v, $fallback, "", "-w 1", "fallback");
+                _restore_service($v, $fallback->{server}, 
+                        get_forward_flag($fallback->{forward}), 
+                        "-w 1", "fallback");
 	}
 }
 
@@ -1717,7 +1767,9 @@ sub fallback_off
 
 	my $fallback=&fallback_find($v);
 	if (defined $fallback and $$v{status}==1) {
-                _quiecent_service($v, $fallback, "", "fallback");
+                _quiecent_service($v, $fallback->{server},
+                         get_forward_flag($fallback->{forward}),
+                         "fallback");
 	}
 }
 
@@ -1967,6 +2019,36 @@ sub get_virtual
 	} else {
         	return $nv->{"server"} . ":" . $nv->{"port"};
 	}
+}
+
+
+# get_forward_flag
+# Get the ipvsadm flag corresponging to a forwarding mechanism
+# pre: forward: Name of forwarding mechanism. u
+#               Should be one of ipip, masq or gate
+# post: none
+# return: ipvsadm flag corresponding to the forwading mechanism
+#         " " if $forward is unknown
+
+sub get_forward_flag
+{
+        my ($forward) = (@_);
+
+        unless(defined($forward)) {
+                return(" ");
+        }
+
+	if ($forward eq "masq") {
+		return("-m");
+	} 
+        elsif ($forward eq "gate") {
+		return("-g");
+	} 
+        elsif ($forward eq "ipip") {
+		return("-i");
+	} 
+
+	return(" ");
 }
 
 
