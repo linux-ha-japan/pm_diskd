@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.61 2000/10/26 14:13:29 eric Exp $
+#	$Id: Specfile,v 1.62 2000/10/26 14:19:33 eric Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -13,7 +13,10 @@ Buildroot: /var/tmp/%PKG%-root
 %package ldirectord
 Summary: Monitor daemon for maintaining high availability resources
 Group: Utilities
-Requires: LWP.pm, Net::SSLeay
+# These are the right perl module names, but the wrong package names.
+# Requires: LWP.pm, Net::SSLeay
+# get yours from ultramonkey.sourceforge.net
+Requires: perl-libwww-perl
 
 %package stonith
 Summary: Provides an interface to Shoot The Other Node In The Head 
