@@ -18,7 +18,11 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+
+#define __CCM_LIBRARY__
 #include <ccmlib.h>
+//#include <syslog.h>
+//#include <clplumbing/cl_log.h>
 
 /* structure to track the membership delivered to client */
 typedef struct mbr_track_s {
@@ -30,6 +34,7 @@ typedef struct mbr_track_s {
 
 typedef struct mbr_private_s {
 	int			magiccookie;
+	gboolean		client_report; 	   /* report to client */
 	oc_ev_callback_t 	*callback; /* the callback function registered
 					      	by the client */
 	struct IPC_CHANNEL      *channel; /* the channel to talk to ccm */
@@ -183,6 +188,7 @@ init_llmborn(mbr_private_t *private)
 		case 0: init_llm(private, msg);
 			break;
 		case 1: init_bornon(private, msg);
+			private->client_report = TRUE;
 			break;
 		}
 		i++;
@@ -217,7 +223,8 @@ already_present(oc_node_t *arr, uint size, oc_node_t node)
 {
 	int i;
 	for ( i = 0 ; i < size ; i ++ ) {
-		if(arr[i].node_id == node.node_id) {
+		if(arr[i].node_id == node.node_id &&
+			arr[i].node_born_on >= node.node_born_on) {
 			return TRUE;
 		}
 	}
@@ -247,8 +254,6 @@ get_new_membership(mbr_private_t *private,
 	int trans, i, j, in_index, out_index, born;
 	int n_members,uuid;
 	
-
-
 	int n_nodes = CLLM_GET_NODECOUNT(private->llm);
 
 	int size    = sizeof(mbr_track_t) + 
@@ -272,20 +277,17 @@ get_new_membership(mbr_private_t *private,
 
 		/* if there is already a born entry for the
 		 * node, use it. Otherwise create a born entry
-		 * for the node 
+		 * for the node.
+	 	 *
+		 * NOTE: born==0 implies the entry has not been
+		 * 	initialized.
 		 */
-		if(born!=0) {
-			OC_EV_SET_BORN(newmbr,j,(born-1));
-		} else {
-			g_hash_table_insert(private->bornon, 
-					GINT_TO_POINTER(uuid),
-					GINT_TO_POINTER(trans));
-			OC_EV_SET_BORN(newmbr,j,trans);
-		}
+		OC_EV_SET_BORN(newmbr,j, born==0?trans:(born-1));
 		j++;
 	}
 	/* sort the m_arry */
-	qsort(OC_EV_GET_NODEARRY(newmbr), n_members, sizeof(oc_node_t), compare);
+	qsort(OC_EV_GET_NODEARRY(newmbr), n_members, 
+			sizeof(oc_node_t), compare);
 
 	in_index = OC_EV_SET_IN_IDX(newmbr,j);
 	out_index = OC_EV_SET_OUT_IDX(newmbr,(j+n_nodes));
@@ -298,27 +300,21 @@ get_new_membership(mbr_private_t *private,
 	if(oldmbr) {
 		for ( i = 0 ; i < n_members; i++ ) {
 			if(!already_present(OC_EV_GET_NODEARRY(oldmbr),
-						OC_EV_GET_N_MEMBER(oldmbr),
-						OC_EV_GET_NODE(newmbr,i))){
+					OC_EV_GET_N_MEMBER(oldmbr),
+					OC_EV_GET_NODE(newmbr,i))){
 				OC_EV_COPY_NODE(newmbr, in_index, newmbr, i);
 				in_index++;
 				OC_EV_INC_N_IN(newmbr);
-				g_hash_table_insert(private->bornon, 
-					GINT_TO_POINTER(OC_EV_GET_NODEID(newmbr,i)), 
-					GINT_TO_POINTER(trans+1));
 			}
 		}
 
 		for ( i = 0 ; i < OC_EV_GET_N_MEMBER(oldmbr) ; i++ ) {
 			if(!already_present(OC_EV_GET_NODEARRY(newmbr), 
-						OC_EV_GET_N_MEMBER(newmbr), 
-						OC_EV_GET_NODE(oldmbr,i))){
+					OC_EV_GET_N_MEMBER(newmbr), 
+					OC_EV_GET_NODE(oldmbr,i))){
 				OC_EV_COPY_NODE(newmbr, out_index, oldmbr, i);
 				out_index++;
 				OC_EV_INC_N_OUT(newmbr);
-				g_hash_table_remove(private->bornon, 
-					GINT_TO_POINTER(OC_EV_GET_NODEID(oldmbr, i)));
-				/* remove the born entry for this node */
 			}
 		}
 	} else {
@@ -343,6 +339,60 @@ mem_callback_done(void *cookie)
 	return;
 }
 
+/* a sophisticated quorum algorithm has to be introduced here
+ *  currently we are just using the simplest algorithm
+ */
+static gboolean
+mem_quorum(mbr_private_t *private, mbr_track_t *mbr)
+{
+	//cl_log(LOG_DEBUG, "n_member=%d, cllm_get_nodecount=%d\n",
+	//	OC_EV_GET_N_MEMBER(mbr), CLLM_GET_NODECOUNT(private->llm));
+	if(OC_EV_GET_N_MEMBER(mbr) <
+		(CLLM_GET_NODECOUNT(private->llm)/2+1))
+		return FALSE;
+	return TRUE;
+}
+
+static void
+update_bornons(mbr_private_t *private, mbr_track_t *mbr)
+{
+	int i,j;
+	for(i=0; i < OC_EV_GET_N_MEMBER(mbr); i++) {
+		g_hash_table_insert(private->bornon,
+			GINT_TO_POINTER(OC_EV_GET_NODEID(mbr,i)),
+			GINT_TO_POINTER(OC_EV_GET_BORN(mbr,i)+1));
+	}
+	j=OC_EV_GET_OUT_IDX(mbr); 
+	for(i=OC_EV_GET_OUT_IDX(mbr); i<j+OC_EV_GET_N_OUT(mbr); i++){
+		g_hash_table_insert(private->bornon,
+			GINT_TO_POINTER(OC_EV_GET_NODEID(mbr,i)),
+			GINT_TO_POINTER(0));
+	}
+}
+
+static gboolean
+membership_unchanged(mbr_private_t *private, mbr_track_t *mbr)
+{
+	int i;
+	mbr_track_t *oldmbr = (mbr_track_t *) 
+				cookie_get_data(private->cookie);
+
+	if(!oldmbr) return FALSE;
+
+	if(OC_EV_GET_N_MEMBER(mbr) != OC_EV_GET_N_MEMBER(oldmbr)){
+			return FALSE;
+	}
+
+	for(i=0; i < OC_EV_GET_N_MEMBER(mbr); i++) {
+		if((OC_EV_GET_NODEID(mbr,i) 
+				!= OC_EV_GET_NODEID(oldmbr,i)) ||
+		  OC_EV_GET_BORN(mbr,i) 
+		  		!= OC_EV_GET_BORN(oldmbr,i)) { 
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
 
 static gboolean	 
 mem_handle_event(class_t *class)
@@ -352,7 +402,8 @@ mem_handle_event(class_t *class)
 	struct IPC_CHANNEL *ch;
 	mbr_track_t *mbr_track, *old_oc_mem;
 	int	size;
-	oc_memb_event_t type;
+	int	type;
+	oc_memb_event_t oc_type;
 	void   *cookie;
 	int ret;
 
@@ -374,50 +425,93 @@ mem_handle_event(class_t *class)
 		}
 
 		if(ret!=IPC_OK){
-			type = OC_EV_MS_EVICTED;
+			type = CCM_EVICTED;
 		} else {
 			type = ((ccm_meminfo_t *)msg->msg_body)->ev;
 		}
-		if(type==OC_EV_MS_NEW_MEMBERSHIP){
+
+
+		cookie= mbr_track = NULL;
+		size=0;
+		oc_type = OC_EV_MS_INVALID;
+
+		switch(type) {
+		case CCM_NEW_MEMBERSHIP :
+
 			size = get_new_membership(private, 
 				(ccm_meminfo_t *)msg->msg_body, 
 				msg->msg_len, 
 				&mbr_track);
 
-			cookie = cookie_construct(mem_callback_done, 
-					mbr_track);
-
-			old_oc_mem = (mbr_track_t *)
-				cookie_get_data(private->cookie);
-			if(old_oc_mem &&
-				(OC_EV_DEC_COUNT(old_oc_mem) == 0)){
-				cookie_destruct(private->cookie);
-				g_free(old_oc_mem);
+			/* if no quorum, delete the bornon dates for lost 
+			 * nodes, add  bornon dates for the new nodes and 
+			 * return
+			 */
+			if (!mem_quorum(private, mbr_track)){
+				update_bornons(private, mbr_track);
+				private->client_report = FALSE;
+				g_free(mbr_track);
+				break;
 			}
+			private->client_report = TRUE;
 
-			private->cookie = cookie;
-			OC_EV_SET_COUNT(mbr_track, 1);
-			OC_EV_SET_SIZE(mbr_track, size);
-		} else {
+			/* if quorum and old membership is same as the new 
+			* membership set type to OC_EV_MS_RESTORED , 
+			* pick the old membership and deliver it. 
+			* Do not construct a new membership  
+			*/
+			if (membership_unchanged(private, mbr_track)){
+				/* we do not need the new mbr_track, 
+				*  the old one is the same as the new
+				*/
+				g_free(mbr_track);
+
+				oc_type = OC_EV_MS_PRIMARY_RESTORED;
+				cookie = private->cookie;
+				mbr_track = (mbr_track_t *)
+					cookie_get_data(cookie);
+				size = OC_EV_GET_SIZE(mbr_track);
+			} else {
+				oc_type = OC_EV_MS_NEW_MEMBERSHIP;
+				update_bornons(private, mbr_track);
+				cookie = cookie_construct(mem_callback_done, 
+						mbr_track);
+
+				old_oc_mem = (mbr_track_t *)
+					cookie_get_data(private->cookie);
+				if(old_oc_mem &&
+					(OC_EV_DEC_COUNT(old_oc_mem) == 0)){
+					cookie_destruct(private->cookie);
+					g_free(old_oc_mem);
+				}
+
+				private->cookie = cookie;
+				OC_EV_SET_COUNT(mbr_track, 1);
+				OC_EV_SET_SIZE(mbr_track, size);
+			}
+			break;
+
+		case CCM_EVICTED:
+			oc_type = OC_EV_MS_EVICTED;
+			private->client_report = TRUE;
+			/* FALL THROUGH */
+		case CCM_INFLUX:
+			oc_type = OC_EV_MS_NOT_PRIMARY;
 			cookie = private->cookie;
-			mbr_track = (mbr_track_t *)cookie_get_data(cookie);
-			size = OC_EV_GET_SIZE(mbr_track);
+			if(cookie) {
+				mbr_track = (mbr_track_t *)
+						cookie_get_data(cookie);
+				size = OC_EV_GET_SIZE(mbr_track);
+			}
+			break;
 		}
 
-		/*call the callback*/
-		if(private->callback){
+		if(private->callback && private->client_report){
 			OC_EV_INC_COUNT(mbr_track);
-			if(type==OC_EV_MS_EVICTED) {
-				private->callback(type,
-					(uint *)cookie,
-					0, 
-					NULL);
-			} else {
-				private->callback(type,
-					(uint *)cookie,
-					size, 
-					&(mbr_track->m_mem));
-			}
+			private->callback(oc_type,
+				(uint *)cookie,
+				size, 
+				mbr_track?&(mbr_track->m_mem):NULL);
 		}
 
 		if(ret==IPC_OK) {
@@ -540,6 +634,7 @@ oc_ev_memb_class(oc_ev_callback_t  *fn)
 	memclass->private = (void *)private;
 	private->callback = fn;
 	private->magiccookie = 0xabcdef;
+	private->client_report = FALSE;
 
 	attrs = g_hash_table_new(g_str_hash,g_str_equal);
 	g_hash_table_insert(attrs, path, ccmfifo);

@@ -310,7 +310,7 @@ client_delete_all(void)
 
 
 void
-client_send_msg(int n,  int trans, int *member, void *borndata)
+client_new_mbrship(int n,  int trans, int *member, void *borndata)
 {
 	/* creating enough heap memory in order to avoid allocation */
 	static struct born_s	bornbuffer[MAXNODE+10];
@@ -325,7 +325,7 @@ client_send_msg(int n,  int trans, int *member, void *borndata)
 	restored_flag=FALSE;
 
 
-	ccm->ev = OC_EV_MS_NEW_MEMBERSHIP;
+	ccm->ev = CCM_NEW_MEMBERSHIP;
 	ccm->n = n;
 	ccm->trans = trans;
 	memcpy(ccm->member, member, n*sizeof(int));
@@ -358,9 +358,9 @@ client_send_msg(int n,  int trans, int *member, void *borndata)
 
 
 void
-client_not_primary(void)
+client_influx(void)
 {
-	int type = OC_EV_MS_NOT_PRIMARY;
+	int type = CCM_INFLUX;
 
 	if(prim_flag){
 		prim_flag = FALSE;
@@ -378,31 +378,11 @@ client_not_primary(void)
 		cl_log(LOG_DEBUG, "membership state: not primary");
 }
 
-void
-client_primary_restored(void)
-{
-	int type = OC_EV_MS_PRIMARY_RESTORED;
-	if(!prim_flag){
-		prim_flag = TRUE;
-		restored_flag = TRUE;
-		if(ipc_misc_message && --(ipc_misc_message->count)==0){
-			delete_message(ipc_misc_message);
-		}
-		ipc_misc_message = create_message(ipc_misc_chk, 
-				&type, sizeof(int));
-		ipc_misc_message->count++;
-		send_all();
-	}
-	if(global_verbose)
-		cl_log(LOG_DEBUG, "membership state: primary restored");
-}
-
-
 
 void
 client_evicted(void)
 {
-	int type = OC_EV_MS_EVICTED;
+	int type = CCM_EVICTED;
 	evicted_flag=TRUE;
 	if(llm_flag) {
 		if(ipc_misc_message && --(ipc_misc_message->count)==0){

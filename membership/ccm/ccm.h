@@ -229,10 +229,9 @@ void client_init(void);
 int  client_add(struct IPC_CHANNEL *);
 void client_delete(struct IPC_CHANNEL *);
 void client_delete_all(void);
-void client_send_msg(int n, int , int *, void *);
+void client_new_mbrship(int n, int , int *, void *);
 void client_llm_init(llm_info_t *);
-void client_not_primary(void);
-void client_primary_restored(void);
+void client_influx(void);
 void client_evicted(void);
 // END OF client management interfaces
 

@@ -23,6 +23,7 @@
 /* 
  * implements 0.2 version of proposed event api 
  */
+#define __CCM_LIBRARY__
 #include <ccmlib.h>
 
 void * cookie_construct(void (*f)(uint *), void *data);

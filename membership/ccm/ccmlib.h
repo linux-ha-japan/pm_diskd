@@ -28,7 +28,10 @@
 #include <glib.h>
 #include <string.h>
 #include <ipc.h>
+
+#ifdef __CCM_LIBRARY__
 #include <oc_event.h>
+#endif
 
 #define NODEIDSIZE 255 /* if this value is changed change it 
 			  	also in ccm.h */
@@ -77,6 +80,7 @@ typedef struct ccm_llm_s { /* information about low level membership info */
 #define CLLM_SET_MYNODEID(cllm, name) \
 			CLLM_SET_NODEID(cllm, CLLM_GET_MYNODE(cllm), name)
 
+#ifdef __CCM_LIBRARY__
 typedef struct class_s {
 	int	type;
 	oc_ev_callback_t *(*set_callback)(struct class_s *, 
@@ -88,6 +92,10 @@ typedef struct class_s {
 	void		     *private;
 } class_t;
 class_t *oc_ev_memb_class(oc_ev_callback_t  *);
+#endif
 
+#define CCM_EVICTED 		1
+#define CCM_NEW_MEMBERSHIP 	2
+#define CCM_INFLUX 		3
 
 #endif  /* __CCMLIB_H_ */

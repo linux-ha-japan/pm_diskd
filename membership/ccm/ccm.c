@@ -117,7 +117,7 @@ typedef struct ccm_info_s {
 				cl_log(LOG_DEBUG,"state=%d",state); \
 			info->ccm_node_state = state; \
 			if(state==CCM_STATE_JOINING) \
-				client_not_primary(); \
+				client_influx(); \
 		}
 
 
@@ -524,66 +524,18 @@ ccm_init(ccm_info_t *info)
 }
 
 
-/* a sophisticated quorum algorithm has to be introduced here
- *  currently we are just using the simplest algorithm
- */
-static int
-ccm_quorum(ccm_info_t *info)
-{
-	if(CCM_GET_MEMCOUNT(info)< 
-		(LLM_GET_NODECOUNT(CCM_GET_LLM(info))/2+1))
-		return 0;
-	return 1;
-}
 
 /*
  * BEGIN OF ROUTINES THAT REPORT THE MEMBERSHIP TO CLIENTS.
  */
-
-static int    old_mem[MAXNODE]; /*avoid making it a stack variable*/
-static int    old_size=0;
-
-
-static int
-mbr_compare(const void *value1, const void *value2)
-{
-	const int *t1 = (const int *)value1;
-	const int *t2 = (const int *)value2;
-	if(*t1>*t2) return 1;
-	if(*t1<*t2) return -1;
-	return 0;
-}
-
-static int
-report_mbr_compare(int *newtable, 
-		int newsize, 
-		int *oldtable, 
-		int oldsize)
-{
-	if(newsize!=oldsize) return 1;
-	qsort(newtable, newsize, sizeof(int), mbr_compare);
-	return memcmp(newtable,oldtable,newsize*sizeof(int));
-}
-
-static void
-report_mbr_copy(int *newtable, 
-		int newsize, 
-		int *oldtable, 
-		int *oldsize)
-{
-	memcpy(oldtable,newtable,newsize*sizeof(int));
-	*oldsize=newsize;
-	return;
-}
-
-
 static void
 report_reset(void)
 {
-	old_size=0;
+	return;
 }
+
 //
-// print the membership of the cluster.
+// print and report the cluster membership to clients.
 //
 static void
 report_mbrs(ccm_info_t *info)
@@ -595,7 +547,7 @@ report_mbrs(ccm_info_t *info)
 		int index;
 		int bornon;
 	}  bornon[MAXNODE];/*avoid making it a 
-						stack variable*/
+				stack variable*/
 	
 
 	if(CCM_GET_MEMCOUNT(info)==1){
@@ -624,21 +576,13 @@ report_mbrs(ccm_info_t *info)
 		}
 	}
 
-	if(ccm_quorum(info)){
-		if(report_mbr_compare(CCM_GET_MEMTABLE(info), 
-					CCM_GET_MEMCOUNT(info),
-					old_mem, old_size)==0){
-			client_primary_restored();
-		} else {
-			client_send_msg(CCM_GET_MEMCOUNT(info), 
-				CCM_GET_MAJORTRANS(info),
-				CCM_GET_MEMTABLE(info), 
-				bornon);
-			report_mbr_copy(CCM_GET_MEMTABLE(info), 
-					CCM_GET_MEMCOUNT(info), 
-					old_mem, &old_size);
-		}
-	}
+	/* 
+	 * report to clients, the new membership 
+	 */
+	client_new_mbrship(CCM_GET_MEMCOUNT(info), 
+		CCM_GET_MAJORTRANS(info),
+		CCM_GET_MEMTABLE(info), 
+		bornon);
 	return;
 }
 /*
