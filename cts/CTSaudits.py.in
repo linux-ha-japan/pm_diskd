@@ -49,14 +49,14 @@ class ResourceAudit(ClusterAudit):
             if self.CM.ShouldBeStatus[node] == self.CM["up"]:
                 if resource.IsRunningOn(node):
                     ResourceNodes.append(node)
-	return ResourceNodes
+        return ResourceNodes
 
     def _doaudit(self):
         '''Check to see if all resources are running in exactly one place
         in the cluster.
-	We also verify that the members of a resource group are all
-	running on the same node in the cluster,
-	and we monitor that they are all running "properly".
+        We also verify that the members of a resource group are all
+        running on the same node in the cluster,
+        and we monitor that they are all running "properly".
         '''
         Fatal = 0
         result = []
@@ -78,7 +78,7 @@ class ResourceAudit(ClusterAudit):
 
 		#	Is the resource served without quorum present?
 
-		if not self.CM.HasQuorum() and len(ResourceNodes) != 0:
+                if not self.CM.HasQuorum() and len(ResourceNodes) != 0:
 
                     result.append("Resource " + repr(resource)
                     +	" active without Quorum: "
@@ -106,11 +106,11 @@ class ResourceAudit(ClusterAudit):
 		# Are all the members of the Rsc Grp served by the same node?
 
                 elif GrpServedBy != ResourceNodes:
-                    result.append("Resource resource" + repr(resource)
+                    result.append("Resource group resources" + repr(resource)
                     +	" running on different nodes: "
                     +	repr(ResourceNodes)+" vs "+repr(GrpServedBy)
                     +   "(otherRsc = " + repr(lastResource) + ")")
-                    self.CM.log("Resource group resource" + repr(resource)
+                    self.CM.log("Resource group resources" + repr(resource)
                     +	" running on different nodes: "
                     +	repr(ResourceNodes)+" vs "+repr(GrpServedBy)
                     +   "(otherRsc = " + repr(lastResource) + ")")
@@ -123,6 +123,7 @@ class ResourceAudit(ClusterAudit):
                     if not resource.IsWorkingCorrectly(ResourceNodes[0]):
                       result.append("Resource " + repr(resource)
                       +	" not operating properly.")
+                      Fatal = 1
                 lastResource = resource
 
         if (Fatal):
@@ -147,8 +148,10 @@ class ResourceAudit(ClusterAudit):
         # Of course, it really depends on what resources
         # you have in the test suite, and how long it takes
         # for them to settle.
+        # Recently, we've changed heartbeat so we know better when
+        # resource acquisition is done.
         #
-        audcount=60;
+        audcount=5;
 
         while(audcount > 0):
              audresult =  self._doaudit()
@@ -158,7 +161,7 @@ class ResourceAudit(ClusterAudit):
                  audcount = audcount - 1
              if (audcount > 0):
                  time.sleep(1)
-        if (len(audresult) > 0) :
+        if (len(audresult) > 0):
             self.CM.log("Fatal Audit error: " + repr(audresult))
 
         return (len(audresult) == 0)
