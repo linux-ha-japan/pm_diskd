@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.21 2001/06/08 04:57:48 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.22 2001/06/13 03:15:49 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -580,18 +580,23 @@ ml_get_module_list	/* Return (sorted) list of available module names */
 }
 /*
  *	WARNING!! THIS CODE LARGELY / COMPLETELY UNTESTED!!
+ *
+ *	Not only that, but it isn't finished ;-)
  */
 
-/*
+/*****************************************************************************
  *	UPMLS - Universal Plugin and Module Loading System
+ *****************************************************************************
+ *
+ * An Overview of UPMLS...
  *
  * UPMLS is fairly general and reasonably interesting module loading system.
- * These modules are sometimes referred to as plugins.  Here, we use the two terms
- * to mean different things.
+ * These modules are sometimes referred to as plugins.  Here, we use the
+ * two terms to mean two different things.
  *
- * This plugin and module loading system is quite general, and should be directly
- * usable by basically any project on any platform on which it runs - which should
- * be many, since everything is build with automake.
+ * This plugin and module loading system is quite general, and should be
+ * directly usable by basically any project on any platform on which it runs
+ * - which should be many, since everything is build with automake.
  *
  * Some terminology...
  *
@@ -607,110 +612,139 @@ ml_get_module_list	/* Return (sorted) list of available module names */
  * 	It is common to have one plugin inside of each module.  In this case,
  * 	the plugin name should match the module name.
  *
- * Each plugin exports certain interfaces which it exports for its clients to use.
- * We refer to these those "Ops".  Every plugin of the same type imports the
- * same interfaces.
+ * Each plugin exports certain interfaces which it exports for its clients
+ * to use.   We refer to these those "Ops".  Every plugin of the same type
+ * "imports" the same interfaces, and exports the same "Ops".
  *
- * Each plugin is provided certain interfaces which it imports when it is loaded.
- * We refer to these as "Imports".  Every plugin of a given type imports the
- * same interfaces.
+ * Each plugin is provided certain interfaces which it imports when it
+ * is loaded.  We refer to these as "Imports".  Every plugin of a given
+ * type imports the same interfaces.
  *
- * Every module exports a certain set of interfaces, regardless of what type of plugins
- * it may implement.  These are described in the MLModuleOps structure.
+ * Every module exports a certain set of interfaces, regardless of what type
+ * of plugins it may implement.  These are described in the MLModuleOps
+ * structure.
  *
- * Every module imports a certain set of interfaces, regardless of what type of plugins
- * it may implement.  These are described by the MLModuleImports structure.
+ * Every module imports a certain set of interfaces, regardless of what type
+ * of plugins it may implement.  These are described by the
+ * MLModuleImports structure.
  *
- * In the function parameters below, the following notation will sometimes appear:
+ * In the function parameters below, the following notation will
+ * sometimes appear:
  *
- * (OP) == Output Parameter - a parameter which is modified by the function being called
+ * (OP) == Output Parameter - a parameter which is modified by the
+ * 	function being called
  *
  *
- *************************************************************************************
+ *****************************************************************************
  *
- * The structures we maintain are as follows:
+ * The basic structures we maintain about modules are as follows:
  *
  *	MLModule		The data which represents a module.
- *	MLModuleImports		The set of standard functions all modules import.
+ *	MlModuleType		The data common to all modules of a given type
+ *	MlModuleUniv		The set of all module types in the Universe
+ *					(well... at least *this* universe)
+ *
+ * The basic structures we maintain about plugins are as follows:
+ * 	MLPlugin		The data which represents a plugin
+ * 	MLPluginType		The data which is common to all plugins of
+ * 					a given type
+ *	MlModuleUniv		The set of all plugin types in the Universe
+ *					(well... at least *this* universe)
+ *
+ * Regarding "Universe"s.  It is our intent that a given program can deal
+ * with modules in more than one universe.  This might occur if you have two
+ * independent libraries each of which uses the module loading environment
+ * to manage their own independent plugin components.  There should be
+ * no restriction in creating a program which uses both of these libraries. 
+ * At least that's what we hope ;-)
+ *
+ *
+ ***************************************************************************
+ * SOME MORE DETAILS ABOUT MODULES...
+ ***************************************************************************
+ *
+ * Going back to more detailed data structures about modules...
+ *
+ *	MLModuleImports		The set of standard functions all modules
+ *				import.
  *				This includes:
  *					register_module()
  *					unregister_module()
  *					register_plugin()
  *					unregister_plugin()
  *					load_module()
- *					pmalloc()	Preferred malloc function
- *					pfree()		Preferred free function
- *					log()		Preferred logging mechanism
+ *					log()	Preferred logging function
  *
- *	MLModuleOps		The set of standard operations all modules export.
+ *	MLModuleOps		The set of standard operations all modules
+ *				export.
  *				This includes:
  *					moduleversion()
  *					modulename()
  *					getdebuglevel()
  *					setdebuglevel()
- *					close()		Prepare for unloading...
+ *					close()	    Prepare for unloading...
  *
- *	Although we treat modules pretty much the same, they are still categorized
- *	into "types" - one type per directory.  These types generally (but not
- *	necessarily) correspond to plugin types.
+ *	Although we treat modules pretty much the same, they are still
+ *	categorized into "types" - one type per directory.  These types
+ *	generally (but not necessarily) correspond to plugin types.
  *
  *	One can only cause a module to be loaded - not a plugin.  But it is
- *	common to assume that loading a module named foo of type bar will cause
- *	a plugin named foo of type bar to be registered.  If one wants to implement
- *	automatic module loading in a given environment, this assumption is necessary.
+ *	common to assume that loading a module named foo of type bar will
+ *	cause a plugin named foo of type bar to be registered.  If one
+ *	wants to implement automatic module loading in a given plugin type,
+ *	this assumption is necessary.
  *
- *	Automatic plugin loading isn't necessary, but it's nice for some plugin types.
- *
- *	MLModEnv		Information about all modules of a given type.
- *					(i.e.,  in a given directory)
- *	MLModuleSet		The universal set of all MLModEnv objects - one
- *					for each module type.
+ *	Automatic plugin loading isn't necessary everywhere, but it's nice
+ *	for some plugin types.
  *
  *	The general way this works is...
  *
  *	- A request is made to load a particular module of a particular type.
  *
- *	- The module is loaded from the appropriate directory for modules of that type.
+ *	- The module is loaded from the appropriate directory for modules
+ *		of that type.
  *
- *	- The ml_module_init() function is called once when the module is loaded.
+ *	- The ml_module_init() function is called once when the module is
+ *		loaded.
  *
  *	The ml_module_init() function is passed a vector of functions which
  *		point to functions it can call to register itself, etc.
  *		(it's of type MLModuleImports)
  *
- * 	The ml_module_init function then uses this set of imported functions to
- * 	register itself and its plugins.
+ * 	The ml_module_init function then uses this set of imported functions
+ * 	to register itself and its plugins.
  *
- * 	The mechanism of registering a plugin is largely the same for every plugin.
- * 	However, the semantics of registering a plugins is determined by the plugin
- * 	loader for the particular type of plugin being discussed.
+ * 	The mechanism of registering a plugin is largely the same for
+ * 	every plugin.  However, the semantics of registering a plugins is
+ * 	determined by the plugin loader for the particular type of plugin
+ * 	being discussed.
  *
+ ***************************************************************************
+ * SOME MORE DETAILS ABOUT PLUGINS...
  ***************************************************************************
  *
  *	There is only one built in type of plugin.  That's the Plugin plugin.
+ *	The plugin loader for the plugin of type "Plugin", named "Plugin"
+ *	inserts itself into the system in order to bootstrap things...
  *
  *	When an attempt is made to register a plugin of an unknown type, then
  *	the Plugin module of the appropriate name is loaded automatically.
- *	The plugins it registers will then handle requests to register
- *	plugins of the type the same as the plugin name it registers.
+ *	The plugins it registers then handle requests to register
+ *	plugins whose type is the same as its plugin name.
  *
  * 	Types associated with plugins of type Plugin
  *
- *	MLPluginHandlerOps	The set of interfaces that every plugin handler exports
- *	MLPluginHandlerImports	The set of interfaces which are supplied to (imported
- *				by) every plugin of type Plugin.
- *
- *	MLPluginHandler		Information which we use to track a single plugin handler.
- *	MLPluginHandlerEnv	Information we use to keep track of the set of all plugin
- *				handlers.
- *
+ *	MLPluginOps	The set of interfaces that every plugin
+ *				handler exports
+ *	MLPluginImports	The set of interfaces which are supplied to
+ *				(imported by) every plugin of type Plugin.
  */
 
 /*
  *	Begin MLModule.h (or something like that)
  *
  *
- *************************************************************************************
+ *****************************************************************************
  *
  * Each module has only one entry point which is exported directly, regardless
  * of what kind of plugin(s) it implements...
@@ -720,51 +754,69 @@ ml_get_module_list	/* Return (sorted) list of available module names */
  * The ml_module_init() function is called once when the module is loaded.
  *
  *
- * All other entry points are exported through parameters passed to ml_module_init()
+ * All other entry points are exported through parameters passed to
+ * ml_module_init()
  *
- * Ml_module_init() then registers the module, and all the plugins which this module
- * implements.  The registration function is in the parameters which are passed
- * as a parameter to ml_module_init().
+ * Ml_module_init() then registers the module, and all the plugins which
+ * this module implements.  The registration function is in the parameters
+ * which are passed to ml_module_init().
  *
- *************************************************************************************
+ *****************************************************************************
  *
- * THINGS IN THIS DESIGN WHICH ARE BELIEVED TO BE BROKEN...
+ * THINGS IN THIS DESIGN WHICH ARE PROBABLY BROKEN...
  *
+ * Not sufficient thought has been given to return codes, and error
+ * indications similar to errno.
  *
- *************************************************************************************
+ * Each of the plugin handlers needs to be able to get some kind of
+ * user data passed to it - at least if it has been loaded manually...
+ *
+ * It may also be the case that the module loading environment needs
+ * to be able to have some kind of user_data passed to it which it can
+ * also pass along to any plugin handlers...
+ *
+ * Does this mean that the plugin handlers don't need their own user_data?
+ *
+ * I dunno...  Probably not...
+ *
+ * This is all so that these nice pristene, beautiful concepts can come out
+ * and work well in the real world where plugins need to interact with
+ * some kind of global system view, and with each other...
+ *
+ *****************************************************************************
  */
-typedef int				ML_rc;	/* Return code from Module functions */
+typedef int			ML_rc;	/* Return code from Module fns*/
 
-typedef struct mlModuleImports_s	MLModuleImports;
-typedef struct mlModuleOps_s		MLModuleOps;
-typedef struct mlModule_s		MLModule;
-typedef struct mlModuleSet_s		MLModuleSet;
+typedef struct MLModuleImports_s	MLModuleImports;
+typedef struct MLModuleOps_s		MLModuleOps;
+typedef struct MLModule_s		MLModule;
+typedef struct MLModuleUniv_s		MLModuleUniv;
 
 
 /*
- * struct mlModule_s (typedef MLModule) is the structure which represents/defines a
- * module, and is used to identify which module is being referred to in
- * various function calls.
+ * struct MLModule_s (typedef MLModule) is the structure which
+ * represents/defines a module, and is used to identify which module is
+ * being referred to in various function calls.
  *
- * NOTE: It may be the case that this definition should be moved to another header
- * file - since no one ought to be messing with them anyway ;-)
+ * NOTE: It may be the case that this definition should be moved to
+ * another header file - since no one ought to be messing with them anyway ;-)
  *
- * I'm not sure that we're putting the right stuff in here...
+ * I'm not sure that we're putting the right stuff in here, either...
  */
 
-struct mlModule_s {
+struct MLModule_s {
 	const char*	module_name;
-	GHashTable*	PluginSet;	/* The set of plugins registered from module*/
+	GHashTable*	Plugins;	/* Plugins registered by this module*/
 	int		refcnt;		/* Reference count for this module */
 
-	void*		user_data;	/* Data needed by module-common code */
+	void*		ud_module;	/* Data needed by module-common code*/
 	/* Other stuff goes here ...  (?) */
 };
 /*
- * struct mlModuleOps_s (typedef MLModuleOps) defines the set of functions
+ * struct MLModuleOps_s (typedef MLModuleOps) defines the set of functions
  * exported by all modules...
  */
-struct mlModuleOps_s {
+struct MLModuleOps_s {
 	const char*	(*moduleversion) (void);
 	const char*	(*modulename)	 (void);
 	int		(*getdebuglevel) (void);
@@ -774,211 +826,227 @@ struct mlModuleOps_s {
 };
 
 /*
- * struct mlModuleImports_s (typedef MLModuleImports) defines
+ * struct MLModuleImports_s (typedef MLModuleImports) defines
  * the functions and capabilities that every module imports when it is loaded.
  */
 
-struct mlModuleImports_s {
+struct MLModuleImports_s {
 	ML_rc	(*register_module)(MLModule* modinfo, MLModuleOps* commonops);
 	ML_rc	(*unregister_module)(MLModule* modinfo);
 	ML_rc	(*register_plugin)(MLModule* modinfo
-	,	const char *	plugintype	/* Type of plugin			*/
-	,	const char *	pluginname	/* Name of plugin			*/
-	,	void*		Ops		/* Info (functions) exported by plugin	*/
-	,	void**		pluginid	/* Plugin id 			(OP)	*/
-	,	void**		Imports);	/* Functions imported by plugin (OP)	*/
+	,	const char *	plugintype	/* Type of plugin	*/
+	,	const char *	pluginname	/* Name of plugin	*/
+	,	void*		Ops		/* Info (functions) exported
+						   by this plugin	*/
+	,	void**		pluginid	/* Plugin id 	(OP)	*/
+	,	void**		Imports);	/* Functions imported by
+						   this plugin	(OP)	*/
 
 	ML_rc	(*unregister_plugin)(void* pluginid);
-	ML_rc	(*load_module)(const char * moduletype, const char * modulename);
+	ML_rc	(*load_module)(const char * moduletype, const char * modulname);
 
-	void*	(*pmalloc)(size_t);	/* Preferred malloc method...		*/
-	void	(*pfree)(void *);	/* Preferred free method...		*/
-	void	(*log)	(int priority, const char * fmt, ...); // Logging function
+	void	(*log)	(int priority, const char * fmt, ...);
+					/* Logging function		*/
 };
 
-MLModuleSet*	NewMLModuleSet(const char * basemoduledirectory);
+MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
 
-/************************************************************************************
+/***************************************************************************
  *
- * Start of MLModEnv.h or something like that ;-)
+ * Start of MLModuleType.h or something like that ;-)
  *
- *************************************************************************************/
+ ***************************************************************************/
 
 /*
- * MLModEnv is the "class" for the basic module loading mechanism.
+ * MLModuleType is the "class" for the basic module loading mechanism.
  *
- * To enable loading of modules from a particular environment (module type), 
- * one calls NewMLModuleEnvironment with the module type name, the module
+ * To enable loading of modules from a particular module type
+ * one calls NewMLModuleType with the module type name, the module
  * base directory, and the set of functions to be imported to the module.
  *
  *
  * The general idea of these structures is as follows:
  *
- * The MLModuleSet object contains information about all modules of all types.
- * The MLModEnv object contains information about all the modules of a specific
- * type.
+ * The MLModuleUniv object contains information about all modules of all types.
+ * The MLModuleType object contains information about all the modules of a
+ * specific type.
  *
- * Note: for modules which implement a single plugin, the module type name should be
- * the same as the plugin type name.
+ * Note: for modules which implement a single plugin, the module type name
+ * should be the same as the plugin type name.
+ *
+ * For other modules that implement more than one plugin, one of the plugin
+ * names should match the module name.
  */
 
-typedef struct mlModEnv_s		MLModEnv;
+typedef struct MLModuleType_s		MLModuleType;
 
-extern MLModEnv* NewMLModuleEnvironment(MLModuleSet* globalenv
+extern MLModuleType* NewMLModuleType(MLModuleUniv* moduleuniv
 	,	const char * moduletype
 	,	const char* moduledirectory
 	,	MLModuleImports * imports);
 
-extern MLModEnv*	MLModuleEnvironment(MLModEnv* env, const char * moduletype);
-
 /*
- * MLForEachEnv calls 'fun2call' once for each environment in
- * the autoload module environment.
+ * MLForEachModType calls 'fun2call' once for each module type in
+ * a MLModuleUniverse
  */
-extern void	MLForEachEnv(MLModuleSet* envset
-		,	void (*fun2call)(MLModEnv*, void*private)
-		,	void *private);
+extern void	MLForEachModType(MLModuleUniv* universe
+		,	void (*fun2call)(MLModuleType*, void* userdata)
+		,	void *userdata);
 
 /*
- *	MLModEnv		Information about all modules of a given type.
+ *	MLModuleType		Information about all modules of a given type.
  *					(i.e.,  in a given directory)
- *				(AKA struct mlModEnv_s)
+ *				(AKA struct MLModuleType_s)
  */
-struct mlModEnv_s {
+struct MLModuleType_s {
 	const char *		moduletype;
 	const char *		basemoduledirectory;
-	MLModuleSet*		globalenv;	/* The set to which we belong */
-	MLModuleImports*	imports;
-	void*			moduleinfo;	/* Private data */
+	MLModuleUniv*		moduniv; /* The universe to which we belong */
+	GHashTable*		Modules;
+			/* Key is module type, value is MLModule */
 
-	int	(*IsLoaded)	(MLModEnv*, const char * modulename);
-	ML_rc	(*Load)		(MLModEnv*, const char * modulename);
-	ML_rc	(*UnLoad)	(MLModEnv*, const char * modulename);
-	int	(*refcount)	(MLModEnv*, const char * modulename);
-	int	(*modrefcount)	(MLModEnv*, const char * modulename, int plusminus);
-	void	(*UnloadUnRef)	(MLModEnv*);
-	void	(*setdebuglevel)(MLModEnv*, const char *  modulename);
+	int	(*IsLoaded)	(MLModuleType*, const char * modulename);
+	ML_rc	(*Load)		(MLModuleType*, const char * modulename);
+	ML_rc	(*UnLoad)	(MLModuleType*, const char * modulename);
+	int	(*refcount)	(MLModuleType*, const char * modulename);
+	int	(*modrefcount)	(MLModuleType*, const char * modulename
+	,			int plusminus);
+	void	(*UnloadUnRef)	(MLModuleType*);
+	void	(*setdebuglevel)(MLModuleType*, const char *  modulename);
 					/* modulename may be NULL */
-	int	(*getdebuglevel)(MLModEnv*, const char *  modulename);
-	char**	(*listmodules)(MLModEnv*);
+	int	(*getdebuglevel)(MLModuleType*, const char *  modulename);
+	char**	(*listmodules)(MLModuleType*);
 };
 /*
- *	MLModuleSet (aka struct mlModuleSet_s) is the structure which represents
- *	the universe of all MLModEnv objects - one for each module type.
+ *	MLModuleUniv (aka struct MLModuleUniv_s) is the structure which
+ *	represents the universe of all MLModuleType objects.
+ *	There is one MLModuleType object for each Module type.
  */
 
-struct mlModuleSet_s {
-			/* key is module type, data is MLModEnv* struct */
-	GHashTable*		ModuleSet;
-	struct MLPluginHandlerEnv_s*	pienv; /* Universe of corresponding plugins */
+struct MLModuleUniv_s {
+			/* key is module type, data is MLModuleType* struct */
+	GHashTable*		ModuleEnvs;
+	struct MLPluginUniv_s*	pienv; /* Parallel Universe of plugins */
+	MLModuleImports*	imports;
 };
 
-/************************************************************************************
- *	Begin MLPluginHandler.h    Or something like that...
- ************************************************************************************
+/*****************************************************************************
+ *	Begin MLPlugin.h    Or something like that...
+ *****************************************************************************
  *
- * The most basic plugin type is the "PluginHandler" plugin.
+ * The most basic plugin type is the "PIHandler" plugin.
  * Each plugin handler registers and deals with plugins of a given type.
  *
  * Such a plugin must be loaded before any modules of it's type can be loaded.
  *
  * In order to load any module of type "foo", we must load a plugin of type
- * "PluginHandler" named "foo".  This plugin then handles the registration of
+ * "Plugin" named "foo".  This plugin then handles the registration of
  * all plugins of type foo.
  *
- * To bootstrap, we load a plugin of type "PluginHandler" named "PluginHandler"
+ * To bootstrap, we load a plugin of type "Plugin" named "Plugin"
  * during the initialization of the module system.
  *
- * PluginHandlers will be autoloaded if certain conditions are met...
+ * PIHandlers will be autoloaded if certain conditions are met...
  *
- * If a PluginHandler is to be autoloaded, it must be one plugin handler per file,
- * and the file named according to the type of the plugin it implements, and loaded
- * in the directory named "PluginHandler".
+ * If a PIHandler is to be autoloaded, it must be one plugin handler
+ * per file, and the file named according to the type of the plugin it
+ * implements, and loaded in the directory named "PIHandler".
  * 
  */
-typedef struct MLPluginHandlerOps_s	MLPluginHandlerOps;
-typedef struct MLPluginHandlerImports_s	MLPluginHandlerImports;
-typedef struct MLPluginHandlerEnv_s	MLPluginHandlerEnv;
-typedef struct MLPluginHandler_s	MLPluginHandler;
+typedef struct MLPluginUniv_s		MLPluginUniv;
+typedef struct MLPluginType_s		MLPluginType;
+typedef struct MLPlugin_s		MLPlugin;
+typedef struct MLPluginOps_s		MLPluginOps;
+typedef struct MLPluginImports_s	MLPluginImports;
 
-/* Interfaces exported by a PluginHandler plugin */
-struct MLPluginHandlerOps_s{
+/* Interfaces exported by a Plugin plugin */
+struct MLPluginOps_s{
 
-	/* RegisterPlugin - Returns unique id info for plugin or NULL on failure */
- 	MLPluginHandler* (*RegisterPlugin)(MLPluginHandlerEnv* env
-		,	const char * pluginname, void * epiinfo);
+	/* RegisterPlugin - Returns unique id for plugin or NULL (fail) */
+ 	MLPlugin* (*RegisterPlugin)(MLPluginType* env
+		,	const char * pluginname, void * exports
+		,	void *	ud_plugin
+		,	void**	imports);
 
-	ML_rc	(*UnRegisterPlugin)(MLPluginHandler*ipiinfo);	/* Unregister plugin */
-				/* And destroy MLPluginHandler object */
+	ML_rc	(*UnRegisterPlugin)(MLPlugin*ipiinfo); /* Unregister PI*/
+				/* And destroy MLPlugin object */
 
+	/* Create a new MLPluginType object */
+	MLPluginType*	(*NewPluginEnv)(MLPluginUniv* universe);
 
-	int	(*IsKnown)(MLPluginHandlerEnv*	env
-		,	const char*);	/* True if the given plugin is known to us */
-
-	/* Create a new MLPluginHandlerEnv object */
-	MLPluginHandlerEnv*	(*NewPluginEnv)(void);
-
-	/* Destroy a MLPluginHandlerEnv object */
-	void			(*DelPluginEnv)(MLPluginHandlerEnv*);
+	/* Destroy a MLPluginType object */
+	void			(*DelPluginEnv)(MLPluginType*);
 };
 
-/* Interfaces imported by a PluginHandler plugin */
-struct MLPluginHandlerImports_s { 
+/* Interfaces imported by a PIHandler plugin */
+struct MLPluginImports_s { 
 
 		/* Return current reference count */
-	int (*RefCount)(MLPluginHandler * epiinfo);
+	int (*RefCount)(MLPlugin * epiinfo);
 
 		/* Incr/Decr reference count */
-	int (*ModRefCount)(MLPluginHandler*epiinfo, int plusminus);
+	int (*ModRefCount)(MLPlugin*epiinfo, int plusminus);
 
 		/* Unload module associated with this plugin -- if possible */
-	void (*UnloadIfPossible)(MLPluginHandler *epiinfo);
+	void (*UnloadIfPossible)(MLPlugin *epiinfo);
 
 };
 /*
- *	MLPluginHandler.c starts here I think ;-)
+ *	MLPlugin.c starts here I think ;-)
  *
  */
 
-#define NEW(type)	((type *)ml_pmalloc(sizeof(type)))
-#define DELETE(obj)	{ml_pfree(obj); (obj) = NULL;}
+#define	PLUGIN_PLUGIN	"Plugin"
+
+#define NEW(type)		(g_new(type,1))
+#define DELETE(obj)	{g_free(obj); obj = NULL;}
 
 /*
- *	MLPluginHandler (AKA struct MLPluginHandler_s) holds the information
+ *	MLPlugin (AKA struct MLPlugin_s) holds the information
  *	we use to track a single plugin handler.
  */
 
-struct MLPluginHandler_s {
-	MLPluginHandlerEnv*	pluginenv;
+struct MLPlugin_s {
+	MLPluginType*		plugintype;
 	char *			pluginname;
-	void*			exportfuns;
-	int			refcnt;		/* Reference count for this module */
+	void*			exports;	/* Exported Functions	*/
+						/* for this plugin	*/
+	void*			ud_plugin;	/* per-plugin user data */
+	int			refcnt;		/* Reference count for module */
 };
 
-static MLPluginHandler* MLPluginHandler_new(MLPluginHandlerEnv*	pluginenv
+static MLPlugin* MLPlugin_new(MLPluginType*	plugintype
 	,	const char*	pluginname
-	,	void *		exports);
+	,	void *		exports
+	,	void*		ud_plugin);
 
-static void MLPluginHandler_del(MLPluginHandler*	pluginenv);
+static void MLPlugin_del(MLPlugin*	plugintype);
 
 
 /*
- *	MLPluginHandlerEnv (AKA struct MLPluginHandlerEnv_s) holds the information
- *	we use to track the set of all plugin handlers.
+ *	MLPluginType (AKA struct MLPluginType_s) holds the info
+ *	we use to track the set of all plugin handlers of a single kind.
  */
-struct MLPluginHandlerEnv_s {
-	GHashTable*	plugins;
+struct MLPluginType_s {
+	GHashTable*		plugins;
+	void*			ud_pi_type;	/* per-plugin-type user data*/
+	MLPluginUniv*		universe;	/* Pointer to parent (up) */
+};
+struct MLPluginUniv_s{
+	GHashTable*		pitypes;	/* containing
+						 * MLPluginType objects
+						 */
+	struct MLModuleUniv_s*	modenv;	/* parallel universe of modules */
+	MLModuleImports*	imports;
 };
 
-static void*	(*ml_pmalloc)(size_t) = malloc;
-static void	(*ml_pfree)(void *) = free;
-static void	(*ml_log)(int priority, const char * fmt, ...) = NULL;
-static MLModuleImports*	imp;
 static int	debuglevel = 0;
 
 static const char * ml_module_version(void);
 static const char * ml_module_name(void);
-ML_rc PluginPlugin_module_init(MLModuleImports* imports, MLModuleSet* env);
+/* Cannot be static -- needed for bootstrapping! */
+ML_rc PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* env
+		);
 static int ml_GetDebugLevel(void);
 static void ml_SetDebugLevel (int level);
 static void ml_close (MLModule*);
@@ -991,37 +1059,34 @@ static MLModuleOps ModExports =
 ,	ml_close
 };
 
-static MLPluginHandler*		pipi_register_plugin(MLPluginHandlerEnv* env
-				,	const char * pluginname, void * epiinfo);
-static ML_rc			pipi_unregister_plugin(MLPluginHandler* plugin);
-static int			pipi_isknown(MLPluginHandlerEnv* env, const char *);
+static MLPlugin*		pipi_register_plugin(MLPluginType* env
+				,	const char * pluginname
+				,	void * exports, void * ud_plugin
+				,	void** imports);
+static ML_rc			pipi_unregister_plugin(MLPlugin* plugin);
 
-static MLPluginHandlerEnv*	pipi_new_pluginenv(void);
-static void			pipi_del_pluginenv(MLPluginHandlerEnv*);
-static void pipi_del_while_walk(gpointer key, gpointer value, gpointer user_data);
+static MLPluginType*	pipi_new_plugintype(MLPluginUniv*);
+static void			pipi_del_plugintype(MLPluginType*);
+static void pipi_del_while_walk(gpointer key, gpointer value
+,				gpointer user_data);
 
-static MLPluginHandlerOps  PiExports =
+static MLPluginOps  PiExports =
 {		pipi_register_plugin
 	,	pipi_unregister_plugin
-	,	pipi_isknown
-	,	pipi_new_pluginenv
-	,	pipi_del_pluginenv
+	,	pipi_new_plugintype
+	,	pipi_del_plugintype
 };
 
 static MLModule modinfo ={
-	"PluginPlugin"
+	PLUGIN_PLUGIN
 };
 
-static int PiRefCount(MLPluginHandler * pih);
-static int PiModRefCount(MLPluginHandler*epiinfo,int plusminus);
-static void PiUnloadIfPossible(MLPluginHandler *epiinfo);
+static int PiRefCount(MLPlugin * pih);
+static int PiModRefCount(MLPlugin*epiinfo,int plusminus);
+static void PiUnloadIfPossible(MLPlugin *epiinfo);
 
 
-
-static void * ML_our_pluginid	= NULL;
-static MLPluginHandlerImports*	pipimports;
-
-MLPluginHandlerImports PluginHandlerImports = {
+static MLPluginImports PIHandlerImports = {
 	PiRefCount,
 	PiModRefCount,
 	PiUnloadIfPossible,
@@ -1030,52 +1095,49 @@ MLPluginHandlerImports PluginHandlerImports = {
 /*
  *	PluginPlugin_module_init: Initialize the handling of "Plugin" plugins.
  *
- *	I some potential bootstrapping problems here ;-)
+ *	There are a few potential bootstrapping problems here ;-)
  *
  */
 ML_rc
-PluginPlugin_module_init(MLModuleImports* imports, MLModuleSet* env)
+PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 {
-	void *			piimports = NULL;
-	MLPluginHandler*	piinfo;
+	MLPlugin*	piinfo;
+	MLPluginType*	pienv;
+	void*		dontcare;
 
-	imp	= imports;
-	ml_pmalloc = imp->pmalloc;
-	ml_pfree = imp->pfree;
-	ml_log = imp->log;
+	if (univ->pienv) {
+		return 0;
+	}
+
+	/* We are the creator of the MLPluginType object */
+
+	pienv = NEW(MLPluginType);
+	memset(pienv, 0, sizeof(*pienv));
 
 	/* We can call register_module, since it doesn't depend on us... */
-	if (imp->register_module(&modinfo, &ModExports) == 0) {
+	if (imports->register_module(&modinfo, &ModExports) == 0) {
 		return(0);
 	}
 	/*
-	 * 	Now, we're registering plugins, and are into some deep Catch-22 if
-	 * 	do it the "easy" way, since our code is required to support
-	 * 	plugin loading for the type of plugin we are (a Plugin plugin).
+	 * Now, we're registering plugins, and are into some deep
+	 * Catch-22 if do it the "easy" way, since our code is
+	 * needed in order to support plugin loading for the type of plugin
+	 * we are (a Plugin plugin).
 	 *
-	 * 	So, instead of calling imp->register_plugin(), we have to do
-	 * 	some more work, to allow this call to work...
+	 * So, instead of calling imports->register_plugin(), we have to do
+	 * the work ourselves here...
 	 *
+	 * Since no one should yet be registered to handle Plugin plugins, we
+	 * need to bypass the hash table handler lookup that register_plugin
+	 * would do and call the function that register_plugin would call...
+	 *
+	 * The function to call is pipi_register_plugin()...
 	 */
-	/*
-	 * Since no one is yet registered to handle Plugin plugins, we
-	 * need to bypass the hash table handler lookup that register_plugin would do..
-	 */
-	/* The first argument is the MLPluginHandlerEnv */
-	piinfo = pipi_register_plugin(env->pienv, "Plugin", &PiExports);
 
-	modinfo.user_data = ML_our_pluginid; 	/* THIS IS PROBABLY WRONG!
-						 * One problem is we shouldn't
-						 * be using static data for anything
-						 * that changes!
-						 * Otherwise we cannot handle more
-						 * than one "universe" of modules
-						 *
-						 * FIXME!
-						 *
-						 * Need to read this again after 
-						 * getting some sleep */
-	pipimports = piimports;
+	/* The first argument is the MLPluginType */
+	piinfo = pipi_register_plugin(pienv, PLUGIN_PLUGIN, &PiExports
+	,	NULL, &dontcare);
+
 	return(1);
 }
 
@@ -1089,7 +1151,7 @@ ml_module_version(void)
 static const char *
 ml_module_name(void)
 {
-	return("Plugin");
+	return(PLUGIN_PLUGIN);
 }
 
 static int
@@ -1104,48 +1166,46 @@ static void ml_SetDebugLevel (int level)
 }
 static void ml_close (MLModule* module)
 {
-	/* Need to find all the plugins associated with this Module... */
-	/* Probably need "real" support for this */
-	/* FIXME! */
+	/* Need to find all the plugins associated with this Module...
+	 * Probably need "real" (GHashTable) support for this
+	 * FIXME!
+	 */
 }
 
 
-static MLPluginHandler*
-pipi_register_plugin(MLPluginHandlerEnv* env
-	,	const char * pluginname, void * epiinfo)
+static MLPlugin*
+pipi_register_plugin(MLPluginType* univ
+	,	const char * pluginname, void * exports, void * user_data
+	,	void**		imports)
 {
-	MLPluginHandler* ret;
+	MLPlugin* ret;
 
-	ret = MLPluginHandler_new(env, pluginname, epiinfo);
-	if (g_hash_table_lookup(env->plugins, pluginname) != NULL) {
+	if (g_hash_table_lookup(univ->plugins, pluginname) != NULL) {
 		return NULL;
 	}
-	g_hash_table_insert(env->plugins, g_strdup(pluginname), ret);
+	ret = MLPlugin_new(univ, pluginname, exports, user_data);
+	g_hash_table_insert(univ->plugins, g_strdup(pluginname), ret);
+	*imports = &PIHandlerImports;
 	return ret;
 }
 
 static ML_rc
-pipi_unregister_plugin(MLPluginHandler* plugin)
+pipi_unregister_plugin(MLPlugin* plugin)
 {
-	MLPluginHandlerEnv*	env = plugin->pluginenv;
-	g_hash_table_remove(env->plugins, plugin->pluginname);
-	MLPluginHandler_del(plugin);
+	MLPluginType*	univ = plugin->plugintype;
+	g_hash_table_remove(univ->plugins, plugin->pluginname);
+	MLPlugin_del(plugin);
 	return 0;
 }
 
-static int
-pipi_isknown(MLPluginHandlerEnv* env, const char * pluginname)
-{
-	return 0;
-}
 
-/* Create new PluginEnvironment */
-static MLPluginHandlerEnv*
-pipi_new_pluginenv(void)
+/* Create a new MLPluginType object */
+static MLPluginType*
+pipi_new_plugintype(MLPluginUniv* pluginuniv)
 {
-	MLPluginHandlerEnv*	ret;
+	MLPluginType*	ret;
 
-	ret = NEW(MLPluginHandlerEnv);
+	ret = NEW(MLPluginType);
 
 	if (!ret) {
 		return ret;
@@ -1158,49 +1218,55 @@ pipi_new_pluginenv(void)
 	return(ret);
 }
 
-/* Throw away PluginEnvironment object */
+/* Destroy a MLPluginType object */
 static void
-pipi_del_pluginenv(MLPluginHandlerEnv* env)
+pipi_del_plugintype(MLPluginType* univ)
 {
-	GHashTable*	t = env->plugins;
-	g_hash_table_foreach(t, &pipi_del_while_walk, NULL);
+	GHashTable*	t = univ->plugins;
+	g_hash_table_foreach(t, &pipi_del_while_walk, t);
 	g_hash_table_destroy(t);
-	env->plugins = NULL;
-	DELETE(env);
+	univ->plugins = NULL;
+	DELETE(univ);
 }
 
 static void
-pipi_del_while_walk(gpointer	key, gpointer value, gpointer user_data)
+pipi_del_while_walk(gpointer key, gpointer value, gpointer user_data)
 {
-	MLPluginHandler_del((MLPluginHandler*)value);
+	GHashTable* t = user_data;
+	g_hash_table_remove(t, key);
+	DELETE(key);
+	MLPlugin_del((MLPlugin*)value); value = NULL;
 }
 
-static MLPluginHandler*
-MLPluginHandler_new(MLPluginHandlerEnv*	pluginenv
+static MLPlugin*
+MLPlugin_new(MLPluginType*	plugintype
 	,	const char*	pluginname
-	,	void *		exports)
+	,	void *		exports
+	,	void*		ud_plugin)
 {
-	MLPluginHandler*	ret = NULL;
-	MLPluginHandler*	look = NULL;
+	MLPlugin*	ret = NULL;
+	MLPlugin*	look = NULL;
 
 
-	if ((look = g_hash_table_lookup(pluginenv->plugins, pluginname)) != NULL) {
-		MLPluginHandler_del(look);
+	if ((look = g_hash_table_lookup(plugintype->plugins, pluginname))
+	!=		NULL) {
+		MLPlugin_del(look);
 	}
-	ret = NEW(MLPluginHandler);
+	ret = NEW(MLPlugin);
 
 	if (ret) {
-		ret->pluginenv = pluginenv;
-		ret->exportfuns = exports;
+		ret->plugintype = plugintype;
+		ret->exports = exports;
+		ret->ud_plugin = ud_plugin;
 		ret->pluginname = g_strdup(pluginname);
-		g_hash_table_insert(pluginenv->plugins, ret->pluginname, ret);
+		g_hash_table_insert(plugintype->plugins, ret->pluginname, ret);
 		ret->refcnt = 1;
 	}
 	return ret;
 }
 
 static void
-MLPluginHandler_del(MLPluginHandler*	plugin)
+MLPlugin_del(MLPlugin*	plugin)
 {
 	if (plugin != NULL) {
 		/* FIXME!! Log warning if reference count isn't zero */
@@ -1213,18 +1279,18 @@ MLPluginHandler_del(MLPluginHandler*	plugin)
 }
 
 static int
-PiRefCount(MLPluginHandler * epiinfo)
+PiRefCount(MLPlugin * epiinfo)
 {
 	return epiinfo->refcnt;
 }
 static int
-PiModRefCount(MLPluginHandler*epiinfo, int plusminus)
+PiModRefCount(MLPlugin*epiinfo, int plusminus)
 {
 	epiinfo->refcnt += plusminus;
 	return epiinfo->refcnt;
 }
 static void
-PiUnloadIfPossible(MLPluginHandler *epiinfo)
+PiUnloadIfPossible(MLPlugin *epiinfo)
 {
 }
 #endif /* NEWMODULECODE */
