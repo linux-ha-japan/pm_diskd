@@ -1,7 +1,7 @@
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H
 
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.5 2000/04/05 13:40:28 lclaudio Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.6 2000/04/08 21:33:35 horms Exp $";
 #include <stdio.h>
 /*
  *	Intracluster message object (struct ha_msg)
@@ -16,7 +16,6 @@ struct ha_msg {
 	char **	values;
 	int  *	vlens;
 };
-
 #define	MSG_START	">>>\n"
 #define	MSG_END		"<<<\n"
 #define	EQUAL		"="

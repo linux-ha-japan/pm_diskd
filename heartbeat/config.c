@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.6 2000/04/05 13:40:27 lclaudio Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.7 2000/04/08 21:33:35 horms Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -46,13 +46,16 @@ extern int				nummedia;
 extern int                              nice_failback;
 
 int	islegaldirective(const char *directive);
-int	parse_config(const char * cfgfile);
+int     parse_config(const char * cfgfile);
 int	parse_ha_resources(const char * cfgfile);
 void	dump_config(void);
 int	add_option(const char *	option, const char * value);
 int	add_node(const char * value);
 int   	parse_authfile(void);
 int	init_config(const char * cfgfile);
+int     set_logfile(const char * value);
+int     set_dbgfile(const char * value);
+
 
 #ifdef IRIX
 	void setenv(const char *name, const char * value, int);
@@ -88,7 +91,7 @@ init_config(const char * cfgfile)
 	uname(&u);
 	curnode = NULL;
 
-	if (!parse_config(cfgfile)) {
+        if (!parse_config(cfgfile)) {
 		ha_log(LOG_ERR, "Heartbeat not started: configuration error.");
 		return(HA_FAIL);
 	}
@@ -135,24 +138,38 @@ init_config(const char * cfgfile)
 		,	config->deadtime_interval, config->heartbeat_interval);
 		++errcount;
 	}
-	if (*(config->logfile) == 0 && config->log_facility > 0) {
-		strcpy(config->logfile, DEFAULTLOG);
-		if (!parse_only) {
-			ha_log(LOG_INFO
-			,	"Neither logfile nor"
-				"logfacility found.");
-			ha_log(LOG_INFO, "Defaulting to " DEFAULTLOG);
-		}
+	if (*(config->logfile) == 0) {
+                 if (config->log_facility > 0) {
+                        /* 
+                         * Set to DEVNULL in case a stray script outputs logs
+                         */
+                        strcpy(config->logfile, DEVNULL);
+                        config->use_logfile=0;
+                  }
+                  else {
+		        set_logfile(DEFAULTLOG);
+                        config->use_logfile=1;
+		        if (!parse_only) {
+			        ha_log(LOG_INFO
+			        ,	"Neither logfile nor "
+				        "logfacility found.");
+			        ha_log(LOG_INFO, "Loging defaulting to " 
+                                                DEFAULTLOG);
+		        }
+                }
 	}
-	if (config->log_facility > 0) {
-		/* 
-		 * Set to DEVNULL in case a stray script outputs errors
-		 */
-		strcpy(config->dbgfile, DEVNULL);
-	}
-	else if (*(config->dbgfile) == 0) {
-		strcpy(config->dbgfile, DEFAULTDEBUG);
-	}
+	if (*(config->dbgfile) == 0) {
+	        if (config->log_facility > 0) {
+		        /* 
+		        * Set to DEVNULL in case a stray script outputs errors
+		        */
+		        strcpy(config->dbgfile, DEVNULL);
+                        config->use_dbgfile=0;
+	        }
+	        else {
+		        set_dbgfile(DEFAULTDEBUG);
+	        }
+        }
 	if (!RestartRequested && errcount == 0 && !parse_only) {
 		ha_log(LOG_INFO, "***********************");
 		ha_log(LOG_INFO, "Configuration validated. Starting heartbeat.");
@@ -244,8 +261,8 @@ parse_config(const char * cfgfile)
 	/* It's ugly, but effective  */
 
 	while (fgets(buf, MAXLINE, f) != NULL) {
-		char *	bp = buf;
-		int	j;
+		char *  bp = buf; 
+        	int	j;
 
 		/* Skip over white space */
 		bp += strspn(bp, WHITESPACE);
@@ -810,6 +827,7 @@ int
 set_dbgfile(const char * value)
 {
 	strncpy(config->dbgfile, value, PATH_MAX);
+	config->use_dbgfile=1;
 	return(HA_OK);
 }
 
@@ -818,6 +836,7 @@ int
 set_logfile(const char * value)
 {
 	strncpy(config->logfile, value, PATH_MAX);
+	config->use_dbgfile=1;
 	return(HA_OK);
 }
 
@@ -833,4 +852,3 @@ set_nice_failback(const char * value)
 
         return(HA_OK);
 }
-

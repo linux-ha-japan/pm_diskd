@@ -25,7 +25,8 @@ ha_log() {
 	  : logging through syslog
 	  # loglevel is unknown, use 'notice' for now
 	  logger -t $HA_LOGTAG -p ${HA_LOGFACILITY}.notice "${*}"
-	elif
+        fi	
+        if
 	  [ -n "$HA_LOGFILE" ]
 	then
 	  : appending to $HA_LOGFILE
@@ -41,7 +42,8 @@ ha_debug() {
 	then
 	  : logging through syslog
 	  logger -t $HA_LOGTAG -p ${HA_LOGFACILITY}.debug "${*}"
-	elif
+	fi
+        if
 	  [ -n "$HA_DEBUGLOG" ]
 	then
 	  : appending to $HA_DEBUGLOG

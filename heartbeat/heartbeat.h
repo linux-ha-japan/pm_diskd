@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.18 2000/04/05 13:40:28 lclaudio Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.19 2000/04/08 21:33:35 horms Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -144,7 +144,9 @@ struct seqtrack {
 	int		nmissing;
 	unsigned long	last_seq;
 	unsigned long	seqmissing[MAXMISSING];
+	const char *	last_iface;
 };
+
 struct node_info {
 	char	nodename[HOSTLENG];	/* Host name from config file */
 	char	status[STATUSLENG];	/* Status from heartbeat */
@@ -180,7 +182,9 @@ struct sys_config {
 	int	hopfudge;		/* hops beyond nodecount allowed */
 	int     log_facility;		/* syslog facility, if any */
 	char    logfile[PATH_MAX];	/* path to log file, if any */
+        int     use_logfile;            /* Flag to use the log file*/
 	char	dbgfile[PATH_MAX];	/* path to debug file, if any */
+        int     use_dbgfile;            /* Flag to use the debug file*/
 	int	rereadauth;		/* 1 if we need to reread auth file */
 	int	authnum;
 	struct auth_info* authmethod;	/* auth_config[authnum] */
@@ -286,6 +290,7 @@ extern int		add_msg_auth(struct ha_msg * msg);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
 struct auth_type *	findauth(const char * type);
 struct node_info *	lookup_node(const char *);
+
 void*		ha_malloc(size_t size);
 void*		ha_calloc(size_t nmemb, size_t size);
 void		ha_free(void *ptr);

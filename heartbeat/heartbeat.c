@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.40 2000/04/05 13:40:28 lclaudio Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.41 2000/04/08 21:33:35 horms Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -365,11 +365,25 @@ ha_log(int priority, const char * fmt, ...)
 	}
 
 	if (config) {
-		fn = (priority == LOG_DEBUG ? config->dbgfile : config->logfile);
+		if (priority == LOG_DEBUG) {
+                        if (config->use_dbgfile) {
+                                fn = config->dbgfile;
+                        }
+                        else {
+                                return;
+                        }
+                }
+                else {
+                        if (config->use_logfile) {
+                                fn = config->logfile;
+                        }
+                        else {
+                                return;
+                        }
+                }
 	}
 
 	if (!config  || fn != NULL) {
-
 		if (fn) {
 			fp = fopen(fn, "a");
 		}
@@ -591,11 +605,12 @@ read_child(struct hb_media* mp)
 	for (;;) {
 		struct	ha_msg*	m = mp->vf->read(mp);
 		char *		sm;
+
 		if (m == NULL) {
 			continue;
 		}
 
-		sm = msg2string(m);
+                sm = msg2string(m);
 		if (sm != NULL) {
 			msglen = strlen(sm);
 			if (DEBUGPKT) {
@@ -633,7 +648,7 @@ write_child(struct hb_media* mp)
 
 	siginterrupt(SIGALRM, 1);
 	for (;;) {
-		struct ha_msg *	msgp = msgfromstream(ourfp);
+		struct ha_msg * msgp = msgfromstream(ourfp);
 		if (msgp == NULL) {
 			continue;
 		}
@@ -769,7 +784,6 @@ master_status_process(void)
 	int			resources_requested_yet = 0;
 	time_t			lastnow = 0L;
 	int 			received_starting = 0;
-		
 
 	init_status_alarm();
 	init_watchdog();
@@ -898,8 +912,8 @@ master_status_process(void)
 		 * in from somewhere else, then cluster comm is working...
 		 *
 		 */
-	
-		if (!WeAreRestarting && !resources_requested_yet
+
+                if (!WeAreRestarting && !resources_requested_yet
 		&&	(thisnode != curnode && (now-starttime) > RQSTDELAY)) {
 			if (nice_failback && !received_starting) {
 				ha_log(LOG_DEBUG,
@@ -920,10 +934,10 @@ master_status_process(void)
 			continue;
 		}
 
-		/* Is this message a duplicate, or destined for someone else? */
-		if (should_drop_message(thisnode, msg)) {
-			continue;
-		}
+                /* Is this message a duplicate, or destined for someone else? */
+                if (should_drop_message(thisnode, msg)) {
+                        continue;
+                }
 
 		/* Is this a status update message? */
 		if (strcasecmp(type, T_STATUS) == 0) {
@@ -947,8 +961,8 @@ master_status_process(void)
 				}
 			}
 
-			/* Do we already have a newer status? */
-			if (msgtime < thisnode->rmt_lastupdate
+                        /* Do we already have a newer status? */
+                        if (msgtime < thisnode->rmt_lastupdate 
 			&&	seqno < thisnode->status_seqno) {
 				continue;
 			}
@@ -956,7 +970,7 @@ master_status_process(void)
 			heartbeat_monitor(msg);
 
 			thisnode->rmt_lastupdate = msgtime;
-			thisnode->local_lastupdate = times(NULL);
+                        thisnode->local_lastupdate = times(NULL);
 			thisnode->status_seqno = seqno;
 
 			/* Is the status the same? */
@@ -1310,13 +1324,13 @@ check_node_timeouts(void)
 {
 	clock_t	now = times(NULL);
 	struct node_info *	hip;
-	clock_t	dead_ticks = (CLK_TCK * config->deadtime_interval);
-	clock_t	TooOld = now - dead_ticks;
+	clock_t dead_ticks = (CLK_TCK * config->deadtime_interval);
+	clock_t TooOld = now - dead_ticks;
 	int	j;
 
 	/* We need to be careful to handle clock_t wrapround carefully */
 	if (now < dead_ticks) {
-		return;	/* Ignore timeouts during wraparound */
+		return; /* Ignore timeouts during wraparound */
 			/* This doubles our timeout at this time */
 			/* Sorry. */
 	}
@@ -1335,7 +1349,6 @@ check_node_timeouts(void)
 		}
 		mark_node_dead(hip);
 	}
-
 
 }
 
@@ -1759,7 +1772,6 @@ main(int argc, const char ** argv)
 	extern int	optind;
 	pid_t	running_hb_pid = get_running_hb_pid();
 
-	cmdname = argv[0];
 	Argc = argc;
 	Argv = argv;
 
@@ -2158,8 +2170,8 @@ should_ring_copy_msg(struct ha_msg *m)
  *	do for now...
  */
 #define	SEQGAP	100	/* A heuristic number */
-#define	KEEPIT	0
-#define	DROPIT	1
+#define KEEPIT  0
+#define DROPIT  1
 
 /*
  *	Should we ignore this packet, or pay attention to it?
@@ -2609,6 +2621,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.41  2000/04/08 21:33:35  horms
+ * readding logfile cleanup
+ *
  * Revision 1.40  2000/04/05 13:40:28  lclaudio
  *   + Added the nice_failback feature. If the cluster is running when
  *         the primary starts it acts as a secondary.
