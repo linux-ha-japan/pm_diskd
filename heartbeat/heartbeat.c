@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.252 2003/04/18 07:39:25 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.253 2003/04/18 07:48:28 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3852,7 +3852,7 @@ process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 			/* If it didn't convert, throw original message away */
 			if (smsg != NULL) {
 				hist->lastrexmit[msgslot] = now;
-				send_to_all_media(smsg, msg->stringlen);
+				send_to_all_media(smsg, hist->msgq[msgslot]->stringlen);
 			}
 
 		}
@@ -4020,6 +4020,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.253  2003/04/18 07:48:28  alan
+ * Fixed the string length of a message to be retransmitted.
+ *
  * Revision 1.252  2003/04/18 07:39:25  alan
  * Fixed an 'oops' from previous change where I wrote messages to write processes without a terminating 0 byte.
  *
