@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.31 1999/11/22 20:28:23 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.32 1999/11/22 20:39:49 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1403,12 +1403,16 @@ void init_monitor()
 void
 heartbeat_monitor(struct ha_msg * msg)
 {
+#if 0
 	char		mon[MAXLINE];
 	char *		outptr;
 	int		j;
 	int		k;
 	const char *	last = mon + MAXLINE-1;
 	int		rc, size;
+
+	return;
+	/*NOTREACHED*/
 
 	init_monitor();
 	if (monfd < 0) {
@@ -1456,6 +1460,7 @@ heartbeat_monitor(struct ha_msg * msg)
 		close(monfd);
 		monfd = -1;
 	}
+#endif
 }
 
 int
@@ -2336,6 +2341,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.32  1999/11/22 20:39:49  alan
+ * Removed references to the now-obsolete monitoring code...
+ *
  * Revision 1.31  1999/11/22 20:28:23  alan
  * First pass of putting real packet retransmission.
  * Still need to request missing packets from time to time
