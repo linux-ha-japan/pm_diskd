@@ -87,7 +87,8 @@ heartbeat_CFLAGS	= $(AM_CFLAGS)
 
 send_arp_SOURCES	= send_arp.c
 send_arp_CFLAGS		= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
-send_arp_LDADD	 	= -L$(libdir) @LIBNETLIBS@
+send_arp_LDADD	 	= $(top_builddir)/lib/clplumbing/libplumb.la	\
+			$(gliblib) -L$(libdir) @LIBNETLIBS@
 
 send_arp.o: $(send_arp_SOURCES)
 	( old_pwd=`pwd` ; cd $(srcdir) && $(COMPILE) -c $(send_arp_SOURCES) \
