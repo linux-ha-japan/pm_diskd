@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.36 2003/05/30 15:22:11 kevin Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.37 2003/07/03 21:50:40 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -264,13 +264,7 @@ isauthentic(const struct ha_msg * m)
 STATIC	const char *
 ha_msg_from(void)
 {
-	static struct utsname u;
-	static int uyet = 0;
-	if (!uyet) {
-		uname(&u);
-		uyet++;
-	}
-	return(u.nodename);
+	return localnodename;
 }
 
 /* Add sequence number field */
@@ -366,6 +360,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.37  2003/07/03 21:50:40  alan
+ * Changed the function which adds the "from" address to not use uname, but
+ * the already-computed localnodename variable.
+ *
  * Revision 1.36  2003/05/30 15:22:11  kevin
  * Fix building on OpenBSD
  *
