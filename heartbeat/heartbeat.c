@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.185 2002/04/19 21:32:20 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.186 2002/04/20 05:36:22 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2760,7 +2760,7 @@ debug_sig(int sig)
 			break;
 	}
  	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL
-			,	debug);
+	,	debug);
 	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, getpid());
 	dump_proc_stats(curproc);
 }
@@ -4739,6 +4739,7 @@ main(int argc, char * argv[], char * envp[])
 	setenv(DATEFMT, HA_DATEFMT, 1);
 	setenv(HAFUNCENV, HA_FUNCS, 1);
 
+ 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL, debug);
 	init_procinfo();
 
 	if (module_init() != HA_OK) {
@@ -6040,6 +6041,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.186  2002/04/20 05:36:22  alan
+ * Added a little debug for debugging Matt Soffen's authentication
+ * problems.
+ *
  * Revision 1.185  2002/04/19 21:32:20  alan
  * Changed setpgrp to setpgid(0,0)
  *

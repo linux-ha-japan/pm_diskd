@@ -248,9 +248,23 @@ parse_authfile(void)
 			config->auth_config[i].auth = at;
 			config->auth_config[i].authname = permname;
 
+			if (ANYDEBUG) {
+				ha_log(LOG_INFO
+				,	"AUTH: i=%d: key = 0x%0lx"
+				", auth=0x%0lx, authname=%s", i
+				,	(unsigned long)cpkey
+				,	(unsigned long)at
+				,	permname);
+			}
+
 			if (i == authnum) {
 				config->authnum = i;
 				config->authmethod = config->auth_config+i;
+				if (ANYDEBUG) {
+					ha_log(LOG_DEBUG
+					,	"Outbound signing method is %d"
+					,	i);
+				}
 			}
 		}else if (*bp != EOS) {
 			ha_log(LOG_ERR, "Auth line [%s] is invalid."
@@ -280,6 +294,10 @@ parse_authfile(void)
 }
 /*
  * $Log: auth.c,v $
+ * Revision 1.8  2002/04/20 05:36:22  alan
+ * Added a little debug for debugging Matt Soffen's authentication
+ * problems.
+ *
  * Revision 1.7  2001/07/18 20:44:55  alan
  * Removed extra #endif somehow added during last delta...
  *
