@@ -64,6 +64,7 @@ class ResourceAudit(ClusterAudit):
         Groups = self.CM.ResourceGroups()
         for group in Groups:
             GrpServedBy = None
+            lastResource = None
 
             for resource in group:
 
@@ -105,12 +106,14 @@ class ResourceAudit(ClusterAudit):
 		# Are all the members of the Rsc Grp served by the same node?
 
                 elif GrpServedBy != ResourceNodes:
-                    result.append("Resource group" + repr(resource)
-                    +	" served by different nodes: "
+                    result.append("Resource resource" + repr(resource)
+                    +	" running on different nodes: "
                     +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
-                    self.CM.log("Resource " + repr(resource)
-                    +	" served by different nodes: "
+                    +   "(otherRsc = " + repr(lastResource) + ")"
+                    self.CM.log("Resource group resource" + repr(resource)
+                    +	" running on different nodes: "
                     +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
+                    +   "(otherRsc = " + repr(lastResource) + ")"
                     Fatal = 1
 
 
@@ -120,6 +123,7 @@ class ResourceAudit(ClusterAudit):
                     if not resource.IsWorkingCorrectly(ResourceNodes[0]):
                       result.append("Resource " + repr(resource)
                       +	" not operating properly.")
+                lastResource = resource
 
         if (Fatal):
              result.insert(0, "FATAL")  # Kludgy.
