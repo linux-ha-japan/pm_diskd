@@ -815,7 +815,6 @@ static void
 api_flush_msgQ(client_proc_t* client)
 {
 	const char*	fifoname;
-	int		fd;
 	int		rc;
 	int		nsig;
 	int		writeok=0;
@@ -824,24 +823,28 @@ api_flush_msgQ(client_proc_t* client)
 
 	fifoname = client_fifo_name(client, 0);
 
-	if ((fd=client->output_fifofd) < 0
-	&&	(fd=open(fifoname, O_WRONLY|O_NDELAY)) < 0) {
-		if (!client->beingremoved) {
-			/* Sometimes they've gone before we know it */
-			/* Then we get ENXIO.  So we ignore those. */
-			if (errno != ENXIO && errno != EINTR) {
-				/*
-				 * FIXME:  ???
-				 * It seems like with the O_NDELAY on the
-				 * open we ought not get EINTR.  But on
-				 * rare occasions during tests, we do anyway...
-				 * It's clearly not our fault... ;-)
-				 */
-				ha_perror("api_flush_msgQ: can't open %s"
-				,	fifoname);
-			}
-			api_remove_client(client, "FIFOerr");
+	if (client->output_fifofd < 0) {
+		client->output_fifofd = open(fifoname, O_WRONLY|O_NDELAY);
+	}
+	if(client->output_fifofd < 0) {
+		if (client->beingremoved) {
+			return;
 		}
+
+		/* Sometimes they've gone before we know it */
+		/* Then we get ENXIO.  So we ignore those. */
+		if (errno != ENXIO && errno != EINTR) {
+			/*
+			 * FIXME:  ???
+			 * It seems like with the O_NDELAY on the
+			 * open we ought not get EINTR.  But on
+			 * rare occasions during tests, we do anyway...
+			 * It's clearly not our fault... ;-)
+			 */
+			ha_perror("api_flush_msgQ: can't open %s", fifoname);
+		}
+		api_remove_client(client, "FIFOerr");
+
 		return;
 	}
 
@@ -852,7 +855,8 @@ api_flush_msgQ(client_proc_t* client)
 
 		msgstring = (char*)(client->msgQ->data);
 		msglen = strlen(msgstring);
-		if ((rc=write(fd, msgstring, msglen)) != msglen) {
+		rc=write(client->output_fifofd, msgstring, msglen);
+		if (rc != msglen) {
 			if (rc >= 0 || errno != EAGAIN) {
 				ha_perror("Cannot write message to client"
 				" %ld (write failure %d)"
@@ -861,8 +865,8 @@ api_flush_msgQ(client_proc_t* client)
 			break;
 		}
 		if (DEBUGPKTCONT) {
-			cl_log(LOG_DEBUG, "Sending message to client pid %d: msg [%s]"
-			,	client->pid, msgstring);
+			cl_log(LOG_DEBUG, "Sending message to client pid %d: "
+					"msg [%s]", client->pid, msgstring);
 		}
 
 		/* If the write succeeded, remove msg from queue */
@@ -872,15 +876,11 @@ api_flush_msgQ(client_proc_t* client)
 	}
 	nsig = (writeok ? client->signal : 0);
 
-
 	if (kill(clientpid, nsig) < 0 && errno == ESRCH) {
 		ha_log(LOG_INFO, "api_send_client: client %ld died"
 		,	(long) client->pid);
-
 		closereason = "died";
-
-	}else if (!ClientSecurityIsOK(client)) {
-
+	} else if (!ClientSecurityIsOK(client)) {
 		closereason = "security";
 	}
 
