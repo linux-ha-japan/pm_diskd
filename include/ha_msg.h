@@ -22,14 +22,17 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.6 2002/10/22 17:41:58 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.7 2002/10/30 21:30:30 alan Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
+
+#define	HA_FAIL		0
+#define	HA_OK		1
 
 struct ha_msg {
 	int	nfields;
 	int	nalloc;
-	int	stringlen;	/* The # of bytes needed to convert this to a string
+	int	stringlen;	/* #bytes needed to convert this to a string
 				 * including the '\0' character at the end. */
 	char **	names;
 	int  *	nlens;

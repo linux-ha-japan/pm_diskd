@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.24 2002/10/23 07:28:08 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.25 2002/10/30 21:30:30 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -85,9 +85,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.24 2002/10/23 07:28:
 
 #define	FIFOMODE	0600
 #define	RQSTDELAY	10
-
-#define	HA_FAIL		0
-#define	HA_OK		1
 
 #ifndef HA_D
 #	define	HA_D		"/etc/ha.d"
