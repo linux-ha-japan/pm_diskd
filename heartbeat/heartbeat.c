@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.260 2003/05/19 20:37:00 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.261 2003/05/22 05:10:15 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -77,12 +77,12 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.260 2003/05/19 20:37
 			everything.
  *
  *		hb channel read processes - each reads a hb channel, and
- *			copies messages to the status pipe.  The tty
+ *			copies messages to the master status process.  The tty
  *			version of this cross-echos to the other ttys
  *			in the ring (ring passthrough)
  *
  *		hb channel write processes - one per hb channel, each reads
- *		its own pipe and send the result to its medium
+ *		its own IPC channel and send the result to its medium
  *
  *	The result of all this hoorah is that we have the following procs:
  *
@@ -4087,6 +4087,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.261  2003/05/22 05:10:15  alan
+ * Fixed some comments in heartbeat.c
+ *
  * Revision 1.260  2003/05/19 20:37:00  alan
  * Turned the code back on for dropping privileges for child processes.
  *
