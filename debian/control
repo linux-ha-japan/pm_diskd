@@ -3,13 +3,13 @@ Build-Depends: debhelper (>= 2.0.0), libsnmp5-dev | libsnmp4.2-dev, lynx | lynx-
 Section: admin
 Priority: optional
 Maintainer: Simon Horman <horms@vergenet.net>
-Standards-Version: 3.5.9
+Standards-Version: 3.5.10
 
 Package: ldirectord
 Section: admin
 Architecture: any
 Depends: ${perl:Depends}, libdigest-md5-perl, libwww-perl, libnet-ssleay-perl, libmail-imapclient-perl, libnet-ldap-perl, ipvsadm
-Recommends: sysklogd, system-log-daemon, logrotate
+Recommends: sysklogd|syslog-ng, system-log-daemon, logrotate
 Replaces: heartbeat-ldirectord
 Provides: heartbeat-ldirectord
 Conflicts: heartbeat-ldirectord
@@ -37,6 +37,7 @@ Package: libstonith0
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}
+Conflicts: heartbeat-stonith
 Description: Interface for remotely powering down a node in the cluster
  Library to andle stonith modules and to register objects with stonith.
 
@@ -76,7 +77,7 @@ Description: Plugin and Interface Loading System
 Package: heartbeat
 Architecture: any
 Depends: ${shlibs:Depends}, python
-Recommends: sysklogd, system-log-daemon, logrotate
+Recommends: sysklogd|syslog-ng, system-log-daemon, logrotate
 Description: Subsystem for High-Availability Linux
  heartbeat is a basic heartbeat subsystem for Linux-HA.
  It will run scripts at initialisation, and when machines go up or down.
