@@ -23,7 +23,7 @@
 #define HA_HAVE_STRERROR @HAVE_STRERROR@
 
 /* Define to 1 if you have the `setenv' function. */
-#define HA_HAVE_STRERROR @HAVE_SETENV@
+#define HA_HAVE_SETENV @HAVE_SETENV@
 
 /* /var/lib directory */
 #define HA_VARLIBDIR "@HA_VARLIBDIR@" 
