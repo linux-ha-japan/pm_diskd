@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.29 2001/04/19 03:36:21 horms Exp $
+# $Id: ldirectord,v 1.30 2001/04/22 19:04:47 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -68,13 +68,13 @@ B<status> of the running daemon for the specified configuration.
 
 =head2 Description how to write configuration files
 
-B<virtual = >I<x.y.z.w:p|f>
+B<virtual = >I<(ip_address|hostname:portnumber|servicename)|firewall-mark>
 
-Defines a virtual service by IP-address and port or firewall-mark.  A
-firewall-mark is an integer greater than zero. The configuration of marking
-packets is controled using the C<-m> option to B<ipchains>(8).  All real
-services and flags for a virtual service must follow this line immediately
-and be indented.
+Defines a virtual service by IP-address (or hostname) and port (or
+servicename) or firewall-mark.  A firewall-mark is an integer greater than
+zero. The configuration of marking packets is controled using the C<-m>
+option to B<ipchains>(8).  All real services and flags for a virtual
+service must follow this line immediately and be indented.
 
 B<checktimeout = >I<n>
 
@@ -115,7 +115,7 @@ This directive might also be used to restart B<ldirectord> automatically
 after the configuration file changed on disk. However, if B<autoreload>
 is set to yes, the configuration is reloaded anyway.
 
-B<fallback = >I<x.y.z.w:p>
+B<fallback = >I<ip_address|hostname[:portnumber|sercvicename]>
 
 the server onto which a webservice is redirected if all real
 servers are down. Typically this would be 127.0.0.1 with
@@ -147,19 +147,20 @@ This is useful to run B<ldirectord> for instance from daemontools.
 The following commands must follow a B<virtual> entry and must be indented
 with a minimum of 4 spaces or one tab.
 
-B<real => I<w.x.y.z[-a.b.c.d]:p> B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
+B<real => I<ip_address|hostname[->ip_address|hostname]:portnumber|servicename> B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
 
-Defines a real service by IP-address and port. Optionally a range of IP
-addresses may be given, in which case each IP address in the range will be
-treated as a real server using the given port. The second argument defines
-the forwarding method, must be B<gate>, B<ipip> or B<masq>.  The thrid
-argument is optional and defines the weight for that real server. The last
-two arguments are optional. They define a request-receive pair to be used
-to check if a server is alive. They override the request-receive pair in
-the virtual server section. These two strings must be quoted. If the
-request string starts with I<http://...> the IP-address of the real server
-is overridden, otherwise the IP-address of the real server is used. This
-may be used to send a request over a transparent proxy.
+Defines a real service by IP-address (or hoatname) and port (or
+servicename). Optionally a range of IP addresses (or two hostnames) may be
+given, in which case each IP address in the range will be treated as a real
+server using the given port. The second argument defines the forwarding
+method, must be B<gate>, B<ipip> or B<masq>.  The thrid argument is
+optional and defines the weight for that real server. The last two
+arguments are optional. They define a request-receive pair to be used to
+check if a server is alive. They override the request-receive pair in the
+virtual server section. These two strings must be quoted. If the request
+string starts with I<http://...> the IP-address of the real server is
+overridden, otherwise the IP-address of the real server is used. This may
+be used to send a request over a transparent proxy.
 
 =head2 More than one of these entries may be inside a virtual section:
 
@@ -480,7 +481,7 @@ sub ld_hup
 {
         my ($signal) = (@_);
 	&ld_log("Reloading Linux Director Daemon config on signal: $signal");
-	reread_config();
+	&reread_config();
 }
 
 
@@ -489,10 +490,10 @@ sub reread_config
 	@OLDVIRTUAL = @VIRTUAL;
 	my %OLD_INSTANCE = %LD_INSTANCE;
 	eval {
-		read_config();
+		&read_config();
 		my %NEW_INSTANCE = %LD_INSTANCE;
-		ld_setup();
-		ld_start();
+		&ld_setup();
+		&ld_start();
 		my $child;
 		foreach $child (keys %OLD_INSTANCE) {
 			if (exists $NEW_INSTANCE{$child}) {
@@ -503,8 +504,8 @@ sub reread_config
 				}
 			}
 		}
-		ld_cmd_children("stop", %OLD_INSTANCE);
-		ld_cmd_children("start", %NEW_INSTANCE);
+		&ld_cmd_children("stop", %OLD_INSTANCE);
+		&ld_cmd_children("start", %NEW_INSTANCE);
 	};
 	if ($@) {
 		@VIRTUAL = @OLDVIRTUAL;
@@ -522,32 +523,36 @@ sub read_config
 	undef $checksum;
 	$stattime = 0;
 	undef %LD_INSTANCE;
-	open(CFGFILE, "<$CONFIG") || config_error(0, "can not open file $CONFIG");
+	open(CFGFILE, "<$CONFIG") or
+		&config_error(0, "can not open file $CONFIG");
 	my $line = 0;
 	while(<CFGFILE>) {
 		$line++;
 		outer_loop:
 		if ($_ =~ /^virtual\s*=\s*(.*)/) {
-			$1 =~ /(((\d+\.\d+\.\d+\.\d+):(\d+))|(\d+))/
-			    or config_error($line, "invalid address for virtual server");
+			my $ip_port=undef;
+			my $fwm=undef;
+			my $virtual_line=$line;
+			my $fallback_line;
+			my @rsrv_todo;
+			if($1 =~ /^(\d+\.\d+\.\d+\.\d+|[0-9A-Za-z.-]+):(\d+|[0-9A-Za-z-]+)$/){
+				$ip_port="$1:$2";
+			}
+			elsif($1 =~ /^(\d+)$/){
+				$fwm=$1;
+			}
+
+			unless($ip_port or $fwm) {
+				&config_error($line, 
+					"invalid address for virtual server");
+			}
+
 			my (%vsrv, @rsrv);
-			if (defined($2)) {
-			        $vsrv{server} = $3;
-			        $vsrv{port} = $4;
+			if ($ip_port) {
 				$vsrv{checktype} = "connect";
 			        $vsrv{protocol} = "tcp";
-				( $vsrv{port}>0 && $vsrv{port}<65536 ) or config_error($line, "port number must be in range 1..65536");
-				if ($vsrv{port} eq "80") {
-					$vsrv{service} = "http";
-				} elsif ($vsrv{port} eq "443") {
-					$vsrv{service} = "https";
-				} elsif ($vsrv{port} eq "21") {
-					$vsrv{service} = "ftp";
-				} else {
-					$vsrv{service} = "none";
-				}
 			} else {
-			        $vsrv{fwm} = $5;
+			        $vsrv{fwm} = $fwm;
 				$vsrv{checktype} = "negotiate";
 			        $vsrv{protocol} = "fwm";
 				$vsrv{service} = "none";
@@ -569,28 +574,38 @@ sub read_config
 				$line++;
 				$_ =~ s/\t/    /g;
 				unless ($_ =~ /^ {4,}(.*)/) {
-				  #Arggh a goto :(
-				  goto outer_loop;
+					# As the protocol needs to be 
+					# known to call getservbyname
+					# all resolution must be delayed
+					# until the protocol is finalised.
+					# That is after the entire config
+					# for a virtual service has been
+					# parsed
+
+					&_ld_read_config_fallback_resolve(
+						$fallback_line, \%vsrv);
+					&_ld_read_config_virtual_resolve(
+						$virtual_line, \%vsrv, 
+						$ip_port);
+					&_ld_read_config_real_resolve(\%vsrv,
+						\@rsrv_todo);
+
+					#Arggh a goto :(
+					goto outer_loop;
 				}
 				my $rcmd = $1;
 				next if ($rcmd =~ /^#/);
 				if ($rcmd =~ /^real\s*=\s*(.*)/) {
-					$1 =~ /(\d+\.\d+\.\d+\.\d+)(-(\d+\.\d+\.\d+\.\d+))?:(\d+)\s+(.*)/
-					    or config_error($line, "invalid address for real server");
-					if ( defined ($2) ) {
-						add_real_server_range($line, \%vsrv, \@rsrv, $1, $3, $4, $5);
-					} else {
-						add_real_server($line, \%vsrv, \@rsrv, $1, $4, $5);
-					}
+					push @rsrv_todo, [$1, $line];
 				} elsif ($rcmd =~ /^request\s*=\s*\"(.*)\"/) {
-					$1 =~ /(.+)/ or config_error($line, "no request string specified");
+					$1 =~ /(.+)/ or &config_error($line, "no request string specified");
 					$vsrv{request} = $1;
 					unless($vsrv{request}=~/^\//){
 						$vsrv{request} = "/" . $vsrv{request};
 					}
 
 				} elsif ($rcmd =~ /^receive\s*=\s*\"(.*)\"/) {
-					$1 =~ /(.+)/ or config_error($line, "invalid receive string");
+					$1 =~ /(.+)/ or &config_error($line, "invalid receive string");
 					$vsrv{receive} = $1;
 				} elsif ($rcmd =~ /^checktype\s*=\s*(.*)/){
                                         lc($1);
@@ -600,40 +615,40 @@ sub read_config
 					} elsif ( $1 =~ /(\w+)/ && ($1 eq "connect" || $1 eq "negotiate" || $1 eq "off") ) {
 						$vsrv{checktype} = $1;
 					} else {
-						config_error($line, "checktype must be connect, negotiate, off or a positive number");
+						&config_error($line, "checktype must be connect, negotiate, off or a positive number");
 					}
 				} elsif ($rcmd =~ /^checktimeout\s*=\s*(.*)/){
-                                        $1 =~ /(\d+)/ && $1 or config_error($line, "invalid check timeout");
+                                        $1 =~ /(\d+)/ && $1 or &config_error($line, "invalid check timeout");
                                         $vsrv{checktimeout} = $1;
 				} elsif ($rcmd =~ /^connecttimeout\s*=\s*(.*)/){
-                                        $1 =~ /(\d+)/ && $1 or config_error($line, "invalid check timeout");
+                                        $1 =~ /(\d+)/ && $1 or &config_error($line, "invalid check timeout");
                                         $vsrv{connecttimeout} = $1;
 				} elsif ($rcmd =~ /^negotiatetimeout\s*=\s*(.*)/){
-                                        $1 =~ /(\d+)/ && $1 or config_error($line, "invalid check timeout");
+                                        $1 =~ /(\d+)/ && $1 or &config_error($line, "invalid check timeout");
                                         $vsrv{negotiatetimeout} = $1;
 				} elsif ($rcmd =~ /^checkport\s*=\s*(.*)/){
-					$1 =~ /(\d+)/ or config_error($line, "invalid port");
-					( $1 > 0 && $1 < 65536 ) or config_error($line, "checkport must be in range 1..65536");
+					$1 =~ /(\d+)/ or &config_error($line, "invalid port");
+					( $1 > 0 && $1 < 65536 ) or &config_error($line, "checkport must be in range 1..65536");
 					$vsrv{checkport} = $1;
 				} elsif ($rcmd =~ /^login\s*=\s*\"(.*)\"/) {
-					$1 =~ /(.+)/ or config_error($line, "invalid login string");
+					$1 =~ /(.+)/ or &config_error($line, "invalid login string");
 					$vsrv{login} = $1;
 				} elsif ($rcmd =~ /^passwd\s*=\s*\"(.*)\"/) {
-					$1 =~ /(.+)/ or config_error($line, "invalid password");
+					$1 =~ /(.+)/ or &config_error($line, "invalid password");
 					$vsrv{passwd} = $1;
 				} elsif ($rcmd =~ /^load\s*=\s*\"(.*)\"/) {
-					$1 =~ /(\w+)/ or config_error($line, "invalid string for load testing");
+					$1 =~ /(\w+)/ or &config_error($line, "invalid string for load testing");
 					$vsrv{load} = $1;
 					lc($1);
 				} elsif ($rcmd =~ /^scheduler\s*=\s*(.*)/) {
 					$1 =~ /(\w+)/ && ($1 eq "rr" || $1 eq "wrr" || $1 eq "lc" || $1 eq "wlc" || $1 eq "lblc" || $1 eq "lblcr" )
-					    or config_error($line, "scheduler must be rr, wrr, lc or wlc");
+					    or &config_error($line, "scheduler must be rr, wrr, lc or wlc");
 					$vsrv{scheduler} = $1;
 				} elsif ($rcmd =~ /^persistent\s*=\s*(.*)/) {
-					$1 =~ /(\d+)/ or config_error($line, "invalid persistent timeout");
+					$1 =~ /(\d+)/ or &config_error($line, "invalid persistent timeout");
 					$vsrv{persistent} = $1;
 				} elsif ($rcmd =~ /^netmask\s*=\s*(.*)/) {
-					$1 =~ /(\d+\.\d+\.\d+\.\d+)/ or config_error($line, "invalid netmask");
+					$1 =~ /(\d+\.\d+\.\d+\.\d+)/ or &config_error($line, "invalid netmask");
 					$vsrv{netmask} = $1;
 				} elsif ($rcmd =~ /^protocol\s*=\s*(.*)/) {
 					lc($1);
@@ -642,58 +657,59 @@ sub read_config
 							if ($1 eq "fwm" ) {
 								; #Do nothing, it is already set
 							} else {
-								config_error($line, "protocol must be fwm if the virtual service is a fwmark (a number)");
+								&config_error($line, "protocol must be fwm if the virtual service is a fwmark (a number)");
 							}
 						} else {    # tcp or udp
 							if ($1 eq "tcp" || $1 eq "udp") {
 								$vsrv{protocol} = $1;
 							} else {
-								config_error($line, "protocol must be tcp or udp if the virtual service is an address and port");
+								&config_error($line, "protocol must be tcp or udp if the virtual service is an address and port");
 							}
 						}
 					} else {
-						config_error($line, "invalid protocol");
+						&config_error($line, "invalid protocol");
 					}
 				} elsif ($rcmd =~ /^service\s*=\s*(.*)/) {
 					lc($1);
 					$1 =~ /(\w+)/ && ($1 eq "http" || $1 eq "https"
 					    || $1 eq "ftp" || $1 eq "none")
-					    or config_error($line, "service must be http, https, ftp or none");
+					    or &config_error($line, "service must be http, https, ftp or none");
 					$vsrv{service} = $1;
 				} elsif ($rcmd =~ /^sitename\s*=\s*(.*)/) {
-					$1 =~ /(\w+)/ or config_error($line, "invalid sitename");
+					$1 =~ /(\w+)/ or &config_error($line, "invalid sitename");
 					$vsrv{sitename} = $1;
 				} elsif ($rcmd =~ /^fallback\s*=\s*(.*)/) {    # Allow specification of a virtual-specific fallback host
-					my $tmp = $1;
-					($tmp =~ /(\d+\.\d+\.\d+\.\d+:\d+)/ || $tmp =~ /(\d+\.\d+\.\d+\.\d+)/) && $1
-			    			or config_error($line, "invalid address for fallback server");
-					$vsrv{fallback} = $tmp
+					$fallback_line=$line;
+					$vsrv{fallback} = $1
 				} else {
-					config_error($line, "Unknown command $_");
+					&config_error($line, "Unknown command $_");
 				}
 			}
 		}
 		next if ($_ =~ /^\s*$/ || $_ =~ /^\s*#/);
 		if ($_ =~ /^checktimeout\s*=\s*(.*)/) {
-			($1 =~ /(\d+)/ && $1 && $1>0) or config_error($line, "invalid timeout value");
+			($1 =~ /(\d+)/ && $1 && $1>0) or &config_error($line, "invalid timeout value");
 			$CHECKTIMEOUT = $1;
 		} elsif ($_ =~ /^connecttimeout\s*=\s*(.*)/) {
-			($1 =~ /(\d+)/ && $1 && $1>0) or config_error($line, "invalid timeout value");
+			($1 =~ /(\d+)/ && $1 && $1>0) or &config_error($line, "invalid timeout value");
 			$CONNECTTIMEOUT = $1;
 		} elsif ($_ =~ /^negotiatetimeout\s*=\s*(.*)/) {
-			($1 =~ /(\d+)/ && $1 && $1>0) or config_error($line, "invalid timeout value");
+			($1 =~ /(\d+)/ && $1 && $1>0) or &config_error($line, "invalid timeout value");
 			$NEGOTIATETIMEOUT = $1;
 		} elsif ($_ =~ /^checkinterval\s*=\s*(.*)/) {
-			$1 =~ /(\d+)/ && $1 or config_error($line, "invalid checkinterval value");
+			$1 =~ /(\d+)/ && $1 or &config_error($line, "invalid checkinterval value");
 			$CHECKINTERVAL = $1;
 		} elsif ($_ =~ /^fallback\s*=\s*(.*)/) {
-			my $tmp = $1;
-			($tmp =~ /(\d+\.\d+\.\d+\.\d+:\d+)/ || $tmp =~ /(\d+\.\d+\.\d+\.\d+)/) && $1
-			    or config_error($line, "invalid address for fallback server");
-			$FALLBACK = $1;
+			my $tcp=&ld_gethostservbyname($1, "tcp");
+			my $udp=&ld_gethostservbyname($1, "udp");
+			if(!defined($tcp) and !defined($udp)){
+			    &config_error($line, 
+			    	"invalid address for fallback server");
+			}
+			$FALLBACK = { "tcp" => $tcp, "udp" => $udp };
 		} elsif ($_ =~ /^autoreload\s*=\s*(.*)/) {
 			($1 eq "yes" || $1 eq "no")
-			    or config_error($line, "autoreload must be 'yes' or 'no'");
+			    or &config_error($line, "autoreload must be 'yes' or 'no'");
 			$AUTOCHECK = $1;
 		} elsif ($_ =~ /^callback\s*=\s*\"(.*)\"/) {
 			$CALLBACK = $1;
@@ -701,7 +717,7 @@ sub read_config
 			my $tmpLDIRLOG = $LDIRLOG;
 			$LDIRLOG = $1;
 			if (&ld_log("Reading file $CONFIG")) {
-				config_error($line, "unable to open logfile: $1");
+				&config_error($line, "unable to open logfile: $1");
 				$LDIRLOG = $tmpLDIRLOG;
 			}
 		} elsif ($_ =~ /^execute\s*=\s*(.*)/) {
@@ -710,9 +726,9 @@ sub read_config
 			$FOREGROUND = 1;
 		} else {
 			if ($_ =~ /^timeout\s*=\s*(.*)/) {
-				config_error($line, "timeout directive deprciated in favour of checktimeout, negotiatetimeout or connecttimeout");
+				&config_error($line, "timeout directive deprciated in favour of checktimeout, negotiatetimeout or connecttimeout");
 			}
-			config_error($line, "Unknown command $_");
+			&config_error($line, "Unknown command $_");
 		}
 	}
 	close(CFGFILE);
@@ -720,34 +736,199 @@ sub read_config
 }
 
 
+# _ld_read_config_virtual_resolve
+# Note: Should not need to be called direclty, but won't do any damage if
+#       you do.
+# Resolve the server (ip address) and port for a virtual service
+# pre: line: Line of configuration file fallback server was read from
+#            Used for debugging messages
+#      vsrv: Virtual Service to resolve server and port of
+#      ip_port: server and port in the form
+#               ip_address|hostname:port|service
+# post: Take ip_port, resolve it as per ld_gethostservbyname
+#       and set $vsrv->{server} and $vsrv->{port} accordingly.
+#       If $vsrv->{service} is not set, then set it to "http",
+#       "https", "ftp" or "none" if $vsrv->{port} is 80, 443, 21
+#       or any other value respectivley
+# reurn: none
+#        Debuging message will be reported and programme will exit
+#        on error.
+
+sub _ld_read_config_virtual_resolve
+{
+	my($line, $vsrv, $ip_port)=(@_);
+
+	if($ip_port){
+		$ip_port=&ld_gethostservbyname($ip_port, $vsrv->{protocol});
+		if($ip_port){
+			($vsrv->{server}, $vsrv->{port}) = split /:/, $ip_port;
+		}
+		else {
+			&config_error($line, 
+				"invalid address for virtual service");
+		}
+
+		if(!defined($vsrv->{service})){
+			if ($vsrv->{port} eq "80") {
+				$vsrv->{service} = "http";
+			} 
+			elsif ($vsrv->{port} eq "443") {
+				$vsrv->{service} = "https";
+			} 
+			elsif ($vsrv->{port} eq "21") {
+				$vsrv->{service} = "ftp";
+			} 
+			else {
+				$vsrv->{service} = "none";
+			}
+		}
+	}
+}
+
+
+# _ld_read_config_fallback_resolve
+# Note: Should not need to be called direclty, but won't do any damage if
+#       you do.
+# Resolve the fallback server for a virtual service
+# pre: line: Line of configuration file fallback server was read from
+#            Used for debugging messages
+#      vsrv: Virtual Service to resolve fallback server of
+# post: Take $vsrv->{fallback}, resolve it as per ld_gethostservbyname
+#       and set $vsrv->{fallback} to the result
+# reurn: none
+#        Debuging message will be reported and programme will exit
+#        on error.
+
+sub _ld_read_config_fallback_resolve
+{
+	my($line, $vsrv)=(@_);
+
+	if($vsrv->{fallback}){
+		$vsrv->{fallback}=&ld_gethostservbyname($vsrv->{fallback}, 
+			$vsrv->{protocol}) 
+		or &config_error($line, 
+			"invalid address for fallback server");
+	}
+}
+
+
+# _ld_read_config_real_resolve
+# Note: Should not need to be called direclty, but won't do any damage if
+#       you do.
+# Run thourgh the list of real servers read in the configuration file for a
+# virtual server and parse these entries
+# pre: vsrv: Virtual Service to parse real servers for
+#      rsrv_todo: List of real servers read from config but not parsed.
+#                 List is a list of list reference. The firest element in
+#                 each list reference is the line read from the
+#                 configuration after "real=". The second element is the
+#                 line number, used for error reporting
+# post: Run through rsrv_todo and parse real servers
+# reurn: none
+#        Debuging message will be reported and programme will exit
+#        on error.
+
+sub _ld_read_config_real_resolve
+{
+	my ($vsrv, $rsrv_todo)=(@_);
+
+	my $i;
+	my $str;
+	my $line;
+	my $ip1;
+	my $ip2;
+	my $port;
+	my $flags;
+
+	for $i (@$rsrv_todo) {
+		($str, $line)=@$i;
+		$str =~	 /(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+)(->(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+))?:(\d+|[A-Za-z0-9-]+)\s+(.*)/
+			or &config_error($line, 
+				"invalid address for real server");
+		$ip1=$1;
+		$ip2=$3;
+		$port=$4;
+		$flags=$5;
+		$ip1=&ld_gethostbyname($ip1) or
+			&config_error($line, "invalid address for real server");
+		if( defined($port) ){
+			$port=&ld_getservbyname($port) or
+				&config_error($line, 
+					"invalid port for real server");
+		}
+		if ( defined ($ip2) ) {
+			$ip2=&ld_gethostbyname($ip2) or
+				&config_error($line, 
+					"invalid address for real server");
+			&add_real_server_range($line, $vsrv, 
+				$ip1, $ip2, $port, $flags);
+		} else {
+			&add_real_server($line, $vsrv, $ip1, $port, $flags);
+		}
+	}
+}
+
+
+# add_real_server_range
+# Add a real server for each IP address in a range
+# pre: line: line number real server was read from
+#            Used for debugging information
+#      vsrv: virtual server to add real server to
+#      first: First IP address in range
+#      last: First IP address in range
+#      port: Port of real servers
+#      flags: Flags for real servers. Should be of the form
+#             gate|masq|ipip [<weight>] [">I<request>", "<receive>"]
+# post: real servers are added to virtual server
+# return: none
+#         Debuging message will be reported and programme will exit
+#         on error.
+
 sub add_real_server_range
 {
-	my ($line, $vsrv, $rsrv, $first, $last, $port, $flags) = (@_);
+	my ($line, $vsrv, $first, $last, $port, $flags) = (@_);
 
-        my (@tmp, $first_i, $last_i, $i);
+        my (@tmp, $first_i, $last_i, $i, $rsrv);
 
-	if ( ($first_i=ip_to_decimal($first)) <0 ) {
-		config_error($line, "Invalid IP address: $first");
+	if ( ($first_i=&ip_to_int($first)) <0 ) {
+		&config_error($line, "Invalid IP address: $first");
 	}
-	if ( ($last_i=ip_to_decimal($last)) <0 ) {
-		config_error($line, "Invalid IP address: $last");
+	if ( ($last_i=&ip_to_int($last)) <0 ) {
+		&config_error($line, "Invalid IP address: $last");
 	}
 
 	if ($first_i>$last_i) {
-		config_error($line, "Invalid Range: $first-$last: First value must be less than or equal to the second value");
+		&config_error($line, 
+			"Invalid Range: $first-$last: First value must be " .
+			"less than or equal to the second value");
 	}
 
 	# A for loop didn't seem to want to work
 	$i=$first_i;
 	while ( $i le $last_i ) {
-		add_real_server($line, $vsrv, $rsrv, decimal_to_ip($i), $port, $flags);
+		&add_real_server($line, $vsrv, &int_to_ip($i), $port, $flags);
 		$i++;
 	}
 }
 
+
+# add_real_server
+# Add a real server to a virtual
+# pre: line: line number real server was read from
+#            Used for debugging information
+#      vsrv: virtual server to add real server to
+#      ip: IP address of real server
+#      port: Port of real server
+#      flags: Flags for real server. Should be of the form
+#             gate|masq|ipip [<weight>] [">I<request>", "<receive>"]
+# post: real server is added to virtual server
+# return: none
+#         Debuging message will be reported and programme will exit
+#         on error.
+
 sub add_real_server
 {
-	my ($line, $vsrv, $rsrv, $rmts, $rmtp, $flags) = (@_);
+	my ($line, $vsrv, $ip, $port, $flags) = (@_);
 
 	my $ref;
 	my $realsrv=0;
@@ -755,7 +936,11 @@ sub add_real_server
 	my $receive;
 
 	$flags =~ /(\w+)(.*)/ && ($1 eq "gate" || $1 eq "masq" || $1 eq "ipip")
-	    or config_error($line, "forward method must be gate, masq or ipip");
+	    or &config_error($line, 
+	    	"forward method must be gate, masq or ipip");
+
+	my $rsrv=$vsrv->{"real"};
+
 	my $fwd = $1;
 	if ($2 =~ /\s+(\d+)(\s+(.*))?/) {
 		my $weight = $1;
@@ -765,9 +950,12 @@ sub add_real_server
 			unless($request=~/^\//){
 				$request = "/" . $request;
 			}
-			push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight, "request"=>$request, "receive"=>$receive});
+			push(@$rsrv, {"server"=>$ip, "port"=>$port, 
+				"forward"=>$fwd, "weight"=>$weight, 
+				"request"=>$request, "receive"=>$receive});
 		} else {
-			push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight});
+			push(@$rsrv, {"server"=>$ip, "port"=>$port, 
+				"forward"=>$fwd, "weight"=>$weight});
 		}
 	} elsif ($2 =~ /\s+\"(.*)\",\s*\"(.*)\"/) {
 		$request = $1;
@@ -775,12 +963,14 @@ sub add_real_server
 		unless($request=~/^\//){
 			$request = "/" . $request;
 		}
-		push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "request"=>$request, "receive"=>$receive});
+		push(@$rsrv, {"server"=>$ip, "port"=>$port, 
+			"forward"=>$fwd, "request"=>$request, 
+			"receive"=>$receive});
 	} else {
-		push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd});
+		push(@$rsrv, {"server"=>$ip, "port"=>$port, "forward"=>$fwd});
 	}
 
-        my $real    = $vsrv->{"protocol"}.":".$rmts.":".$rmtp;
+        my $real    = $vsrv->{"protocol"}.":".$ip.":".$port;
 	my $virtual = $vsrv->{"protocol"}.":".&get_virtual($vsrv);
 	for my $r (@REAL){
 		if($r->{"real"} eq $real){
@@ -814,7 +1004,7 @@ sub config_error
 	}
 	if ($initializing) {
 		&ld_rm_file("$RUNPID.$CFGNAME.pid");
-		ld_exit(2, "config_error: Configuration Error");
+		&ld_exit(2, "config_error: Configuration Error");
 	} else {
 		die;
 	}
@@ -1146,7 +1336,7 @@ sub check_connect
 		local $SIG{'ALRM'} = sub { die "Timeout Alarm" };
 		&ld_debug(4, "Timeout is $$v{checktimeout}");
 		alarm $$v{checktimeout};
-		my $result = open_socket( $$r{server}, $port, $$v{protocol} );
+		my $result = &ld_open_socket($$r{server}, $port, $$v{protocol});
 		if ($result == 0) {
 			# Failure to open the socket
 			die("Couldn't open socket to $$r{server}:$port");
@@ -1362,7 +1552,7 @@ sub fallback_off
 # pre: virtual: reference to a virtual service
 # post: none
 # return: $virtual->{"fallback"} if defined
-#         else $FALLBACK if defined
+#         else $FALLBACK->{$virtual->{"protocol"}} if defined
 #         else undef
 
 sub fallback_find
@@ -1372,7 +1562,7 @@ sub fallback_find
 	if( defined $virtual->{"fallback"} ) {
 		return($virtual->{"fallback"});
 	} elsif ( defined($FALLBACK) ) {
-		return($FALLBACK);
+		return($FALLBACK->{$virtual->{"protocol"}});
 	}
 
 	return;
@@ -1385,7 +1575,7 @@ sub check_cfgfile
 	return if ($stattime==$mtime);
 	$stattime = $mtime;
 	my ($chs, $lctr) = (0, 0);
-	open(CFGFILE, "<$CONFIG") || config_error(0, "can not open file $CONFIG");
+	open(CFGFILE, "<$CONFIG") || &config_error(0, "can not open file $CONFIG");
 	while (<CFGFILE>) {
 		$lctr++;
 		$chs += (4*($lctr%3)+3)*unpack("%32C*", $_);
@@ -1395,7 +1585,7 @@ sub check_cfgfile
 		&ld_log("Configuration file '$CONFIG' has changed on disk");
 		if ($AUTOCHECK eq "yes") {
 			&ld_log(" - reread new configuration");
-			reread_config();
+			&reread_config();
 		} else {
 			&ld_log(" - ignore new configuration\n");
 		}
@@ -1498,10 +1688,12 @@ sub ld_rm_file
 }
 
 
+# is_octet
 # See if a number is an octet, that is >=0 and <=255
 # pre: alleged_octet: the octect to test
-# post: 1 if the alleged_octet is an octet
-#       0 otherwise
+# post: alleged_octect is checked to see if it is valid
+# return: 1 if the alleged_octet is an octet
+#         0 otherwise
 
 sub is_octet
 {
@@ -1517,8 +1709,9 @@ sub is_octet
 # is_ip
 # Check that a given string is an IP address
 # pre: alleged_ip: string representing ip address
-# post: 1 if alleged_ip is a valid ip address
-#       0 otherwise
+# post: alleged_ip is checked to see if it is valid
+# return: 1 if alleged_ip is a valid ip address
+#         0 otherwise
 
 sub is_ip
 {
@@ -1537,13 +1730,14 @@ sub is_ip
 }
 
 
-# ip_to_decimal
-# Turn an IP address given as a dotted quad into a decimal
+# ip_to_int
+# Turn an IP address given as a dotted quad into an integer
 # pre: ip_address: string representing IP address
-# post: -1 if an error occurs
-#       decimal representation of IP address otherwise
+# post: post ip_address is converted to an integer
+# return: -1 if an error occurs
+#         integer representation of IP address otherwise
 
-sub ip_to_decimal
+sub ip_to_int
 {
 	  my ($ip_address)=(@_);
 
@@ -1554,13 +1748,14 @@ sub ip_to_decimal
 }
 
 
-# decimal_to_ip
-# Turn an IP address given as a dotted quad into a decimal
+# int_to_ip
+# Turn an IP address given as a dotted quad into an integer
 # pre: ip_address: string representing IP address
-# post: -1 if an error occurs
-#       decimal representation of IP address otherwise
+# post: Decimal is converted to a dotted quad
+# return: -1 if an error occurs
+#        integer representation of IP address otherwise
 
-sub decimal_to_ip
+sub int_to_ip
 {
 	my ($ip_address)=(@_);
 
@@ -1578,8 +1773,11 @@ sub decimal_to_ip
 
 # get_virtual
 # Get the service for a virtual
-# Will be of the form IP:port for a UDP or TCP service
-# Will be of the form fwmark for a Firewall Mark service
+# pre: nv: virtual to get the service for
+# post: none
+# return: fwmark of service if it is a fwm service
+#         ip_address:port otherwise
+
 sub get_virtual
 {
 	my ($nv) = (@_);
@@ -1590,7 +1788,6 @@ sub get_virtual
         	return $nv->{"server"} . ":" . $nv->{"port"};
 	}
 }
-
 
 
 # ld_exit
@@ -1616,9 +1813,17 @@ sub ld_exit
 }
 
 
-sub open_socket
+# ld_open_socket
+# Open a socket connection
+# pre: remote: IP address as a dotted quad of remote host to connect to
+#      port: port to connect to
+#      protocol: Prococol to use. Should be either "tcp" or "udp"
+# post: A Socket connection is opened to the remote host
+# return: Open socket
+#         Programe dies on error (may be caught by calling function)
+
+sub ld_open_socket
 {
-	use Socket;
 	my ($remote, $port, $protocol) = @_;
 	my ($iaddr, $paddr, $pro, $result);
 
@@ -1724,6 +1929,7 @@ sub ld_daemon
 #         child: none  (this is the process that returns)
 # Writen by Horms, horms@vergenet.net for an unrelated project while
 # working for Zip World, http://www.zipworld.com.au/, 1997-1999.
+
 sub ld_daemon_become_child
 {
 	my($status);
@@ -1734,7 +1940,83 @@ sub ld_daemon_become_child
 		&ld_exit(-1, "ld_daemon_become_child: Could not fork: $!");
 	}
 	if ($status>0){
-		&ld_exit(0, "ld_daemon_become_child: Parent exiting as it should");
+		&ld_exit(0, 
+			"ld_daemon_become_child: Parent exiting as it should");
 	}
 }
 
+
+# ld_gethostbyname
+# Wrapper to gethostbyname. Look up the/an IP address of a hostname 
+# If an IP address is given is it returned
+# pre: name: Hostname of IP address to lookup
+# post: gethostbyname is called to find an IP address for $name
+#       This is converted to a string
+# return: IP address
+#         undef on error
+
+sub ld_gethostbyname 
+{
+	my ($name)=(@_);
+
+	my @host=gethostbyname($name);
+
+	return((@host and defined($host[4]))?inet_ntoa($host[4]):undef);
+}
+
+
+# ld_getservbyname
+# Wraper for getservbyname. Look up the port for a service name
+# If a port is given it is returned.
+# pre: name: Port or Service name to look up
+# post: if $name is a number 
+#         if 0<=$name<=65536 $name is returned
+#         else undef is returned
+#       else getservbyname is called to look up the port for the service
+# return: Port
+#         undef on error
+
+sub ld_getservbyname 
+{
+	my ($name, $protocol)=(@_);
+
+	if($name=~/^[0-9]+$/){ 
+		return(($name>=0 and $name<65536)?$name:undef);
+  	}
+
+	my @serv=getservbyname($name, $protocol);
+
+	return((@serv and defined($serv[2]))?$serv[2]:undef);
+}
+
+
+# ld_getservhostbyname
+# Wraper for ld_gethostbyname and ld_getservbyname. Given a server of the
+# form ip_address|hostname[:port|servicename] return ip_address[:port]
+# pre: hostserv: Servver of the form ip_address|hostname[:port|servicename]
+#      protocol: Protocol for service. Should be either "tcp" or "udp"
+# post: lookups performed as per ld_getservbyname and ld_gethostbyname
+# return: ip_address[:port]
+#         undef on error
+
+sub ld_gethostservbyname{
+	my ($hostserv, $protocol) = (@_);
+
+	my $ip;
+	my $port;
+
+	$hostserv =~ 
+		/(\d+\.\d+\.\d+\.\d+|[A-Za-x0-9.-]+)(:(\d+|[A-Za-x0-9-]+))?/ 
+		or return(undef);
+	$ip=$1;
+	$port=$3;
+
+	$ip=&ld_gethostbyname($ip)  or return(undef);
+
+	if(defined($port)){
+		$port=&ld_getservbyname($port, $protocol) or return(undef);
+		return("$ip:$port");
+	}
+
+	return($ip);
+}
