@@ -133,6 +133,10 @@ struct llc_ops {
  */
 	const char *	(*node_status)(ll_cluster_t*, const char * nodename);
 /*
+ *	node_type:	Return type of the given node
+ */
+	const char *	(*node_type)(ll_cluster_t*, const char * nodename);
+/*
  *	init_ifwalk:	Initialize walk through list of list of known interfaces
  */
 	int		(*init_ifwalk)(ll_cluster_t*, const char * node);
