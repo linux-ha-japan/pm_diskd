@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.180 2002/04/13 22:45:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.181 2002/04/14 00:39:30 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -628,6 +628,7 @@ ha_versioninfo(void)
 	 * our priority which could hang the machine, and forking could
 	 * possibly cause us to miss a heartbeat if this is done
 	 * under load.
+	 * FIXME!  We really need fork anyway...
 	 */
 	if (ANYDEBUG && !everprinted) {
 		char	cmdline[MAXLINE];
@@ -6021,6 +6022,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.181  2002/04/14 00:39:30  alan
+ * Put in a comment about "strings" needing to run in a separate
+ * process...
+ *
  * Revision 1.180  2002/04/13 22:45:37  alan
  * Changed a little of the code in heartbeat.c to use the new longclock_t
  * type and functions.  It ought to completely replace the use of
