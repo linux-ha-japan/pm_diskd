@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.15 2000/07/26 05:17:19 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.16 2001/05/11 14:55:06 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -27,6 +27,7 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.15 2000/07/26 05:17:19 ala
 #include <sys/utsname.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
+#include <hb_proc.h>
 
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
@@ -406,6 +407,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.16  2001/05/11 14:55:06  alan
+ * Followed David Lee's suggestion about splitting out all the heartbeat process
+ * management stuff into a separate header file...
+ * Also changed to using PATH_MAX for maximum pathname length.
+ *
  * Revision 1.15  2000/07/26 05:17:19  alan
  * Added GPL license statements to all the code.
  *

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.103 2001/05/11 06:20:26 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.104 2001/05/11 14:55:06 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -268,6 +268,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.103 2001/05/11 06:20
 #include <ha_msg.h>
 #include <hb_api_core.h>
 #include <test.h>
+#include <hb_proc.h>
 #include <hb_module.h>
 
 #define OPTARGS		"dkMrRsvC:"
@@ -3975,6 +3976,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.104  2001/05/11 14:55:06  alan
+ * Followed David Lee's suggestion about splitting out all the heartbeat process
+ * management stuff into a separate header file...
+ * Also changed to using PATH_MAX for maximum pathname length.
+ *
  * Revision 1.103  2001/05/11 06:20:26  alan
  * Fixed CFLAGS so we load modules from the right diurectory.
  * Fixed minor static symbol problems.

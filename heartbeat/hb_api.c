@@ -69,6 +69,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <string.h>
+#include <limits.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api.h>
@@ -971,7 +972,7 @@ find_client(const char * fromid, const char * cpid)
 static const char *
 client_fifo_name(client_proc_t* client, int isrequest)
 {
-	static char	fifoname[MAXPATHLEN];
+	static char	fifoname[PATH_MAX];
 	const char *	dirprefix;
 	const char *	fifosuffix;
 

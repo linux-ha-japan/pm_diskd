@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.45 2001/05/11 06:20:26 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.46 2001/05/11 14:55:06 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -44,14 +44,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.45 2001/05/11 06:20:
 #include <sys/shm.h>
 #include <sys/times.h>
 #include <netinet/in.h>
-
-#ifndef PAGE_SIZE
-#	include <sys/param.h>
-#endif
-
-#ifndef PAGE_SIZE
-#	include <asm/page.h>	/* This is where Linux puts it */
-#endif
 
 #include <ha_msg.h>
 #include <stonith.h>
@@ -308,46 +300,6 @@ struct msg_xmit_hist {
 	int			hiseq;
 	int			lowseq; /* one less than min actually present */
 };
-
-enum process_type {
-	PROC_UNDEF,
-	PROC_CONTROL,
-	PROC_MST_STATUS,
-	PROC_HBREAD,
-	PROC_HBWRITE,
-	PROC_PPP
-};
-
-enum process_status { 
-	FORKED=1,	/* This process is forked, but not yet really running */
-	RUNNING=2,	/* This process is fully active, and open for business */
-};
-
-struct process_info {
-	enum process_type	type;
-	enum process_status	pstat;
-	pid_t			pid;
-	unsigned long		totalmsgs;
-	unsigned long		allocmsgs;
-	unsigned long		numalloc;	/* # of ha_malloc calls */
-	unsigned long		numfree;	/* # of ha_free calls */
-	unsigned long		nbytes_req;	/* # malloc bytes req'd */
-	unsigned long		nbytes_alloc;	/* # bytes allocated  */
-	unsigned long		mallocbytes;	/* # bytes malloc()ed  */
-	time_t			lastmsg;
-};
-
-
-/* This figure contains a couple of probably unnecessary fudge factors */
-#define	MXPROCS	((PAGE_SIZE-2*sizeof(int))/sizeof(struct process_info)-1)
-
-struct pstat_shm {
-	int	nprocs;
-	struct process_info info [MXPROCS];
-};
-
-volatile extern struct pstat_shm *	procinfo;
-volatile extern struct process_info *	curproc;
 
 extern struct sys_config *	config;
 extern struct node_info *	curnode;
