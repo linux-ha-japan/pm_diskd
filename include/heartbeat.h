@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.7 2001/10/22 04:02:29 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.8 2001/11/26 14:08:09 horms Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -50,6 +50,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.7 2001/10/22 04:02:2
 #include <HBcomm.h>
 #include <stonith/stonith.h>
 #include <ltdl.h>
+#include <glib.h>
 
 /*
  * <syslog.h> might not contain LOG_PRI...
