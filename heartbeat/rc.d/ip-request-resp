@@ -1,3 +1,4 @@
+#!/bin/sh
 #
 #	This script is called in response to an ip-request message after the
 #	one we've called calls us back.

@@ -1,5 +1,6 @@
+#!/bin/sh
 #
-#	$Id: IPaddr,v 1.1 1999/09/23 15:31:24 alanr Exp $
+#	$Id: IPaddr,v 1.2 1999/11/10 20:33:04 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -234,8 +235,12 @@ esac
 #
 #
 # $Log: IPaddr,v $
-# Revision 1.1  1999/09/23 15:31:24  alanr
-# Initial revision
+# Revision 1.2  1999/11/10 20:33:04  alan
+# Deleted /proc/ha directory from build list
+# Added #!/bin/sh to lots (all?) of the scripts...
+#
+# Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+# High-Availability Linux
 #
 # Revision 1.11  1999/09/12 06:56:53  alanr
 # Fixed the bugs that kept addresses w/netmasks and broadcast addresses from working.

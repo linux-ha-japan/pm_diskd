@@ -1,3 +1,4 @@
+#!/bin/sh
 #
 #	This script is called to politely request that a resource be given up
 #	to us.
