@@ -37,11 +37,12 @@
 #include <hb_api.h>
 
 #ifndef LOG_PERROR
-#define LOG_PERROR 0x0 /* Some syslogs don't allow you to log messages
-                        * to stderr as well as to a log facility */
-			* (Solaris, perhaps others)
-			*/
-#endif /* sun */
+#	define LOG_PERROR 0x0
+	/* Some syslogs don't allow you to log messages
+	 * to stderr as well as to a log facility
+	 * (Solaris, perhaps others)
+	 */
+#endif
 
 /*
  * A heartbeat API test program...
