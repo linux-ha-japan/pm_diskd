@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.5 2002/09/19 22:40:18 alan Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.6 2002/10/07 04:34:23 alan Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -64,22 +64,21 @@ struct ip_private {
 };
 
 
-STATIC int	ucast_parse(const char *line);
-STATIC int	ucast_init(void);
-STATIC struct hb_media*
+static int	ucast_parse(const char *line);
+static struct hb_media*
 		ucast_new(const char * intf, const char *addr);
-STATIC int	ucast_open(struct hb_media* mp);
-STATIC int	ucast_close(struct hb_media* mp);
-STATIC struct ha_msg*
+static int	ucast_open(struct hb_media* mp);
+static int	ucast_close(struct hb_media* mp);
+static struct ha_msg*
 		ucast_read(struct hb_media* mp);
-STATIC int	ucast_write(struct hb_media* mp, struct ha_msg* msg);
-STATIC int	HB_make_receive_sock(struct hb_media* ei);
-STATIC int	HB_make_send_sock(struct hb_media * mp);
-STATIC struct ip_private *
+static int	ucast_write(struct hb_media* mp, struct ha_msg* msg);
+static int	HB_make_receive_sock(struct hb_media* ei);
+static int	HB_make_send_sock(struct hb_media * mp);
+static struct ip_private *
 		new_ip_interface(const char * ifn, const char *hbaddr, int port);
-STATIC int ucast_descr (char** buffer);
-STATIC int ucast_mtype (char** buffer);
-STATIC int ucast_isping (void);
+static int ucast_descr (char** buffer);
+static int ucast_mtype (char** buffer);
+static int ucast_isping (void);
 
 
 /*
@@ -124,6 +123,7 @@ static PILPlugin*               OurPlugin;
 static PILInterface*		OurInterface;
 static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
+static int			localudpport;
 
 #define LOG	PluginImports->log
 #define MALLOC	PluginImports->alloc
@@ -153,7 +153,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 	,	interfprivate); 
 }
 
-STATIC int
+static int
 ucast_parse (const char* line)
 { 
 	const char *	bp = line;
@@ -178,7 +178,7 @@ ucast_parse (const char* line)
 			return HA_FAIL;
 		}
 #endif
-		/* Skip over white space, then grab the multicast group */
+		/* Skip over white space, then grab the IP address */
 		bp += strspn(bp, WHITESPACE);
 		toklen = strcspn(bp, WHITESPACE);
 		strncpy(ucast, bp, toklen);
@@ -200,7 +200,7 @@ ucast_parse (const char* line)
 	return(HA_OK);
 }
 
-STATIC int
+static int
 ucast_mtype (char** buffer) { 
 	
 	*buffer = MALLOC((strlen(PIL_PLUGIN_S) * sizeof(char)) + 1);
@@ -210,7 +210,7 @@ ucast_mtype (char** buffer) {
 	return strlen(PIL_PLUGIN_S);
 }
 
-STATIC int
+static int
 ucast_descr (char **buffer) { 
 
 	const char* str = "UDP/IP unicast";	
@@ -222,26 +222,44 @@ ucast_descr (char **buffer) {
 	return strlen(str);
 }
 
-STATIC int
+static int
 ucast_isping (void) {
     return 0;
 }
 
-STATIC int
+static int
 ucast_init(void)
 {
 	struct servent*	service;
 
 	(void)_heartbeat_h_Id;
-	(void)_ucast_Id;
 	(void)_ha_msg_h_Id;
+	(void)_ucast_Id;
 
-	/* If our service name is in /etc/services, then use it */
+	g_assert(OurImports != NULL);
 
-	if ((service=getservbyname(HA_SERVICENAME, "udp")) != NULL) {
-		udpport = ntohs(service->s_port);
-	}else{
-		udpport = UDPPORT;
+	if (localudpport <= 0) {
+		const char *	chport;
+		if ((chport  = OurImports->ParamValue("udpport")) != NULL) {
+			sscanf(chport, "%d", &localudpport);
+			if (localudpport <= 0) {
+				PILCallLog(LOG, PIL_CRIT
+				,	"bad port number %s"
+				,	chport);
+				return HA_FAIL;
+			}
+		}
+	}
+
+	/* No port specified in the configuration... */
+
+	if (localudpport <= 0) {
+		/* If our service name is in /etc/services, then use it */
+		if ((service=getservbyname(HA_SERVICENAME, "udp")) != NULL){
+			localudpport = ntohs(service->s_port);
+		}else{
+			localudpport = UDPPORT;
+		}
 	}
 	return(HA_OK);
 }
@@ -250,14 +268,15 @@ ucast_init(void)
  *	Create new UDP/IP unicast heartbeat object 
  *	Name of interface and address are passed as parameters
  */
-STATIC struct hb_media *
+static struct hb_media *
 ucast_new(const char * intf, const char *addr)
 {
 	char	msg[MAXLINE];
 	struct ip_private*	ipi;
 	struct hb_media *	ret;
 
-	ipi = new_ip_interface(intf, addr, udpport);
+	ucast_init();
+	ipi = new_ip_interface(intf, addr, localudpport);
 	if (ipi == NULL) {
 		sprintf(msg, "IP interface [%s] does not exist"
 		,	intf);
@@ -282,7 +301,7 @@ ucast_new(const char * intf, const char *addr)
 /*
  *	Open UDP/IP unicast heartbeat interface
  */
-STATIC int
+static int
 ucast_open(struct hb_media* mp)
 {
 	struct ip_private * ei;
@@ -298,14 +317,14 @@ ucast_open(struct hb_media* mp)
 		return(HA_FAIL);
 	}
 	LOG(PIL_INFO, "ucast heartbeat started on port %d interface %s to %s"
-	,	udpport, mp->name, inet_ntoa(ei->addr.sin_addr));
+	,	localudpport, mp->name, inet_ntoa(ei->addr.sin_addr));
 	return(HA_OK);
 }
 
 /*
  *	Close UDP/IP unicast heartbeat interface
  */
-STATIC int
+static int
 ucast_close(struct hb_media* mp)
 {
 	struct ip_private * ei;
@@ -330,7 +349,7 @@ ucast_close(struct hb_media* mp)
  * Receive a heartbeat unicast packet from UDP interface
  */
 
-STATIC struct ha_msg *
+static struct ha_msg *
 ucast_read(struct hb_media* mp)
 {
 	struct ip_private *	ei;
@@ -366,7 +385,7 @@ ucast_read(struct hb_media* mp)
  * Send a heartbeat packet over unicast UDP/IP interface
  */
 
-STATIC int
+static int
 ucast_write(struct hb_media* mp, struct ha_msg * msgptr)
 {
 	struct ip_private *	ei;
@@ -406,7 +425,7 @@ ucast_write(struct hb_media* mp, struct ha_msg * msgptr)
  * Set up socket for sending unicast UDP heartbeats
  */
 
-STATIC int
+static int
 HB_make_send_sock(struct hb_media * mp)
 {
 	int sockfd;
@@ -554,7 +573,7 @@ HB_make_receive_sock(struct hb_media * mp) {
 }
 
 
-STATIC struct ip_private *
+static struct ip_private *
 new_ip_interface(const char * ifn, const char *hbaddr, int port)
 {
 	struct ip_private * ep;
