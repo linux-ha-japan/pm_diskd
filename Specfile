@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.27 1999/12/25 08:50:08 alan Exp $
+#	$Id: Specfile,v 1.28 2000/01/26 15:20:59 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -40,6 +40,8 @@ It implements the following kinds of heartbeats:
 	IP addresses that prefix-matched.
   + Added Lars Marowsky-Bree's suggestion to make the code almost completely
 	robust with respect to jumping the clock backwards and forwards
+  + Added code from Michael Moerz <mike@cubit.at> to keep findif from
+	core dumping if /proc/route can't be read.
 
 * Mon Nov 22 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
