@@ -427,6 +427,11 @@ main(int argc, char **argv)
 	cl_log_set_facility(facility);
 	
 	node_name = hb->llc_ops->get_mynodeid(hb);
+	if (node_name == NULL) {
+		cl_log(LOG_ERR, "Cannot get my nodeid");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(19);
+	}
 	cl_log(LOG_DEBUG, "[We are %s]", node_name);
 
 	if (hb->llc_ops->set_msg_callback(hb, T_APICLISTAT, 
