@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.7 2002/05/28 18:25:48 msoffen Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.8 2002/06/06 04:43:40 alan Exp $";
 /* 
 send_arp
 
@@ -34,6 +34,7 @@ main(int argc, char *argv[])
     struct libnet_link_int *l;
     u_long ip;
 
+    (void)_send_arp_c;
     if (argc != 6) {
         printf("%s", print_usage);
 	exit (-1);
@@ -135,6 +136,9 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.8  2002/06/06 04:43:40  alan
+ * Got rid of a warning (error) about an unused RCS version string.
+ *
  * Revision 1.7  2002/05/28 18:25:48  msoffen
  * Changes to replace send_arp with a libnet based version.  This works accross
  * all operating systems we currently "support" (Linux, FreeBSD, Solaris).
