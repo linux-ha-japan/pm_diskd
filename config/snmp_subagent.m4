@@ -173,6 +173,8 @@ AC_DEFUN([LIB_SNMP],
 	AC_DEFINE([HAVE_NET_SNMP], 1, [have net-snmp headers])
 	AC_CHECK_PROG([have_net_snmp_config], [net-snmp-config], 
 	    [yes], [no])
+	AC_CHECK_HEADERS([net-snmp/util_funcs.h], [NET_SNMP_UTIL_FUNCS_HEADER=yes], 
+        [AC_MSG_WARN([net-snmp util_funcs header not found])], [])
 	dnl no net-snmp-config, quit
 	if test x"have_net_snmp_config" = x"no"; then
 	    AC_MSG_ERROR([NET-SNMP: program "net-snmp-config" not found in default path.])
