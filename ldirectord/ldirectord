@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details 
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.9 2000/06/15 09:07:54 jacob Exp $
+# $Id: ldirectord,v 1.10 2000/06/21 02:04:28 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # with help from: Horms <horms@vergenet.net>
 # This is GPL software. You should own a few hundred copies
@@ -393,7 +393,7 @@ sub read_config
 					$2 =~ /(\w+)(.*)/ && ($1 eq "gate" || $1 eq "masq" || $1 eq "ipip")
 					    or config_error($line, "forward method must be gate, masq or ipip");
 					my $fwd = $1;
-					if ($2 =~ /\s+(\d+)\s+(.*)/) {
+					if ($2 =~ /\s+(\d+)(\s+(.*))?/) {
 						my $weight = $1;
 						if ($2 =~ /\"(.*)\",\s*\"(.*)\"/) {
 							push(@rsrv, {"server"=>$rmt, "forward"=>$fwd, "weight"=>$weight, "request"=>$1, "receive"=>$2});
