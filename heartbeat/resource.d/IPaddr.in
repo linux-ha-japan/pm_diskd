@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.31 2002/10/22 02:48:04 msoffen Exp $
+#	$Id: IPaddr.in,v 1.32 2002/11/20 09:16:01 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -368,9 +368,13 @@ find_free_interface() {
 #
 
 ip_start() {
-#
-#	Do we already service this IP address?
-#
+  #
+  #	Do we already service this IP address?
+  #
+  case `ip_status $1` in
+    *unning*)   exit 0;
+  esac
+
   BASEIP=`echo $1 | sed s'%/.*%%'`
 
   if
@@ -504,7 +508,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.31 2002/10/22 02:48:04 msoffen Exp $"
+  echo "$Id: IPaddr.in,v 1.32 2002/11/20 09:16:01 horms Exp $"
 }
 
 #
@@ -551,6 +555,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.32  2002/11/20 09:16:01  horms
+# do not fail if an interface is already configured
+#
 # Revision 1.31  2002/10/22 02:48:04  msoffen
 # Replaced find_interface_generic BSD code with more robust code.
 #
