@@ -641,7 +641,7 @@ MS_parse_config_info(struct APCMS* ms, const char * info)
 	}
 
 
-	if (sscanf(info, "%s %[^\n\r\t]", dev, passwd) == 2
+	if (sscanf(info, "%s %s %[^\n\r\t]", dev, user, passwd) == 3
 	&&	strlen(passwd) > 1) {
 
 		if ((ms->device = (char *)MALLOC(strlen(dev)+1)) == NULL) {
@@ -657,6 +657,8 @@ MS_parse_config_info(struct APCMS* ms, const char * info)
 		if ((ms->passwd = (char *)MALLOC(strlen(passwd)+1)) == NULL) {
 			free(ms->device);
 			ms->device=NULL;
+			free(ms->user);
+			ms->user=NULL;
 			syslog(LOG_ERR, "out of memory");
 			return(S_OOPS);
 		}
