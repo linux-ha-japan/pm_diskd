@@ -1007,7 +1007,7 @@ init_start()
 	/* Create the mainloop and run it... */
 	mainloop = g_main_new(FALSE);
 	cl_log(LOG_INFO, "Starting %s", cmdname);
-	cl_make_realtime(SCHED_RR, 5, 64);
+	cl_make_realtime(SCHED_RR, 5, 64, 64);
 	if (apphbd_config.wdt_dev[0] != EOS) {
 		open_watchdog(apphbd_config.wdt_dev);
 	}
