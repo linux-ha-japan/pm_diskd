@@ -429,7 +429,7 @@ class ClusterManager(UserDict):
 
     def HasQuorum(self):
          "Return TRUE if the cluster currently has quorum"
-         raise ValueError("Abstract Class member (ResourceGroups)")
+         raise ValueError("Abstract Class member (HasQuorum)")
 
 class Resource:
     '''

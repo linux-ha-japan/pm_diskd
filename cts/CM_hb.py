@@ -161,6 +161,13 @@ class HeartbeatCM(ClusterManager):
         file.close()
         return RscGroups
 
+    def HasQuorum(self):
+        (
+'''Return TRUE if the cluster currently has quorum.  According to
+current heartbeat code this means one node is up.
+''')
+        return self.upcount() >= 1
+
     def hbResource(self, type, instance):
         '''
         Our job is to create the right kind of resource.  For most
