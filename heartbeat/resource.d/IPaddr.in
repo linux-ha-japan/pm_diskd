@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.12 2001/10/12 04:54:22 alan Exp $
+#	$Id: IPaddr.in,v 1.13 2001/10/24 20:23:09 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -248,7 +248,7 @@ ip_start() {
     *)		dev_intf="dev";;
   esac
 
-  ha_log "INFO: $ROUTE add -host $BASEIP $dev_intf $IF"
+  ha_log "info: $ROUTE add -host $BASEIP $dev_intf $IF"
   $ROUTE add -host $BASEIP $dev_intf $IF
 
   TARGET_INTERFACE=`echo $IF | sed 's%:.*%%'`
@@ -352,6 +352,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.13  2001/10/24 20:23:09  alan
+# Changed INFO: to info: for consistency.
+#
 # Revision 1.12  2001/10/12 04:54:22  alan
 # Changed IPaddr to be more BSD/Solaris compatible
 #
