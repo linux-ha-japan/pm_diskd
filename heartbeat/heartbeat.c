@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.158 2001/10/26 11:08:31 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.159 2002/01/16 22:59:17 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -441,7 +441,7 @@ void	make_realtime(void);
 void	make_normaltime(void);
 int	IncrGeneration(unsigned long * generation);
 void	ask_for_resources(struct ha_msg *msg);
-void	process_control_packet(struct msg_xmit_hist msghist
+void	process_control_packet(struct msg_xmit_hist* msghist
 ,	struct ha_msg * msg);
 
 /* The biggies */
@@ -1115,7 +1115,7 @@ control_process(FILE * fp)
 		process_pending_handlers();
 
 		if (msg) {
-			process_control_packet(msghist, msg);
+			process_control_packet(&msghist, msg);
 		}
 	}
 	/* That's All Folks... */
@@ -1132,7 +1132,7 @@ control_process(FILE * fp)
  * NOTE: It's our job to dispose of the packet we're given...
  */
 void
-process_control_packet(struct msg_xmit_hist	msghist
+process_control_packet(struct msg_xmit_hist*	msghist
 ,		struct ha_msg *	msg)
 {
 	int	statusfd = status_pipe[P_WRITEFD];
@@ -1170,7 +1170,7 @@ process_control_packet(struct msg_xmit_hist	msghist
 	/* Is this a request to retransmit a packet? */
 	if (strcasecmp(type, T_REXMIT) == 0 && IsToUs) {
 		/* OK... Process retransmit request */
-		process_rexmit(&msghist, msg);
+		process_rexmit(msghist, msg);
 		ha_msg_del(msg);
 		return;
 	}
@@ -1184,7 +1184,7 @@ process_control_packet(struct msg_xmit_hist	msghist
 	}
 	/* Remember Messages with sequence numbers */
 	if (cseq != NULL) {
-		add2_xmit_hist (&msghist, msg, seqno);
+		add2_xmit_hist (msghist, msg, seqno);
 	}
 
 	len = strlen(smsg);
@@ -4740,6 +4740,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.159  2002/01/16 22:59:17  alan
+ * Fixed a dumb error in restructuring the code.
+ * I passed the retransmit history structure by value instead of by address,
+ * so there was a HUGE memory leak.
+ *
  * Revision 1.158  2001/10/26 11:08:31  alan
  * Changed the code so that SIGINT never interrupts us.
  * Changed the code so that SIGALRM doesn't interrupt certain child
