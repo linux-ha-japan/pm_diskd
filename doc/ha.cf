@@ -1,15 +1,17 @@
 #
 #	There are lots of options in this file.  All you have to have is a set
-#	of nodes listed {"node ...}
-#	and one of {serial, bcast, mcast, or ucast}
+#	of nodes listed {"node ...} one of {serial, bcast, mcast, or ucast},
+#	and a value for "auto_failback".
 #
 #	ATTENTION: As the configuration file is read line by line,
 #		   THE ORDER OF DIRECTIVE MATTERS!
 #
-#		   In particular, make sure that the timings and udpport
-#		   et al are set before the heartbeat media are defined!
-#		   All will be fine if you keep them ordered as in this
-#		   example.
+#	In particular, make sure that the udpport, serial baud rate
+#	etc. are set before the heartbeat media are defined!
+#	debug and log file directives go into effect when they
+#	are encountered.
+#
+#	All will be fine if you keep them ordered as in this example.
 #
 #
 #       Note on logging:
@@ -51,6 +53,10 @@ logfacility	local0
 #
 #	deadtime: how long-to-declare-host-dead?
 #
+#		If you set this too low you will get the problematic
+#		split-brain (or cluster partition) problem.
+#		See the FAQ for how to use warntime to tune deadtime.
+#
 #deadtime 30
 #
 #	warntime: how long before issuing "late heartbeat" warning?
@@ -69,35 +75,19 @@ logfacility	local0
 #initdead 120
 #
 #
-#	nice_failback:  determines whether a resource will
-#	fail back to its "primary" node, or remain on whatever
-#	node is serving it until that node fails.
+#	What UDP port to use for communication?
 #
-#	The default is "off", which means that it WILL fail
-#	back to the node which is declared as primary in haresources
+#udpport	694
 #
-#	"on" means that resources only move to new nodes when
-#	the nodes they are served on die.  This is deemed as a
-#	"nice" behavior (unless you want to do active-active).
+#	Baud rate for serial ports...
 #
-#nice_failback on
-#
-#	hopfudge maximum hop count minus number of nodes in config
-#hopfudge 1
+#baud	19200
 #	
 #	serial	serialportname ...
 #serial	/dev/ttyS0	# Linux
 #serial	/dev/cuaa0	# FreeBSD
 #serial	/dev/cua/a	# Solaris
 #
-#
-#	Baud rate for serial ports...
-#
-#baud	19200
-#
-#	What UDP port to use for communication?
-#
-#udpport	694
 #
 #	What interfaces to heartbeat over?
 #
@@ -130,12 +120,43 @@ logfacility	local0
 #ucast eth0 192.168.1.2
 #
 #
-#	Watchdog is the watchdog timer.  If our own heart doesn't beat for
-#	a minute, then our machine will reboot.
+#	About boolean values...
 #
-#watchdog /dev/watchdog
+#	Any of the following case-insensitive values will work for true:
+#		true, on, yes, y, 1
+#	Any of the following case-insensitive values will work for false:
+#		false, off, no, n, 0
 #
-#       "Legacy" STONITH support
+#
+#
+#	auto_failback:  determines whether a resource will
+#	automatically fail back to its "primary" node, or remain
+#	on whatever node is serving it until that node fails, or
+#	an administrator intervenes.
+#
+#	The possible values for auto_failback are:
+#		on	- enable automatic failbacks
+#		off	- disable automatic failbacks
+#		legacy	- enable automatic failbacks in systems
+#			where all nodes do not yet support
+#			the auto_failback option.
+#
+#	auto_failback "on" and "off" are backwards compatible with the old
+#		"nice_failback on" setting.
+#
+#	See the documentation for information on how to convert
+#		from "legacy" to "on" without a flash cut.
+#		(i.e., with a "rolling upgrade" process)
+#
+#	The default value for auto_failback is "legacy", which
+#	will issue a warning at startup.  So, make sure you put
+#	an auto_failback directive in your ha.cf file.
+#	(note: auto_failback can be any boolean or "legacy")
+#
+auto_failback on
+#
+#
+#       Basic STONITH support
 #       Using this directive assumes that there is one stonith 
 #       device in the cluster.  Parameters to this device are 
 #       read from a configuration file. The format of this line is:
@@ -164,10 +185,20 @@ logfacility	local0
 #	here, and you make this file publically readable, you're asking
 #	for a denial of service attack ;-)
 #
+#	To get a list of supported stonith devices, run
+#		stonith -L
+#	For detailed information on which stonith devices are supported
+#	and their detailed configuration options, run this command:
+#		stonith -h
 #
 #stonith_host *     baytech 10.0.0.3 mylogin mysecretpassword
 #stonith_host ken3  rps10 /dev/ttyS1 kathy 0 
 #stonith_host kathy rps10 /dev/ttyS1 ken3 0 
+#
+#	Watchdog is the watchdog timer.  If our own heart doesn't beat for
+#	a minute, then our machine will reboot.
+#
+#watchdog /dev/watchdog
 #       
 #	Tell what machines are in the cluster
 #	node	nodename ...	-- must match uname -n
@@ -177,10 +208,36 @@ logfacility	local0
 #	Less common options...
 #
 #	Treats 10.10.10.254 as a psuedo-cluster-member
+#	Used together with ipfail below...
 #
 #ping 10.10.10.254
 #
-#	Started and stopped with heartbeat.  Restarted unless it exits
-#				with rc=100
+#	Processes started and stopped with heartbeat.  Restarted unless
+#		they exit with rc=100
 #
 #respawn userid /path/name/to/run
+#respawn hacluster /usr/lib/heartbeat/ipfail
+
+###########################
+#
+#	Unusual options.
+#
+###########################
+#
+#	hopfudge maximum hop count minus number of nodes in config
+#hopfudge 1
+#
+#	deadping - dead time for ping nodes
+#deadping 30
+#
+#	hbgenmethod - Heartbeat generation number creation method
+#		Normally these are stored on disk and incremented as needed.
+#hbgenmethod time
+#
+#	realtime - enable/disable realtime execution (high priority, etc.)
+#		defaults to on
+#realtime off
+#
+#	debug - set debug level
+#		defaults to zero
+#debug 1
