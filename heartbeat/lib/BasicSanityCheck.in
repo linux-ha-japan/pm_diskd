@@ -1,0 +1,287 @@
+#!/bin/sh
+#
+#	Basic tests of sanity for a newly-built version of
+#	linux-HA software (heartbeat)
+#
+#	Conditions for running:
+#
+#	Heartbeat must be installed.
+#
+#	Must be root.
+#
+#	CANNOT have a real heartbeat configuration.
+#
+#	Must have networking configured with one working
+#		network interface.
+#
+#	should not have $TESTIP below used for anything ;-)
+#
+#	should have multicast address $MCASTIP port 694
+#		available
+#		(you don't need a multicast capable router).
+#
+#
+# Note: you might have to change TESTIP and MCASTIP
+#
+TESTIP=10.253.252.251
+MCASTIP=225.0.0.2
+#
+IFCONFIG=@IFCONFIG@
+HADIR=@sysconfdir@/ha.d
+INITDIR=@INITDIR@
+#
+DEFAULTINTERFACE=eth0	# But we really guess it...
+#
+IDENTSTRING="Linux-HA TEST configuration file - REMOVEME!!"
+DUMMYNODE=ImAlwaysDead.com
+LOCALNODE=`uname -n`
+LOGFILE=/tmp/linux-ha.testlog
+RSCDIR=$HADIR/resource.d
+errcount=0
+
+GetAllIFNames() {
+  $IFCONFIG | grep '^[a-zA-Z]' | cut -d' ' -f1
+}
+
+GuessIFname() {
+  GetAllIFNames | grep -v '^lo' | line
+}
+
+INTERFACE=`GuessIFname`
+
+case $INTERFACE in
+  "")	INTERFACE=$DEFAULTINTERFACE;;
+esac
+
+#
+#	Is it safe to overwrite this config file?
+#
+CheckConfigFile() {
+  if
+    [ ! -f $1 ]
+  then
+    return 0
+  fi
+  if
+    grep "$IDENTSTRING" $1 >/dev/null 2>&1
+  then
+    return 0
+  else
+    return 1
+  fi
+}
+
+GenerateAuthKeys() {
+  cat <<-! >$1
+	#	$IDENTSTRING
+	#
+	auth 1
+	1 sha1 SuperSecretKey--SHHH!!!
+	!
+  chmod 600 $1
+}
+
+GenerateHaCf() {
+  cat <<-! >$1
+	#	$IDENTSTRING
+	logfile   $LOGFILE
+	debugfile $LOGFILE
+	keepalive 1
+	deadtime 3
+	initdead 10
+	mcast $INTERFACE $MCASTIP 694 2 0
+	#bcast $INTERFACE
+	node $LOCALNODE $DUMMYNODE
+	!
+  chmod 644 $1
+}
+
+GenerateHaResources() {
+  cat <<-! >$1
+	#	$IDENTSTRING
+	$LOCALNODE IPaddr::$TESTIP/30
+	!
+  chmod 644 $1
+}
+
+SetUpConfigFiles() {
+  for j in ha.cf authkeys haresources
+  do
+    if
+      CheckConfigFile $HADIR/$j
+    then
+      : OK
+    else
+      echo "OOPS! $HADIR/$j already exists!"
+      echo "Real configuration already set up."
+      echo "Sorry..."
+      exit 1
+    fi
+  done
+
+  GenerateAuthKeys $HADIR/authkeys
+  GenerateHaCf $HADIR/ha.cf
+  GenerateHaResources $HADIR/haresources
+}
+
+RemoveConfigFiles() {
+  for j in ha.cf authkeys haresources
+  do
+    if
+      CheckConfigFile $HADIR/$j
+    then
+      rm -f $HADIR/$j
+    else
+      echo "OOPS! Cannot remove real config file $HADIR/$j!"
+    fi
+  done
+}
+
+HBStart() {
+  $INITDIR/heartbeat start
+}
+
+HBStop() {
+  $INITDIR/heartbeat stop
+}
+
+HBStatus() {
+  case `$INITDIR/heartbeat status 2>&1` in
+    *running*)	true;;
+    *)		false;;
+  esac
+}
+
+#
+#	Search the log file for the given grep pattern
+#
+LookForString() {
+  count=1
+  while
+    if
+      grep "$1" $LOGFILE
+    then
+      return 0
+    fi
+   [ $count -lt 60 ]
+  do
+    count=`expr $count + 1`
+    sleep 1
+  done
+  return 1
+}
+
+
+TestHeartbeat() {
+  if
+    HBStatus
+  then
+    echo "That's weird.  Heartbeat seems to be running..."
+    errcount=`expr $errcount + 1`
+    HBStatus
+    HBStop
+  fi
+  if
+    HBStart
+  then
+    if
+      HBStatus
+    then
+     : COOL!
+    else
+     echo "Heartbeat did not start."
+     exit 1
+    fi
+  fi
+
+  #
+  # Heartbeat seems to be running...
+  #
+
+  if
+    LookForString "node $DUMMYNODE.*is dead" >/dev/null
+  then
+    : OK
+  else
+    echo "Does not look like we noticed $DUMMYNODE was dead"
+    errcount=`expr $errcount + 1`
+  fi
+
+  if
+    LookForString "IPaddr.*$TESTIP" >/dev/null
+  then
+    :  Looks good
+  else
+    echo "Does not look like we took over the IP address"
+    errcount=`expr $errcount + 1`
+  fi
+
+  if
+    LookForString "[Aa][Rr][Pp]" >/dev/null
+  then
+    :  Looks good
+  else
+    echo "Does not look like we ARPed the address"
+    errcount=`expr $errcount + 1`
+  fi
+
+  if
+    $RSCDIR/IPaddr $TESTIP monitor >/dev/null 2>&1
+  then
+    : COOL!
+  else
+    echo "Looks like monitor operation failed"
+    errcount=`expr $errcount + 1`
+  fi
+  if
+    HBStop
+  then
+    : OK!
+  else
+    echo "Heartbeat stop operation returned $?"
+    errcount=`expr $errcount + 1`
+  fi
+  if
+    HBStatus
+  then
+    echo "Looks like heartbeat did not really stop."
+    echo "Youll probably need to kill some processes yourself."
+    errcount=`expr $errcount + 1`
+  fi
+
+  if
+    $RSCDIR/IPaddr $TESTIP monitor >/dev/null 2>&1
+  then
+    echo "Looks like the test IP address is still live..."
+    errcount=`expr $errcount + 1`
+  fi
+
+  if
+    grep -i ERROR $LOGFILE
+  then
+    echo "OOPS! Looks like we had some errors come up."
+    errcount=`expr $errcount + 1`
+  fi
+  echo "$errcount errors. Log file is stored in $LOGFILE"
+}
+
+#
+#	Check our identity.
+#	Set Up Config Files.
+#	Run Tests.
+#	Remove Config Files.
+#
+
+ID=`id -nu`
+case $ID in
+  root)	: OK;;
+  *)	echo "Must be root to run this.  Sorry."
+	exit 1;;
+esac
+
+SetUpConfigFiles
+> $LOGFILE
+
+TestHeartbeat
+RemoveConfigFiles
+exit $errcount

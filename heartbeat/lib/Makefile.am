@@ -22,4 +22,5 @@ MAINTAINERCLEANFILES    = Makefile.in
 # subpath for internal bins and scripts
 halibdir		= "$(libdir)/@HEARTBEATPKG@"
 
-halib_SCRIPTS		= mach_down req_resource ResourceManager hb_standby
+halib_SCRIPTS		= mach_down req_resource ResourceManager hb_standby \
+			BasicSanityCheck
