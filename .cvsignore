@@ -1,9 +1,14 @@
 *.spec
 heartbeat*.tar.gz
 configure
+configure.status
+configure.lineno
 aclocal.m4
+autom4te.cache
 libtool
 ltmain.sh
+ltconfig
+libltdl
 mkinstalldirs
 install-sh
 missing
@@ -14,6 +19,3 @@ copyright-stamp
 install-stamp
 build-stamp
 .*.swp
-ltconfig
-configure.status
-libltdl
