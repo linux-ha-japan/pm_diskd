@@ -3388,7 +3388,7 @@ ccm_control_process(ccm_info_t *info, ll_cluster_t * hb)
 		return(1);
 	}
 
-	if(ccm_msg_type != CCM_TYPE_TIMEOUT) ha_free(reply);
+	if(ccm_msg_type != CCM_TYPE_TIMEOUT) ha_msg_del(reply);
 
 	return 0;
 }
