@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.90 2003/07/01 10:12:26 horms Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.91 2003/07/01 16:16:55 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -111,28 +111,31 @@ static int set_debuglevel(const char *);
  * variables.
  */
 struct directive {
-	const char * name;
-	int (*add_func) (const char *);
+	const char *	name;
+	int		(*add_func) (const char *);
+	int		record_value;
+	const char *	defaultvalue;
+	const char *	explanation;
 }Directives[] =
-{	{KEY_HOST,	add_normal_node}
-,	{KEY_HOPS,	set_hopfudge}
-,	{KEY_KEEPALIVE,	set_keepalive_ms}
-,	{KEY_DEADTIME,	set_deadtime_ms}
-,	{KEY_DEADPING,	set_deadping_ms}
-,	{KEY_INITDEAD,	set_initial_deadtime_ms}
-,	{KEY_WARNTIME,	set_warntime_ms}
-,	{KEY_WATCHDOG,	set_watchdogdev}
-,	{KEY_BAUDRATE,	set_baudrate}
-,	{KEY_UDPPORT,	set_udpport}
-,	{KEY_FACILITY,  set_facility}
-,	{KEY_LOGFILE,   set_logfile}
-,	{KEY_DBGFILE,   set_dbgfile}
-,	{KEY_FAILBACK,  set_nice_failback}
-,	{KEY_AUTOFAIL,  set_auto_failback}
-,	{KEY_RT_PRIO,	set_realtime_prio}
-,	{KEY_GEN_METH,	set_generation_method}
-,	{KEY_REALTIME,	set_realtime}
-,	{KEY_DEBUGLEVEL,set_debuglevel}
+{ {KEY_HOST,	add_normal_node, FALSE, NULL, NULL}
+, {KEY_HOPS,	set_hopfudge, TRUE, "1", "# of hops above cluster size"}
+, {KEY_KEEPALIVE, set_keepalive_ms, TRUE, "1000ms", "keepalive time"}
+, {KEY_DEADTIME,  set_deadtime_ms,  TRUE, "30000ms", "node deadtime"}
+, {KEY_DEADPING,  set_deadping_ms,  TRUE, NULL, "ping deadtime"}
+, {KEY_INITDEAD,  set_initial_deadtime_ms, TRUE, NULL, "initial deadtime"}
+, {KEY_WARNTIME,  set_warntime_ms, TRUE, NULL, "warning time"}
+, {KEY_WATCHDOG,  set_watchdogdev, TRUE, NULL, "watchdog device"}
+, {KEY_BAUDRATE,  set_baudrate, TRUE, "19200", "baud rate"}
+, {KEY_UDPPORT,	  set_udpport, TRUE, "694", "UDP port number"}
+, {KEY_FACILITY,  set_facility, TRUE, NULL, "syslog log facility"}
+, {KEY_LOGFILE,   set_logfile, TRUE, NULL, "log file"}
+, {KEY_DBGFILE,   set_dbgfile, TRUE, NULL, "debug file"}
+, {KEY_FAILBACK,  set_nice_failback, FALSE, NULL, NULL}
+, {KEY_AUTOFAIL,  set_auto_failback, TRUE, "legacy","auto failback"}
+, {KEY_RT_PRIO,	  set_realtime_prio, TRUE, NULL, "realtime priority"}
+, {KEY_GEN_METH,  set_generation_method, TRUE, "file", "protocol generation computation method"}
+, {KEY_REALTIME,  set_realtime, TRUE, "true", "enable realtime behavior?"}
+, {KEY_DEBUGLEVEL,set_debuglevel, TRUE, "0", "debug level"}
 };
 
 static const struct WholeLineDirective {
@@ -261,13 +264,26 @@ init_config(const char * cfgfile)
 		openlog(cmdname, LOG_CONS | LOG_PID, config->log_facility);
 	}
 
+	/* Set any "fixed" defaults */
+	for (j=0; j < DIMOF(Directives); ++j) {
+		if (!Directives[j].defaultvalue
+		||	GetParameterValue(Directives[j].name)) {
+			continue;
+		}
+		add_option(Directives[j].name, Directives[j].defaultvalue);
+		
+	}
+
 	if (nummedia < 1) {
 		ha_log(LOG_ERR, "No heartbeat ports defined");
 		++errcount;
 	}
 
 	if (config->warntime_ms <= 0) {
+		char tmp[32];
 		config->warntime_ms = config->deadtime_ms/2;
+		snprintf(tmp, sizeof(tmp), "%ldms", config->warntime_ms);
+		SetParameterValue(KEY_WARNTIME, tmp);
 	}
 	
 #if !defined(MITJA)
@@ -302,6 +318,7 @@ init_config(const char * cfgfile)
 		++errcount;
 	}
 	if (config->initial_deadtime_ms < 0) {
+		char tmp[32];
 		if (config->deadtime_ms > 10000) {
 			config->initial_deadtime_ms = config->deadtime_ms;
 		}else{
@@ -312,6 +329,9 @@ init_config(const char * cfgfile)
 					2 * config->deadtime_ms;
 			}
 		}
+		snprintf(tmp, sizeof(tmp), "%ldms"
+		,	config->initial_deadtime_ms);
+		SetParameterValue(KEY_INITDEAD, tmp);
 	}
 
 	/* Check deadtime parameters */
@@ -330,10 +350,14 @@ init_config(const char * cfgfile)
 		, "It should be >= deadtime and >= 10 seconds");
 	}
 	if (config->deadping_ms < 0 ){
+		char tmp[32];
 		config->deadping_ms = config->deadtime_ms;
+		snprintf(tmp, sizeof(tmp), "%ldms", config->deadping_ms);
+		SetParameterValue(KEY_DEADPING, tmp);
 	}else if (config->deadping_ms <= 2 * config->heartbeat_ms) {
 		ha_log(LOG_ERR
-		,	"Ping dead time [%ld] is too small compared to keeplive [%ld]"
+		,	"Ping dead time [%ld] is too small"
+		" compared to keeplive [%ld]"
 		,	config->deadping_ms, config->heartbeat_ms);
 		++errcount;
 	}
@@ -356,7 +380,7 @@ init_config(const char * cfgfile)
 			, 	sizeof(config->logfile));
                         config->use_logfile=0;
                   }else{
-		        set_logfile(DEFAULTLOG);
+		        add_option(KEY_LOGFILE, DEFAULTLOG);
                         config->use_logfile=1;
 		        if (!parse_only) {
 			        ha_log(LOG_INFO
@@ -376,7 +400,7 @@ init_config(const char * cfgfile)
 			,	sizeof(config->dbgfile));
                         config->use_dbgfile=0;
 	        }else{
-		        set_dbgfile(DEFAULTDEBUG);
+		        add_option(KEY_DBGFILE, DEFAULTDEBUG);
 	        }
         }
 	if (!RestartRequested && errcount == 0 && !parse_only) {
@@ -603,39 +627,31 @@ dump_config(void)
 {
 	int	j;
 	struct node_info *	hip;
-	const char *	last_media = NULL;
 
 
-	printf("#\n#	Local HA configuration (on %s)\n#\n"
+	printf("#\n#	Linux-HA heartbeat configuration (on %s)\n#\n"
 	,	localnodename);
 
-	for(j=0; j < nummedia; ++j) {
-			puts("\n");
-		g_assert(sysmedia[j]->type);
-		g_assert(sysmedia[j]->description);
-		printf("# %s heartbeat channel -------------\n"
-		,	sysmedia[j]->description);
-		printf(" %s", sysmedia[j]->type);
-		last_media = sysmedia[j]->type;
-		printf(" %s", sysmedia[j]->name);
-	}
 	printf("\n#---------------------------------------------------\n");
 
-	printf("#\n#	Global HA configuration and status\n#\n");
-	printf("#\n%s	%d\t# hops allowed above #nodes (below)\n"
-	,	KEY_HOPS, config->hopfudge);
-	printf("%s	%ldms\t# (heartbeat interval in milliseconds)\n"
-	,	KEY_KEEPALIVE, config->heartbeat_ms);
-	printf("%s	%ldms\t# (milliseconds to \"node dead\")\n#\n"
-	,	KEY_DEADTIME, config->deadtime_ms);
-	if (watchdogdev) {
-		printf("%s	%s\t# (watchdog device name)\n#\n"
-		,	KEY_WATCHDOG, watchdogdev);
-	}else{
-		printf("#%s	%s\t# (NO watchdog device specified)\n#\n"
-		,	KEY_WATCHDOG, "/dev/watchdog");
+	printf("#\n#	HA configuration and status\n#\n");
+
+	for (j=0; j < DIMOF(Directives); ++j) {
+		const char *	v;
+		if (!Directives[j].record_value
+		||	(v = GetParameterValue(Directives[j].name)) == NULL) {
+			continue;
+		}
+		printf("%s\t%s", Directives[j].name, v);
+		if (Directives[j].explanation) {
+			printf("\t#\t%s", Directives[j].explanation);
+		}
+		printf("\n");
+			
 	}
 
+	printf("#\n");
+	printf("#\tHA Cluster nodes:\n");
 	printf("#\n");
 
 	for (j=0; j < config->nodecount; ++j) {
@@ -644,6 +660,18 @@ dump_config(void)
 		,	KEY_HOST
 		,	hip->nodename
 		,	hip->status);
+	}
+
+	printf("#\n");
+	printf("#\tCommunications media:\n");
+	for(j=0; j < nummedia; ++j) {
+		g_assert(sysmedia[j]->type);
+		g_assert(sysmedia[j]->description);
+		puts("#");
+		printf("# %s heartbeat channel -------------\n"
+		,	sysmedia[j]->description);
+		printf("%s %s\n", sysmedia[j]->type
+		,	sysmedia[j]->name);
 	}
 	printf("#---------------------------------------------------\n");
 }
@@ -780,7 +808,7 @@ add_option(const char *	option, const char * value)
 		if (strcmp(option, Directives[j].name) == 0) {
 			int rc;
 			rc = ((*Directives[j].add_func)(value));
-			if (rc == HA_OK) {
+			if (rc == HA_OK && Directives[j].record_value) {
 				SetParameterValue(option, value);
 			}
 			return rc;
@@ -1441,6 +1469,9 @@ set_realtime_prio(const char * value)
 static int
 set_generation_method(const char * value)
 {
+	if (strcmp(value, "file") == 0) {
+		return HA_OK;
+	}
 	if (strcmp(value, "time") != 0) {
 		ha_log(LOG_ERR, "Illegal hb generation method [%s]", value);
 		return HA_FAIL;
@@ -1559,6 +1590,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.91  2003/07/01 16:16:55  alan
+ * Put in changes to set and record defaults so they can be
+ * retrieved by applications, plugins, and the config dump code.
+ *
  * Revision 1.90  2003/07/01 10:12:26  horms
  * Use defines for node types rather than arbitary strings
  *
