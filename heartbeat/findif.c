@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.14 2001/09/27 17:02:34 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.15 2001/10/03 05:45:56 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -134,7 +134,7 @@ ConvertBitsToMask (char *mask)
 	}
 
 	/* printf ("longmask: %u (%X)\n", longmask, longmask); */
-        sprintf (mask, "%ld", longmask);
+	sprintf (mask, "%ld", longmask);
 }
 
 int
@@ -179,7 +179,7 @@ SearchForProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 		return(1); 
 	}
 
-        return(0);
+	return(0);
 }
 
 int
@@ -197,7 +197,7 @@ SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 
 	
 	/* Open route and get the information */
-	sprintf (routecmd, "%s %s", ROUTE, address);
+	sprintf (routecmd, "%s %s %s", ROUTE, ROUTEPARM, address);
 	routefd = popen (routecmd, "r");
 	if (routefd == NULL)
 		return (-1);
@@ -517,6 +517,12 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.15  2001/10/03 05:45:56  alan
+ * Added a couple of patches from Matt Soffen:
+ * Make a debug statement conditional ;-)
+ * Fix configure so it does things correctly on FreeBSD and Solaris findif.c
+ * configuration parameters.
+ *
  * Revision 1.14  2001/09/27 17:02:34  alan
  * Shortened alarm time in write in serial.c
  * Put in a handful of Solaris warning-elimination patches.
