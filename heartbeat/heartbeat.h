@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.12 1999/10/28 13:43:49 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.13 1999/11/08 02:07:59 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -256,6 +256,7 @@ extern struct node_info *	curnode;
 extern int			verbose;
 extern int			debug;
 extern int			udpport;
+extern int			RestartRequested;
 
 #define	ANYDEBUG	(debug)
 #define	DEBUGAUTH	(debug >=3)
@@ -278,6 +279,7 @@ extern int		should_ring_copy_msg(struct ha_msg* m);
 extern int		add_msg_auth(struct ha_msg * msg);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
 struct auth_type *	findauth(const char * type);
+struct node_info *	lookup_node(const char *);
 void*		ha_malloc(size_t size);
 void*		ha_calloc(size_t nmemb, size_t size);
 void		ha_free(void *ptr);
