@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.53 2000/06/12 22:03:11 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.54 2000/06/12 23:01:14 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -115,6 +115,10 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.53 2000/06/12 22:03:
  *
  ****** Wish List: ************************************************************
  *	[not necessarily in priority order]
+ *
+ *	Fix -r flag for nice_failback case.  Different logic and a new flag
+ *		is required for takeover when nice_failback is in effect.
+ *		Basically the new flag will tell it the proper resource state.
  *
  *	Heartbeat API:
  *		This is currently being worked.  It would allow application
@@ -3344,6 +3348,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.54  2000/06/12 23:01:14  alan
+ * Added comments about new behavior for -r flag with nice_failover.
+ *
  * Revision 1.53  2000/06/12 22:03:11  alan
  * Put in a fix to the link status code, to undo something I'd broken, and also to simplify it.
  * I changed heartbeat.sh so that it uses the -r flag to restart heartbeat instead
