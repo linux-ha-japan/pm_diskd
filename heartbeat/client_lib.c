@@ -46,6 +46,7 @@
  *
  */
 
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1604,7 +1605,11 @@ ha_perror(const char * fmt, ...)
 		sprintf(errornumber, "error %d\n", errno);
 		err = errornumber;
 	}else{
+#ifdef HAVE_STRERROR
+		err = strerror(errno);
+#else
 		err = sys_errlist[errno];
+#endif
 	}
 	va_start(ap, fmt);
 	vsnprintf(buf, MAXLINE, fmt, ap);

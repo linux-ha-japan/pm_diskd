@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.6 2001/05/11 06:20:26 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.7 2001/05/12 06:05:23 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -28,6 +28,7 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.6 2001/05/11 06:20:26 alan Exp $
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.  
  */
 
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -40,13 +41,27 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.6 2001/05/11 06:20:26 alan Exp $
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/param.h>
-#ifdef BSD
+
+#ifdef HAVE_NETINET_IN_SYSTM_H
 #	include <netinet/in_systm.h>
+#endif /* HAVE_NETINET_IN_SYSTM_H */
+
+#ifdef HAVE_NETINET_IP_VAR_H
 #	include <netinet/ip_var.h>
+#endif /* HAVE_NETINET_IP_VAR_H */
+
+#ifdef HAVE_NETINET_IP_H
 #	include <netinet/ip.h>
+#endif /* HAVE_NETINET_IP_H */
+
+#ifdef HAVE_NETINET_IP_COMPAT_H
 #	include <netinet/ip_compat.h>
+#endif /* HAVE_NETINET_IP_COMPAT_H */
+
+#ifdef HAVE_NETINET_IP_FW_H
 #	include <netinet/ip_fw.h>
-#endif
+#endif /* HAVE_NETINET_IP_FW_H */
+
 #include <sys/socket.h>
 #include <netinet/ip_icmp.h>
 #include <arpa/inet.h>
@@ -141,7 +156,7 @@ new_ping_interface(const char * host)
 	memset(ppi, 0, sizeof (*ppi));
   	to = &ppi->addr;
 
-#if !defined(__linux__)
+#ifdef HAVE_SOCKADDR_IN_SIN_LEN
 	ppi->addr.sin_len = sizeof(struct sockaddr_in);
 #endif
 	ppi->addr.sin_family = AF_INET;

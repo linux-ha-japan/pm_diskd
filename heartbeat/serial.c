@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.23 2001/05/11 06:20:26 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.24 2001/05/12 06:05:23 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -24,6 +24,7 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.23 2001/05/11 06:20:26 ala
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
+#include <config.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -241,7 +242,7 @@ ttysetup(int fd)
 	ti.c_cflag |=  (serial_baud|(unsigned)CS8|(unsigned)CREAD|(unsigned)CLOCAL|(unsigned)CRTSCTS);
 
 	ti.c_lflag &= ~(ICANON|ECHO|ISIG);
-#if !defined(IRIX) && !defined(BSD)
+#ifdef HAVE_TERMIOS_C_LINE
 	ti.c_line = 0;
 #endif
 	ti.c_cc[VMIN] = 1;
@@ -473,6 +474,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.24  2001/05/12 06:05:23  alan
+ * Put in the latest portability fixes (aka autoconf fixes)
+ *
  * Revision 1.23  2001/05/11 06:20:26  alan
  * Fixed CFLAGS so we load modules from the right diurectory.
  * Fixed minor static symbol problems.
