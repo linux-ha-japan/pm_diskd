@@ -237,7 +237,7 @@ void *	st_new(void);
 
 #define	EXPECT(p,t)	{						\
 			if (RPSLookFor(ctx, p, t) < 0)			\
-				return(errno == ETIME			\
+				return(errno == ETIMEDOUT		\
 			?	S_TIMEOUT : S_OOPS);			\
 			}
 #ifdef WEDONTUSETHESE

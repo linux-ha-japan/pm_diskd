@@ -158,7 +158,7 @@ void *	st_new(void);
 
 #define	EXPECT(p,t)	{						\
 			if (RPCLookFor(bt, p, t) < 0)			\
-				return(errno == ETIME			\
+				return(errno == ETIMEDOUT			\
 			?	S_TIMEOUT : S_OOPS);			\
 			}
 
@@ -225,7 +225,7 @@ RPCLogin(struct BayTech * bt)
 	,	sizeof(IDinfo)) < 0) {
 		syslog(LOG_ERR, _("No initial response from " DEVICE "."));
 		RPCkillcomm(bt);
-		return(errno == ETIME ? S_TIMEOUT : S_OOPS);
+		return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
 	idptr += strspn(idptr, WHITESPACE);
 	/*
@@ -266,7 +266,7 @@ RPCLogin(struct BayTech * bt)
 			return(S_ACCESS);
 
 		default:
-			return(errno == ETIME ? S_TIMEOUT : S_OOPS);
+			return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
 
 	SEND(bt->passwd);
@@ -285,7 +285,7 @@ RPCLogin(struct BayTech * bt)
 
 		default:
 			RPCkillcomm(bt);
-			return(errno == ETIME ? S_TIMEOUT : S_OOPS);
+			return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
 	EXPECT(Menu, 2);
 
@@ -334,7 +334,7 @@ RPCLogout(struct BayTech* bt)
 	close(bt->rdfd);
 	bt->wrfd = bt->rdfd = -1;
 	RPCkillcomm(bt);
-	return(rc >= 0 ? S_OK : (errno == ETIME ? S_TIMEOUT : S_OOPS));
+	return(rc >= 0 ? S_OK : (errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS));
 }
 static void
 RPCkillcomm(struct BayTech* bt)
@@ -391,13 +391,13 @@ RPCReset(struct BayTech* bt, int unitnum, const char * rebootid)
 			return(S_ISOFF);
 
 		default: 
-			return(errno == ETIME ? S_RESETFAIL : S_OOPS);
+			return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
 	syslog(LOG_INFO, _("Host %s being rebooted."), rebootid);
 
 	/* Expect "ower applied to outlet" */
 	if (RPCLookFor(bt, PowerApplied, 30) < 0) {
-		return(errno == ETIME ? S_RESETFAIL : S_OOPS);
+		return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
 
 	/* All Right!  Power is back on.  Life is Good! */

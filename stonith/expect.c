@@ -113,7 +113,7 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 
 		retval = select(fd+1, &infds, NULL, NULL, &tv); 
 		if (retval <= 0) {
-			errno = ETIME;
+			errno = ETIMEDOUT;
 			return(-1);
 		}
 		/* Whew!  All that work just to read one character! */
@@ -192,7 +192,7 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 			}
 		}
 	}
-	errno = ETIME;
+	errno = ETIMEDOUT;
 	return(-1);
 }
 
