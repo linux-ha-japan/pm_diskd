@@ -70,7 +70,7 @@ raw_device (const char *serial_device, char *dest_name, size_t size)
 	const char* 	dpend	= dp + size - 1;
 
 	while (*sp != '\0' && dp < dpend) {
-		if (isalnum(*sp))
+		if (isalnum((unsigned int)*sp))
 			*dp++ = *sp;
 		sp++;
 	}

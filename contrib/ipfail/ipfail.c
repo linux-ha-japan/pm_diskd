@@ -162,10 +162,10 @@ giveup(ll_cluster_t *hb)
 	 */
 
 	struct ha_msg *msg;
-	char pid[6];
+	char pid[10];
 
 	memset(pid, 0, sizeof(pid));
-	sprintf(pid, "%d", getpid());
+	snprintf(pid, sizeof(pid), "%ld", (long)getpid());
 
 	msg = ha_msg_new(3);
 	ha_msg_add(msg, F_TYPE, T_ASKRESOURCES);
@@ -186,13 +186,13 @@ ask_ping_nodes(ll_cluster_t *hb, int num_ping)
 	 */
 
 	struct ha_msg *msg;
-	char pid[6], np[5];
+	char pid[10], np[5];
 
 	cl_log(LOG_DEBUG, "Asking other side for num_ping.");
 	memset(pid, 0, sizeof(pid));
-	sprintf(pid, "%d", getpid());
+	snprintf(pid, sizeof(pid), "%ld", (long)getpid());
 	memset(np, 0, sizeof(np));
-	sprintf(np, "%d", num_ping);
+	snprintf(np, sizeof(np), "%d", num_ping);
 
 	msg = ha_msg_new(3);
 	ha_msg_add(msg, F_TYPE, "num_ping_nodes");
@@ -225,12 +225,12 @@ you_are_dead(ll_cluster_t *hb)
 	 */
 
 	struct ha_msg *msg;
-	char pid[6];
+	char pid[10];
 
 	cl_log(LOG_DEBUG, "Sending you_are_dead.");
 
 	memset(pid, 0, sizeof(pid));
-	sprintf(pid, "%d", getpid());
+	snprintf(pid, sizeof(pid), "%ld", (long)getpid());
 
 	msg = ha_msg_new(1);
 	ha_msg_add(msg, F_TYPE, "you_are_dead");
@@ -287,7 +287,7 @@ main(int argc, char **argv)
 	ll_cluster_t *hb;
 	const char *node;
 /*	const char *intf;  --Out until ifwalk is fixed */
-	char pid[6];
+	char pid[10];
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
@@ -301,7 +301,7 @@ main(int argc, char **argv)
 	memset(other_node, 0, sizeof(other_node));
 
 	memset(pid, 0, sizeof(pid));
-	sprintf(pid, "%d", getpid());
+	snprintf(pid, sizeof(pid), "%ld", (long)getpid());
 	cl_log(LOG_DEBUG, "PID=%s", pid);
 
 	cl_log(LOG_DEBUG, "Signing in with heartbeat");

@@ -535,8 +535,8 @@ apphb_read_msg(apphb_client_t* client)
 
 
 		case IPC_FAIL:
-		cl_log(LOG_CRIT, "OOPS! client %s (pid %d) read failure! [%s]"
-		,	client->appname, client->pid
+		cl_log(LOG_CRIT, "OOPS! client %s (pid %ld) read failure! [%s]"
+		,	client->appname, (long)client->pid
 		,	strerror(errno));
 		break;
 	}
@@ -687,8 +687,9 @@ apphb_notify(apphb_client_t* client, apphb_event_t event)
 		return;
 	}
 	if (event != APPHB_HBUNREG) {
-		cl_log(logtype, "apphb client '%s' / '%s' (pid %d) %s"
-		,	client->appname, client->appinst, client->pid, msg);
+		cl_log(logtype, "apphb client '%s' / '%s' (pid %ld) %s"
+		,	client->appname, client->appinst
+		,	(long)client->pid, msg);
 	}
 	
 	/* Tell the plugins something happened */

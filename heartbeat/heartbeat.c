@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.206 2002/09/12 12:36:09 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.207 2002/09/13 04:16:12 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2579,7 +2579,8 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				setpgid(0,0);
 				sigaction(SIGCHLD, NULL, &sa);
 				if (sa.sa_handler != SIG_DFL) {
-					ha_log(LOG_DEBUG, "notify_world: setting SIGCHLD Handler to SIG_DFL");
+					ha_log(LOG_DEBUG
+					,	"notify_world: setting SIGCHLD Handler to SIG_DFL");
 					signal(SIGCHLD,SIG_DFL);
 				}
 				for (j=0; j < msg->nfields; ++j) {
@@ -5557,7 +5558,8 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			 *
 			 * Otherwise it's a bug ;-)
 			 */
-			ha_log(LOG_WARNING, "Rexmit of seq %lu requested. %d is max."
+			ha_log(LOG_WARNING
+			,	"Rexmit of seq %lu requested. %d is max."
 			,	thisseq, hist->hiseq);
 			continue;
 		}
@@ -5972,6 +5974,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.207  2002/09/13 04:16:12  alan
+ * Put in fixes for warnings that Thomas Hepper ran into.
+ *
  * Revision 1.206  2002/09/12 12:36:09  horms
  * * Added PINGSTATUS and used it instead of directly using "ping"
  *   as the status for an active ping node

@@ -381,7 +381,7 @@ main(int argc, char **argv)
 
 	signal(SIGUSR1, ccm_debug);
 	signal(SIGUSR2, ccm_debug);
-	signal(SIGPIPE, SIG_IGN);
+	IGNORESIG(SIGPIPE);
 
 	/* initialize the client tracking system */
 	client_init();
