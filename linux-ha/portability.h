@@ -114,10 +114,10 @@ inet_pton(int af, const char *src, void *dst);
  * which solve this problem much more nicely...
  *
  */
-#if HA_CLK_TCK_IN_TIME_H
+#ifdef HA_CLK_TCK_IN_TIME_H
 #  include <time.h>
 #else
-#  if HA_CLK_TCK_IN_LIMITS_H
+#  ifdef HA_CLK_TCK_IN_LIMITS_H
 #    include <limits.h>
 #  endif
 #endif
