@@ -64,6 +64,7 @@ char other_node[SYS_NMLN]; /* The remote node in the pair             */
 int node_stable;           /* Other node stable?                      */
 int need_standby;          /* Are we waiting for stability?           */
 int quitnow = 0;           /* Allows a signal to break us out of loop */
+int auto_failback;         /* How is our auto_failback configured?    */
 
 int
 main(int argc, char **argv)
@@ -72,7 +73,7 @@ main(int argc, char **argv)
 	unsigned fmask;
 	ll_cluster_t *hb;
 	char pid[10];
-	char *bname;
+	char *bname, *parameter;
 	int apifd;
 
 	(void)_heartbeat_h_Id;
@@ -108,6 +109,28 @@ main(int argc, char **argv)
 		exit(19);
 	}
 	cl_log(LOG_DEBUG, "[We are %s]", node_name);
+
+	/* Check to see if we should engage auto_failback tactics */
+	parameter = hb->llc_ops->get_parameter(hb, "auto_failback");
+	if (parameter) {
+		/* This is equivalent to nice_failback off */
+		if (!strcmp(parameter, "legacy")) {
+			cl_log(LOG_ERR, "auto_failback set to "
+			       "incompatible legacy option.");
+			exit(20);
+		}
+
+		if (!strcmp(parameter, "on"))
+			auto_failback = 1;
+		else
+			auto_failback = 0;
+
+		cl_log(LOG_DEBUG, "auto_failback -> %i (%s)", auto_failback,
+		       parameter);
+		free(parameter);
+	} else
+		cl_log(LOG_ERR, "Couldn't get auto_failback setting.");
+
 
 	set_callbacks(hb);
 
@@ -288,7 +311,7 @@ NodeStatus(const char *node, const char *status, void *private)
 
 void
 LinkStatus(const char *node, const char *lnk, const char *status,
-		void *private)
+	   void *private)
 {
 	/* Callback for Link status changes */
 
@@ -301,11 +324,11 @@ LinkStatus(const char *node, const char *lnk, const char *status,
 		/* If we can still see pinging node, request resources */
 		if ((num_ping = ping_node_status(private))) {
 			ask_ping_nodes(private, num_ping);
-			cl_log(LOG_INFO, "Checking remote count of ping nodes.");
-		}
-		else {
+			cl_log(LOG_INFO, "Checking remote count"
+			       " of ping nodes.");
+		} else {
 			cl_log(LOG_INFO, "We are dead. :<");
-			giveup(private);
+			giveup(private, HB_ALL_RESOURCES);
 		}
 	}
 }
@@ -344,10 +367,11 @@ ping_node_status(ll_cluster_t *hb)
 }
 
 void
-giveup(ll_cluster_t *hb)
+giveup(ll_cluster_t *hb, const char *res_type)
 {
-	/* Giveup: Takes the heartbeat cluster as input, returns nothing.
-	 * Forces the local node to go to standby.
+	/* Giveup: Takes the heartbeat cluster as input and the type of
+	 * resources to give up.  Returns nothing.
+	 * Forces the local node to release a particular class of resources.
 	 */
 
 	struct ha_msg *msg;
@@ -359,7 +383,7 @@ giveup(ll_cluster_t *hb)
 
 		msg = ha_msg_new(3);
 		ha_msg_add(msg, F_TYPE, T_ASKRESOURCES);
-		ha_msg_add(msg, F_RESOURCES, "all");
+		ha_msg_add(msg, F_RESOURCES, res_type);
 		ha_msg_add(msg, F_ORIG, node_name);
 		ha_msg_add(msg, F_COMMENT, "me");
 
@@ -464,10 +488,10 @@ ask_ping_nodes(ll_cluster_t *hb, int num_ping)
 	msg = ha_msg_new(3);
 	ha_msg_add(msg, F_TYPE, "num_ping_nodes");
 	ha_msg_add(msg, F_ORIG, node_name);
-	ha_msg_add(msg, "num_ping", np);
+	ha_msg_add(msg, F_NUMPING, np);
 
 	hb->llc_ops->sendnodemsg(hb, msg, other_node);
-	cl_log(LOG_DEBUG, "Message [num_ping] sent.");
+	cl_log(LOG_DEBUG, "Message [" F_NUMPING "] sent.");
 	ha_msg_del(msg);
 }
 
@@ -482,11 +506,16 @@ msg_ping_nodes(const struct ha_msg *msg, void *private)
 
 	cl_log(LOG_DEBUG, "Got asked for num_ping.");
 	num_nodes = ping_node_status(private);
-	if (num_nodes > atoi(ha_msg_value(msg, "num_ping"))) {
+	if (num_nodes > atoi(ha_msg_value(msg, F_NUMPING))) {
 		you_are_dead(private);
 	}
-	else if (num_nodes < atoi(ha_msg_value(msg, "num_ping"))) {
-		giveup(private);
+	else if (num_nodes < atoi(ha_msg_value(msg, F_NUMPING))) {
+		giveup(private, HB_ALL_RESOURCES);
+	}
+	else {
+		/* We're balanced, so make sure we don't have foreign stuff */
+		if (auto_failback && node_stable)
+			giveup(private, HB_FOREIGN_RESOURCES);
 	}
 }
 
@@ -522,7 +551,7 @@ i_am_dead(const struct ha_msg *msg, void *private)
 	 */
 
 	cl_log(LOG_DEBUG, "Got you_are_dead.");
-	giveup(private);
+	giveup(private, HB_ALL_RESOURCES);
 }
 
 void
