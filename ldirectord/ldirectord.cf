@@ -22,7 +22,7 @@ virtual=192.168.6.240:80
         real=192.168.6.2:80 gate
         real=192.168.6.3:80 gate
         real=192.168.6.6:80 gate
-	fallback=127.0.0.1:80 gate
+ 	 fallback=127.0.0.1:80 gate
         service=http
         request="index.html"
         receive="Test Page"
@@ -58,6 +58,21 @@ virtual=192.168.6.240:80
 #        scheduler=rr
 #        protocol=tcp
 
+
+#Sample configuration for an https virtual service.
+#Fallback setting overides global
+#virtual=192.168.6.240:443
+#        real=192.168.16.3:443 masq
+#        real=192.168.16.5:443 masq
+#        fallback=127.0.0.1:443
+#        service=https
+#        scheduler=wlc
+#        request="index.html"
+#        receive="Test Page"
+#        scheduler=rr
+#        #persistent=600
+#	 #netmask=255.255.255.255
+#        protocol=tcp
 
 #Sample configuration for an ftp virtual service.
 #Fallback setting overides global
@@ -97,17 +112,17 @@ virtual=192.168.6.240:80
 #        persistent=600
 #        protocol=tcp
 
-#Sample configuration for an imap virtual service.
+##Sample configuration for an imap virtual service.
 #Fallback setting overides global
-virtual=192.168.6.240:143
-        real=127.0.0.1:143 masq
-        real=192.168.16.3:143 masq
-        real=192.168.16.5:143 masq
-        fallback=127.0.0.1:143
-        service=imap
-        scheduler=wlc
-        persistent=600
-        protocol=tcp
+#virtual=192.168.6.240:143
+#        real=127.0.0.1:143 masq
+#        real=192.168.16.3:143 masq
+#        real=192.168.16.5:143 masq
+#        fallback=127.0.0.1:143
+#        service=imap
+#        scheduler=wlc
+#        persistent=600
+#        protocol=tcp
 
 #Sample configuration for an ldap virtual service.
 #Fallback setting overides global
