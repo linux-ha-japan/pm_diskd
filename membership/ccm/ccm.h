@@ -43,6 +43,7 @@
 #include <assert.h>
 #include <glib.h>
 #include <ipc.h>
+#include <base64.h>
 
 #include <heartbeat.h>
 #include <hb_api_core.h>

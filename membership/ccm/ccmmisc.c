@@ -27,24 +27,24 @@
 int
 ccm_str2bitmap(const char *memlist, unsigned char **bitlist)
 {
-	int i;
-	char tmpstr[4];
-
-	/* create a bitmap that can accomodate MAXNODE bits */
-	int numBytes = bitmap_create(bitlist, MAXNODE);
-
 	size_t str_len =  strnlen(memlist, maxstrsz);
+	int    outbytes = B64_maxbytelen(str_len);
 
 	(void)_heartbeat_h_Id; /* Make compiler happy */
 	(void)_ha_msg_h_Id; /* Make compiler happy */
 
-	assert(str_len%3 == 0);
-
-	for ( i = 1 ; i <= str_len/3; i++ ) {
-		strncpy(tmpstr, &memlist[str_len-3*i], 3);
-		*bitlist[i-1] = (char)atoi(tmpstr);
+	if (str_len == 0) {
+	   	return bitmap_create(bitlist, MAXNODE);
 	}
-	return numBytes;
+
+	while ((*bitlist = (char *)g_malloc(outbytes)) == NULL) {
+		sleep(1);
+	}
+	memset(*bitlist,0,outbytes);
+
+	outbytes = base64_to_binary(memlist, str_len, *bitlist, outbytes);
+
+	return outbytes;
 }
 
 
@@ -54,43 +54,17 @@ ccm_str2bitmap(const char *memlist, unsigned char **bitlist)
 int
 ccm_bitmap2str(const unsigned char *bitmap, int numBytes, char **memlist)
 {
-	int maxstrsize,i;
-	char flag;
-	char tmpstr[4];
+	int maxstrsize;
 
-	/* note each bytes can atmost generate 3 decimal character, because
-	 * the maximum value representable in a byte is NODEIDSIZE 
-	 */
-	maxstrsize = (numBytes*3+1);
+	maxstrsize = B64_stringlen(numBytes)+1;
 	/* we want memory and we want it now */
-	while ((*memlist = (char *)g_malloc(maxstrsize*sizeof(char)+1)) 
-				== NULL) {
+	while ((*memlist = (char *)g_malloc(maxstrsize)) == NULL) {
 		sleep(1);
 	}
 
-	*memlist[0] = '\0';
-
-	flag = 0;
-	/* convert the bitmap to a character string */
-	for ( i = numBytes-1 ; i >= 0; i-- ) {
-		if ( !flag  &&  bitmap[i] == 0 ) continue;
-		flag = 1;
-		if(bitmap[i] < 10 ) {
-			snprintf(tmpstr, 4,  "00%u", bitmap[i]);
-		} else if(bitmap[i] < 100 ) { 
-			snprintf(tmpstr, 4,  "0%u", bitmap[i]);
-		} else snprintf(tmpstr, 4, "%u", bitmap[i]);
-		strncat(*memlist, tmpstr, maxstrsize);
-	}
-
-	if(flag == 0) {
-		/* hmm.... no bitmaps were set */
-		snprintf(tmpstr, 4,  "000");
-		strncat(*memlist, tmpstr, maxstrsize);
-	}
-
-	return(strnlen(*memlist, maxstrsize));
+	return binary_to_base64(bitmap, numBytes, *memlist, maxstrsize);
 }
+
 // 
 //
 // END OF GENERIC FUNCTION FOR BITMAP AND STRING CONVERSION.
