@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.36 2003/02/12 05:40:22 alan Exp $
+#	$Id: IPaddr.in,v 1.37 2003/03/14 12:29:56 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -317,8 +317,16 @@ remove_conflicting_loopback() {
 	ipaddr="$1"
 	ifname="$2"
 
-	echo $ifname > "$VLDIR/$ipaddr"
 	ha_log "info: Removing conflicting loopback $ifname."
+	if ! test -d "$VLDIR/"; then
+		mkdir -p "$VLDIR/"
+		ha_log "error: Could not create \"$VLDIR/\" conflicting" \
+			" loopback $ifname. not be restored."
+	fi
+	if ! echo $ifname > "$VLDIR/$ipaddr"; then
+		ha_log "error: Could not save conflicting loopback $ifname." \
+			"it will not be restored."
+	fi
 	delete_interface "$ipaddr" "$ifname"
 	# Forcibly remove the route (if it exists) to the loopback.
 	delete_route "$ipaddr"
@@ -629,7 +637,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.36 2003/02/12 05:40:22 alan Exp $"
+  echo "$Id: IPaddr.in,v 1.37 2003/03/14 12:29:56 horms Exp $"
 }
 
 #
@@ -676,6 +684,10 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.37  2003/03/14 12:29:56  horms
+# Restore of loopback device requires a tmp directory.
+# This is now autocreated as necessary.
+#
 # Revision 1.36  2003/02/12 05:40:22  alan
 # Put in a bug fix from Gregor Göstl of Austria to fix the language
 # of the ifconfig command to English/C.
