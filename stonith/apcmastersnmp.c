@@ -311,6 +311,10 @@ APC_write(struct snmp_session *sptr, const char *objname, char type,
     struct snmp_pdu *pdu;
     struct snmp_pdu *resp;
 
+#ifdef APC_DEBUG
+    syslog(LOG_DEBUG, "%s: requested objname '%s'", __FUNCTION__, objname );
+#endif
+
     // convert objname into oid; return NULL if invalid
     if (!read_objid(objname, name, &namelen))
 	return (FALSE);
@@ -394,7 +398,7 @@ char **st_hostlist(Stonith * s)
 {
     char **hl;
     struct APCDevice *ad;
-    int j;
+    int j, h, num_outlets;
     char *outlet_name;
     char objname[MAX_STRING];
 
@@ -421,6 +425,7 @@ char **st_hostlist(Stonith * s)
     }
     // clear hostlist array
     memset(hl, 0, (ad->num_outlets + 1) * sizeof(char *));
+    num_outlets = 0;
 
     // read NUM_OUTLETS values and put them into hostlist array
     for (j = 0; j < ad->num_outlets; ++j) {
@@ -435,16 +440,37 @@ char **st_hostlist(Stonith * s)
 	    hl = NULL;
 	    return (hl);
 	}
-	// put outletname in hostlist
-	if ((hl[j] = MALLOC(strlen(outlet_name) + 1)) == NULL) {
-	    syslog(LOG_ERR, "%s: out of memory.", __FUNCTION__);
-	    st_freehostlist(hl);
-	    hl = NULL;
-	    return (hl);
+
+	// Check whether the host is already listed
+	for (h = 0; h < num_outlets; ++h) {
+		if (strcmp(hl[h],outlet_name) == 0)
+			break;
 	}
-	strcpy(hl[j], outlet_name);
+
+	if (h >= num_outlets) {
+		// put outletname in hostlist
+#ifdef APC_DEBUG
+	        syslog(LOG_DEBUG, "%s: added %s to hostlist", __FUNCTION__,
+				outlet_name);
+#endif
+		
+		if ((hl[num_outlets] = 
+				MALLOC(strlen(outlet_name) + 1)) == NULL) {
+		    syslog(LOG_ERR, "%s: out of memory.", __FUNCTION__);
+		    st_freehostlist(hl);
+		    hl = NULL;
+		    return (hl);
+		}
+		strcpy(hl[num_outlets], outlet_name);
+		num_outlets++;
+	}
     }
 
+
+#ifdef APC_DEBUG
+    syslog(LOG_DEBUG, "%s: %d unique hosts connected to %d outlets", 
+		    __FUNCTION__, num_outlets, j);
+#endif
     // return list
     return (hl);
 }
@@ -487,8 +513,10 @@ int st_reset(Stonith * s, int request, const char *host)
     char objname[MAX_STRING];
     char value[MAX_STRING];
     char *outlet_name;
-    int i, outlet, reboot_duration, *state;
-
+    int i, num_outlets, outlet, reboot_duration, *state;
+    int outlets[8]; /* Assume that one node is connected to a 
+		       maximum of 8 outlets */
+    
 #ifdef APC_DEBUG
     syslog(LOG_DEBUG, "%s: called.", __FUNCTION__);
 #endif
@@ -505,6 +533,9 @@ int st_reset(Stonith * s, int request, const char *host)
 
     ad = (struct APCDevice *) s->pinfo;
 
+    num_outlets = 0;
+    reboot_duration = 0;
+
     // read max. as->num_outlets values
     for (outlet = 1; outlet <= ad->num_outlets; outlet++) {
 
@@ -520,9 +551,15 @@ int st_reset(Stonith * s, int request, const char *host)
 #endif
 	    return (S_ACCESS);
 	}
-	// found the right one
-	if (strcmp(outlet_name, host) == 0)
-	    break;
+	// found one
+	if (strcmp(outlet_name, host) == 0) {
+#ifdef APC_DEBUG
+	    	syslog(LOG_DEBUG, "%s: Found %s at outlet: %i",
+		       __FUNCTION__, host, outlet);
+#endif
+		outlets[num_outlets]=outlet;
+		num_outlets++;
+	}
     }
 #ifdef APC_DEBUG
 	    syslog(LOG_DEBUG, "%s: outlet: %i",
@@ -530,74 +567,86 @@ int st_reset(Stonith * s, int request, const char *host)
 #endif
 
     // host not found in outlet names
-    if (outlet > ad->num_outlets) {
+    if (num_outlets < 1) {
 #ifdef APC_DEBUG
 	syslog(LOG_DEBUG, "%s: no such outlet '%s'.", __FUNCTION__, host);
 #endif
 	return (S_BADHOST);
     }
-    // prepare objname
-    snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlet);
 
-    // get outlet's state
-    if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
+    // Turn them all off
+
+    for (outlet=outlets[0], i=0 ; i < num_outlets; i++, 
+		    outlet = outlets[i]) {
+	    // prepare objname
+	    snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlet);
+
+	    // get outlet's state
+	    if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
 #ifdef APC_DEBUG
-	syslog(LOG_DEBUG, "%s: cannot read outlet_state.", __FUNCTION__);
+		syslog(LOG_DEBUG, "%s: cannot read outlet_state for outlet %d.", __FUNCTION__, outlet);
 #endif
-	return (S_ACCESS);
-    }
+		return (S_ACCESS);
+	    }
 
-    if (*state == OUTLET_OFF) {
+	    if (*state == OUTLET_OFF) {
 #ifdef APC_DEBUG
-	syslog(LOG_DEBUG, "%s: outlet is off.", __FUNCTION__);
+		syslog(LOG_DEBUG, "%s: outlet %d is off.", __FUNCTION__, outlet);
 #endif
-	return (S_ISOFF);
-    }
-    // prepare objname
-    snprintf(objname, MAX_STRING, OID_OUTLET_COMMAND_PENDING, outlet);
+		continue;
+	    }
+	    // prepare objname
+	    snprintf(objname, MAX_STRING, OID_OUTLET_COMMAND_PENDING, outlet);
 
-    // are there pending commands ?
-    if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
+	    // are there pending commands ?
+	    if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
 #ifdef APC_DEBUG
-	syslog(LOG_DEBUG, "%s: cannot read outlet_pending.", __FUNCTION__);
+		syslog(LOG_DEBUG, "%s: cannot read outlet_pending.", __FUNCTION__);
 #endif
-	return (S_ACCESS);
-    }
+		return (S_ACCESS);
+	    }
 
-    if (*state != OUTLET_NO_CMD_PEND) {
+	    if (*state != OUTLET_NO_CMD_PEND) {
 #ifdef APC_DEBUG
-	syslog(LOG_DEBUG, "%s: command pending.", __FUNCTION__);
+		syslog(LOG_DEBUG, "%s: command pending.", __FUNCTION__);
 #endif
-	return (S_RESETFAIL);
-    }
-    // prepare oid
-    snprintf(objname, MAX_STRING, OID_OUTLET_REBOOT_DURATION, outlet);
+		return (S_RESETFAIL);
+	    }
+	    // prepare oid
+	    snprintf(objname, MAX_STRING, OID_OUTLET_REBOOT_DURATION, outlet);
 
-    // read reboot_duration
-    if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
+	    // read reboot_duration of the first port
+	    if (i == 0) {
+		    if ((state = APC_read(ad->sptr, 
+				objname, ASN_INTEGER)) == NULL) {
 #ifdef APC_DEBUG
-	syslog(LOG_DEBUG, "%s: cannot read outlet's reboot duration.",
-	       __FUNCTION__);
+			syslog(LOG_DEBUG, 
+				"%s: cannot read outlet's reboot duration.",
+			       __FUNCTION__);
 #endif
-	return (S_ACCESS);
-    }
-    // save the value
-    reboot_duration = *state;
+			return (S_ACCESS);
+		    }
+		    // save the value
+		    reboot_duration = *state;
+	    }
+	    
+	    // prepare objnames
+	    snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlet);
+	    snprintf(value, MAX_STRING, "%i", OUTLET_REBOOT);
 
-    // prepare objnames
-    snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlet);
-    snprintf(value, MAX_STRING, "%i", OUTLET_REBOOT);
-
-    // send reboot cmd
-    if (!APC_write(ad->sptr, objname, 'i', value)) {
+	    // send reboot cmd
+	    if (!APC_write(ad->sptr, objname, 'i', value)) {
 #ifdef APC_DEBUG
-	syslog(LOG_DEBUG, "%s: cannot send reboot cmd.", __FUNCTION__);
+		syslog(LOG_DEBUG, "%s: cannot send reboot cmd for outlet %d.", 
+				__FUNCTION__, outlet);
 #endif
-	return (S_ACCESS);
+		return (S_ACCESS);
+	    }
     }
-    // prepare objname
-    snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlet);
-
+    
+    // prepare objname of the first outlet
+    snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlets[0]);
+    
     // wait max. 2*reboot_duration for outlet to go to state ON        
     for (i = 0; i < reboot_duration << 1; i++) {
 
@@ -605,8 +654,8 @@ int st_reset(Stonith * s, int request, const char *host)
 	if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
 
 #ifdef APC_DEBUG
-	    syslog(LOG_DEBUG, "%s: cannot read outlet_state.",
-		   __FUNCTION__);
+	    syslog(LOG_DEBUG, "%s: cannot read outlet_state of %d.",
+		   __FUNCTION__, outlets[0]);
 #endif
 	    return (S_ACCESS);
 	}
