@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.12 2000/04/15 22:05:27 horms Exp $
+#	$Id: Makefile,v 1.13 2000/04/19 00:27:19 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -8,7 +8,8 @@
 #
 PKG=heartbeat
 
-INITD=$(shell [ -d /etc/init.d ] && echo etc/init.d || echo etc/rc.d/init.d )
+INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
+LOGROTATED=/etc/logrotate.d
 
 #       Debian wants things to start with DESTDIR,
 #       but Red Hat starts them with RPM_BUILD_ROOT     (sigh...)
@@ -26,6 +27,7 @@ VARRUN=$(BUILD_ROOT)/var/run
 FIFO=$(VARRUN)/heartbeat-fifo
 HAPPP=$(VARRUN)/ppp.d
 INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
+LOGROTATESCRIPT=$(BUILD_ROOT)/$(LOGROTATED)/$(PKG)
 RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
 CONFDIR=$(BUILD_ROOT)/etc/ha.d/conf
 
@@ -127,6 +129,8 @@ install_bin: all
 	$(INSTALL) -cm 755 $(ROOTFILES) $(HA)
 	if [ ! -d  $(BUILD_ROOT)/$(INITD) ]; then mkdir -p $(BUILD_ROOT)/$(INITD); fi
 	$(INSTALL) -cm 755 heartbeat.sh $(INITSCRIPT)
+	[ -d $(LOGROTATED) ] && \
+		$(INSTALL) -cm 644 heartbeat.logrotate $(LOGROTATESCRIPT)
 
 clean:	
 	rm -f *.o *.swp .*.swp core

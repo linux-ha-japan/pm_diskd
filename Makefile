@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.28 2000/04/15 22:05:27 horms Exp $
+#	$Id: Makefile,v 1.29 2000/04/19 00:27:19 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -12,7 +12,8 @@ PKG=heartbeat
 VERS=0.4.7apre1
 RPMREL=1
 
-INITD=$(shell [ -d /etc/init.d ] && echo etc/init.d || echo etc/rc.d/init.d )
+INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
+LOGROTATED=/etc/logrotate.d
 
 #	Debian wants things to start with DESTDIR,
 #	but Red Hat starts them with RPM_BUILD_ROOT	(sigh...)
@@ -31,6 +32,8 @@ FIFO=$(VARRUN)/heartbeat-fifo
 HAPPP=$(VARRUN)/ppp.d
 DOCDIR=$(BUILD_ROOT)/usr/doc/heartbeat
 INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
+LOGROTATESCRIPT=$(BUILD_ROOT)/$(LOGROTATED)/$(PKG)
+LOGROTATEDIR=$(BUILD_ROOT)/$(LOGROTATED)
 RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
 CONFDIR=$(BUILD_ROOT)/etc/ha.d/conf
 SPECSRC=Specfile
@@ -83,6 +86,9 @@ bin_dirs:
 	[ -d $(HAPPP) ]   || mkdir -p $(HAPPP)
 	[ -d $(RESOURCEDIR) ] || mkdir -p $(RESOURCEDIR)
 	[ -d $(CONFDIR) ] || mkdir -p $(CONFDIR)
+	[ -d $(CONFDIR) ] || mkdir -p $(CONFDIR)
+	[ -d $(LOGROTATED) ] && \
+		[ -d $(LOGROTATEDIR) ] || mkdir -p $(LOGROTATEDIR)
 
 
 install:	all_dirs

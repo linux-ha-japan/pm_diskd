@@ -8,11 +8,13 @@
 # This file: Horms <horms@vergenet.net>
 #
 
-POD2MAN = pod2man
-SBIN    = $(BUILD_ROOT)/sbin
-MAN     = $(BUILD_ROOT)/usr/man/man8
-INSTALL = install
-MKDIR   = mkdir
+POD2MAN       = pod2man
+SBIN          = $(BUILD_ROOT)/sbin
+MAN           = $(BUILD_ROOT)/usr/man/man8
+LOGROTATED    = /etc/logrotate.d
+LOGROTATE     = $(BUILD_ROOT)/$(LOGROTATED)
+INSTALL       = install
+MKDIR         = mkdir
 
 #####################################
 # No servicable parts below this line
@@ -29,8 +31,14 @@ ldirectord.8:	ldirectord
 	$(POD2MAN) $< > $@
 
 install: ldirectord.8
-	if [ ! -d $(SBIN) ]; then $(MKDIR) -p $(SBIN); fi
+	[ -d $(SBIN) ] ||  $(MKDIR) -p $(SBIN)
 	$(INSTALL) -m 0755 -o root -g root ldirectord $(SBIN)
-	if [ ! -d $(MAN) ]; then $(MKDIR) -p $(MAN); fi
+	[ -d $(MAN) ] ||  $(MKDIR) -p $(MAN)
 	$(INSTALL) -m 0644 -o root -g root ldirectord.8 $(MAN)
+	if [ -d $(LOGROTATED) ]; then 					 \
+		[ -d $(LOGROTATE) ] ||  $(MKDIR) -p $(LOGROTATE) 	;\
+		$(INSTALL) -m 0644 -o root -g root 			 \
+			ldirectord.logrotate $(LOGROTATE)/ldirectord	;\
+	fi
+	
 

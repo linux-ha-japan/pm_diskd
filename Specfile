@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.31 2000/04/15 22:05:27 horms Exp $
+#	$Id: Specfile,v 1.32 2000/04/19 00:27:19 horms Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -217,15 +217,17 @@ ln -s ../../../sbin/ldirectord .
 popd
 %files
 %dir %HADIR%
-/etc/rc.d/init.d/%PKG%
 %HADIR%/harc
 %HADIR%/shellfuncs
 %HADIR%/rc.d
 %HALIB%
 %HADIR%/resource.d
+/etc/rc.d/init.d/%PKG%
+/etc/logrotate.d/%PKG%
 /var/run/heartbeat-fifo
 %dir /var/run/ppp.d
 /sbin/ldirectord
+/etc/logrotate.d/ldirectord
 /usr/man/man8/ldirectord.8
 %doc %DOCDIR%
 %post
