@@ -36,13 +36,6 @@
 #include <hb_api_core.h>
 #include <hb_api.h>
 
-#ifndef LOG_PERROR
-#	define LOG_PERROR 0x0
-	/* Some syslogs don't allow you to log messages
-	 * to stderr as well as to a log facility
-	 * (Solaris, perhaps others)
-	 */
-#endif
 
 /*
  * A heartbeat API test program...
@@ -55,7 +48,7 @@ void gotsig(int nsig);
 void
 NodeStatus(const char * node, const char * status, void * private)
 {
-	syslog(LOG_NOTICE, "Status update: Node %s now has status %s\n"
+	cl_log(LOG_NOTICE, "Status update: Node %s now has status %s\n"
 	,	node, status);
 }
 
@@ -63,7 +56,7 @@ void
 LinkStatus(const char * node, const char * lnk, const char * status
 ,	void * private)
 {
-	syslog(LOG_NOTICE, "Link Status update: Link %s/%s now has status %s\n"
+	cl_log(LOG_NOTICE, "Link Status update: Link %s/%s now has status %s\n"
 	,	node, lnk, status);
 }
 
@@ -90,25 +83,27 @@ main(int argc, char ** argv)
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
 
-	openlog("ping-test", LOG_PERROR|LOG_PID, LOG_LOCAL7);
+	cl_log_set_entity(argv[0]);
+	cl_log_enable_stderr(TRUE);
+	cl_log_set_facility(LOG_USER);
 	hb = ll_cluster_new("heartbeat");
-	fprintf(stderr, "PID=%ld\n", (long)getpid());
-	fprintf(stderr, "Signing in with heartbeat\n");
+	cl_log(LOG_INFO, "PID=%ld\n", (long)getpid());
+	cl_log(LOG_INFO, "Signing in with heartbeat\n");
 	if (hb->llc_ops->signon(hb, "ping")!= HA_OK) {
-		syslog(LOG_ERR, "Cannot sign on with heartbeat\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot sign on with heartbeat\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(1);
 	}
 
 	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, NULL) !=HA_OK){
-		syslog(LOG_ERR, "Cannot set node status callback\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set node status callback\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(2);
 	}
 
 	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, NULL)!=HA_OK){
-		syslog(LOG_ERR, "Cannot set if status callback\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set if status callback\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(3);
 	}
 
@@ -117,43 +112,44 @@ main(int argc, char ** argv)
 #else
 	fmask = LLC_FILTER_DEFAULT;
 #endif
-	fprintf(stderr, "Setting message filter mode\n");
+	/* This isn't necessary */
+	cl_log(LOG_INFO, "Setting message filter mode\n");
 	if (hb->llc_ops->setfmode(hb, fmask) != HA_OK) {
-		syslog(LOG_ERR, "Cannot set filter mode\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set filter mode\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(4);
 	}
 
-	syslog(LOG_INFO, "Starting node walk\n");
+	cl_log(LOG_INFO, "Starting node walk\n");
 	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
-		syslog(LOG_ERR, "Cannot start node walk\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot start node walk\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(5);
 	}
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
-		syslog(LOG_INFO, "Cluster node: %s: status: %s\n", node
+		cl_log(LOG_INFO, "Cluster node: %s: status: %s\n", node
 		,	hb->llc_ops->node_status(hb, node));
 		if (hb->llc_ops->init_ifwalk(hb, node) != HA_OK) {
-			syslog(LOG_ERR, "Cannot start if walk\n");
-			syslog(LOG_ERR, "REASON: %s\n"
+			cl_log(LOG_ERR, "Cannot start if walk\n");
+			cl_log(LOG_ERR, "REASON: %s\n"
 			,	hb->llc_ops->errmsg(hb));
 			exit(6);
 		}
 		while ((intf = hb->llc_ops->nextif(hb))) {
-			syslog(LOG_ERR, "\tnode %s: intf: %s ifstatus: %s\n"
+			cl_log(LOG_ERR, "\tnode %s: intf: %s ifstatus: %s\n"
 			,	node, intf
 			,	hb->llc_ops->if_status(hb, node, intf));
 		}
 		if (hb->llc_ops->end_ifwalk(hb) != HA_OK) {
-			syslog(LOG_ERR, "Cannot end if walk\n");
-			syslog(LOG_ERR, "REASON: %s\n"
+			cl_log(LOG_ERR, "Cannot end if walk\n");
+			cl_log(LOG_ERR, "REASON: %s\n"
 			,	hb->llc_ops->errmsg(hb));
 			exit(7);
 		}
 	}
 	if (hb->llc_ops->end_nodewalk(hb) != HA_OK) {
-		syslog(LOG_ERR, "Cannot end node walk\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot end node walk\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(8);
 	}
 
@@ -161,24 +157,25 @@ main(int argc, char ** argv)
 	signal(SIGINT, gotsig);
 
 #if 0
-	syslog(LOG_INFO, "Setting message signal\n");
+	/* This is not necessary either ;-) */
+	cl_log(LOG_INFO, "Setting message signal\n");
 	if (hb->llc_ops->setmsgsignal(hb, 0) != HA_OK) {
-		syslog(LOG_ERR, "Cannot set message signal\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set message signal\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(9);
 	}
 
 #endif
 	pingreq = ha_msg_new(0);
 	ha_msg_add(pingreq, F_TYPE, "ping");
-	syslog(LOG_INFO, "Sleeping...\n");
+	cl_log(LOG_INFO, "Sleeping...\n");
 	sleep(5);
 	if (hb->llc_ops->sendclustermsg(hb, pingreq) == HA_OK) {
-		syslog(LOG_ERR, "Sent ping request to cluster\n");
+		cl_log(LOG_ERR, "Sent ping request to cluster\n");
 	}else{
-		syslog(LOG_ERR, "PING request FAIL to cluster\n");
+		cl_log(LOG_ERR, "PING request FAIL to cluster\n");
 	}
-	syslog(LOG_ERR, "Waiting for messages...\n");
+	cl_log(LOG_ERR, "Waiting for messages...\n");
 	errno = 0;
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
 		const char *	type;
@@ -190,11 +187,11 @@ main(int argc, char ** argv)
 		if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
 			orig = "?";
 		}
-		syslog(LOG_NOTICE, "Got message %d of type [%s] from [%s]\n"
+		cl_log(LOG_NOTICE, "Got message %d of type [%s] from [%s]\n"
 		,	msgcount, type, orig);
 #if 0
 		ha_log_message(reply);
-		syslog(LOG_NOTICE, "%s", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_NOTICE, "%s", hb->llc_ops->errmsg(hb));
 #endif
 		if (strcmp(type, "ping") ==0) {
 			struct ha_msg*	pingreply = ha_msg_new(4);
@@ -205,11 +202,11 @@ main(int argc, char ** argv)
 			for (count=0; count < 10; ++count) {
 				if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
 				==	HA_OK) {
-					syslog(LOG_INFO
+					cl_log(LOG_INFO
 					,	"Sent ping reply(%d) to [%s]\n"
 					,	count, orig);
 				}else{
-					syslog(LOG_ERR, "PING %d FAIL to [%s]\n"
+					cl_log(LOG_ERR, "PING %d FAIL to [%s]\n"
 					,	count, orig);
 				}
 			}
@@ -219,17 +216,17 @@ main(int argc, char ** argv)
 	}
 
 	if (!quitnow) {
-		syslog(LOG_ERR, "read_hb_msg returned NULL");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "read_hb_msg returned NULL");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 	}
 	if (hb->llc_ops->signoff(hb) != HA_OK) {
-		syslog(LOG_ERR, "Cannot sign off from heartbeat.\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot sign off from heartbeat.\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(10);
 	}
 	if (hb->llc_ops->delete(hb) != HA_OK) {
-		syslog(LOG_ERR, "Cannot delete API object.\n");
-		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot delete API object.\n");
+		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(11);
 	}
 	return 0;

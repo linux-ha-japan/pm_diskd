@@ -99,7 +99,8 @@ findif_SOURCES		= findif.c
 findif_LDADD		=$(top_builddir)/replace/libreplace.la
 
 api_test_SOURCES	= api_test.c
-api_test_LDADD		= libhbclient.la
+api_test_LDADD		= $(top_builddir)/lib/clplumbing/libplumb.la	\
+			libhbclient.la $(gliblib)
 
 ## SCRIPTS/DATA
 ha_DATA			= shellfuncs README.config

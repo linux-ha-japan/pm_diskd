@@ -54,6 +54,7 @@
 
 /* We are an interface manager... */
 #define ENABLE_PLUGIN_MANAGER_PRIVATE
+#define ENABLE_PIL_DEFS_PRIVATE
 
 #include <pils/generic.h>
 
@@ -65,7 +66,6 @@ PIL_PLUGIN_BOILERPLATE("1.0", GenDebugFlag, CloseGeneralPluginManager)
  * Key is interface type, value is a PILGenericIfMgmtRqst.
  * The key is g_strdup()ed, but the struct is not copied.
  */
-static GHashTable*	MasterTable = NULL;
 
 static gboolean FreeAKey(gpointer key, gpointer value, gpointer data);
 
@@ -114,7 +114,7 @@ PIL_rc PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void*);
  *
  * 	IMHO the global system should handle thread-safety.
  */
-static PIL_rc AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req);
+static PIL_rc AddAnInterfaceType(PILPlugin*us, GHashTable* MasterTable, PILGenericIfMgmtRqst* req);
 
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
@@ -122,6 +122,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 	PIL_rc			ret;
 	PILGenericIfMgmtRqst*	user_req;
 	PILGenericIfMgmtRqst*	curreq;
+	GHashTable*	MasterTable = NULL;
 	/*
 	 * Force the compiler to check our parameters...
 	 */
@@ -150,6 +151,10 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 		, PIL_PLUGIN_S);
 	}
 
+	user_req = user_ptr;
+	MasterTable = g_hash_table_new(g_str_hash, g_str_equal);
+	us->ud_plugin = MasterTable;	/* Override passed value */
+
 	/* Register ourselves as a plugin */
 
 	if ((ret = imports->register_plugin(us, &OurPIExports)) != PIL_OK) {
@@ -160,9 +165,6 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 		return ret;
 	}
 
-	user_req = user_ptr;
-	MasterTable = g_hash_table_new(g_str_hash, g_str_equal);
-
 	/*
 	 * Register to manage implementations
 	 * for all the interface types we've been asked to manage.
@@ -171,22 +173,28 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 	for(curreq = user_req; curreq->iftype != NULL; ++curreq) {
 		PIL_rc newret;
 
-		newret = AddAnInterfaceType(us, curreq);
+		newret = AddAnInterfaceType(us, MasterTable, curreq);
 
 		if (newret != PIL_OK) {
 			ret = newret;
 		}
 	}
 
+	/*
+	 * Our plugin and all our registered plugin types
+	 * have ud_plugin pointing at MasterTable.
+	 */
+
 	return ret;
 }
 
 static PIL_rc
-AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
+AddAnInterfaceType(PILPlugin*us, GHashTable* MasterTable, PILGenericIfMgmtRqst* req)
 {
 	PIL_rc	rc;
 	PILInterface*		GenIf;		/* Our Generic Interface info*/
 
+	g_assert(MasterTable != NULL);
 	g_hash_table_insert(MasterTable, g_strdup(req->iftype), req);
 
 	if (req->ifmap == NULL) {
@@ -228,7 +236,7 @@ AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
 	,	CloseGenInterfaceManager
 	,	&GenIf
 	,	(void**)&GenIfImports
-	,	NULL);
+	,	MasterTable);	/* Point ud_interface to MasterTable */
 
 	/* We don't ever want to be unloaded... */
 	GenIfImports->ModRefCount(GenIf, +100);
@@ -246,11 +254,17 @@ AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
 static void
 CloseGeneralPluginManager(PILPlugin* us)
 {
-	int	count;
+	
+	GHashTable*	MasterTable = us->ud_plugin;
+	int		count;
+
+	g_assert(MasterTable != NULL);
+
 	/*
 	 * All our clients have already been shut down automatically
 	 * This is the final shutdown for us...
 	 */
+
 
 	/* There *shouldn't* be any keys in there ;-) */
 
@@ -260,7 +274,7 @@ CloseGeneralPluginManager(PILPlugin* us)
 		g_hash_table_foreach_remove(MasterTable, FreeAKey, NULL);
 	}
 	g_hash_table_destroy(MasterTable);
-	MasterTable = NULL;
+	us->ud_plugin = NULL;
 	return;
 }
 
@@ -283,6 +297,9 @@ static PIL_rc
 RegisterGenIF(PILInterface* intf,  void** imports)
 {
 	PILGenericIfMgmtRqst*	ifinfo;
+	GHashTable*	MasterTable = intf->ifmanager->ud_interface;
+
+	g_assert(MasterTable != NULL);
 
 	/* Reference count should now be one */
 	if (GenDebugFlag) {
@@ -347,8 +364,10 @@ RegisterGenIF(PILInterface* intf,  void** imports)
 static PIL_rc
 UnregisterGenIF(PILInterface*intf)
 {
+	GHashTable*	MasterTable = intf->ifmanager->ud_interface;
 	PILGenericIfMgmtRqst*	ifinfo;
 
+	g_assert(MasterTable != NULL);
 	g_assert(intf->refcnt >= 0);
 	/*
 	 * Go through the "master table" and find client table, 
@@ -397,16 +416,19 @@ UnregisterGenIF(PILInterface*intf)
 static PIL_rc
 CloseGenInterfaceManager(PILInterface*intf, void* info)
 {
-	void*	key;
-	void*	data;
+	void*		key;
+	void*		data;
+	GHashTable*	MasterTable = intf->ud_interface;
 
 	if (GenDebugFlag) {
-		GenPIImports->log(PIL_WARN
-		,	"In CloseGenInterFaceManager on %s/%s"
-		,	intf->interfacetype->typename, intf->interfacename);
+		GenPIImports->log(PIL_INFO
+		,	"In CloseGenInterFaceManager on %s/%s (MasterTable: 0x%08lx)"
+		,	intf->interfacetype->typename, intf->interfacename
+		,	MasterTable);
 	}
 
 
+	g_assert(MasterTable != NULL);
 	if (g_hash_table_lookup_extended(MasterTable
 	,	intf->interfacename, &key, &data)) {
 		PILGenericIfMgmtRqst*	ifinfo = data;

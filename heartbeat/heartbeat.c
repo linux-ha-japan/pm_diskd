@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.207 2002/09/13 04:16:12 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.208 2002/09/17 13:41:38 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -251,6 +251,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.207 2002/09/13 04:16
 #include <clplumbing/longclock.h>
 #include <clplumbing/proctrack.h>
 #include <clplumbing/ipc.h>
+#include <clplumbing/lsb_exitcodes.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api_core.h>
@@ -355,7 +356,6 @@ void    term_sig(int sig);
 void    term_cleanexit(int sig);
 void    term_action(void);
 void	debug_sig(int sig);
-void	debug_action(void);
 void	signal_all(int sig);
 void	force_shutdown(void);
 void	emergency_shutdown(void);
@@ -487,6 +487,7 @@ int		RestartRequested = 0;
 static int	shutdown_in_progress = 0;
 static int	WeAreRestarting = 0;
 static sigset_t	CommonSignalSet;
+long		hb_pid_in_file = 0L;
 
 enum comm_state {
 	COMM_STARTING,
@@ -919,7 +920,8 @@ initialize_heartbeat()
 
 	/*NOTREACHED*/
 	ha_log(LOG_ERR, "control_process exiting?");
-	cleanexit(1);
+	cleanexit(LSB_EXIT_GENERIC);
+	/*NOTREACHED*/
 	return(HA_FAIL);
 }
 
@@ -2643,8 +2645,6 @@ debug_sig(int sig)
 			break;
 	}
  	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL , debug);
-	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, (int) getpid());
-	dump_proc_stats(curproc);
 }
 
 /* Signal handler to use with SIGCHLD to free the
@@ -3222,8 +3222,10 @@ __parent_debug_action(int sig)
 	debug_sig(sig);
 	signal_all(sig);
 
+	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, (int) getpid());
 	if (debug == 1 && olddebug == 0) {
 		ha_versioninfo();
+		dump_proc_stats(curproc);
 	}
 }
 
@@ -3423,7 +3425,7 @@ reread_config_action(void)
 
 #define	ONEDAY	(24*60*60)
 
-#define	HB_uS_HZ 	10L		/* 10 HZ = 100ms/tick */
+#define	HB_uS_HZ 	2L		/* 2 = 500ms/tick */
 #define	HB_uS_PERIOD	(1000000L/HB_uS_HZ)
 			/* 100000 microseconds = 100 milliseconds = 10 HZ */
 
@@ -3947,21 +3949,21 @@ mark_node_dead(struct node_info *hip)
 
 	strncpy(hip->status, DEADSTATUS, sizeof(hip->status));
 	standby_running = 0L;
-	if (!hip->has_resources
-	||	(nice_failback && other_holds_resources == NO_RSC)) {
-		ha_log(LOG_INFO, "Dead node %s held no resources."
-		,	hip->nodename);
-	}else{
-		/* We have to Zap them before we take the resources */
-		/* This often takes a few seconds. */
-		if (config->stonith) {
-			/* FIXME: We shouldn't do these if it's a 'ping' node */
-			Initiate_Reset(config->stonith, hip->nodename);
-			/* It will call takeover_from_node() later */
-			return;
+	if (hip->nodetype != PINGNODE) {
+		if (!hip->has_resources
+		||	(nice_failback && other_holds_resources == NO_RSC)) {
+			ha_log(LOG_INFO, "Dead node %s held no resources."
+			,	hip->nodename);
+		}else{
+			/* We have to Zap them before we take the resources */
+			/* This often takes a few seconds. */
+			if (config->stonith) {
+				Initiate_Reset(config->stonith, hip->nodename);
+				/* It will call takeover_from_node() later */
+				return;
+			}
 		}
 	}
-	/* FIXME: We shouldn't do these if it's a 'ping' node */
 	/* nice_failback needs us to do this anyway... */
 	takeover_from_node(hip->nodename);
 }
@@ -4011,7 +4013,7 @@ takeover_from_node(const char * nodename)
 	/*
 	 * STONITH has already successfully completed, or wasn't needed...
 	 */
-	if (nice_failback) {
+	if (nice_failback && hip->nodetype != PINGNODE) {
 
 		/* mach_down is out there acquiring foreign resources */
 		/* So, make a note of it... */
@@ -4532,7 +4534,7 @@ usage(void)
 	fprintf(stderr, "\n");
 	fprintf(stderr, "\t-C only valid with -R\n");
 	fprintf(stderr, "\t-r is mutually exclusive with -R\n");
-	cleanexit(1);
+	cleanexit(LSB_EXIT_EINVAL);
 }
 
 
@@ -4545,6 +4547,7 @@ main(int argc, char * argv[], char * envp[])
 	char *		CurrentStatus=NULL;
 	char *		tmp_cmdname;
 	long		running_hb_pid = get_running_hb_pid();
+	int		generic_error = LSB_EXIT_GENERIC;
 
 	num_hb_media_types = 0;
 
@@ -4556,7 +4559,7 @@ main(int argc, char * argv[], char * envp[])
 	|	G_LOG_FLAG_RECURSION	| G_LOG_FLAG_FATAL
 
 	,	cl_glib_msg_handler, NULL);
-	cl_log_enable_stderr(FALSE);
+	cl_log_enable_stderr(TRUE);
 	g_log_set_always_fatal((GLogLevelFlags)0);
 
 	tmp_cmdname=strdup(argv[0]);
@@ -4596,6 +4599,7 @@ main(int argc, char * argv[], char * envp[])
 				break;
 			case 's':
 				++rpt_hb_status;
+				generic_error = LSB_STATUS_UNKNOWN;
 				break;
 			case 'l':
 				++RunAtLowPrio;
@@ -4625,7 +4629,7 @@ main(int argc, char * argv[], char * envp[])
 
 	if (hbmedia_types == NULL) {
 		ha_log(LOG_ERR, "Allocation of hbmedia_types failed.");
-		cleanexit(1);
+		cleanexit(generic_error);
 	}
 
 
@@ -4638,7 +4642,7 @@ main(int argc, char * argv[], char * envp[])
 
 	if (module_init() != HA_OK) {
 		ha_log(LOG_ERR, "Heartbeat not started: module init error.");
-		cleanexit(1);
+		cleanexit(generic_error);
 	}
 
 	/*
@@ -4647,11 +4651,12 @@ main(int argc, char * argv[], char * envp[])
 	 */
 
 	if (killrunninghb) {
+		int	err;
 
 		if (running_hb_pid < 0) {
 			fprintf(stderr
 			,	"INFO: Heartbeat already stopped.\n");
-			cleanexit(0);
+			cleanexit(LSB_EXIT_OK);
 		}
 
 		if (kill((pid_t)running_hb_pid, SIGTERM) >= 0) {
@@ -4661,12 +4666,15 @@ main(int argc, char * argv[], char * envp[])
 				sleep(1);
 				continue;
 			}while (kill((pid_t)running_hb_pid, 0) >= 0);
-			cleanexit(0);
+			cleanexit(LSB_EXIT_OK);
 		}
+		err = errno;
 		fprintf(stderr, "ERROR: Could not kill pid %ld",
 			running_hb_pid);
 		perror(" ");
-		cleanexit(1);
+		cleanexit((err == EPERM || err == EACCES)
+		?	LSB_EXIT_EPERM
+		:	LSB_EXIT_GENERIC);
 	}
 
 	/*
@@ -4677,13 +4685,16 @@ main(int argc, char * argv[], char * envp[])
 
 		if (running_hb_pid < 0) {
 			printf("%s is stopped. No process\n", cmdname);
+			cleanexit(hb_pid_in_file ? LSB_STATUS_VAR_PID
+			:	LSB_STATUS_STOPPED);
 		}else{
 			struct utsname u;
 			uname(&u);
 			printf("%s OK [pid %ld et al] is running on %s...\n"
 			,	cmdname, running_hb_pid, u.nodename);
+			cleanexit(LSB_STATUS_OK);
 		}
-		cleanexit(0);
+		/*NOTREACHED*/
 	}
 
 	/*
@@ -4693,14 +4704,15 @@ main(int argc, char * argv[], char * envp[])
 	if (WeAreRestarting) {
 
 		if (running_hb_pid < 0) {
-			fprintf(stderr, "ERROR: %s is not running.\n", cmdname);
-			cleanexit(1);
+			fprintf(stderr, "ERROR: %s is not running.\n"
+			,	cmdname);
+			cleanexit(LSB_EXIT_NOTCONFIGED);
 		}
 		if (running_hb_pid != getpid()) {
 			fprintf(stderr
 			,	"ERROR: Heartbeat already running [pid %ld].\n"
 			,	running_hb_pid);
-			cleanexit(1);
+			cleanexit(LSB_EXIT_GENERIC);
 		}
 
 		/*
@@ -4753,12 +4765,12 @@ main(int argc, char * argv[], char * envp[])
 
 	if (RestartRequested) {
 		if (running_hb_pid < 0) {
-			fprintf(stderr
-			,	"ERROR: Heartbeat not currently running.\n");
-			cleanexit(1);
+			goto StartHeartbeat;
 		}
 
-		if (init_config(CONFIG_NAME)&&parse_ha_resources(RESOURCE_CFG)){
+		errno = 0;
+		if (init_config(CONFIG_NAME)
+		&&	parse_ha_resources(RESOURCE_CFG)){
 			ha_log(LOG_INFO
 			,	"Signalling heartbeat pid %ld to reread"
 			" config files", running_hb_pid);
@@ -4769,17 +4781,23 @@ main(int argc, char * argv[], char * envp[])
 			ha_perror("Unable to send SIGHUP to pid %ld"
 			,	running_hb_pid);
 		}else{
+			int err = errno;
 			ha_log(LOG_INFO
 			,	"Config errors: Heartbeat pid %ld NOT restarted"
 			,	running_hb_pid);
+			cleanexit((err == EPERM || err == EACCES)
+			?	LSB_EXIT_EPERM
+			:	LSB_EXIT_GENERIC);
 		}
-		cleanexit(1);
+		cleanexit(LSB_EXIT_GENERIC);
 	}
+
+StartHeartbeat:
 
 	if (init_config(CONFIG_NAME) && parse_ha_resources(RESOURCE_CFG)) {
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG
-			,	"HA configuration OK.  Heartbeat started.\n");
+			,	"HA configuration OK.  Heartbeat starting.\n");
 		}
 		if (verbose) {
 			dump_config();
@@ -4795,15 +4813,21 @@ main(int argc, char * argv[], char * envp[])
 		}
 		ParseTestOpts();
 		ha_versioninfo();
-		initialize_heartbeat();
+		if (initialize_heartbeat() != HA_OK) {
+			cleanexit((errno == EPERM || errno == EACCES)
+			?	LSB_EXIT_EPERM
+			:	LSB_EXIT_GENERIC);
+		}
 	}else{
+		int err = errno;
 		ha_log(LOG_ERR, "Configuration error, heartbeat not started.");
-		cleanexit(1);
+		cleanexit((err == EPERM || err == EACCES)
+		?	LSB_EXIT_EPERM
+		:	LSB_EXIT_NOTCONFIGED);
 	}
-	cleanexit(0);
 
 	/*NOTREACHED*/
-	return(HA_FAIL);
+	return(generic_error);
 }
 
 void
@@ -4934,6 +4958,7 @@ get_running_hb_pid()
 	FILE *	lockfd;
 	if ((lockfd = fopen(PIDFILE, "r")) != NULL
 	&&	fscanf(lockfd, "%ld", &pid) == 1 && pid > 0) {
+		hb_pid_in_file = pid;
 		if (kill((pid_t)pid, 0) >= 0 || errno != ESRCH) {
 			fclose(lockfd);
 			return(pid);
@@ -5974,6 +5999,22 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.208  2002/09/17 13:41:38  alan
+ * Fixed a bug in PILS pointed out by lmb which kept it from working
+ * 	when a user specified a STONITH directive in heartbeat.
+ * 	This had to do with a static variable which I had to get rid of.
+ * 	It was a bit painful.
+ * Changed heartbeat main to exit with LSB-compliant exit codes.
+ * Put in the fixes for debug signals interfering with other signals.
+ * Put in code to make us not try and take over resources from ping
+ * 	nodes when they go down (since they don't have any).
+ * Put in a realtime fix for client API I/O (removed some test code).
+ * Changed api_test to use the new cl_log facility.
+ * Eliminated some unused code which was supposed to provide
+ * 	application heartbeating.  It couldn't yet be used and was a bad idea.
+ *
+ * Enabled logging to stderr when heartbeat first starts.
+ *
  * Revision 1.207  2002/09/13 04:16:12  alan
  * Put in fixes for warnings that Thomas Hepper ran into.
  *

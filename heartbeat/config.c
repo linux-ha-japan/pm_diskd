@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.67 2002/09/10 21:50:06 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.68 2002/09/17 13:41:38 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -107,6 +107,7 @@ init_config(const char * cfgfile)
 	struct utsname	u;
 	int	errcount = 0;
 	int	j;
+	int	err;
 
 	/* This may be dumb.  I'll decide later */
 	(void)_heartbeat_c_Id;	/* Make warning go away */
@@ -137,11 +138,15 @@ init_config(const char * cfgfile)
 	curnode = NULL;
 
 	if (!parse_config(cfgfile, u.nodename)) {
+		err = errno;
 		ha_log(LOG_ERR, "Heartbeat not started: configuration error.");
+		errno=err;
 		return(HA_FAIL);
 	}
 	if (parse_authfile() != HA_OK) {
+		err = errno;
 		ha_log(LOG_ERR, "Authentication configuration error.");
+		errno=err;
 		return(HA_FAIL);
 	}
 	if (config->log_facility >= 0) {
@@ -1360,6 +1365,22 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.68  2002/09/17 13:41:38  alan
+ * Fixed a bug in PILS pointed out by lmb which kept it from working
+ * 	when a user specified a STONITH directive in heartbeat.
+ * 	This had to do with a static variable which I had to get rid of.
+ * 	It was a bit painful.
+ * Changed heartbeat main to exit with LSB-compliant exit codes.
+ * Put in the fixes for debug signals interfering with other signals.
+ * Put in code to make us not try and take over resources from ping
+ * 	nodes when they go down (since they don't have any).
+ * Put in a realtime fix for client API I/O (removed some test code).
+ * Changed api_test to use the new cl_log facility.
+ * Eliminated some unused code which was supposed to provide
+ * 	application heartbeating.  It couldn't yet be used and was a bad idea.
+ *
+ * Enabled logging to stderr when heartbeat first starts.
+ *
  * Revision 1.67  2002/09/10 21:50:06  alan
  * Added code, modified code to move to a common set of logging functions
  * - cl_log() and friends.

@@ -41,6 +41,7 @@ RSCDIR=$HADIR/resource.d
 errcount=0
 
 cd @sysconfdir@/ha.d
+ulimit -c unlimited
 
 GetAllIFNames() {
   $IFCONFIG | grep '^[a-zA-Z]' | cut -d' ' -f1
