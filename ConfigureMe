@@ -115,6 +115,17 @@ GetConfigureFLAGS() {
     yes)	GetCrossConfigureFlags;;
     *)		GetNativeConfigureFlags;;
   esac
+  if 
+      [ "X$MAKE" != "X" ]
+  then
+      MAKE_CMD="$MAKE"
+  elif
+      which gmake > /dev/null
+  then
+      MAKE_CMD="gmake"
+  else
+      MAKE_CMD="make"
+  fi
 }
 
 GetNativeConfigureFlags() {
@@ -146,7 +157,7 @@ Run() {
 
 PackageItUp() {
   if
-    [ X"$PACKAGECMD" = X ]
+    [ "X$PACKAGECMD" = X ]
   then
     echo "Do not know how to build a package for $CFENV" >&2
     return 1
@@ -168,10 +179,11 @@ echo "Configure flags for $CFENV: $FLAGS"
 
 shift
 
+
 case $cmd in
   cf|conf|configure)		Run ./bootstrap $FLAGS $@;;
-  make|build)			Run ./bootstrap $FLAGS $@ && Run gmake;;
-  install)			Run ./bootstrap $FLAGS $@ && Run gmake install;;
+  make|build)			Run ./bootstrap $FLAGS $@ && Run $MAKE_CMD;;
+  install)			Run ./bootstrap $FLAGS $@ && Run $MAKE_CMD install;;
   pkg|package|rpm|deb|dpkg)	Run ./bootstrap $FLAGS $@ && PackageItUp;;
   *)				Usage;;
 esac
