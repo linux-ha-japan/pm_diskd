@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.182 2002/04/14 09:06:09 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.183 2002/04/14 09:20:53 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -368,7 +368,7 @@ int	countbystatus(const char * status, int matchornot);
 int	setline(int fd);
 void	cleanexit(int rc);
 void    reaper_sig(int sig);
-void    reaper_action(void);
+void    reaper_action(int waitflags);
 void    term_sig(int sig);
 void    term_cleanexit(int sig);
 void    term_action(void);
@@ -1251,24 +1251,11 @@ control_process(FILE * fp, int fifoofd)
 		}
 	}
 
-	if (ANYDEBUG) {
-		ha_log(LOG_INFO, "Control Process: entering pause loop.");
-	}
-
 	/*
 	 * Sometimes kernels forget to deliver one or more of our
-	 * SIGCHLDs to us.  We set the alarm to tell us to just
-	 * give up and poll for the stupid things from time to time...
+	 * SIGCHLDs to us. So we just wait for them to exit...
 	 */
-	init_status_alarm();
-
-	/* Wait for shutdown to complete */
-
-	while (CoreProcessCount > 1) {
-		/* Poll for SIGCHLDs */
-		reaper_action();
-		pause();
-	}
+	reaper_action(0);
 
 	/* That's All Folks... */
 	cleanexit(0);
@@ -2797,12 +2784,12 @@ reaper_sig(int sig)
  *	client children that we spawn as requested when we started up.
  */
 void
-reaper_action(void)
+reaper_action(int waitflags)
 {
 	int status;
 	pid_t	pid;
 
-	while((pid=wait3(&status, WNOHANG, NULL)) > 0) {
+	while((pid=wait3(&status, waitflags, NULL)) > 0) {
 
 		/* If they're in the API client table, remove them... */
 		api_remove_client_pid(pid, "died");
@@ -3645,7 +3632,7 @@ process_pending_handlers(void)
 		}
 
 		if (handlers&REAPER_SIG) {
-			reaper_action();
+			reaper_action(WNOHANG);
 		}
 	}
 }
@@ -6031,6 +6018,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.183  2002/04/14 09:20:53  alan
+ * Changed reaper_action() to have a waitflags argument, and now
+ * we wait for children to die rather than fooling with signals
+ * etc.
+ *
  * Revision 1.182  2002/04/14 09:06:09  alan
  * Made yet another attempt to get all our SIGCHLDs.
  *
