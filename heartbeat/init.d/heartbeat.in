@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.4 2001/10/05 22:48:05 alan Exp $
+#	$Id: heartbeat.in,v 1.5 2001/10/05 22:56:01 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -280,7 +280,12 @@ case "$1" in
 	StartHA
 	RC=$?
 	echo
-	[ $RC -eq 0 ] && touch /var/lock/subsys/$SUBSYS
+	if
+	  [ $RC -eq 0 ]
+	then
+	  [ ! -d /var/lock/subsys ] && mkdir -p /var/lock/subsys
+	  touch /var/lock/subsys/$SUBSYS
+	fi
 	;;
 
   stop)
@@ -317,6 +322,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.5  2001/10/05 22:56:01  alan
+#  Added another missing portability feature...
+#
 #  Revision 1.4  2001/10/05 22:48:05  alan
 #  Fixed the spelling of the echoesc and echononl shell functions.
 #
