@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.19 2000/10/06 19:17:09 horms Exp $
+# $Id: ldirectord,v 1.20 2000/10/09 21:00:42 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -931,7 +931,8 @@ sub check_connect
 
 	my $port=(defined $$v{checkport}?$$v{checkport}:$$r{port});
 	eval {
-		local $SIG{ALRM} = sub { die "Timeout Alarm" };
+		local $SIG{'__DIE__'} = "DEFAULT";
+		local $SIG{'ALRM'} = sub { die "Timeout Alarm" };
 		print "DEBUG4: Timeout is $$v{checktimeout}\n" if ($DEBUG>= 4);
 		alarm $$v{checktimeout};
 		$result = OpenSocket( $$r{server}, $port );
