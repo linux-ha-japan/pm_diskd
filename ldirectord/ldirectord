@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.63 2003/03/19 10:48:20 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.64 2003/04/18 03:06:38 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -1058,43 +1058,34 @@ sub add_real_server
 
 	my $ref;
 	my $realsrv=0;
-	my $request;
-	my $receive;
 	my $new_rsrv;
+	my $rsrv;
+
+	$new_rsrv = {"server"=>$ip, "port"=>$port};
 
 	$flags =~ /(\w+)(.*)/ && ($1 eq "gate" || $1 eq "masq" || $1 eq "ipip")
 	    or &config_error($line, 
 	    	"forward method must be gate, masq or ipip");
 
-	my $rsrv=$vsrv->{"real"};
+	$new_rsrv->{"fwd"} =$1;
+	$flags = $2;
 
-	my $fwd = $1;
-	if ($2 =~ /\s+(\d+)(\s+(.*))?/) {
-		my $weight = $1;
-		if ($3 =~ /\"(.*)\",\s*\"(.*)\"/) {
-			$request = $1;
-			$receive = $2;
-			unless($request=~/^\//){
-				$request = "/" . $request;
-			}
-			$new_rsrv = {"server"=>$ip, "port"=>$port, 
-				"forward"=>$fwd, "weight"=>$weight, 
-				"request"=>$request, "receive"=>$receive};
-		} else {
-			$new_rsrv = {"server"=>$ip, "port"=>$port, 
-				"forward"=>$fwd, "weight"=>$weight};
-		}
-	} elsif ($2 =~ /\s+\"(.*)\",\s*\"(.*)\"/) {
-		$request = $1;
-		$receive = $2;
-		unless($request=~/^\//){
-			$request = "/" . $request;
-		}
-		$new_rsrv = {"server"=>$ip, "port"=>$port, 
-			"forward"=>$fwd, "request"=>$request, 
-			"receive"=>$receive};
-	} else {
-		$new_rsrv = {"server"=>$ip, "port"=>$port, "forward"=>$fwd};
+	$rsrv=$vsrv->{"real"};
+
+	if(defined($flags) and $flags =~ /\s+(\d+)(.*)/) {
+		$new_rsrv->{"weight"} = $1;
+		$flags = $2;
+	}
+
+	if(defined($flags) and $flags =~ /\s+\"(.*)\"[, ]\s*\"(.*)\"(.*)/) {
+		$new_rsrv->{"request"} = $1;
+		$new_rsrv->{"receive"} = $2;
+		$flags = $3;
+	}
+
+	if (defined($flags) and $flags =~/\S/) {
+		&config_error($line, "Invalid real server line, around "
+			. "\"$flags\"");
 	}
 
 	push(@$rsrv, $new_rsrv);
