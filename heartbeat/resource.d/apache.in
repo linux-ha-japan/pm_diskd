@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: apache.in,v 1.2 2002/10/05 19:45:10 alan Exp $
+# $Id: apache.in,v 1.3 2002/10/08 03:35:24 alan Exp $
 #
 #	High-Availability Apache/IBMhttp control script
 # 
@@ -88,7 +88,7 @@ usage() {
 		monitor in the methods call if we don't know think
 		that the monitor call will actually work ;-)
 
-	$Id: apache.in,v 1.2 2002/10/05 19:45:10 alan Exp $
+	$Id: apache.in,v 1.3 2002/10/08 03:35:24 alan Exp $
 	!
   exit 1
 }
@@ -327,19 +327,24 @@ stop_apache() {
       do
         sleep 1
         kill $ApachePID >/dev/null 2>&1
+        ha_log "Killing apache PID $ApachePID"
         tries=`expr $tries + 1`
       done
+    else
+      ha_log "Killing apache PID $ApachePID FAILED."
     fi
     if
       ProcessRunning $ApachePID
     then
       echo "$CMD still running ($ApachePID)."
+      ha_log "$CMD still running ($ApachePID)."
       false
     else
       echo "$CMD stopped."
     fi
   else
     echo "$CMD not running."
+    ha_log "$CMD is not running."
   fi
 }
 
