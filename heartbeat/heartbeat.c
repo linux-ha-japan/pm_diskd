@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.73 2000/07/21 04:22:34 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.74 2000/07/21 13:25:51 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -2288,7 +2288,7 @@ mark_node_dead(struct node_info *hip)
 			ha_log(LOG_INFO
 			,	"Resetting node %s with [%s]"
 			,	hip->nodename
-			,	s->s_ops->devid(s));
+			,	s->s_ops->getinfo(s, ST_DEVICEID));
 
 			switch (s->s_ops->reset_req(s, ST_RESET,hip->nodename)){
 
@@ -2300,7 +2300,7 @@ mark_node_dead(struct node_info *hip)
 			case S_BADHOST:
 				ha_log(LOG_ERR
 				,	"Device %s cannot reset host %s."
-				,	s->s_ops->devid(s)
+				,	s->s_ops->getinfo(s, ST_DEVICEID)
 				,	hip->nodename);
 				break;
 
@@ -3464,6 +3464,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.74  2000/07/21 13:25:51  alan
+ * Made heartbeat consistent with current Stonith API.
+ *
  * Revision 1.73  2000/07/21 04:22:34  alan
  * Revamped the Stonith API to make it more readily extensible.
  * This nice improvement was suggested by Bhavesh Davda of Avaya.
