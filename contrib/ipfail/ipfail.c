@@ -554,7 +554,7 @@ main(int argc, char **argv)
 
 	cl_log(LOG_DEBUG, "Waiting for messages...");
 	errno = 0;
-	// turn me back on before committing cl_log_enable_stderr(FALSE);
+	cl_log_enable_stderr(FALSE);
 
 
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
