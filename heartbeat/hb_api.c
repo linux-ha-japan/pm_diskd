@@ -180,6 +180,27 @@ api_process_request(struct ha_msg * msg)
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
+	}else if (strcmp(reqtype, API_SETSIGNAL) == 0) {
+	/*
+	 *	Set a signal to send whenever a message arrives
+	 */
+		const char *	csignal;
+		unsigned	oursig;
+		if ((csignal = ha_msg_value(msg, F_SIGNAL)) == NULL
+		||	(sscanf(csignal, "%u", &oursig) != 1)) {
+			goto bad_req;
+		}
+
+		client->signal = oursig;
+		if (ha_msg_add(resp, F_APIRESULT, API_OK) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add field/8.1");
+			ha_msg_del(resp); resp=NULL;
+			return;
+		}
+		api_send_client_msg(client, resp);
+		ha_msg_del(resp); resp=NULL;
+		return;
 	/*
 	 *	List the nodes in the cluster
 	 */

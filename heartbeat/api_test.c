@@ -30,6 +30,7 @@ static struct ha_msg*	hb_api_boilerplate(const char * apitype);
 static int		hb_api_signon(const char * clientid);
 static int		hb_api_signoff(void);
 static int		hb_api_setfilter(unsigned);
+static int		hb_api_setsignal(unsigned);
 static void		destroy_stringlist(struct stringlist *);
 static struct stringlist*
 			new_stringlist(const char *);
@@ -210,6 +211,51 @@ hb_api_setfilter(unsigned fmask)
 
 	snprintf(filtermask, sizeof(filtermask), "%x", fmask);
 	if (ha_msg_add(request, F_FILTERMASK, filtermask) != HA_OK) {
+		fprintf(stderr, "api_process_request: cannot add field/2\n");
+		ha_msg_del(request); request=NULL;
+		return HA_FAIL;
+	}
+	
+	/* Send message */
+	msg2stream(request, MsgFIFO);
+	ha_msg_del(request); request=NULL;
+
+	/* Read reply... */
+	if ((reply=read_api_msg()) == NULL) {
+		ha_msg_del(request); request=NULL;
+		perror("can't read reply");
+		return HA_FAIL;
+	}
+	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
+	&&	strcmp(result, API_OK) == 0) {
+		rc = HA_OK;
+	}else{
+		rc = HA_FAIL;
+	}
+	ha_msg_del(reply); reply=NULL;
+
+	return rc;
+}
+int
+hb_api_setsignal(unsigned nsig)
+{
+	struct ha_msg*	request;
+	struct ha_msg*	reply;
+	int		rc;
+	const char *	result;
+	char		csignal[32];
+
+	if (!SignedOnAlready) {
+		return HA_FAIL;
+	}
+
+	if ((request = hb_api_boilerplate(API_SETSIGNAL)) == NULL) {
+		fprintf(stderr, "api_process_request: can't create msg\n");
+		return HA_FAIL;
+	}
+
+	snprintf(csignal, sizeof(csignal), "%d", nsig);
+	if (ha_msg_add(request, F_SIGNAL, csignal) != HA_OK) {
 		fprintf(stderr, "api_process_request: cannot add field/2\n");
 		ha_msg_del(request); request=NULL;
 		return HA_FAIL;
@@ -578,6 +624,8 @@ main(int argc, char ** argv)
 #endif
 	fprintf(stderr, "Setting message filter mask\n");
 	hb_api_setfilter(fmask);
+	fprintf(stderr, "Setting message signal\n");
+	hb_api_setsignal(0);
 	get_nodelist();
 	get_iflist("kathyamy");
 	fprintf(stderr, "Node status: %s\n", get_nodestatus("kathyamy"));

@@ -78,11 +78,9 @@ struct llc_ops {
                         const char * node, const char * iface, void * p);
  
 
-/*
- *************************************************************************
+/*************************************************************************
  * Getting Current Information
- *************************************************************************
- */
+ *************************************************************************/
 
 /*
  *	init_nodewalk:	Initialize walk through list of list of known nodes
@@ -117,11 +115,9 @@ struct llc_ops {
  */
 	int		(*if_status)(const char * nodename, const char *iface);
 
-/*
- *************************************************************************
+/*************************************************************************
  * Intracluster messaging
- *************************************************************************
- */
+ **************************************************************************/
 
 /*
  *	sendclustermsg:	Send the given message to all cluster members
@@ -185,9 +181,6 @@ struct llc_ops {
  */
 #	define	LLC_FILTER_DEFAULT	0
 #	define	LLC_FILTER_PMODE	1
-
-/* Do we need these higher levels ? */
-
 #	define	LLC_FILTER_ALLHB	2
 #	define	LLC_FILTER_RAW		3
 
