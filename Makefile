@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.57 2000/11/14 15:29:48 alan Exp $
+#	$Id: Makefile,v 1.58 2000/11/15 17:55:35 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -9,7 +9,7 @@
 #
 #
 PKG=heartbeat
-VERS=0.4.8g
+VERS=0.4.8h
 RPMREL=1
 
 INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
@@ -83,7 +83,7 @@ RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-ldirectord-$(VERS)-$(RPMREL).i386.r
 
 
 all:
-	for j in $(NONKERNELDIRS); 					\
+	@set -e;for j in $(NONKERNELDIRS); 				\
 	do 								\
 		$(MAKE_CMD) -C $$j all; 				\
 	done
@@ -103,7 +103,7 @@ bin_dirs:
 
 
 install:	all_dirs
-	@for j in $(NONKERNELDIRS); 					\
+	@set -e; for j in $(NONKERNELDIRS); 				\
 	do 								\
 		$(MAKE_CMD) -C $$j install; 				\
 	done
@@ -113,7 +113,7 @@ install:	all_dirs
 	fi;								\
 
 install_bin: bin_dirs
-	@for j in $(NONKERNELDIRS); 					\
+	@set -e; for j in $(NONKERNELDIRS);				\
 	do 								\
 		$(MAKE_CMD) -C $$j install_bin;				\
 	done
@@ -126,7 +126,7 @@ handy: rpm
 	su alanr -c "cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(RPMstonith) $(RPMldir) $(WEBDIR)"
 
 clean:	local_clean
-	@for j in $(BUILDDIRS);				\
+	@set -e; for j in $(BUILDDIRS);				\
 	do 						\
 		$(MAKE_CMD) -C $$j clean;		\
 	done
@@ -136,7 +136,7 @@ local_clean:
 	rm -f $(LIBCMDS) $(SPECFILE)
 
 pristene: local_clean rpmclean
-	@for j in $(BUILDDIRS);				\
+	@set -e; for j in $(BUILDDIRS);				\
 	do ( cd $$j; $(MAKE_CMD) pristene; ); done
 
 
@@ -230,7 +230,7 @@ distclean:	tarclean
 
 tarclean:	pristene
 		rm -fr $(OURDIR) $(TARFILE)
-		@for j in $(BUILDDIRS);			\
+		@set -e; for j in $(BUILDDIRS);			\
 		do					\
 			$(MAKE_CMD) -C $$j pristene;	\
 		done

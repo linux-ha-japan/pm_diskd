@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.14 2000/11/12 04:29:22 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.15 2000/11/15 17:55:35 alan Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -104,10 +104,19 @@ STATIC int hb_dev_isping (void) {
 STATIC int
 hb_dev_init(void)
 {
+	struct servent*	service;
+
 	(void)_heartbeat_h_Id;
 	(void)_udp_Id;
 	(void)_ha_msg_h_Id;
-	udpport = UDPPORT;
+
+	/* If our service name is in /etc/services, then use it */
+
+	if ((service=getservbyname(HA_SERVICENAME, "udp")) != NULL) {
+		udpport = ntohs(service->s_port);
+	}else{
+		udpport = UDPPORT;
+	}
 	return(HA_OK);
 }
 
@@ -510,6 +519,11 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.15  2000/11/15 17:55:35  alan
+ * Added code to recognize the correct IANA port name in /etc/services and
+ * deal with it appropriately.  Also, now just give a warning if they specify
+ * a port that someone else is using.
+ *
  * Revision 1.14  2000/11/12 04:29:22  alan
  * Fixed: syslog/file simultaneous logging.
  * 	Added a group for API clients.

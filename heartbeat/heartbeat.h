@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.35 2000/11/12 04:29:22 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.36 2000/11/15 17:55:35 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -111,8 +111,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.35 2000/11/12 04:29:
 #define	LOADAVG		"/proc/loadavg"
 #define	PIDFILE		VAR_RUN_D "/heartbeat.pid"
 #define KEYFILE         HA_D "/authkeys"
-#define HA_SERVICENAME	"ha-heartbeat"
-#define	UDPPORT		694	/* Our official, registered port number */
+#define HA_SERVICENAME	"ha-cluster" 	/* Our official reg'd service name */
+#define	UDPPORT		694		/* Our official reg'd port number */
 
 /* Environment variables we pass to our scripts... */
 #define CURHOSTENV	"HA_CURHOST"

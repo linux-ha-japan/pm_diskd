@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.69 2000/11/15 10:03:40 alan Exp $
+#	$Id: Specfile,v 1.70 2000/11/15 17:55:35 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -98,6 +98,8 @@ machine. It's simple and reliable, albiet admittedly brutal.
   + Moved several files, etc. from /var/run to /var/lib/heartbeat
   + Baytech Stonith code now retries failed login sequences
   + Set close-on-exec bit in watchdog open code...
+  + Recognize our IANA port number ("ha-cluster") if it's present.
+  + Use the port number in /etc/services as the default if it's there.
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
