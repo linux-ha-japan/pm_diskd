@@ -6,7 +6,7 @@
 # description: Start and stop ldirectord on non-heartbeat systems
 #              Using the config file /etc/ha.d/conf/ldirectord.cf
 #              
-# processname: ipv4_conf
+# processname: ldirectrod
 # config: /etc/ha.d/conf/ldirectord.cf
 #
 # Author: Horms <horms@valinux.com>
