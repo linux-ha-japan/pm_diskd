@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.5 2001/07/19 15:59:55 alan Exp $
+#	$Id: IPaddr.in,v 1.6 2001/10/02 20:04:09 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -15,6 +15,7 @@
 #
 
 LC_ALL=en; export LC_ALL # Make ifconfig work in France for David Jules :-)
+LANGUAGE=en; export LANGUAGE # Make ifconfig work in France for Fabrice :-)
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -324,6 +325,10 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.6  2001/10/02 20:04:09  alan
+# I added wehat should be a redundnat fix for Fabrice of France.
+# He says it isn't redundant.  It's clearly harmless.
+#
 # Revision 1.5  2001/07/19 15:59:55  alan
 # Put in Matt Soffen's pathname patch...
 #
