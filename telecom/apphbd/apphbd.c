@@ -34,7 +34,7 @@
  *
  * The IPC connection socket is one event source.
  * Each socket connecting us to our clients are more event sources.
- * Each heartbeat timeout are also event sources.
+ * Each heartbeat timeout is also an event source.
  *
  * The only limit we have on the number of clients we can support is the
  * number of file descriptors we can have open.  It's been tested to
@@ -97,7 +97,7 @@ const char *	cmdname = "apphbd";
 #define		DBGMIN		1
 #define		DBGDETAIL	2
 int		debug = 0;
-int		usenormalpoll=TRUE;
+int		usenormalpoll=FALSE;
 
 
 
