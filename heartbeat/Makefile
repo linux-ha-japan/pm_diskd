@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.35 2000/11/12 04:29:22 alan Exp $
+#	$Id: Makefile,v 1.36 2000/11/12 04:35:47 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -126,7 +126,7 @@ LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 RESOURCECMDS= resource.d/IPaddr resource.d/AudibleAlarm resource.d/Raid1 resource.d/Filesystem
 
 RCCMDS = rc.d/ip-request rc.d/ip-request-resp rc.d/status	\
-	rc.d/ns_st rc.d/ifstat
+	rc.d/ns_st rc.d/ifstat rc.d/shutdone
 ROOTFILES = harc shellfuncs README.config
 
 SPECSRC = Specfile
