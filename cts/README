@@ -1,3 +1,28 @@
+BASIC REQUIREMENTS BEFORE STARTING:
+
+Three machines:  one test exerciser and two test cluster machines.
+
+	The two test cluster machines need to be on the same subnet.
+		and they should have journalling filesytems for
+		all their filesystems
+	You also need two free IP addresses on that subnet to test
+		mutual IP address takeover
+
+	The test exerciser machine doesn't need to be on the same subnet
+	as the test machines.
+
+Install heartbeat, heartbeat-pils, and heartbeat-stonith on all three
+machines.  Set up the configuration on the cluster machines *and make
+a copy of on the test exerciser machine*.  These are the necessary files:
+	/etc/ha.d/ha.cf
+	/etc/ha.d/haresources
+	/etc/ha.d/authkeys
+
+Note that wherever machine names are mentioned, they must match the machines'
+`uname -n` name.  This may or may not match the machines' FQDN (fully qualified
+domain name) - it depends on how you (and your OS) have named the machine.
+
+
 Here's what you need to do to run CTS
 
 Configure the two "cluster" machines with their logging of heartbeat
@@ -13,6 +38,13 @@ The exerciser needs to be able to ssh over to the cluster nodes as root
 without a password challenge.  Configure ssh accordingly.
 	(see the mini-HOWTOs at the end for more details)
 
+The "heartbeat" service (init script) needs to be enabled to
+automatically start in the default run level on the cluster machines. 
+This typically means you need a symlink for /etc/rc.d/rc3.d/S*heartbeat
+to /etc/init.d/heartbeat, and one in /etc/rc.d/rc5.d/S*heartbeat.
+If you don't do this, then things will look fine until you run the STONITH
+test - and it will always fail...
+
 The test software is called cts and is in the (surprise!) cts directory.
 It's in the tarball, but not installed anywhere.
 
@@ -27,17 +59,7 @@ CTStests.py     - contains the definitions of the tests
 I think you'll only need to modify the CTSlab.py file...
 
 There's a line in the Stonith class for performing a stonith in your lab
-environment.  You'll need to use the ssh stonith type.  I'll need to make
-sure that plugin is in this new release, eh?  ;-)
-
-def __init__(self, sttype="baytech", parm="10.10.10.100 admin admin"
-    ,   path="/usr/sbin/stonith"):
-
-There are more elegant ways to do this, but this is easiest (even if
-sleaziest) ;-)
-
-Actually, switching to that reset mechanism as default for testing is
-probably a good idea anyway...
+environment.  You'll need to use the ssh stonith type. 
 
 You need to supply the system with your list of nodes:
 
@@ -66,6 +88,18 @@ OK.  Now assuming you did all this and the stuff described below, what you
 need to do is run CTSlab.py.  This is the same as the file you modified above.
 If you run any other file, it won't test your cluster ;-)
 
+Depending on permissions, etc., this may be either done as:
+	./CTSlab.py
+or as
+	python ./CTSlab.py
+
+The test output goes to standard error, so you'll probably want to catch stderr
+with the usual 2>&1 construct like this:
+	./CTSlab.py > outputfile 2>&1 &
+followed by a
+	tail -f outputfile
+
+
 ==============
 Mini HOWTOs:
 ==============
@@ -92,6 +126,8 @@ local7.*                                @testmonitor-machine
 	logging requests. You do this by making sure it gets invoked with
 	the "-r" option On SuSE Linux you need to change /etc/rc.config
 	to put have this line for SYSLOGD_PARAMS:
+	If you're on a recent version of SuSE/UL, this parameter has
+	moved into /etc/sysconfig/syslog
 
 SYSLOGD_PARAMS="-r"
 
@@ -118,18 +154,30 @@ logged in as root on the test machine
 1)	Grab your key from the testmonitor-machine:
 	take the single line out of ~/.ssh/identity.pub
 	and put it into root's authorized_keys file.
+	[This has changed to: copying the line from ~/.ssh/id_dsa into
+		root's authorized_keys file ]
 	Run this command on each of the "test" machines as root:
 
 ssh -v -l myid testmonitor-machine cat /home/myid/.ssh/identity.pub \
 	>> ~root/.ssh/authorized_keys
 
+[For most people, this has changed to:
+  ssh -v -l myid testmonitor-machine cat /home/myid/.ssh/id_dsa \
+	>> ~root/.ssh/authorized_keys
+]
+
 	You will probably have to provide your password, and possibly say
-	"yes" to some questions about accepting the identity of the test machines
+	"yes" to some questions about accepting the identity of the
+	test machines
+
+You must also do the corresponding update for the testmonitor machine itself
+as root:
+	cat /home/myid/.ssh/identity.pub >> ~root/.ssh/authorized_keys
 
 	To test this, try this command from the testmonitor-machine for each
-	of your testmachines:
+	of your testmachines, and for the testmonitor-machine itself.
 
-ssh -l root testmachine1
+ssh -l root othermachine
 
 If this works, without prompting for a password, you're in business...
 If not, you need to look at the ssh/openssh documentation and the output from
