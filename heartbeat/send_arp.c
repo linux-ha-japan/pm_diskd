@@ -1,17 +1,33 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.8 2002/06/06 04:43:40 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.9 2002/07/08 04:14:12 alan Exp $";
 /* 
-send_arp
+ * send_arp
+ * 
+ * This program sends out one ARP packet with source/target IP and Ethernet
+ * hardware addresses suuplied by the user.  It uses the libnet libary from
+ * Packet Factory (http://www.packetfactory.net/libnet/ ). It has been tested
+ * on Linux, FreeBSD, and on Solaris.
+ * 
+ * This inspired by the sample application supplied by Packet Factory.
 
-This program sends out one ARP packet with source/target IP and Ethernet
-hardware addresses suuplied by the user.  It uses the libnet libary from
-Packet Factory (http://www.packetfactory.net/libnet/ ). It has been tested
-on Linux, FreeBSD, and on Solaris.
+ * Matt Soffen
 
-This is based on the sample application supplied by Packet Factory.
-
-Matt Soffen
-
-*/
+ * Copyright (C) 2001 Matt Soffen <matt@soffen.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
 
 #include <libnet.h>
 
@@ -136,6 +152,10 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.9  2002/07/08 04:14:12  alan
+ * Updated comments in the front of various files.
+ * Removed Matt's Solaris fix (which seems to be illegal on Linux).
+ *
  * Revision 1.8  2002/06/06 04:43:40  alan
  * Got rid of a warning (error) about an unused RCS version string.
  *

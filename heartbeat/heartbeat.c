@@ -1,23 +1,24 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.190 2002/06/21 14:52:51 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.191 2002/07/08 04:14:12 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
  *
  * Copyright (C) 1999-2002 Alan Robertson <alanr@unix.sh>
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 /*
@@ -6044,6 +6045,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.191  2002/07/08 04:14:12  alan
+ * Updated comments in the front of various files.
+ * Removed Matt's Solaris fix (which seems to be illegal on Linux).
+ *
  * Revision 1.190  2002/06/21 14:52:51  alan
  * Put in a fix which should cause configuration errors to go to stderr in
  * addition to whereever else they might be headed ;-)

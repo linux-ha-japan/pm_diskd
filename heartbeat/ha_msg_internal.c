@@ -1,22 +1,23 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.18 2002/04/13 22:35:08 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.19 2002/07/08 04:14:12 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
  * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  * 
- * This program is distributed in the hope that it will be useful,
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
  */
 
 #include <portability.h>
@@ -498,6 +499,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.19  2002/07/08 04:14:12  alan
+ * Updated comments in the front of various files.
+ * Removed Matt's Solaris fix (which seems to be illegal on Linux).
+ *
  * Revision 1.18  2002/04/13 22:35:08  alan
  * Changed ha_msg_add_nv to take an end pointer to make it safer.
  * Added a length parameter to string2msg so it would be safer.
