@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.24 2002/06/16 06:20:41 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.25 2002/07/16 04:25:42 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -91,6 +91,11 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Got rid of "control_process: NULL message" message
   + Got rid of the "controlfifo2msg: cannot create message" message
   + Added -h option to give usage message for stonith command...
+  + Wait for successful STONITH completion, and retry if its configured.
+  + Sped up takeover code.
+  + Several potential timing problems eliminated.
+  + Cleaned up the shutdown (exit) code considerably.
+  + Detect the death of our core child processes.
   + Changed where usage messages go depending on exit status from usage().
   + Made some more functions static.
   + Real-time performance improvement changes
@@ -99,6 +104,21 @@ machine. It's simple and reliable, albeit admittedly brutal.
         printf-style messages on GNU C compilers
   + Changed several log messages to have the right parameters (discovered
         as a result of the change above)
+  + Numerous FreeBSD, Solaris and OpenBSD fixes.
+  + Added backwards compatibility kludge for udp (versus bcast)
+  + Queued messages to API clients instead of throwing them away.
+  + Added code to send out messages when clients join, leave.
+  + Added support for spawning and monitoring child clients.
+  + Cleaned up error messages.
+  + Added support for DB2, ServeRAID and WAS, LVM, and Apache (IBMhttp too),
+    also ICP Vortex controller.
+  + Added locking when creating new IP aliases.
+  + Added a "unicast" media option.
+  + Added a new SimulStart and standby test case.
+  + Diddled init levels around...
+  + Added an application-level heartbeat API.
+  + Added several new "plumbing" subsystems (IPC, longclock_t, proctrack, etc.)
+  + Added a new "contrib" directory.
 
 * Fri Mar 16 2001 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
