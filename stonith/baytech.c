@@ -80,29 +80,29 @@ static const char * NOTbtid = "Hey, dummy this has been destroyed (BayTech)";
 
 #define BAYTECHASSOC	"Bay Technical Associates"
 
-static struct Etoken EscapeChar[] =	{ {"Escape character is '^]'.", 1, 0}
+static struct Etoken EscapeChar[] =	{ {"Escape character is '^]'.", 0, 0}
 					,	{NULL,0,0}};
-static struct Etoken BayTechAssoc[] =	{ {BAYTECHASSOC, 1, 0}, {NULL,0,0}};
-static struct Etoken UnitId[] =		{ {"Unit ID: ", 1, 0}, {NULL,0,0}};
-static struct Etoken login[] =		{ {"username>", 1, 0} ,{NULL,0,0}};
-static struct Etoken password[] =	{ {"password>", 1, 0}
-					, {"username>", 1, 0} ,{NULL,0,0}};
-static struct Etoken Selection[] =	{ {"election>", 1, 0} ,{NULL,0,0}};
-static struct Etoken RPC[] =		{ {"RPC", 1, 0} ,{NULL,0,0}};
-static struct Etoken LoginOK[] =	{ {"RPC", 1, 0}, {"Invalid password", 1, 0}
+static struct Etoken BayTechAssoc[] =	{ {BAYTECHASSOC, 0, 0}, {NULL,0,0}};
+static struct Etoken UnitId[] =		{ {"Unit ID: ", 0, 0}, {NULL,0,0}};
+static struct Etoken login[] =		{ {"username>", 0, 0} ,{NULL,0,0}};
+static struct Etoken password[] =	{ {"password>", 0, 0}
+					, {"username>", 0, 0} ,{NULL,0,0}};
+static struct Etoken Selection[] =	{ {"election>", 0, 0} ,{NULL,0,0}};
+static struct Etoken RPC[] =		{ {"RPC", 0, 0} ,{NULL,0,0}};
+static struct Etoken LoginOK[] =	{ {"RPC", 0, 0}, {"Invalid password", 1, 0}
 					,	{NULL,0,0}};
-static struct Etoken GTSign[] =		{ {">", 1, 0} ,{NULL,0,0}};
-static struct Etoken Menu[] =		{ {"Menu:", 1, 0} ,{NULL,0,0}};
-static struct Etoken Temp[] =		{ {"emperature: ", 1, 0} ,{NULL,0,0}};
-static struct Etoken PowerApplied[] =	{ {"ower applied to outlet", 1, 0}
+static struct Etoken GTSign[] =		{ {">", 0, 0} ,{NULL,0,0}};
+static struct Etoken Menu[] =		{ {"Menu:", 0, 0} ,{NULL,0,0}};
+static struct Etoken Temp[] =		{ {"emperature: ", 0, 0} ,{NULL,0,0}};
+static struct Etoken PowerApplied[] =	{ {"ower applied to outlet", 0, 0}
 					,	{NULL,0,0}};
 /* Accept either a CR/NL or an NL/CR */
-static struct Etoken CRNL[] =		{ {"\n\r",1,0},{"\r\n",1,0},{NULL,0,0}};
+static struct Etoken CRNL[] =		{ {"\n\r",0,0},{"\r\n",0,0},{NULL,0,0}};
 
 /* We may get a notice about rebooting, or a request for confirmation */
-static struct Etoken Rebooting[] =	{ {"ebooting selected outlet", 1, 0}
+static struct Etoken Rebooting[] =	{ {"ebooting selected outlet", 0, 0}
 				,	{"(Y/N)>", 1, 0}
-				,	{"already off.", 1, 0}
+				,	{"already off.", 2, 0}
 				,	{NULL,0,0}};
 
 static int RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout);
@@ -115,15 +115,14 @@ static int RPCLogout(struct BayTech * bt);
 static void RPCkillcomm(struct BayTech * bt);
 
 static int	RPC_set_configfile(Stonith *, const char * cfgname);
-static const char*	RPC_confi_syntax(Stonith*);
-static const char*	RPC_conff_syntax(Stonith*);
 static int	RPC_provide_config_info(Stonith *, const char * info);
 static int	RPC_parse_config_info(struct BayTech* bt, const char * info);
-static const char * RPC_idinfo(Stonith* s);
+static const char * RPC_getinfo(Stonith * s, enum StonithInfoReq reqtype);
 
 static char **	RPClist_hosts(Stonith  *);
 static void	RPCfree_hostlist(char **);
 static int	RPC_status(Stonith * );
+static int	RPC_reset_req(Stonith * s, enum StonithRequest, const char * host);
 static int	RPC_reset_host(Stonith * s, const char * host);
 #ifdef ONOFF
 static int	RPC_onoff(Stonith*, int unitnum, const char * unitid,int turnon);
@@ -732,6 +731,22 @@ RPC_connect_device(struct BayTech * bt)
 	return(S_OK);
 }
 
+static int
+RPC_reset_req(Stonith * s, enum StonithRequest req, const char * host)
+{
+	if (!ISBAYTECH(s)) {
+		syslog(LOG_ERR, "invalid argument to RPC_reset_host");
+		return(S_OOPS);
+	}
+
+	switch(req) {
+
+		case ST_RESET:
+			return RPC_reset_host(s, host);
+	}
+	return S_INVAL;
+}
+
 /*
  *	Reset the given host on this Stonith device.
  */
@@ -830,35 +845,35 @@ RPC_provide_config_info(Stonith* s, const char * info)
 	return(RPC_parse_config_info(bt, info));
 }
 static const char *
-RPC_idinfo(Stonith * s)
+RPC_getinfo(Stonith * s, enum StonithInfoReq reqtype)
 {
 	struct BayTech* bt;
 
 	if (!ISBAYTECH(s)) {
 		syslog(LOG_ERR, "RPC_idinfo: invalid argument");
-		return(NULL);
+		return NULL;
 	}
 	bt = (struct BayTech *)s->pinfo;
 
-	return(bt->idinfo);
-}
-static const char*
-RPC_confi_syntax(Stonith* s)
-{
-	return
-	"IP-address login password\n"
-	"The IP-address and login are white-space delimited.";
+	switch (reqtype) {
+		case ST_DEVICEID:
+			return bt->idinfo;
+
+		case ST_CONF_INFO_SYNTAX:
+			return
+			"IP-address login password\n"
+			"The IP-address and login are white-space delimited.";
+
+		case ST_CONF_FILE_SYNTAX:
+			return
+			"IP-address login password\n"
+			"The IP-address and login are white-space delimited. "
+			"All three items must be on one line. "
+			"Blank lines and lines beginning with # are ignored";
+	}
+	return NULL;
 }
 
-static const char*
-RPC_conff_syntax(Stonith* s)
-{
-	return
-	"IP-address login password\n"
-	"The IP-address and login are white-space delimited. "
-	"All three items must be on one line. "
-	"Blank lines and lines beginning with # are ignored";
-}
 /*
  *	Baytech Stonith destructor...
  */
@@ -907,12 +922,10 @@ baytech_del(Stonith *s) {
 static struct stonith_ops	BayTech_ops = {
 	baytech_del,		/* delete		*/
 	RPC_set_configfile,	/* set_config_file	*/
-	RPC_conff_syntax,	/* conf_file_syntax	*/
 	RPC_provide_config_info,/* provide_config_info	*/
-	RPC_confi_syntax,	/* conf_info	*/
-	RPC_idinfo,		/* devid		*/
+	RPC_getinfo,		/* devid		*/
 	RPC_status,		/* status		*/
-	RPC_reset_host,		/* reset_host		*/
+	RPC_reset_req,		/* reset_req		*/
 #ifdef ONOFF
 	RPC_onoff,		/* onoff		*/
 #endif

@@ -49,6 +49,10 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 		wraparound = 1;
 	}
 
+	if (buf) {
+		*buf = EOS;
+	}
+
 	for (this=toklist; this->string; ++this) {
 		this->matchto = 0;
 	}
@@ -88,7 +92,7 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 			return(-1);
 		}
 		/* Save the text, if we can */
-		if (buf && nchars < maxline) {
+		if (buf && nchars < maxline-1) {
 			*buf = ch;
 			++buf;
 			*buf = EOS;
@@ -109,7 +113,7 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 			 	++this->matchto;
 				if (this->string[this->matchto] == EOS){
 					/* Hallelujah! We matched */
-					return(this-toklist);
+					return(this->toktype);
 				}
 			}else{
 
@@ -144,8 +148,9 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 					&&	this->string[curlen] == ch)  {
 						
 						if (this->string[curlen+1]==EOS){
-							/* We matched! */
-							return(this-toklist);
+							/* We matched!  */
+							/* (can't happen?) */
+							return(this->toktype);
 						}
 						this->matchto = curlen+1;
 						nomatch=0;

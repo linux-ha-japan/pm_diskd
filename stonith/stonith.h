@@ -24,11 +24,12 @@
 #define	S_BADCONFIG	1	/* Bad config info given	*/
 #define	S_ACCESS	2	/* Can't access STONITH device	*/
 				/* (login/passwd problem?)	*/
-#define	S_BADHOST	3	/* Bad/illegal host/node name	*/
-#define	S_RESETFAIL	4	/* Reset failed			*/
-#define	S_TIMEOUT	5	/* Timed out in the dialogues	*/
-#define	S_ISOFF		5	/* Can't reboot: Outlet is off	*/
-#define	S_OOPS		6	/* Something strange happened	*/
+#define	S_INVAL		3	/* Bad/illegal argument		*/
+#define	S_BADHOST	4	/* Bad/illegal host/node name	*/
+#define	S_RESETFAIL	5	/* Reset failed			*/
+#define	S_TIMEOUT	6	/* Timed out in the dialogues	*/
+#define	S_ISOFF		7	/* Can't reboot: Outlet is off	*/
+#define	S_OOPS		8	/* Something strange happened	*/
 
 typedef struct stonith {
 	struct stonith_ops *	s_ops;
@@ -40,13 +41,21 @@ typedef struct stonith {
  *	Consequently they assume you've done an openlog() to initialize it
  *	for them.
  */
+enum StonithInfoReq {
+	ST_CONF_FILE_SYNTAX 	= 1,	/* Config file syntax help */
+	ST_CONF_INFO_SYNTAX	= 2,	/* Config string (info) syntax help */
+	ST_DEVICEID		= 3,	/* Device Identification */
+};
+
+enum StonithRequest {
+	ST_RESET		= 1,	/* Reset the machine */
+};
+
 struct stonith_ops {
-	void (*delete)			(Stonith*);		/* Destructor */
+	void (*destroy)			(Stonith*);
 	int (*set_config_file)		(Stonith *, const char   * filename); 
-	const char* (*conf_file_syntax)	(Stonith*);		/* Never fails */
 	int (*set_config_info)		(Stonith *, const char   * confstring); 
-	const char* (*conf_info_syntax)	(Stonith*);		/* Never fails */
-	const char* (*devid)		(Stonith*);		/* Never fails */
+	const char* (*getinfo)		(Stonith*, enum StonithInfoReq);
 
 	/*
 	 * Must call set_config_info or set_config_file before calling any of
@@ -54,7 +63,8 @@ struct stonith_ops {
 	 */
 
 	int (*status)			(Stonith *s);
-	int (*reset_host)		(Stonith * s, const char * hostname);
+	int (*reset_req)		(Stonith * s, enum StonithRequest
+	,					const char * hostname);
 
 	char** (*hostlist)		(Stonith* s);
 					/* Returns list of hosts it supports */
@@ -65,15 +75,15 @@ extern Stonith *	stonith_new(const char * type);
 extern const char **	stonith_types(void);	/* NULL-terminated list */
 
 /*
- * It is intended that the conf_file_syntax member function return a string
+ * It is intended that the ST_CONF_FILE_SYNTAX info call return a string
  * describing the syntax of the configuration file that set_config_file() will
- * accept. This string can then be used as short help text in configuration tools,
- * etc.
+ * accept. This string can then be used as short help text in configuration
+ * tools, etc.
  *
- * The conf_info_syntax() function serves a similar purpose with respect to the 
- * configuration string.
+ * The ST_CONF_INFO_SYNTAX info call serves a similar purpose with respect to
+ * the configuration string.
  *
- * The devid member function is intended to return the type of the Stonith
+ * The ST_DEVICEID info call is intended to return the type of the Stonith
  * device.  Note that it may return a different result once it has attempted
  * to talk to the device (like after a status() call).
  *
@@ -81,8 +91,8 @@ extern const char **	stonith_types(void);	/* NULL-terminated list */
  * use the result of the stonith_types() call in a pulldown menu.
  *
  * Once the type is selected, create a Stonith object of the selected type.
- * Then, create a dialog box to create the configuration info for the device
- * using the text from the conf_info_syntax() member function to direct the
+ * One can then create a dialog box to create the configuration info for the
+ * device using the text from the ST_CONF_INFO_SYNTAX info call to direct the
  * user in what information to supply in the conf_info string.
  *
  * Once the user has completed their selection, it can be tested for syntactic
@@ -90,15 +100,17 @@ extern const char **	stonith_types(void);	/* NULL-terminated list */
  *
  * If it passes set_config_info(), it can be further validated using status()
  * which will then actually try and talk to the STONITH device.  If status()
- * returns S_OK, then communication with the device was successfully established.
+ * returns S_OK, then communication with the device was successfully
+ * established.
  *
- * Normally that would mean that logins, passwords, device names, and IP addresses,
- * etc. have been validated as required by the particular device.
+ * Normally that would mean that logins, passwords, device names, and IP
+ * addresses, etc. have been validated as required by the particular device.
  *
  * At this point, you can ask the device which machines it knows how to reset
  * using the hostlist() member function.
  *
- * I am a concerned that the conf_file_syntax and conf_info_syntax functions
- * may not be the right interface in the multi-language Linux world.
+ * I am a concerned that the ST_CONF_FILE_SYNTAX and ST_CONF_INFO_SYNTAX
+ * info calls may not be the right interface in the multi-language world
+ * that Linux is very much a part of.
  *
  */

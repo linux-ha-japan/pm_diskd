@@ -109,30 +109,32 @@ main(int argc, char** argv)
 		exit(S_OOPS);
 	}
 	if (optfile) {
+		/* Configure the Stonith object from a file */
 		if ((rc=s->s_ops->set_config_file(s, optfile)) != S_OK) {
 			syslog(LOG_ERR
 			,	"Invalid config file for %s device."
 			,	SwitchType);
-			syslog(LOG_ERR, "Config file syntax: %s"
-			,	s->s_ops->conf_file_syntax(s));
-			s->s_ops->delete(s);
+			syslog(LOG_INFO, "Config file syntax: %s"
+			,	s->s_ops->getinfo(s, ST_CONF_FILE_SYNTAX));
+			s->s_ops->destroy(s);
 			exit(rc);
 		}
 	}else{
+		/* Configure the Stonith object from the argument */
 		if ((rc=s->s_ops->set_config_info(s, parameters)) != S_OK) {
 			syslog(LOG_ERR
 			,	"Invalid config info for %s device"
 			,	SwitchType);
-			syslog(LOG_ERR, "Config info syntax: %s"
-			,	s->s_ops->conf_info_syntax(s));
-			s->s_ops->delete(s);
+			syslog(LOG_INFO, "Config info syntax: %s"
+			,	s->s_ops->getinfo(s, ST_CONF_INFO_SYNTAX));
+			s->s_ops->destroy(s);
 			exit(rc);
 		}
 	}
 
 	rc = s->s_ops->status(s);
 
-	if ((SwitchType = s->s_ops->devid(s)) == NULL) {
+	if ((SwitchType = s->s_ops->getinfo(s, ST_DEVICEID)) == NULL) {
 		SwitchType = "BayTech";
 	}
 
@@ -178,8 +180,8 @@ main(int argc, char** argv)
 	}
 
 	if (optind < argc) {
-		rc = (s->s_ops->reset_host(s, argv[optind]));
+		rc = (s->s_ops->reset_req(s, ST_RESET, argv[optind]));
 	}
-	s->s_ops->delete(s);
+	s->s_ops->destroy(s);
 	return(rc);
 }
