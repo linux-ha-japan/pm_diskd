@@ -49,6 +49,8 @@ SUBDIRS			= init.d lib logrotate.d rc.d resource.d
 
 noinst_HEADERS		= hb_module.h
 
+include_HEADERS		= hb_api.h
+
 ## libraries
 
 lib_LTLIBRARIES		= libhbclient.la 
