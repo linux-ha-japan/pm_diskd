@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.7 2002/10/21 10:17:19 horms Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.8 2002/10/23 08:42:22 horms Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -478,7 +478,7 @@ ppp_udp_open_write(struct hb_media * mp)
 		}
 	}
 	if (ei->ppp_started && ei->ppp_pid > 1
-	&&	(CL_KILL(ei->ppp_pid, 0)< 0 && errno == ESRCH)) {
+	&&	(!CL_PID_EXISTS(ei->ppp_pid))) {
 		/* It must have died while starting up */
 		ei->ppp_started = 0;
 	}
@@ -785,8 +785,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 	 *	no route to host to let us know.  I suppose we could use
 	 *	death of child, but we only have one, so this works fine.
 	 */
-	if (ei->ppp_pid > 0 && (CL_KILL(ei->ppp_pid, 0) < 0 && 
-				errno == ESRCH)) {
+	if (ei->ppp_pid > 0 && !CL_PID_EXIS(ei->ppp_pid)) {
 		/* Our PPP process has died.  Start a new one */
 		ha_log(LOG_DEBUG, "PPPd process %d is gone.", ei->ppp_pid);
 		hb_dev_close(mp);
@@ -1218,6 +1217,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.8  2002/10/23 08:42:22  horms
+ * Added CL_PID_EXISTS conveince macro
+ *
  * Revision 1.7  2002/10/21 10:17:19  horms
  * hb api clients may now be built outside of the heartbeat tree
  *
