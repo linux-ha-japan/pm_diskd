@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.2 2001/08/11 01:40:54 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.3 2001/08/15 02:14:49 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -35,6 +35,7 @@ static const char _bcast_Id [] = "$Id: bcast.c,v 1.2 2001/08/11 01:40:54 alan Ex
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <net/if.h>
 #include <arpa/inet.h>
 
 #include <heartbeat.h>
@@ -669,6 +670,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.3  2001/08/15 02:14:49  alan
+ * Put in #include net/if.h needed for FreeBSD and solaris
+ *
  * Revision 1.2  2001/08/11 01:40:54  alan
  * Removed the old copy of the heartbeat.h file, and removed a
  * blank line from a file... ;-)
