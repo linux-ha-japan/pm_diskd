@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.41 2001/07/18 03:12:52 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.42 2001/07/18 03:14:37 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -676,7 +676,7 @@ set_hopfudge(const char * value)
 {
 	config->hopfudge = atoi(value);
 
-	if (config->hopfudge >= 0 && hopfudge < 256) {
+	if (config->hopfudge >= 0 && config->hopfudge < 256) {
 		return(HA_OK);
 	}
 	return(HA_FAIL);
