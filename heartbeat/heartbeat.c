@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.65 2000/06/17 12:09:10 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.66 2000/07/10 23:08:41 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -260,6 +260,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.65 2000/06/17 12:09:
 
 #include <heartbeat.h>
 #include <ha_msg.h>
+#include <hb_api_core.h>
 #include <test.h>
 
 #define OPTARGS		"dkrRsvC:"
@@ -485,7 +486,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.65 2000/06/17 12:09:10 alan Exp $$' | sort -u"
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.66 2000/07/10 23:08:41 alan Exp $$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -1284,6 +1285,8 @@ master_status_process(void)
 				/* Forward to control process */
 				send_cluster_msg(msg);
 			}
+		}else if (strcasecmp(type, T_APIREQ) == 0) {
+			api_process_request(msg);
 		}else{
 			notify_world(msg, thisnode->status);
 		}
@@ -2319,64 +2322,7 @@ void init_monitor()
 void
 heartbeat_monitor(struct ha_msg * msg, int msgtype, const char * iface)
 {
-#if 0
-	char		mon[MAXLINE];
-	char *		outptr;
-	int		j;
-	int		k;
-	const char *	last = mon + MAXLINE-1;
-	int		rc, size;
-
-	return;
-	/*NOTREACHED*/
-
-	init_monitor();
-	if (monfd < 0) {
-		return;
-	}
-
-	sprintf(mon, "hb=?\nhbtime=%lx\n", time(NULL));
-	outptr = mon + strlen(mon);
-
-	for (j=0; j < msg->nfields; ++j) {
-		const char *	name = msg->names[j];
-		const char *	value = msg->values[j];
-		int	namelen, vallen;
-
-		if (name == NULL || value == NULL) {
-			continue;
-		}
-		for (k=0; k < DIMOF(fmap); ++k) {
-			if (strcmp(name, fmap[k].from) == 0) {
-				name = fmap[k].to;
-				break;
-			}
-		}
-		namelen = strlen(name);
-		vallen = strlen(value);
-		if (outptr + (namelen+vallen+2) >= last) {
-			ha_log(LOG_ERR, "monitor message too long");
-			return;
-		}
-		strcat(outptr, name);
-		outptr += namelen;
-		strcat(outptr, "=");
-		outptr += 1;
-		strcat(outptr, value);
-		outptr += vallen;
-		strcat(outptr, "\n");
-		outptr += 1;
-	}
-
-
-	size = outptr - mon;
-	errno = 0;
-	if ((rc=write(monfd, mon, size)) != size) {
-		ha_perror("cannot write monitor message");
-		close(monfd);
-		monfd = -1;
-	}
-#endif
+	api_heartbeat_monitor(msg, msgtype, iface);
 }
 
 void
@@ -3490,6 +3436,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.66  2000/07/10 23:08:41  alan
+ * Added code to actually put the API code in place.
+ * Wonder if it works?
+ *
  * Revision 1.65  2000/06/17 12:09:10  alan
  * Fixed the problem when one side or the other has no local resources.
  * Before it whined incessantly about being no one holding local resources.

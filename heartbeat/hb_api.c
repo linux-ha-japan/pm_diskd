@@ -24,19 +24,25 @@ int		debug_client_count = 0;
 int		total_client_count = 0;
 client_proc_t*	client_list = NULL;
 
-void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
-void api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface);
-void api_remove_client(client_proc_t* client);
-void api_add_client(struct ha_msg* msg);
+static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
+void api_heartbeat_monitor(struct ha_msg *msg, int msgtype
+,	const char *iface);
+void api_process_request(struct ha_msg *msg);
+static void api_remove_client(client_proc_t* client);
+static void api_add_client(struct ha_msg* msg);
+static client_proc_t*	find_client(const char * fromid, const char * pid);
 
 /*
  * Much of the original structure of this code was due to
  * Marcelo Tosatti <marcelo@conectiva.com.br>
  *
- * It was significantly mangeled by Alan Robertson <alanr@suse.com>
+ * It has been significantly mangled by Alan Robertson <alanr@suse.com>
  *
  */
 
+/*
+ *	Monitor messages.  Pass them along to interested clients (if any)
+ */
 void
 api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 {
@@ -75,6 +81,202 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 }
 
 void
+api_process_request(struct ha_msg * msg)
+{
+	const char *	msgtype;
+	const char *	reqtype;
+	const char *	fromid;
+	const char *	pid;
+	client_proc_t*	client;
+	struct ha_msg *	resp = NULL;
+
+	if (msg == NULL
+	||	(msgtype = ha_msg_value(msg, F_TYPE)) == NULL
+	||	(reqtype = ha_msg_value(msg, F_APIREQ)) == NULL
+	||	strcmp(F_TYPE, T_APIREQ) != 0)  {
+		ha_log(LOG_ERR, "api_process_request: bad message");
+		return;
+	}
+	fromid = ha_msg_value(msg, F_FROMID);
+	pid = ha_msg_value(msg, F_PID);
+
+	if (fromid == NULL && pid == NULL) {
+		ha_log(LOG_ERR, "api_process_request: no fromid/pid in msg");
+		return;
+	}
+
+	if ((resp = ha_msg_new(4)) == NULL) {
+		ha_log(LOG_ERR, "api_process_request: out of memory/1");
+		return;
+	}
+	if (ha_msg_add(resp, F_TYPE, T_APIRESP) != HA_OK) {
+		ha_log(LOG_ERR, "api_process_request: cannot add field/1");
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+	if (ha_msg_add(resp, F_TYPE, T_APIRESP) != HA_OK) {
+		ha_log(LOG_ERR, "api_process_request: cannot add field/2");
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+	if (ha_msg_add(resp, F_APIREQ, reqtype) != HA_OK) {
+		ha_log(LOG_ERR, "api_process_request: cannot add field/3");
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+
+	/*
+	 *	Sign on a new client.
+	 */
+
+	if (strcmp(reqtype, API_NEWCLIENT) == 0) {
+		api_add_client(msg);
+		if (ha_msg_mod(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add field/4");
+			ha_msg_del(resp); resp=NULL;
+			return;
+		}
+		if ((client = find_client(fromid, pid)) == NULL) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add client");
+			return;
+		}
+		api_send_client_msg(client, resp);
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+
+
+	if ((client = find_client(fromid, pid)) == NULL) {
+		ha_log(LOG_ERR, "api_process_request: msg from non-client");
+		return;
+	}
+	if (strcmp(reqtype, API_SETFILTER) == 0) {
+	/*
+	 *	Record the types of messages desired by this client
+	 *		(desired_types)
+	 */
+		const char *	cfmask;
+		unsigned	mask;
+		if ((cfmask = ha_msg_value(msg, F_FROMID)) == NULL
+		||	(sscanf(cfmask, "%ux", &mask) != 1)
+		||	(mask&ALLTREATMENTS) == 0) {
+			goto bad_req;
+		}
+		client->desired_types = mask;
+	/*
+	 *	List the nodes in the cluster
+	 */
+	}else if (strcmp(reqtype, API_NODELIST) == 0) {
+		int	j;
+		int	last = config->nodecount-1;
+
+		for (j=0; j <= last; ++j) {
+			if (ha_msg_mod(resp, F_NODENAME
+			,	config->nodes[j].nodename) != HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_process_request: "
+				"cannot mod field/5");
+				ha_msg_del(resp); resp=NULL;
+				return;
+			}
+			if (ha_msg_mod(resp, F_APIRESULT
+			,	(j == last ? API_SUCCESS : API_MORE))
+			!=	HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_process_request: "
+				"cannot mod field/6");
+				ha_msg_del(resp); resp=NULL;
+				return;
+			}
+			api_send_client_msg(client, resp);
+		}
+		ha_msg_del(resp); resp=NULL;
+		return;
+		
+	}else if (strcmp(reqtype, API_NODESTATUS) == 0) {
+	/*
+	 *	Return the status of the given node
+	 */
+		const char *		cnode;
+		struct node_info *	node;
+
+		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
+		|| (node = lookup_node(cnode)) == NULL) {
+			goto bad_req;
+		}
+		if (ha_msg_add(resp, F_STATUS, node->status) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add field/7");
+			ha_msg_del(resp); resp=NULL;
+			return;
+		}
+		if (ha_msg_mod(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add field/8");
+			ha_msg_del(resp); resp=NULL;
+			return;
+		}
+		api_send_client_msg(client, resp);
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}else if (strcmp(reqtype, "API_IFLIST") == 0) {
+	/*
+	 *	List the set of our interfaces
+	 */
+	}else if (strcmp(reqtype, API_IFSTATUS) == 0) {
+	/*
+	 *	Return the status of the given interface for the given
+	 *	node.
+	 */
+		const char *		cnode;
+		struct node_info *	node;
+		const char *		ciface;
+		struct link *		iface;
+
+		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
+		||	(node = lookup_node(cnode)) == NULL
+		||	(ciface = ha_msg_value(msg, F_IFNAME)) == NULL
+		||	(iface = lookup_iface(node, ciface)) == NULL) {
+			goto bad_req;
+		}
+		if (ha_msg_add(resp, F_STATUS,	iface->status) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add field/9");
+			ha_msg_del(resp); resp=NULL;
+			return;
+		}
+		if (ha_msg_mod(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add field/10");
+			ha_msg_del(resp); resp=NULL;
+			return;
+		}
+		api_send_client_msg(client, resp);
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+
+bad_req:
+	ha_log(LOG_ERR, "api_process_request: bad request [%s]"
+	,	reqtype);
+	if (ha_msg_add(resp, F_APIRESULT, API_BADREQ) != HA_OK) {
+		ha_log(LOG_ERR
+		,	"api_process_request: cannot add field/11");
+		ha_msg_del(resp);
+		resp=NULL;
+		return;
+	}
+	api_send_client_msg(client, resp);
+	ha_msg_del(resp);
+	resp=NULL;
+}
+
+/*
+ *	Send a message to a client process.
+ */
+void
 api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 {
 	char	fifoname[API_FIFO_LEN];
@@ -96,7 +298,10 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 		,	client->pid);
 	}
 
-	fclose(f);
+	if (fclose(f) == EOF) {
+		ha_perror("Cannot send message to client %d (close)"
+		,	client->pid);
+	}
 	if (kill(client->pid, client->signal) < 0 && errno == EEXIST) {
 		ha_log(LOG_ERR, "api_send_client: client %d died", client->pid);
 		api_remove_client(client);
@@ -105,6 +310,9 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 	}
 }
 
+/*
+ *	Make this client no longer a client ;-)
+ */
 void
 api_remove_client(client_proc_t* req)
 {
@@ -127,12 +335,22 @@ api_remove_client(client_proc_t* req)
 	ha_log(LOG_ERR,	"api_remove_client: could not find pid [%d]", req->pid);
 }
 
+/*
+ *	Add the process described in this message to our list of clients.
+ *
+ *	The following fields are used:
+ *	F_PID:		Mandantory.  The client process id.
+ *	F_FROMID:	The client's identifying handle.
+ *			If omitted, it defaults to the F_PID field as a
+ *			decimal integer.
+ */
 void
 api_add_client(struct ha_msg* msg)
 {
 	pid_t		pid = 0;
 	client_proc_t*	client;
 	const char*	cpid;
+	const char *	fromid;
 
 	
 	if ((cpid = ha_msg_value(msg, F_PID)) != NULL) {
@@ -143,13 +361,17 @@ api_add_client(struct ha_msg* msg)
 		,	"api_add_client: bad pid [%d]", pid);
 		return;
 	}
+	fromid = ha_msg_value(msg, F_FROMID);
 
-	for (client=client_list; client != NULL; client=client->next) {
-		if (client->pid == pid) {
+	client = find_client(cpid, fromid);
+
+	if (client != NULL) {
+		if (kill(client->pid, 0) == 0 || errno != EEXIST) {
 			ha_log(LOG_ERR
-			,	"duplicate client add request [%d]", pid);
+			,	"duplicate client add request");
 			return;
 		}
+		api_remove_client(client);
 	}
 	if ((client = MALLOCT(client_proc_t)) == NULL) {
 		ha_log(LOG_ERR
@@ -160,7 +382,7 @@ api_add_client(struct ha_msg* msg)
 	client->pid = pid;
 	client->desired_types = DEFAULTREATMENT;
 	client->signal = 0;
-	if ((cpid = ha_msg_value(msg, F_FROMID)) != NULL) {
+	if (fromid != NULL) {
 		strncpy(client->client_id, cpid, sizeof(client->client_id));
 	}else{
 		snprintf(client->client_id, sizeof(client->client_id)
@@ -169,4 +391,24 @@ api_add_client(struct ha_msg* msg)
 	client->next = client_list;
 	client_list = client;
 	total_client_count++;
+}
+client_proc_t*
+find_client(const char * fromid, const char * cpid)
+{
+	pid_t	pid;
+	client_proc_t* client;
+
+	if (cpid != NULL) {
+		pid = atoi(cpid);
+	}
+
+	for (client=client_list; client != NULL; client=client->next) {
+		if (cpid && client->pid == pid) {
+			return(client);
+		}
+		if (fromid && strcmp(fromid, client->client_id) == 0) {
+			return(client);
+		}
+	}
+	return(NULL);
 }

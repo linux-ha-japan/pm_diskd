@@ -15,9 +15,29 @@
 
 #define NR_TYPES 3
 
-/* main hook called from heartbeat code. */
+#define	API_NEWCLIENT		"signon"
+#define	API_SETFILTER		"setfilter"
+#	define	F_FILTERMASK	"fmask"
+#define	API_NODELIST		"nodelist"
+#	define	F_NODENAME	"node"
+#define	API_NODELIST_END	"nodelist-end"
+#define	API_NODESTATUS		"nodestatus"
+/*	F_STATUS	"status" */
 
-void    heartbeat_monitor(struct ha_msg * msg, int status, const char * iface);
+#define	API_IFLIST		"iflist"
+#	define	F_IFNAME		"ifname"
+#define	API_IFLIST_END		"iflist-end"
+#define	API_IFSTATUS		"ifstatus"
+
+	/*	F_STATUS */
+
+
+#define	API_SUCCESS		"OK"
+#define	API_FAILURE		"fail"
+#define	API_BADREQ		"badreq"
+#define	API_MORE		"ok/more"
+void api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface);
+void api_process_request(struct ha_msg *msg);
 
 /* Generic message callback structure and callback function definition */
 

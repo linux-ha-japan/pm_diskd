@@ -1,7 +1,7 @@
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H
 
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.8 2000/06/12 06:11:09 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.9 2000/07/10 23:08:41 alan Exp $";
 #include <stdio.h>
 /*
  *	Intracluster message object (struct ha_msg)
@@ -41,6 +41,8 @@ struct ha_msg {
 #define F_TOID		"to_id"		/* To client id */
 #define F_PID		"pid"		/* PID of client */
 #define F_ISSTABLE	"isstable"	/* true/false for RESOURCES */
+#define F_APIREQ	"reqtype"	/* API request type for "hbapi" */
+#define F_APIRESULT	"result"	/* API request result code */
 
 
 #define	T_STATUS	"status"	/* Message type = Status */
@@ -49,6 +51,8 @@ struct ha_msg {
 #define	T_NAKREXMIT	"NS_nak_rexmit"	/* Message type = NAK Re-xmit rqst */
 #define T_STARTING      "starting"      /* Message type = Starting Heartbeat */
 #define T_RESOURCES	"resource"      /* Message type = Resources info */
+#define T_APIREQ	"hbapi-req" 	/* Message type = Heartbeat API req */
+#define T_APIRESP	"hbapi-resp" 	/* Message type = Heartbeat API req */
 
 
 /* Allocate new (empty) message */
