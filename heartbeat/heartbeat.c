@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.264 2003/06/04 15:51:35 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.265 2003/06/24 06:43:53 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -250,7 +250,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.264 2003/06/04 15:51
 #include <HBcomm.h>
 #include <heartbeat_private.h>
 #include <hb_signal.h>
-#include <ha_config.h>
 #include <hb_config.h>
 #include <hb_resource.h>
 
@@ -4079,6 +4078,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.265  2003/06/24 06:43:53  alan
+ * Removed superfluous include of <ha_config.h>
+ *
  * Revision 1.264  2003/06/04 15:51:35  alan
  * removed a duplicate debug log message...
  *
