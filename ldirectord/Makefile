@@ -1,6 +1,6 @@
 #
 # Makefile for ldirectord
-# $Id: Makefile,v 1.15 2000/12/28 10:36:25 jacob Exp $
+# $Id: Makefile,v 1.16 2001/01/16 21:17:46 alan Exp $
 #
 # Produces all manner of documentation for ldirectord
 #
@@ -40,7 +40,7 @@ install: ldirectord.8
 	[ -d $(SBIN) ] ||  $(MKDIR) -p $(SBIN)
 	$(INSTALL) -m 0755 ldirectord $(SBIN)
 	[ -d $(MANDIR) ] ||  $(MKDIR) -p $(MANDIR)
-	$(INSTALL) -m 0644 ldirectord.8 $(MANDIR)
+	$(INSTALL) -m 0644 ldirectord.8 $(MANDIR)/man8
 	[ -d $(LOGROTATE) ] ||  $(MKDIR) -p $(LOGROTATE) 
 	$(INSTALL) -m 0644  ldirectord.logrotate $(LOGROTATE)/ldirectord
 	[  -d $(INIT) ]     ||  $(MKDIR) -p $(INIT)	
