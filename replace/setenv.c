@@ -1,13 +1,29 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-void
+/*
+ *	Small replacement function for setenv()
+ */
+int
 setenv(const char *name, const char * value, int why)
 {
-  char * envp = NULL;
-  if ( name && value ) {
-    envp = malloc(strlen(name)+strlen(value)+2);
-    sprintf(envp, "%s=%s", name, value);
-    putenv(envp);
-  }
+	if ( name && value ) {
+		char * envp = NULL;
+		envp = malloc(strlen(name)+strlen(value)+2);
+		if (envp) {
+			/*
+			 * Unfortunately, the putenv API guarantees memory leaks when
+			 * changing environment variables repeatedly...   :-(
+			 */
+
+			sprintf(envp, "%s=%s", name, value);
+
+			/* Cannot free envp (!) */
+			putenv(envp);
+
+			return(0);
+		}
+	
+	}
+	return(-1);
 }
