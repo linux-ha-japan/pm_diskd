@@ -25,9 +25,13 @@ HA_DIR=@sysconfdir@/ha.d; export HA_DIR
 #	The nice_failback = yes ($HA_NICEFAILBACK) case coordinates things
 #	so always know the other guy doesn't have the resources before we
 #	get here, so we don't need to ever wait in that case...
-#	
 #
-TIMEOUT=120
+#	If no one else is up, then we set HA_DONTASK in the environment.
+#	It is possible that the TIMEOUT case should be removed now...
+#	This is a failsafe case, but it's kind of a dangerous failsafe
+#	case...
+#
+TIMEOUT=600
 
 RESOURCE=$1
 
@@ -54,24 +58,31 @@ esac
 
 case $HA_DONTASK in
   yes)
-    $HA_BIN/ResourceManager status "$RESOURCE" ||
-    $HA_BIN/ResourceManager takegroup "$RESOURCE";;
+	$HA_BIN/ResourceManager status "$RESOURCE" ||
+	$HA_BIN/ResourceManager takegroup "$RESOURCE";;
 
   *)
-    ha_clustermsg <<-!MSG
+	: "Ask Nicely ;-)"
+	ha_clustermsg <<-!MSG
 	t=ip-request
 	ipaddr=$RESOURCE
 !MSG
+
+	#	NOTE!
+	#	The original dangerous failsafe takeover of resources
+	#	has been disabled!!
+
+	exit 0
+
 
   # Normally they will have already replied to us before we get here
   # and we will have already taken things over.  This is to allow
   # for the case that they somehow never tell us to go ahead...
   # Heartbeat should kill us if it shuts down before we finish.
-  #
-  ( sleep $TIMEOUT
-    $HA_BIN/ResourceManager status "$RESOURCE" ||
-    $HA_BIN/ResourceManager takegroup "$RESOURCE"
-  )&
-  : "Ask Nicely ;-)" ;;
+  # For that to work we can't go into the background...
 
+	sleep $TIMEOUT
+	$HA_BIN/ResourceManager status "$RESOURCE" ||
+	$HA_BIN/ResourceManager takegroup "$RESOURCE"
+	;;
 esac

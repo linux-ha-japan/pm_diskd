@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.174 2002/04/10 21:05:33 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.175 2002/04/11 18:33:54 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -363,6 +363,7 @@ struct node_info *	curnode = NULL;
 volatile struct pstat_shm *	procinfo = NULL;
 volatile struct process_info *	curproc = NULL;
 
+int	countbystatus(const char * status, int matchornot);
 int	setline(int fd);
 void	cleanexit(int rc);
 void    reaper_sig(int sig);
@@ -2007,13 +2008,6 @@ process_clustermsg(FILE * f)
 
 
 	thisnode->track.last_iface = iface;
-	if (heartbeat_comm_state == COMM_LINKSUP) {
-		/*
-		 * process_resources() will deal with T_STARTING
-		 * and T_RESOURCES messages appropriately.
-		 */
-		process_resources(msg, thisnode);
-	}
 
 	/* Did we get a "shutdown complete" message? */
 	if (strcasecmp(type, T_SHUTDONE) == 0) {
@@ -2127,6 +2121,17 @@ process_clustermsg(FILE * f)
 	}else{
 		heartbeat_monitor(msg, action, iface);
 		notify_world(msg, thisnode->status);
+	}
+	/*
+	 * We want to bring up the resources only if the state has been
+	 * updated.
+	 */
+	if (heartbeat_comm_state == COMM_LINKSUP) {
+		/*
+		 * process_resources() will deal with T_STARTING
+		 * and T_RESOURCES messages appropriately.
+		 */
+		process_resources(msg, thisnode);
 	}
 psm_done:
 	ha_msg_del(msg);  msg = NULL;
@@ -4044,6 +4049,7 @@ req_our_resources(int getthemanyway)
 	int	rc;
 	int	rsc_count = 0;
 	int	pid;
+	int	upcount;
 
 	if (nice_failback) {
 
@@ -4090,6 +4096,17 @@ req_our_resources(int getthemanyway)
 	siginterrupt(SIGALRM, 0);
 	if (nice_failback) {
 		setenv(HANICEFAILBACK, "yes", 1);
+	}
+	upcount = countbystatus(ACTIVESTATUS, TRUE);
+
+	/* Our status update is often not done yet */
+	if (strcmp(curnode->status, ACTIVESTATUS) != 0) {
+		upcount++;
+	}
+ 
+	/* Are we all alone in the world? */
+	if (upcount < 2) {
+		setenv(HADONTASK, "yes", 1);
 	}
 	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
 
@@ -5743,6 +5760,23 @@ ask_for_resources(struct ha_msg *msg)
 	}
 }
 
+int
+countbystatus(const char * status, int matchornot)
+{
+	int	count = 0;
+	int	matches;
+	int	j;
+
+	matchornot = (matchornot ? TRUE : FALSE);
+
+	for (j=0; j < config->nodecount; ++j) {
+		matches = (strcmp(config->nodes[j].status, status) == 0);
+		if (matches == matchornot) {
+			++count;
+		}
+	}
+	return count;
+}
 
 #ifdef IRIX
 void
@@ -5755,6 +5789,35 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.175  2002/04/11 18:33:54  alan
+ * Takeover/failover is much faster and a little safer than it was before...
+ *
+ * For the normal failback case
+ * 	If the other machine is down, resources are taken immediately
+ *
+ * 	If the other machine is up, resources are requested and taken over
+ * 		when they have been released.  If the other machine
+ * 		never releases them, they are never taken over.
+ * 		No background process is ever spawned to "eventually" take
+ * 		them over.
+ *
+ * For the nice failback case
+ * 	All resources are acquired *immediately* after the other machine is
+ * 		declared dead.
+ *
+ * Changed the rules about initial deadtime:
+ *
+ * It now only insists the time be equal to deadtime.
+ *
+ * It gives a warning if its less than 10 seconds.
+ *
+ * If not specified, here is how it defaults...
+ * 	If deadtime is less than or equal to 10 seconds, then it defaults it to be
+ * 	twice the deadtime.
+ *
+ * 	If deadtime is greater than 10 seconds, then it defaults it to be
+ * 	the same as deadtime.
+ *
  * Revision 1.174  2002/04/10 21:05:33  alan
  * Put in some changes to control_process() to hopefully make it
  * exit completely reliably.

@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.14 2002/04/09 06:37:27 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.15 2002/04/11 18:33:54 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -153,7 +153,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.14 2002/04/09 06:37:
 #define LOGFACILITY	"HA_LOGFACILITY"/* Facility to use for logger */
 #define HADIRENV	"HA_DIR"	/* The base HA directory */
 #define HAFUNCENV	"HA_FUNCS"	/* Location of ha shell functions */
-#define HANICEFAILBACK	"HA_NICEFAILBACK"	/* Location of ha shell functions */
+#define HANICEFAILBACK	"HA_NICEFAILBACK"	/* "yes" when nice_failback is on */
+#define HADONTASK	"HA_DONTASK"	/* "yes" when no other nodes "active" ...*/
 
 
 #define	DEFAULTBAUD	B19200	/* Default serial link speed */

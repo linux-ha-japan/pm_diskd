@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.63 2002/04/10 07:41:14 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.64 2002/04/11 18:33:54 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -125,7 +125,7 @@ init_config(const char * cfgfile)
 	config->format_vers = 100;
 	config->heartbeat_interval = 2;
 	config->deadtime_interval = 5;
-	config->initial_deadtime = 30;
+	config->initial_deadtime = -1;
 	config->hopfudge = 1;
 	config->log_facility = -1;
 	config->client_children = g_hash_table_new(g_direct_hash
@@ -188,12 +188,28 @@ init_config(const char * cfgfile)
 		,	config->deadtime_interval, config->heartbeat_interval);
 		++errcount;
 	}
-	if (config->initial_deadtime < 2 * config->deadtime_interval) {
+	if (config->initial_deadtime < 0) {
+		if (config->deadtime_interval > 10) {
+			config->initial_deadtime = config->deadtime_interval;
+		}else{
+			config->initial_deadtime = 2 * config->deadtime_interval;
+		}
+	}
+
+	/* Check deadtime parameters */
+	if (config->initial_deadtime < config->deadtime_interval) {
 		ha_log(LOG_ERR
-		,	"Initial dead time [%d] is too small compared to"
+		,	"Initial dead time [%d] is smaller than"
 	        " deadtime [%d]"
 		,	config->initial_deadtime, config->deadtime_interval);
 		++errcount;
+	}else if (config->initial_deadtime < 10) {
+		ha_log(LOG_WARNING, "Initial dead time [%d] may be too small!"
+		,	config->initial_deadtime);
+		ha_log(LOG_INFO
+		, "Initial dead time accounts for slow network startup time");
+		ha_log(LOG_INFO
+		, "It should be >= deadtime and >= 10 seconds");
 	}
 
 	if (*(config->logfile) == EOS) {
@@ -1335,6 +1351,35 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.64  2002/04/11 18:33:54  alan
+ * Takeover/failover is much faster and a little safer than it was before...
+ *
+ * For the normal failback case
+ * 	If the other machine is down, resources are taken immediately
+ *
+ * 	If the other machine is up, resources are requested and taken over
+ * 		when they have been released.  If the other machine
+ * 		never releases them, they are never taken over.
+ * 		No background process is ever spawned to "eventually" take
+ * 		them over.
+ *
+ * For the nice failback case
+ * 	All resources are acquired *immediately* after the other machine is
+ * 		declared dead.
+ *
+ * Changed the rules about initial deadtime:
+ *
+ * It now only insists the time be equal to deadtime.
+ *
+ * It gives a warning if its less than 10 seconds.
+ *
+ * If not specified, here is how it defaults...
+ * 	If deadtime is less than or equal to 10 seconds, then it defaults it to be
+ * 	twice the deadtime.
+ *
+ * 	If deadtime is greater than 10 seconds, then it defaults it to be
+ * 	the same as deadtime.
+ *
  * Revision 1.63  2002/04/10 07:41:14  alan
  * Enhanced the process tracking code, and used the enhancements ;-)
  * Made a number of minor fixes to make the tests come out better.
