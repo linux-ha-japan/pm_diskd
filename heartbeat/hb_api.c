@@ -2,6 +2,8 @@
  * hb_api: Server-side heartbeat API code
  *
  * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
+ * Copyright (C) 2000 Marcelo Tosatti <marcelo@conectiva.com.br>
+ * Copyright (C) 2000 Conectiva S.A. 
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
