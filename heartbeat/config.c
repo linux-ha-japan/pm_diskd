@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.57 2002/02/11 22:31:34 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.58 2002/03/19 13:43:43 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -604,6 +604,10 @@ parse_ha_resources(const char * cfgfile)
 			break;
 		}
 
+		/*
+		 * FIXME: Really ought to deal with very long lines
+		 * correctly.
+		 */
 		while (buf[strlen(buf)-2]=='\\') {
 			if (fgets(buf, MAXLINE-1, f)==NULL)
 				break;
@@ -1319,6 +1323,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.58  2002/03/19 13:43:43  alan
+ * Just added a note about very long lines in haresources not being
+ * handled correctly.
+ *
  * Revision 1.57  2002/02/11 22:31:34  alan
  * Added a new option ('l') to make heartbeat run at low priority.
  * Added support for a new capability - to start and stop client
