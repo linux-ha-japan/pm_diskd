@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.35 2001/08/10 03:01:37 horms Exp $
+# $Id: ldirectord,v 1.36 2001/08/28 07:53:32 jacob Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -136,10 +136,13 @@ Use this directive to start an instance of ldirectord for
 the named I<configuration>.
 
 
-B<foreground>
+B<supervised>
 
 If this directive is specified, the daemon does not go into background mode.
-This is useful to run B<ldirectord> for instance from daemontools.
+All log-messages are redirected to stdout instead of a logfile.
+This is useful to run B<ldirectord> supervised from daemontools.
+See http://untroubled.org/rpms/daemontools/ or http://cr.yp.to/daemontools.html
+for details.
 
 
 =head2 Section virtual
@@ -166,7 +169,7 @@ be used to send a request over a transparent proxy.
 
 =head2 More than one of these entries may be inside a virtual section:
 
-B<checktype = >I<negotiate>|I<connect>|I<N>|I<off>
+B<checktype = >I<negotiate>|I<connect>|I<N>|I<off>|I<on>
 
 Type of check to perform. Negotiate sends a request and matches a receive
 string. Connect only attemts to make a TCP/IP connection, thus the the
@@ -255,8 +258,6 @@ Jacob Rief <jacob.rief@tiscover.com>
 
 Horms <horms@vergenet.net>, <horms@valinux.com>
 
-Skliarouk Peter <skliaroukp@bigfoot.com>
-
 =cut
 
 use strict;
@@ -277,7 +278,7 @@ use vars qw(
 	    $CONFIG
 	    $DEBUG
 	    $FALLBACK
-	    $FOREGROUND
+	    $SUPERVISED
 	    $IPVSADM
 	    $checksum
 	    $initializing
@@ -433,8 +434,8 @@ sub init
 	undef @OLDVIRTUAL;
 
 	# Run as daemon
-	if (defined $opt_d) {
-		&ld_log("Starting Linux Director");
+	if ($SUPERVISED || defined $opt_d) {
+		&ld_log("Starting Linux Director with pid: $$");
         } else {
 		&ld_log("Starting Linux Director Daemon");
 		&ld_daemon();
@@ -521,10 +522,10 @@ sub read_config
 {
 	undef @VIRTUAL;
 	undef $CALLBACK;
-	undef $FOREGROUND;
-	undef $checksum;
-	$stattime = 0;
 	undef %LD_INSTANCE;
+	undef $checksum;
+	$SUPERVISED = 0;
+	$stattime = 0;
 	open(CFGFILE, "<$CONFIG") or
 		&config_error(0, "can not open file $CONFIG");
 	my $line = 0;
@@ -532,16 +533,18 @@ sub read_config
 		$line++;
 		outer_loop:
 		if ($_ =~ /^virtual\s*=\s*(.*)/) {
-			my $ip_port=undef;
-			my $fwm=undef;
-			my $virtual_line=$line;
+			my $vattr = $1;
+			my $ip_port = undef;
+			my $fwm = undef;
+			my $virtual_line = $line;
 			my $fallback_line;
 			my @rsrv_todo;
-			if($1 =~ /^(\d+\.\d+\.\d+\.\d+|[0-9A-Za-z.-]+):(\d+|[0-9A-Za-z-]+)$/){
-				$ip_port="$1:$2";
-			}
-			elsif($1 =~ /^(\d+)$/){
-				$fwm=$1;
+			if ($vattr =~ /^(\d+\.\d+\.\d+\.\d+):([0-9A-Za-z]+)/) {
+				$ip_port = "$1:$2";
+			} elsif ($vattr =~ /^([0-9A-Za-z._+-]+):([0-9A-Za-z]+)/) {
+				$ip_port = "$1:$2";
+			} elsif ($vattr =~ /^(\d+)/){
+				$fwm = $1;
 			}
 
 			unless($ip_port or $fwm) {
@@ -614,10 +617,10 @@ sub read_config
 					if ($1 =~ /(\d+)/ && $1>=0) {
 						$vsrv{num_connects} = $1;
 						$vsrv{checktype} = "combined";
-					} elsif ( $1 =~ /(\w+)/ && ($1 eq "connect" || $1 eq "negotiate" || $1 eq "off") ) {
+					} elsif ( $1 =~ /(\w+)/ && ($1 eq "connect" || $1 eq "negotiate" || $1 eq "off" || $1 eq "on") ) {
 						$vsrv{checktype} = $1;
 					} else {
-						&config_error($line, "checktype must be connect, negotiate, off or a positive number");
+						&config_error($line, "checktype must be connect, negotiate, off, on or a positive number");
 					}
 				} elsif ($rcmd =~ /^checktimeout\s*=\s*(.*)/){
                                         $1 =~ /(\d+)/ && $1 or &config_error($line, "invalid check timeout");
@@ -724,8 +727,8 @@ sub read_config
 			}
 		} elsif ($_ =~ /^execute\s*=\s*(.*)/) {
 			$LD_INSTANCE{$1} = 1;
-		} elsif ($_ =~ /^foreground/) {
-			$FOREGROUND = 1;
+		} elsif ($_ =~ /^supervised/) {
+			$SUPERVISED = 1;
 		} else {
 			if ($_ =~ /^timeout\s*=\s*(.*)/) {
 				&config_error($line, "timeout directive deprciated in favour of checktimeout, negotiatetimeout or connecttimeout");
@@ -1009,7 +1012,7 @@ sub config_error
 	my ($line, $msg) = @_;
 	if (defined $opt_d || $initializing==1) {
 		if ($line>0) {
-			print STDERR "Error [$pid] reading file $CONFIG at line $line: $msg\n";
+			print STDERR "Error [$pid] reading file $CONFIG at line $line: $msg";
 		} else {
 			print STDERR "Error: $msg\n";
 		}
@@ -1303,6 +1306,9 @@ sub ld_main
 						check_connect($v, $r);
 					} elsif ($$v{checktype} eq "off") {
 						&ld_debug(2, "Checking off: No real or fallback servers to be added\n");
+					} elsif ($$v{checktype} eq "on") {
+						&ld_debug(2, "Checking on: Real servers are added without any checks\n");
+						&service_set($v, $r, "up");
 					} elsif ($$v{checktype} eq "combined") {
 						&ld_debug(2, "Checking combined-connect: server=$$r{server}");
 						if (check_connect($v, $r)) {
@@ -1311,7 +1317,6 @@ sub ld_main
 							$$r{num_connects} = 999999;
 						}
 					}
-
 					push(@real_checked, "$$v{protocol}:$$r{server}:$$r{port}");
 				}
 			}
@@ -1385,7 +1390,7 @@ sub check_https
 	}
 
 	my $recstr = $$r{receive};
-	if ($result =~ /ERROR/) {
+	if ($result =~ /error/i) {
 		service_set($v, $r, "down");
 		return 0;
 	}
@@ -1747,14 +1752,13 @@ sub check_cfgfile
 	my ($dev, $ino, $mode, $nlink, $uid, $gid, $rdev, $size, $atime, $mtime) = stat($CONFIG);
 	return if ($stattime==$mtime);
 	$stattime = $mtime;
-	my ($chs, $lctr) = (0, 0);
+	use Digest::MD5 qw(md5 md5_hex);
+	my $ctx = Digest::MD5->new;
 	open(CFGFILE, "<$CONFIG") || &config_error(0, "can not open file $CONFIG");
-	while (<CFGFILE>) {
-		$lctr++;
-		$chs += (4*($lctr%3)+3)*unpack("%32C*", $_);
-	}
+	$ctx->addfile(*CFGFILE);
 	close(CFGFILE);
-	if (defined $checksum && $chs!=$checksum) {
+	my $digest = $ctx->hexdigest;
+	if (defined $checksum && $checksum ne $digest) {
 		&ld_log("Configuration file '$CONFIG' has changed on disk");
 		if ($AUTOCHECK eq "yes") {
 			&ld_log(" - reread new configuration");
@@ -1766,7 +1770,7 @@ sub check_cfgfile
 			&system_wrapper("$CALLBACK $CONFIG");
 		}
 	}
-	$checksum = $chs;
+	$checksum = $digest;
 }
 
 
@@ -1778,20 +1782,26 @@ sub check_cfgfile
 # post: message and timetsamp is written to log file
 # return: 0 on success
 #         1 on error
-
 sub ld_log
 {
 	my ($message) = (@_);
 
-        my $now = localtime()."|$CFGNAME";
+        my $now = localtime();
 
 	&ld_debug(2, $message);
-
-        open(LOGFILE, ">>$LDIRLOG") || return(1);
 	chomp $message;
-        print LOGFILE "[$now] $message\n" || return(1);
-        close(LOGFILE) || return(1);;
-
+	if (defined $opt_d) {
+		print STDERR "$message\n";
+	} elsif ($SUPERVISED) {
+		print "[$now] $message\n";
+	} else {
+		unless (open(LOGFILE, ">>$LDIRLOG")
+		    && print LOGFILE "[$now|$CFGNAME] $message\n"
+		    && close(LOGFILE)) {
+			print STDERR "$message\n";
+			return 1;
+		}
+	}
 	return(0);
 }
 
@@ -1807,9 +1817,9 @@ sub ld_debug
 {
 	my ($priority, $message) = (@_);
 
-	if ( $DEBUG >= $priority ){
-	  chomp $message;
-	  print STDERR "DEBUG${priority}: $message\n";
+	if ( $DEBUG >= $priority ) {
+		chomp $message;
+		print STDERR "DEBUG${priority}: $message\n";
 	}
 }
 
@@ -2029,8 +2039,6 @@ sub ld_open_socket
 
 sub ld_daemon
 {
-	return if defined $FOREGROUND;
-
 	# `fork()' so the parent can exit, this returns control to the command
 	# line or shell invoking your program.  This step is required so that
 	# the new process is guaranteed not to be a process group leader. The
@@ -2107,7 +2115,7 @@ sub ld_daemon_become_child
 {
 	my($status);
 
-	$status=fork();
+	$status = fork();
 
 	if ($status<0){
 		&ld_exit(-1, "ld_daemon_become_child: Could not fork: $!");
@@ -2190,6 +2198,6 @@ sub ld_gethostservbyname{
 		$port=&ld_getservbyname($port, $protocol) or return(undef);
 		return("$ip:$port");
 	}
-
 	return($ip);
 }
+

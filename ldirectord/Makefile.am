@@ -29,7 +29,7 @@ SUBDIRS			= logrotate.d init.d
 ldirectord.8: ldirectord
 	$(POD2MAN) --section=8 $< > $@
 
-sbin_SCRIPTS		= ldirectord
+sbin_SCRIPTS		= ldirectord supervise-ldirectord-config
 man_MANS	        = ldirectord.8
 
 ## additional Makefile targets
