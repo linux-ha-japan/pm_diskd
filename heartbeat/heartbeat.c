@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.208 2002/09/17 13:41:38 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.209 2002/09/17 14:13:24 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1136,7 +1136,7 @@ control_process(FILE * fp, int fifoofd)
 	reaper_action(0);
 
 	/* That's All Folks... */
-	cleanexit(0);
+	cleanexit(LSB_EXIT_OK);
 }
 
 /*
@@ -5014,11 +5014,9 @@ make_daemon(void)
 	/* See if heartbeat is already running... */
 
 	if ((pid=get_running_hb_pid()) > 0 && pid != getpid()) {
-		ha_log(LOG_ERR, "%s: already running [pid %ld].\n"
+		ha_log(LOG_INFO, "%s: already running [pid %ld].\n"
 		,	cmdname, pid);
-		fprintf(stderr, "%s: already running [pid %ld].\n"
-		,	cmdname, pid);
-		exit(HA_FAILEXIT);
+		exit(LSB_EXIT_OK);
 	}
 
 	/* Guess not. Go ahead and start things up */
@@ -5029,9 +5027,9 @@ make_daemon(void)
 			fprintf(stderr, "%s: could not start daemon\n"
 			,	cmdname);
 			perror("fork");
-			exit(HA_FAILEXIT);
+			exit(LSB_EXIT_GENERIC);
 		}else if (pid > 0) {
-			exit(HA_OKEXIT);
+			exit(LSB_EXIT_OK);
 		}
 	}
 	pid = (long) getpid();
@@ -5042,7 +5040,7 @@ make_daemon(void)
 	}else{
 		fprintf(stderr, "%s: could not create pidfile [%s]\n"
 		,	cmdname, PIDFILE);
-		exit(HA_FAILEXIT);
+		exit(LSB_EXIT_EPERM);
 	}
 
 	cl_log_enable_stderr(FALSE);
@@ -5999,6 +5997,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.209  2002/09/17 14:13:24  alan
+ * A bit more LSB compliance code.
+ *
  * Revision 1.208  2002/09/17 13:41:38  alan
  * Fixed a bug in PILS pointed out by lmb which kept it from working
  * 	when a user specified a STONITH directive in heartbeat.
