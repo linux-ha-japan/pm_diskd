@@ -76,10 +76,7 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlopen ping.la \
 			-dlopen serial.la \
 			-dlopen udp.la \
-			-dlopen mcast.la \
-			-dlopen md5.la \
-			-dlopen sha1.la \
-			-dlopen crc.la
+			-dlopen mcast.la
 
 send_arp_SOURCES	= send_arp.c
 
