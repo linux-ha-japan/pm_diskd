@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.32 2000/09/01 22:29:38 marcelo Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.33 2000/10/10 18:43:17 eric Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -243,7 +243,7 @@ struct sys_config {
 	int	rereadauth;		/* 1 if we need to reread auth file */
 	unsigned long	generation;	/* Heartbeat generation # */
 	int	authnum;
-	Stonith*	stonith;	/* Stonith method */
+	Stonith*	stonith;	/* Stonith method: WE NEED A LIST TO SUPPORT MULTIPLE STONITH DEVICES PER NODE -EZA */
 	struct auth_info* authmethod;	/* auth_config[authnum] */
 	struct node_info  nodes[MAXNODE];
 	struct auth_info  auth_config[MAXAUTH];

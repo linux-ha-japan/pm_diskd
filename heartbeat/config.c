@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.20 2000/09/01 21:10:46 marcelo Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.21 2000/10/10 18:43:17 eric Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -255,6 +255,7 @@ init_config(const char * cfgfile)
 #define	KEY_DBGFILE	"debugfile"
 #define KEY_FAILBACK	"nice_failback"
 #define KEY_STONITH	"stonith"
+#define KEY_STONITHHOST "stonith_host"
 
 int add_normal_node(const char *);
 int set_hopfudge(const char *);
@@ -269,6 +270,7 @@ int set_dbgfile(const char *);
 int set_nice_failback(const char *);
 int set_warntime_interval(const char *);
 int set_stonith_info(const char *);
+int set_stonith_host_info(const char *);
 
 struct directive {
 	const char * name;
@@ -293,7 +295,8 @@ static const struct WholeLineDirective {
 	int (*parse) (const char *line);
 }WLdirectives[] =
 {
-	{KEY_STONITH,  set_stonith_info}
+	{KEY_STONITH,  	   set_stonith_info},
+	{KEY_STONITHHOST,  set_stonith_host_info}
 };
 
 /*
@@ -1033,7 +1036,13 @@ set_warntime_interval(const char * value)
 	return(HA_OK);
 }
 
-/* Set Stonith information */
+/*
+ * Set Stonith information
+ * 
+ * Expect a line that looks like:
+ * stonith <type> <configfile>
+ *
+ */
 int
 set_stonith_info(const char * value)
 {
@@ -1072,6 +1081,7 @@ set_stonith_info(const char * value)
 
 	switch ((rc=s->s_ops->set_config_file(s, StonithFile))) {
 		case S_OK:
+			/* This will have to change to a list !!! */
 			config->stonith = s;
 			s->s_ops->status(s);
 			return(HA_OK);
@@ -1085,6 +1095,112 @@ set_stonith_info(const char * value)
 		default:
 			ha_log(LOG_ERR, "Unknown Stonith config error [%s] [%d]"
 			,	StonithFile, rc);
+			break;
+	}
+	return(HA_FAIL);
+}
+
+
+/*
+ * Set Stonith information
+ * 
+ * Expect a line that looks like:
+ * stonith_host <hostname> <type> <params...>
+ *
+ */
+int
+set_stonith_host_info(const char * value)
+{
+	const char *	vp = value; /* points to the current token */
+	const char *	evp;        /* points to the next token */
+	Stonith *	s;
+	char		StonithType [MAXLINE];
+	char		StonithHost [HOSTLENG];
+	int		tlen;
+	int		rc;
+	struct utsname	u;
+	
+	vp += strspn(vp, WHITESPACE);
+	tlen = strcspn(vp, WHITESPACE);
+
+	/* Save the pointer just past the hostname field */
+	evp = vp + tlen;
+
+	/* Grab the hostname */
+	if (tlen < 1) {
+		ha_log(LOG_ERR, "No Stonith hostname argument given");
+		return(HA_FAIL);
+	}	
+	if (tlen >= sizeof(StonithHost)) {
+		ha_log(LOG_ERR, "Stonith hostname too long");
+		return(HA_FAIL);
+	}
+	strncpy(StonithHost, vp, tlen);
+	StonithHost[tlen] = EOS;
+
+	/* Verify that this host is valid to create this stonith
+	   object.  Expect the hostname listed to match this host or
+	   '*'
+	*/
+	if (uname(&u) < 0) {
+		ha_perror("uname failure parsing stonith_host");
+		return HA_FAIL;
+	}
+	
+	if (strcmp ("*", StonithHost) != 0 
+	    && strcmp (u.nodename,StonithHost)) {
+		/* This directive is not valid for this host */
+		return HA_OK;
+	}
+	
+	/* Grab the next field */
+	vp = evp + strspn(evp, WHITESPACE);
+	tlen = strcspn(vp, WHITESPACE);
+	
+	/* Save the pointer just past the stonith type field */
+	evp = vp + tlen;
+	
+	/* Grab the stonith type */
+	if (tlen < 1) {
+		ha_log(LOG_ERR, "No Stonith type given");
+		return(HA_FAIL);
+	}
+	if (tlen >= sizeof(StonithType)) {
+		ha_log(LOG_ERR, "Stonith type too long");
+		return(HA_FAIL);
+	}
+	
+	strncpy(StonithType, vp, tlen);
+	StonithType[tlen] = EOS;
+
+	if ((s = stonith_new(StonithType)) == NULL) {
+		ha_log(LOG_ERR, "Invalid Stonith type [%s]", StonithType);
+		return(HA_FAIL);
+	}
+
+	/* Grab the parameters list */
+	vp = evp;
+	vp += strspn(vp, WHITESPACE);
+	
+        /* NOTE: this might contain a newline character */
+	/* I'd strip it off, but vp is a const char *   */
+
+	switch ((rc=s->s_ops->set_config_info(s, vp))) {
+		case S_OK:
+			/* This will have to change to a list !!! */
+			config->stonith = s;
+			s->s_ops->status(s);
+			return(HA_OK);
+
+		case S_BADCONFIG:
+			ha_log(LOG_ERR, "Invalid Stonith configuration parameter [%s]"
+			,	evp);
+			break;
+		
+
+		default:
+			ha_log(LOG_ERR, "Unknown Stonith config error parsing [%s] [%d]"
+			,	evp, rc);
 			break;
 	}
 	return(HA_FAIL);
