@@ -617,6 +617,7 @@ apphb_notify(const char * appname, pid_t pid, apphb_event_t event)
 		msg = "unregistered";
 		logtype = LOG_INFO;
 		break;
+
 	default:
 		return;
 	}
