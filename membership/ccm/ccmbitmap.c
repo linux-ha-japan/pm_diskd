@@ -1,5 +1,3 @@
-/***************PLEASE MAKE SURE COPYRIGHT IS CORRECT *********************/
-
 /* 
  * ccmbitmap.c: functions that manipulate bitmaps
  *
@@ -30,9 +28,7 @@
 #	define FALSE 0
 #endif
 
-/* FIXME!!!  What's a "Word"?  This should come from configuration parameters */
-#define BitsInByte 	8
-#define BitsInWord 	32
+#define BitsInByte CHAR_BIT
 
 
 // 	Initialize a bitmap with "nitems" bits, so that every bit is clear.

@@ -119,7 +119,7 @@ main(int argc, char *argv[])
 
 		if(select(my_ev_fd + 1, &rset, NULL,NULL,NULL) == -1){
 			perror("select");
-			exit(1);
+			return(1);
 		}
 		oc_ev_handle_event(ev_token);
 	}

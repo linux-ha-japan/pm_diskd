@@ -1015,8 +1015,6 @@ ccm_am_i_highest_joiner(ccm_info_t *info)
 	char *		hname = ccm_get_my_hostname(info);
 	int  		i=0;
 
-	/* FIXME!  You can't decrement a void* pointer! */
-	/* I'm not sure what's intended here... I may have botched the fix*/
 	/* FIXME!  g_slist_nth_data is a slow operation ! */
 	/* The way it's used in this loop makes it an n**2 operation! */
 
@@ -1199,8 +1197,6 @@ ccm_send_join_reply(ll_cluster_t *hb, ccm_info_t *info)
 
 	tmphead = CCM_GET_JOINERHEAD(info);
 
-	/* FIXME!  You can't decrement a void* pointer! */
-	/* I'm not sure what's intended here... I may have botched the fix*/
 	/* FIXME!  g_slist_nth_data is a slow operation ! */
 	/* The way it's used in this loop makes it an n**2 operation! */
 

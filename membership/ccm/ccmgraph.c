@@ -132,8 +132,8 @@ print_vertex(vertex_t **vertex, int maxnode)
 static int
 compare(const void *value1, const void *value2)
 {
-	const vertex_t *t1 = (const vertex_t *)(*(const vertex_t **)value1);
-	const vertex_t *t2 = (const vertex_t *)(*(const vertex_t **)value2);
+	const vertex_t *t1 = (const vertex_t *)value1;
+	const vertex_t *t2 = (const vertex_t *)value2;
 
 	if (t1->count < t2->count) return 1;
 	if (t1->count > t2->count) return -1;
