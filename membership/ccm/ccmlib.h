@@ -20,7 +20,7 @@
  */
 #ifndef __CCMLIB_H_
 #define __CCMLIB_H_
-#include <portability.h>
+#include <linux-ha/portability.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdio.h>

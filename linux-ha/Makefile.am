@@ -18,6 +18,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
-MAINTAINERCLEANFILES    = Makefile.in
+MAINTAINERCLEANFILES    = Makefile.in ha_config.h
 
-include_HEADERS	        = portability.h
+EXTRADIST = ha_config.h.in
+
+includedir=$(base_includedir)/linux-ha
+
+include_HEADERS	        = portability.h ha_config.h

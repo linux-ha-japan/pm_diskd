@@ -18,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-#include <portability.h>
+#include <linux-ha/portability.h>
 #define time FOOtime
 #include <glib.h>
 #undef time
@@ -294,6 +294,24 @@ parse_authfile(void)
 }
 /*
  * $Log: auth.c,v $
+ * Revision 1.10  2003/02/05 09:06:33  horms
+ * Lars put a lot of work into making sure that portability.h
+ * is included first, everywhere. However this broke a few
+ * things when building against heartbeat headers that
+ * have been installed (usually somewhere under /usr/include or
+ * /usr/local/include).
+ *
+ * This patch should resolve this problem without undoing all of
+ * Lars's hard work.
+ *
+ * As an asside: I think that portability.h is a virus that has
+ * infected all of heartbeat's code and now must also infect all
+ * code that builds against heartbeat. I wish that it didn't need
+ * to be included all over the place. Especially in headers to
+ * be installed on the system. However, I respect Lars's opinion
+ * that this is the best way to resolve some weird build problems
+ * in the current tree.
+ *
  * Revision 1.9  2002/10/21 10:17:17  horms
  * hb api clients may now be built outside of the heartbeat tree
  *

@@ -55,33 +55,30 @@
 #define G_GNUC_PRINTF( format_idx, arg_idx )
 #endif	/* !__GNUC__ */
 
-#  ifdef HAVE_CONFIG_H
-#	include <config.h>
+#include <linux-ha/ha_config.h>
 
-#ifndef HAVE_SETENV
+#if !HA_HAVE_SETENV
   /* We supply a replacement function, but need a prototype */
 
 int setenv(const char *name, const char * value, int why);
 
-#endif /* HAVE_SETENV */
+#endif /* HA_HAVE_SETENV */
 
-#ifndef HAVE_STRERROR
+#if !HA_HAVE_STRERROR
   /* We supply a replacement function, but need a prototype */
 const char * strerror(int errnum);
+#endif /* HA_HAVE_STRERROR */
 
-#endif /* HAVE_STRERROR */
 int setenv(const char *name, const char * value, int why);
 
 
-#ifndef HAVE_SCANDIR
+#if !HA_HAVE_SCANDIR
   /* We supply a replacement function, but need a prototype */
-
 #  include <dirent.h>
 int
 scandir (const char *directory_name,
 	struct dirent ***array_pointer,
 	int (*select_function) (const struct dirent *),
-
 #ifdef USE_SCANDIR_COMPARE_STRUCT_DIRENT
 	/* This is what the Linux man page says */
 	int (*compare_function) (const struct dirent**, const struct dirent**)
@@ -90,21 +87,20 @@ scandir (const char *directory_name,
 	int (*compare_function) (const void *, const void *)
 #endif
 	);
+#endif /* HA_HAVE_SCANDIR */
 
-#endif /* HAVE_SCANDIR */
-
-#ifndef HAVE_ALPHASORT
+#if !HA_HAVE_ALPHASORT
 #  include <dirent.h>
 int
 alphasort(const void *dirent1, const void *dirent2);
-#endif /* HAVE_ALPHASORT */
+#endif /* HA_HAVE_ALPHASORT */
 
-#ifndef HAVE_INET_PTON
+#if !HA_HAVE_INET_PTON
   /* We supply a replacement function, but need a prototype */
 int
 inet_pton(int af, const char *src, void *dst);
 
-#endif /* HAVE_INET_PTON */
+#endif /* HA_HAVE_INET_PTON */
 
 /*
  * Special Note:  CLK_TCK is *not* the same as CLOCKS_PER_SEC.
@@ -118,10 +114,10 @@ inet_pton(int af, const char *src, void *dst);
  * which solve this problem much more nicely...
  *
  */
-#ifdef CLK_TCK_IN_TIME_H
+#if HA_CLK_TCK_IN_TIME_H
 #  include <time.h>
 #else
-#  ifdef CLK_TCK_IN_LIMITS_H
+#  if HA_CLK_TCK_IN_LIMITS_H
 #    include <limits.h>
 #  endif
 #endif
@@ -133,16 +129,15 @@ inet_pton(int af, const char *src, void *dst);
 #    error "No definition for CLK_TCK available"
 #  endif
 #endif
-#  endif /* HAVE_CONFIG_H */
 
-
-#ifndef HAVE_STRNLEN
+#if !HA_HAVE_STRNLEN
 #	define	strnlen(a,b) strlen(a)
 #else
 #	define USE_GNU
 #endif
 
-#ifndef HAVE_NFDS_T 
+#if !HA_HAVE_NFDS_T 
 	typedef unsigned int nfds_t;
 #endif
+
 #endif /* !PORTABILITY_H */

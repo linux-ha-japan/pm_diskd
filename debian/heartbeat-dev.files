@@ -10,6 +10,8 @@ usr/lib/libplumb.so
 usr/lib/libapphb.a
 usr/lib/libapphb.la
 usr/lib/libapphb.so
+usr/include/linux-ha/portability.h
+usr/include/linux-ha/ha_config.h
 usr/include/clplumbing/GSource.h
 usr/include/clplumbing/Gmain_timeout.h
 usr/include/clplumbing/apphb_cs.h
@@ -29,7 +31,6 @@ usr/include/clplumbing/uids.h
 usr/include/heartbeat/HBauth.h
 usr/include/heartbeat/HBcomm.h
 usr/include/heartbeat/apphb.h
-usr/include/heartbeat/ha_config.h
 usr/include/heartbeat/ha_msg.h
 usr/include/heartbeat/hb_api.h
 usr/include/heartbeat/heartbeat.h

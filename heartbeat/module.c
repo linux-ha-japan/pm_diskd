@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.47 2003/02/03 11:30:40 lars Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.48 2003/02/05 09:06:33 horms Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -23,7 +23,7 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.47 2003/02/03 11:30:40 la
  *
  */
 
-#include <portability.h>
+#include <linux-ha/portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>

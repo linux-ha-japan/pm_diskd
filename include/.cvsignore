@@ -1,4 +1,3 @@
 Makefile
 Makefile.in
 .*.swp
-ha_config.h

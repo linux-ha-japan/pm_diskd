@@ -22,11 +22,11 @@
  *
  */
 
-static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.5 2003/01/31 10:02:09 lars Exp $";
+static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.6 2003/02/05 09:06:33 horms Exp $";
 
 
 #define _USE_BSD
-#include <portability.h>
+#include <linux-ha/portability.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>

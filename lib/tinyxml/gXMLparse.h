@@ -23,7 +23,7 @@
 #ifndef G_XML_PARSE_H
 #define G_XML_PARSE_H
 
-#include <portability.h>
+#include <linux-ha/portability.h>
 #include <glib.h>
 #include "gXML.h"
 #include "gXMLwrap.h"

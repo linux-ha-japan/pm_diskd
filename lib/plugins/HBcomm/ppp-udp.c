@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.11 2003/02/03 11:30:41 lars Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.12 2003/02/05 09:06:34 horms Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -101,7 +101,7 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.11 2003/02/03 11:30:41 la
 				/* This tells us how many writes should fail */
 				/* with connection refused before we restart */
 				/* PPPd on our end */
-#include <portability.h>
+#include <linux-ha/portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -1212,6 +1212,24 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.12  2003/02/05 09:06:34  horms
+ * Lars put a lot of work into making sure that portability.h
+ * is included first, everywhere. However this broke a few
+ * things when building against heartbeat headers that
+ * have been installed (usually somewhere under /usr/include or
+ * /usr/local/include).
+ *
+ * This patch should resolve this problem without undoing all of
+ * Lars's hard work.
+ *
+ * As an asside: I think that portability.h is a virus that has
+ * infected all of heartbeat's code and now must also infect all
+ * code that builds against heartbeat. I wish that it didn't need
+ * to be included all over the place. Especially in headers to
+ * be installed on the system. However, I respect Lars's opinion
+ * that this is the best way to resolve some weird build problems
+ * in the current tree.
+ *
  * Revision 1.11  2003/02/03 11:30:41  lars
  * Changed all files including system headers to include portability.h first, so
  * that global defines affecting the exported interfaces from the system headers

@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.77 2003/02/05 06:46:19 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.78 2003/02/05 09:06:33 horms Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -21,7 +21,10 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.77 2003/02/05 06:46:19 
  *
  */
 
-#include <portability.h>
+#include <linux-ha/portability.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1413,6 +1416,24 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.78  2003/02/05 09:06:33  horms
+ * Lars put a lot of work into making sure that portability.h
+ * is included first, everywhere. However this broke a few
+ * things when building against heartbeat headers that
+ * have been installed (usually somewhere under /usr/include or
+ * /usr/local/include).
+ *
+ * This patch should resolve this problem without undoing all of
+ * Lars's hard work.
+ *
+ * As an asside: I think that portability.h is a virus that has
+ * infected all of heartbeat's code and now must also infect all
+ * code that builds against heartbeat. I wish that it didn't need
+ * to be included all over the place. Especially in headers to
+ * be installed on the system. However, I respect Lars's opinion
+ * that this is the best way to resolve some weird build problems
+ * in the current tree.
+ *
  * Revision 1.77  2003/02/05 06:46:19  alan
  * Added the rtprio config option to the ha.cf file.
  *

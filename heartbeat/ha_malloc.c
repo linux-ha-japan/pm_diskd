@@ -1,5 +1,5 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.12 2003/01/07 20:44:32 msoffen Exp $";
-#include <portability.h>
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.13 2003/02/05 09:06:33 horms Exp $";
+#include <linux-ha/portability.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>

@@ -18,7 +18,7 @@
  *
  */
 
-#include <portability.h>
+#include <linux-ha/portability.h>
 #include <stdio.h>		/* for sprintf() */
 #include <string.h>		/* for memcpy() */
 #include <sys/types.h>		/* for stupid systems */

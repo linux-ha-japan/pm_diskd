@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.20 2003/01/31 10:02:09 lars Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.21 2003/02/05 09:06:33 horms Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -46,7 +46,12 @@ static const char _findif_c [] = "$Id: findif.c,v 1.20 2003/01/31 10:02:09 lars 
  *	in the subnet.
  *
  */
-#include <portability.h>
+
+#include <linux-ha/portability.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
@@ -596,6 +601,24 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.21  2003/02/05 09:06:33  horms
+ * Lars put a lot of work into making sure that portability.h
+ * is included first, everywhere. However this broke a few
+ * things when building against heartbeat headers that
+ * have been installed (usually somewhere under /usr/include or
+ * /usr/local/include).
+ *
+ * This patch should resolve this problem without undoing all of
+ * Lars's hard work.
+ *
+ * As an asside: I think that portability.h is a virus that has
+ * infected all of heartbeat's code and now must also infect all
+ * code that builds against heartbeat. I wish that it didn't need
+ * to be included all over the place. Especially in headers to
+ * be installed on the system. However, I respect Lars's opinion
+ * that this is the best way to resolve some weird build problems
+ * in the current tree.
+ *
  * Revision 1.20  2003/01/31 10:02:09  lars
  * Various small code cleanups:
  * - Lots of "signed vs unsigned" comparison fixes

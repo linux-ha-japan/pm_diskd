@@ -1,4 +1,4 @@
-const static char _serial_c_Id [] = "$Id: serial.c,v 1.22 2003/01/31 10:02:09 lars Exp $";
+const static char _serial_c_Id [] = "$Id: serial.c,v 1.23 2003/02/05 09:06:34 horms Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -24,7 +24,7 @@ const static char _serial_c_Id [] = "$Id: serial.c,v 1.22 2003/01/31 10:02:09 la
  *
  */
 
-#include <portability.h>
+#include <linux-ha/portability.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
@@ -655,6 +655,24 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.23  2003/02/05 09:06:34  horms
+ * Lars put a lot of work into making sure that portability.h
+ * is included first, everywhere. However this broke a few
+ * things when building against heartbeat headers that
+ * have been installed (usually somewhere under /usr/include or
+ * /usr/local/include).
+ *
+ * This patch should resolve this problem without undoing all of
+ * Lars's hard work.
+ *
+ * As an asside: I think that portability.h is a virus that has
+ * infected all of heartbeat's code and now must also infect all
+ * code that builds against heartbeat. I wish that it didn't need
+ * to be included all over the place. Especially in headers to
+ * be installed on the system. However, I respect Lars's opinion
+ * that this is the best way to resolve some weird build problems
+ * in the current tree.
+ *
  * Revision 1.22  2003/01/31 10:02:09  lars
  * Various small code cleanups:
  * - Lots of "signed vs unsigned" comparison fixes

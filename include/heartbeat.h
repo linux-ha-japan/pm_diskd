@@ -21,8 +21,8 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.29 2003/02/03 11:30:40 lars Exp $";
-#include <portability.h>
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.30 2003/02/05 09:06:33 horms Exp $";
+#include <linux-ha/portability.h>
 
 #ifdef SYSV
 #	include <sys/termio.h>

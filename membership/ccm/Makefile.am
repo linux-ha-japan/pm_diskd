@@ -25,7 +25,8 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 			-I$(top_builddir)/libltdl -I$(top_srcdir)/libltdl \
                         -I$(top_builddir) -I$(top_srcdir) \
                         -I$(top_builddir)/heartbeat -I$(top_srcdir)/heartbeat \
-                        -I$(top_builddir)/include/clplumbing -I$(top_srcdir)/include/clplumbing
+                        -I$(top_builddir)/include/clplumbing \
+			-I$(top_srcdir)/include/clplumbing
 
 hadir			= $(sysconfdir)/ha.d
 halibdir		= $(libdir)/@HB_PKG@

@@ -28,7 +28,7 @@
 
 #ifndef _HB_API_CORE_H
 #	define _HB_API_CORE_H 1
-#include <portability.h>
+#include <linux-ha/portability.h>
 #include <sys/types.h>
 #include <glib.h>
 #include <clplumbing/longclock.h>

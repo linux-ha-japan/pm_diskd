@@ -1,0 +1,55 @@
+#ifndef _HA_CONFIG_H
+#define _HA_CONFIG_H
+
+/* Define to 1 if time.h defines CLK_TCK */
+#define HA_CLK_TCK_IN_TIME_H @CLK_TCK_IN_TIME_H@
+
+/* Define to 1 if limits.h defines CLK_TCK */
+#define HA_CLK_TCK_IN_LIMITS_H @CLK_TCK_IN_LIMITS_H@
+
+/* Define to 1 if you have the `alphasort' function. */
+#define HA_HAVE_ALPHASORT @HAVE_ALPHASORT@
+
+/* Define to 1 if you have the `inet_pton' function. */
+#define HA_HAVE_INET_PTON @HAVE_INET_PTON@
+
+/* Do we have nfds_t */
+#define HA_HAVE_NFDS_T @HAVE_NFDS_T@
+
+/* Define to 1 if you have the `scandir' function. */
+#define HA_HAVE_SCANDIR @HAVE_SCANDIR@
+
+/* Define to 1 if you have the `strerror' function. */
+#define HA_HAVE_STRERROR @HAVE_STRERROR@
+
+/* Define to 1 if you have the `setenv' function. */
+#define HA_HAVE_STRERROR @HAVE_SETENV@
+
+/* /var/lib directory */
+#define HA_VARLIBDIR "@HA_VARLIBDIR@" 
+
+/* Group to own API fifos */
+#define HA_APIGROUP "@HA_APIGROUP@" 
+
+/* GID to own API fifos */
+#define HA_APIGID "@HA_APIGID@" 
+
+/* User to own CCM fifos */
+#define HA_CCMUSER "@HA_CCMUSER@" 
+
+/* UID to own CCM fifos */
+#define HA_CCMUID "@HA_CCMUID@" 
+
+/* Init start priority */
+#define HB_INITSTARTPRI "@HB_INITSTARTPRI@" 
+
+/* Init stop priority */
+#define HB_INITSTOPPRI "@HB_INITSTOPPRI@" 
+
+/* heartbeat rc script directory */
+#define HB_RC_DIR "@HB_RC_DIR@" 
+
+/* heartbeat logging socket */
+#define HA_LOGDAEMON_IPC "@HA_LOGDAEMON_IPC@" 
+
+#endif /* _HA_CONFIG_H */

@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.13 2003/02/03 11:30:41 lars Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.14 2003/02/05 09:06:34 horms Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -27,7 +27,10 @@ static const char _ucast_Id [] = "$Id: ucast.c,v 1.13 2003/02/03 11:30:41 lars E
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <linux-ha/portability.h>
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

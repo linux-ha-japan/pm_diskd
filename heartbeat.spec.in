@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.44 2003/01/28 10:37:21 lars Exp $
+#	$Id: heartbeat.spec.in,v 1.45 2003/02/05 09:06:32 horms Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -511,6 +511,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 @base_includedir@/heartbeat
 @base_includedir@/clplumbing
 @base_includedir@/ocf
+@base_includedir@/linux-ha
 @sysconfdir@/ha.d/resource.d/
 @INITDIR@/heartbeat
 @sysconfdir@/logrotate.d/heartbeat
