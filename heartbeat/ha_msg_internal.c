@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.10 2001/07/17 15:00:04 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.11 2001/07/18 03:12:52 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -432,7 +432,7 @@ STATIC	const char *
 ha_msg_ttl(void)
 {
 	static char	ttl[8];
-	sprintf(ttl, "%d", config->hopfudge + config->nodecount);
+	snprintf(ttl, sizeof(ttl), "%d", config->hopfudge + config->nodecount);
 	return(ttl);
 }
 
@@ -467,6 +467,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.11  2001/07/18 03:12:52  alan
+ * Put in a couple of minor security fixes from Emily Ratliff.
+ * The ttl value put in the messages is now checked for overflow, and the
+ * hopfudge value it is based on is now bounded to 255...
+ *
  * Revision 1.10  2001/07/17 15:00:04  alan
  * Put in Matt's changes for findif, and committed my changes for the new module loader.
  * You now have to have glib.
