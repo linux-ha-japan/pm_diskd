@@ -72,10 +72,10 @@ void ask_ping_nodes(ll_cluster_t *, int);
 void wake_up(ll_cluster_t *);
 
 /* ICK! global vars. */
-char node_name[200];	/* The node we are connected to */
-char other_node[200];	/* The remote node in the pair */
-int node_stable;        /* Other node stable? */
-int need_standby;       /* Are we waiting for stability? */
+const char *node_name;     /* The node we are connected to  */
+char other_node[SYS_NMLN]; /* The remote node in the pair   */
+int node_stable;           /* Other node stable?            */
+int need_standby;          /* Are we waiting for stability? */
 
 void
 NodeStatus(const char *node, const char *status, void *private)
@@ -146,9 +146,9 @@ ping_node_status(ll_cluster_t *hb)
 		exit(16);
 	}
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
+		if (!strcmp(PINGSTATUS, 
+			    hb->llc_ops->node_status(hb, node))) {
 
-		if (strcmp(PINGSTATUS, 
-				hb->llc_ops->node_status(hb, node)) == 0) {
 			cl_log(LOG_DEBUG, "Found ping node %s!", node);
 			found++;
 		}
@@ -197,27 +197,6 @@ msg_ipfail_join(const struct ha_msg *msg, void *private)
 	 * message, call ask_ping_nodes() to compare ping node counts.
 	 * Callback for the T_APICLISTAT message. 
 	 */
-
-	const char *type;
-	const char *orig;
-	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
-		type = "?";
-	}
-	if ((orig = ha_msg_value(msg, F_ORIG)) == NULL) {
-		orig = "?";
-	}
-
-	if ((node_name[0] != 0) && (other_node[0] == 0) &&
-	    (orig[0] != '?') && (strcmp(node_name, orig) != 0)) {
-		strcpy(other_node, orig);
-		cl_log(LOG_DEBUG, "[They are %s]", other_node);
-		wake_up(private);
-	}
-	if ((node_name[0] == 0) && (orig[0] != '?')) {
-		strcpy(node_name, orig);
-		cl_log(LOG_DEBUG, "[We are %s]", node_name);
-	}
-
 
 	/* If this is a join message from ipfail on a different node.... */
 	if (!strcmp(ha_msg_value(msg, F_STATUS), JOINSTATUS) &&
@@ -428,7 +407,6 @@ main(int argc, char **argv)
 
 	hb = ll_cluster_new("heartbeat");
 
-	memset(node_name, 0, sizeof(node_name));
 	memset(other_node, 0, sizeof(other_node));
 	node_stable = 0;
 	need_standby = 0;
@@ -447,6 +425,9 @@ main(int argc, char **argv)
 		facility = DEFAULT_FACILITY;
 	}
 	cl_log_set_facility(facility);
+	
+	node_name = hb->llc_ops->get_mynodeid(hb);
+	cl_log(LOG_DEBUG, "[We are %s]", node_name);
 
 	if (hb->llc_ops->set_msg_callback(hb, T_APICLISTAT, 
 					  msg_ipfail_join, hb) != HA_OK) {
@@ -513,6 +494,13 @@ main(int argc, char **argv)
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
 		cl_log(LOG_DEBUG, "Cluster node: %s: status: %s", node
 		,	hb->llc_ops->node_status(hb, node));
+
+		/* Look for our partner */
+		if (!strcmp("normal", hb->llc_ops->node_type(hb, node))
+		    && strcmp(node, node_name)) {
+			strcpy(other_node, node);
+			cl_log(LOG_DEBUG, "[They are %s]", other_node);
+		}
 
 		/* ifwalking is broken for ping nodes.  I don't think we even
 		   need it at this point.
