@@ -32,6 +32,7 @@ PIDFILE			= $(localstatedir)/run/apphbd/apphbd.pid
 COMMONLIBS		= $(top_builddir)/lib/clplumbing/libplumb.la	\
 			$(GLIBLIB)
 
+LIBRT 			= @LIBRT@
 CFLAGS			= @CFLAGS@	\
 			-DPIDFILE='"$(PIDFILE)"'
 			-DVAR_LIB_D='"$(havarlibdir)"'
@@ -40,6 +41,7 @@ CFLAGS			= @CFLAGS@	\
 halib_PROGRAMS		= apphbd apphbtest
 
 ## SOURCES
+
 apphbd_SOURCES	= apphbd.c
 #
 #	We don't really need libpils/libltdl (yet...)
@@ -48,7 +50,7 @@ apphbd_LDADD		= $(COMMONLIBS) 				\
 			$(top_builddir)/lib/pils/libpils.la		\
 			$(top_builddir)/libltdl/libltdlc.la 		\
 			$(top_builddir)/replace/libreplace.la		\
-			-lrt
+			$(LIBRT)
 
 apphbd_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \
