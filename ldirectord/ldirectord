@@ -1,10 +1,34 @@
 #!/usr/bin/perl
-#
+my($VERSION)=(qw$Id: ldirectord,v 1.71 2003/08/02 07:21:26 horms Exp $)[2];
+
+######################################################################
+# ldirectord                 http://www.vergenet.net/linux/ldirectord/
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.70 2003/07/14 08:17:15 horms Exp $)[2];
-# (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
-# This is GPL software. You should own a few hundred copies
-# of the GPL by now. if not, get one at http://www.fsf.org
+#
+# (C) 1999-2003 Jacob Rief <jacob.rief@tiscover.com>
+# (C) 1999-2003 Horms <horms@verge.net.au>
+#
+# Note: * The original author of this software was Jacob Rief circa 1999
+#       * It was maintained by Jacob Rief and Horms 
+#         from November 1999 to July 2003.
+#       * From July 2003 Horms is the maintainer
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 2 of the
+# License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+# 02111-1307  USA
+#
+######################################################################
 
 =head1 NAME
 
@@ -243,10 +267,10 @@ ldirectord\@<hostname>, where hostname is the environment variable
 HOSTNAME evaluated at run time.
 
 
-B<scheduler = rr>|B<wrr>|B<lc>|B<wlc>|B<lblc>|B<lblcr>|B<sed>|B<nq>
+B<scheduler => I<scheduler_name>
 
 Scheduler to be used by LVS for loadbalancing. Default is "wrr".
-For an explanation of the sehedulers please see
+For an information on the available sehedulers please see
 the ipvsadm(8) man page.
 
 B<persistent => I<n>
@@ -268,24 +292,24 @@ mark then the protocol must be fwm, which is the default.
 
 B</etc/ha.d/ldirectord.cf>
 
-B</etc/ha.d/conf/>I<configuration>
-
 B</var/log/ldirectord.log>
 
 B</var/run/ldirectord.>I<configuration>B<.pid>
 
-B</etc/>I<services>
+B</etc/services>
 
 =head1 SEE ALSO
 
 L<ipvsadm>, L<heartbeat>
 
+Ldirectord Web Page: http://www.vergenet.net/linux/ldirectord/
+
 
 =head1 AUTHORS
 
-Jacob Rief <jacob.rief@tiscover.com>
-
 Horms <horms@verge.net.au>
+
+Jacob Rief <jacob.rief@tiscover.com>
 
 =cut
 
@@ -684,8 +708,23 @@ sub read_config
 					$vsrv{load} = $1;
 					lc($1);
 				} elsif ($rcmd =~ /^scheduler\s*=\s*(.*)/) {
-					$1 =~ /(\w+)/ && ($1 eq "rr" || $1 eq "wrr" || $1 eq "lc" || $1 eq "wlc" || $1 eq "lblc" || $1 eq "lblcr" )
-					    or &config_error($line, "scheduler must be rr, wrr, lc or wlc");
+					# Intentonally ommit checking the
+					# scheduler against a list of know
+					# schedulers. This is because from
+					# time to time new shedulers are
+					# added. But ldirectord is
+					# maintained distributed
+					# independantly of this. Thus
+					# ldirectord needs to be manually
+					# updated/upgraded.  So just accept
+					# any schedluer that matches
+					# [a-z]+. I.e. is syntactically
+					# correct (all schedulers so far
+					# match that pattern). Ipvsadm will
+					# report an error is a sheduler
+					# isn't available / doesn't exist.
+					$1 =~ /([a-z]+)/ 
+					    or &config_error($line, "invalid scheduler, should be only lowercase letters (a-z)");
 					$vsrv{scheduler} = $1;
 				} elsif ($rcmd =~ /^persistent\s*=\s*(.*)/) {
 					$1 =~ /(\d+)/ or &config_error($line, "invalid persistent timeout");
