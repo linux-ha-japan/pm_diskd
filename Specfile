@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.94 2001/03/11 06:41:54 alan Exp $
+#	$Id: Specfile,v 1.95 2001/03/16 03:36:01 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -52,7 +52,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 
 %changelog
 
-* Sat Mar 10 2001 Alan Robertson <alanr@unix.sh>,
+* Fri Mar 16 2001 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
@@ -63,72 +63,53 @@ machine. It's simple and reliable, albeit admittedly brutal.
      Juan Pedro Paredes Caballero <juampe@retemail.es>
      Andreas Piesk's <a.piesk@gmx.net>, Chris Wright <chris@wirex.com>
 
-+ Version 0.4.9 Beta series
-  + Increased the retry count for the Baytech stonith module.
-  + Fixed a bug such that a machine wouldn't stay up more than 24 hours
-	after performing a Stonith operation. Robert_Macaulay@Dell.com
-	reported the bug.
-  + Properly parse the multicast option and install the module.
-  + Removed the ppp support code from the build process.
-  + Fixed an old bug in configuring the deprecated ppp option ;-)
-  + Added Brian Martin's client API library fix <bmartin@penguincomputing.com>
-    along with one suggested by Chris Wright.
-  + Fixed stonith library to support the RPC-3A.  Critical information,
-        testing, and some of the code provided by Juri Haberland
-        <juri.haberland@innominate.com>
-  + Added code to deal with the possibility that networking isn't fully
-        working even though we're working.  This involves a new parameter
-	initdead (initial dead time).
-  + Added checks that complain if all resources aren't idle on startup.
-    This is a *very* common error. <alanr@unix.sh>
-  + Fixed a bug relating to not properly handshaking when starting
-	the various heartbeat xmit/receive modules so that I could mark
-	another node which was up or myself dead especially when the machine
-	is under load <alanr@unix.sh>
-  + Incorporated Joshua Uziel's <uzi@uzix.org> Sparc Endian fix
-  + Incorporated Andreas Piesk's <a.piesk@gmx.net> APCsmart Stonith module
-  + Incorporated Chris Wright's <chris@wirex.com> multicast HB comm module
-  + Incorporated off-by-1 stonith fix from Andreas Piesk <apiesk@virbus.de>
-    and his stonith test program fix for handling a NULL hostlist return.
-  + Made media modules and authentication modules dynamically loadable.
-  + Incorporated new ldirectord version
-  + Added STONITH API library
-  + Added STONITH option to heartbeat (stonith & stonith_node)
-  + Added STONITH support for WTI RPS10 and Night/Ware RPC100S
-  + Added STONITH support for VACM (you must recompile from source.
-       See the note in README.vacm.)
-  + Added heartbeat API code
-  + Added late heartbeat warning for heartbeats that arrive later than
-    	0.75 of deadtime (warntime option)
-  + Added better protection against replay attacks (it's now quite good)
-  + Added detection of and recovery from cluster partitions
++ Version 0.4.9
+
+  + Split into 3 rpms - heartbeat, heartbeat-stonith heartbeat-ldirectord
+
+  + Made media modules and authentication modules and stonith modules
+	dynamically loadable.
+
+  + Added Multicast media support
   + Added ping node/membership/link type for tiebreaking.  This will
 	be useful when implementing quorum on 2-node systems.
 	(not yet compatible with nice_failback(?))
-  + Fixed byte-ordering problem related to output in findif.c.
-	There are probably more, related to input ;-)
-	(See fix from 'uzi' above)
-  + More SuSE-compatibility changes thanks to Marius Tomaschewski <mt@suse.de>
-  + Removed the 8-alias limitation from the IPaddr resource script.
-  + IP address takeovers now occur faster (ARPs now occur asynchronously)
-  + Added two new Stonith modules (thanks to Eric Ayers)
-  + Fetch broadcast IP from kernel calls instead of output of ifconfig in udp.c
+  + Removed ppp support
+
+  + Heartbeat client API support
+
+  + Added STONITH API library
+    +   support for the Baytech RPC-3A power switch
+    +   support for the APCsmart UPS
+    +   support for the VACM cluster management tool
+    +	support for WTI RPS10
+    +	support for Night/Ware RPC100S
+    +	support for "Meatware" (human intervention) module
+    +	support for "null" (testing only) module
+
+  + Fixed startup timing bugs
+  + Fixed shutdown sequence bugs: takeover occured before
+	resources were released by other system
+  + Fixed various logging bugs
+  + Closed holes in protection against replay attacks
+
+  + Added checks that complain if all resources aren't idle on startup.
+  + IP address takeover fixes
+      + Endian fixes
+      + Removed the 8-alias limitation
+      + Takeovers now occur faster (ARPs occur asynchronously)
+
+  + Port number changes
+    + Use our IANA port number (694) by default
+    + Recognize our IANA port number ("ha-cluster") if it's in /etc/services
+
+  + Moved several files, etc. from /var/run to /var/lib/heartbeat
+  + Incorporated new ldirectord version
+  + Added late heartbeat warning for late-arriving heartbeats
+  + Added detection of and partial recovery from cluster partitions
   + Accept multiple arguments for resource scripts
   + Added Raid1 and Filesystem resource scripts
-  + Split into 3 rpms - heartbeat, heartbeat-stonith heartbeat-ldirectord
-  + Added -M (don't manage resources) flag to allow "observer" nodes
-	(doesn't yet work with nice_failback on other 2 nodes)
-  + Fixed a bug which kept you from logging to both syslog and files
-  + Fixed a bug where shutdown stopped giving out heartbeats before the
-	resources were taken over.
-  + Added a group for heartbeat API clients and changed modes of things
-	to match.
-  + Moved several files, etc. from /var/run to /var/lib/heartbeat
-  + Baytech Stonith code now retries failed login sequences
-  + Set close-on-exec bit in watchdog open code...
-  + Recognize our IANA port number ("ha-cluster") if it's present.
-  + Use the port number in /etc/services as the default if it's there.
-  + Added man page that refers to HTML documentation
+  + Added man pages
   + Added debian package support
 
 * Fri Jun 30 2000 Alan Robertson <alanr@unix.sh>,
@@ -503,11 +484,6 @@ fi
 ###########################################################
 %post
 ###########################################################
-if
-  [ ! -x etc/ppp/ip-up.heart ]
-then
-  Install_PPP_hack
-fi
 
 # Run heartbeat on startup
 if
