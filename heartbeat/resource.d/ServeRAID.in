@@ -1,0 +1,243 @@
+#!/bin/sh
+#
+# $Id: ServeRAID.in,v 1.1 2002/03/09 13:47:22 alan Exp $
+# 
+# LinuxSCSI
+#
+# Description:	Enables/Disables shared ServeRAID logical drives
+#		Should be used in conjunction with LinuxSCSI
+#
+# Author:	Alan Robertson, Renzo Alejandro Granados
+#
+# Support:	linux-ha-dev@lists.tummy.com
+#
+# License:	GNU Lesser General Public License (LGPL)
+#
+# Copyright:	(C) 2002 International Business Machines
+#		(C) 2002 Renzo Alejandro Granados
+#
+# usage: ./ServeRAID <adapter>:<MergeGroup#>  (start|stop|status)
+#
+# NOTE:		MUST be used together with the LinuxSCSI resource...
+#
+#<adapter>:	Adapter number of the ServeRAID adapter 
+#<MergeGroup#>:	MergeGroup # of the logical drive under consideration.
+#
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 LinuxSCSI::0:0   ServeRAID::1::1
+#
+unset LC_ALL; export LC_ALL
+unset LANGUAGE; export LANGUAGE
+
+usage() {
+  cat <<-! >&1
+	usage: $0 <serveraid#>:<sharedmergegroup#> (start|stop|status)
+
+	The serveraid# is the number of the ServeRAID adapter
+	ServeRAID adapters are numbered starting from 1.
+
+	The shared merge group number is a number between 1 and 8 inclusive.
+	It indicates to the controller which logical disk to fail over.
+
+	NOTE:  This resource will NOT WORK without being used in conjunction with
+	the LinuxSCSI resource.  It must be preceded by the LinuxSCSI
+	resource on the resource group line as shown in the example below.
+
+                node1  10.0.0.170 LinuxSCSI::0::0   ServeRAID::1::1
+
+	The arguments to LinuxSCSI are NOT the same as those to $0.
+
+	!
+  exit 1
+}
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+#. @sysconfdir@/ha.d/shellfuncs
+. /etc/ha.d/shellfuncs
+
+ServeRAID_methods() {
+  cat <<-!
+	start
+	stop
+	status
+	methods
+	!
+}
+
+ServeRAIDSCSI="/proc/scsi/ips"
+
+ 
+IPS=ipssend
+
+
+parseinst() {
+  adapter=error
+  mergegroup=error
+  scsinumber=error
+  if
+    [ $# -ne 2 ]
+  then
+    echo "Invalid ServeRAID instance: $*" >&2
+    return 1
+  fi
+  scsinumber=`expr $1 - 1`
+  if
+    [ ! -f $ServeRAIDSCSI/$scsinumber ]
+  then
+    echo "No such ServeRAID adapter: $1" >&2
+    scsinumber=error
+    return 2
+  fi
+    
+  case $2 in
+    [1-8]);;
+    *)	echo "Invalid Shared Merge Group Number: $2" >&2
+        scsinumber=error
+	return 3;;
+  esac
+  adapter=$1
+  mergegroup=$2
+  return 0
+}
+
+#
+#	Run:  Run a script, and log its output.
+#	Note that we the stupid ipssend command has its return
+#	codes reversed - it returns 1 for success, and 0 for failure...
+#	We account for that too...
+#
+run() {
+  output=`"$@" 2>&1`
+  rc=$?
+  output=`echo $output`
+  if
+    [ $rc -eq 1 ]
+  then 
+    if
+      [ ! -z "$output" ]
+    then
+      ha_log "info: $output"
+    fi
+    return 0
+  else
+    if
+      [ ! -z "$output" ]
+    then
+      ha_log "ERROR: $output"
+    else
+      ha_log "ERROR: command failed: $*"
+    fi
+    return 1
+  fi
+}
+
+#
+# start: Enable the given SCSI device in the kernel
+#
+ServeRAID_start() {
+  parseinst "$@" || return $?
+  if
+    run $IPS UNMERGE $adapter $mergegroup	\
+    &&	run $IPS MERGE $adapter $mergegroup PARTNER
+  then
+    : OK All is well!
+  else
+    return $?
+  fi
+  if
+    ServeRAID_status "$@"
+  then
+    return 0
+  else
+    echo "ERROR: ServeRAID device $1 not active!"
+    return 1
+  fi
+}
+
+
+#
+# stop: Disable the given SCSI device in the kernel
+#
+ServeRAID_stop() {
+  parseinst "$@" || return $?
+  if
+    run $IPS UNMERGE $adapter $mergegroup
+  then
+    : OK All is well!
+  fi
+  if
+    ServeRAID_status "$@"
+  then
+    echo "ERROR: ServeRAID device $1 is still active!"
+    return 1
+  else
+    return 0
+  fi
+}
+
+
+#
+# status: is the given device now available?
+#
+ServeRAID_status() {
+  parseinst "$@" || return $?
+  #
+  # The output we're looking for
+  #	Part of merge group            : 2   
+  #
+  $IPS getconfig $adapter ld \
+  |	grep -i "part of merge group[ 	]*: *$mergegroup *$" >/dev/null
+}
+
+if
+  [ $# -eq 1 -a "X$1" = "Xmethods" ]
+then
+  ServeRAID_methods
+  exit $?
+fi
+
+if
+  [ $# -ne 3 ]
+then
+  usage
+  exit 1
+fi
+
+: Right Number of arguments..
+
+# Look for the start, stop, status, or methods calls...
+case "$3" in
+  stop)
+	ServeRAID_stop $1 $2
+	exit $?;;
+  start)
+	ServeRAID_start $1 $2
+	exit $?;;
+  status) 
+	if
+	  ServeRAID_status $1 $2
+	then
+	  echo ServeRAID logical drive $1 $2 is running
+	  exit 0
+	else
+	  echo ServeRAID logical drive $1 $2 is stopped.
+	  exit 1
+	 fi
+	exit $?;;
+
+#
+# methods: What methods do we support?
+#
+  methods) 
+	ServeRAID_methods
+	exit $?;;
+
+*)
+    usage
+    exit 1;;
+
+esac
+
+exit 1
