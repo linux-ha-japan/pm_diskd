@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager,v 1.4 2000/06/12 06:11:09 alan Exp $
+#	$Id: ResourceManager,v 1.5 2000/07/26 04:14:10 alan Exp $
 #
 #	New haresources format:
 #
@@ -70,8 +70,19 @@ ipres() {
     arg=$1
   fi
   cat $HA_DIR/haresources |
-	sed -e 's%#.*%%' -e 's%$% %' -e 's%[	 ][	 ]*% %' 	\
-		-e 's%^ %%' 						|
+	#
+	#	Explanation of Sed -e expressions below:
+	#
+	#	1) Strip out comments
+	#	2) Append a blank to the end of the line
+	#	3) Compress multiple blanks/tabs into a single blank
+	#	4) Strip off a leading space (if any)
+	#
+	sed						\
+		-e  's%#.*%%'				\
+		-e  's%$% %'				\
+		-e  's%[	 ][	 ]*% %g' 	\
+		-e  's%^ %%' 				|
   	egrep "$arg"
 }
 
@@ -230,6 +241,10 @@ esac
 
 #
 #	$Log: ResourceManager,v $
+#	Revision 1.5  2000/07/26 04:14:10  alan
+#	Fixed a bug in a sed expression in ResourceManager
+#	There was a missing 'g'.
+#
 #	Revision 1.4  2000/06/12 06:11:09  alan
 #	Changed resource takeover order to left-to-right
 #	Added new version of nice_failback.  Hopefully it works wonderfully!
@@ -238,7 +253,7 @@ esac
 #	Hosts now have three statuses {down, up, active}
 #	SuSE compatability due to Friedrich Lobenstock and alanr
 #	Other minor tweaks, too numerous to mention.
-#
+#	
 #	Revision 1.3  2000/05/03 20:23:59  alan
 #	Fixed a bug where the code was RedHat dependent.  It now allows the standard
 #	SuSE OK response for status requests from scripts.
