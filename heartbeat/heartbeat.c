@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.120 2001/07/02 19:12:57 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.121 2001/07/02 22:29:35 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1021,6 +1021,9 @@ control_process(FILE * fp)
 		if (msg == NULL) {
 			continue;
 		}
+		if (DEBUGPKTCONT) {
+			ha_log(LOG_DEBUG, "got msg in control_process");
+		}
 		if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
 			ha_log(LOG_ERR, "control_process: no type in msg.");
 			ha_msg_del(msg);
@@ -1231,12 +1234,18 @@ master_status_process(void)
 
 		/* It might be nice to look for exceptions on the API FIFOs */
 		selret = select(ndesc, &inpset, NULL, &exset, NULL);
+		if (DEBUGPKTCONT) {
+			ha_log(LOG_DEBUG, "select returned %d", selret);
+		}
 		if (selret <= 0) {
 			continue;	/* Timeout */
 		}
 
 		/* Do we have input on our status message FIFO? */
 		if (FD_ISSET(fd, &inpset)) {
+			if (DEBUGPKTCONT) {
+				ha_log(LOG_DEBUG, "got clustermsg");
+			}
 			process_clustermsg(f);
 			FD_CLR(fd, &inpset);
 			--selret;
@@ -2400,6 +2409,10 @@ send_cluster_msg(struct ha_msg* msg)
 		if ((wrc = write(ffd, smsg, length)) != length) {
 			ha_perror("cannot write message to FIFO! [rc=%d]", wrc);
 			rc = HA_FAIL;
+		}
+		if (DEBUGPKTCONT) {
+			ha_log(LOG_DEBUG, "%d bytes written to %s"
+			,	length, FIFONAME);
 		}
 		close(ffd);
 
@@ -4020,6 +4033,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.121  2001/07/02 22:29:35  alan
+ * Put in a little more basic debug for heartbeat.
+ *
  * Revision 1.120  2001/07/02 19:12:57  alan
  * Added debugging code around startup of child processes.
  *
