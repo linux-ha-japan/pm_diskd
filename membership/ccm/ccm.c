@@ -315,8 +315,7 @@ ccm_string2type(const char *type)
 static void
 ccm_configure_timeout(ll_cluster_t *hb, ccm_info_t *info)
 {
-	//long keepalive = hb->llc_ops->get_keepalive(hb);
-	long keepalive = 1000;
+	long keepalive = hb->llc_ops->get_keepalive(hb);
 
 	if(global_debug) {
 		cl_log(LOG_INFO, "ccm_configure_timeout  "
