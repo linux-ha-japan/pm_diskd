@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.6 1999/10/25 15:35:03 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.7 1999/11/07 20:57:21 alan Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -276,12 +276,15 @@ ttysetup(int fd)
 #ifndef IUCLC
 #	define IUCLC	0	/* Ignore it if not supported */
 #endif
+#ifndef CBAUD
+#	define CBAUD	0
+#endif
+
 	ti.c_iflag &= ~(BRKINT|IGNBRK|IUCLC|IXANY|IXOFF|IXON|ICRNL|PARMRK);
 	/* Unsure if I want PARMRK or not...  It may not matter much */
 	ti.c_iflag |=  (INPCK|ISTRIP|IGNCR);
 
 	ti.c_oflag &= ~(OPOST);
-
 	ti.c_cflag &= ~(CBAUD|CSIZE|PARENB);
 	ti.c_cflag |=  (serial_baud|CS8|CREAD|CLOCAL);
 
@@ -485,6 +488,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.7  1999/11/07 20:57:21  alan
+ * Put in Matt Soffen's latest FreeBSD patch...
+ *
  * Revision 1.6  1999/10/25 15:35:03  alan
  * Added code to move a little ways along the path to having error recovery
  * in the heartbeat protocol.
