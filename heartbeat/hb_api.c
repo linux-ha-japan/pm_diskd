@@ -517,7 +517,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			ha_log(LOG_ERR, "api_process_request: "
 			"general message from casual client!");
 			/* Bad Client! */
-			api_remove_client(client);
+			api_remove_client(fromclient);
 			return;
 		}
 
@@ -732,7 +732,7 @@ api_process_registration(struct ha_msg * msg)
 /*
  *	Send a message to a client process.
  */
-void
+static void
 api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 {
 	const char	* fifoname;
@@ -789,7 +789,7 @@ static int	minfd = -1;
  *	Make this client no longer a client ;-)
  */
 
-void
+static void
 api_remove_client(client_proc_t* req)
 {
 	client_proc_t*	prev = NULL;
@@ -844,7 +844,7 @@ api_remove_client(client_proc_t* req)
  *			If omitted, it defaults to the F_PID field as a
  *			decimal integer.
  */
-void
+static void
 api_add_client(struct ha_msg* msg)
 {
 	pid_t		pid = 0;
@@ -943,10 +943,10 @@ api_add_client(struct ha_msg* msg)
 /*
  *	Find the client that goes with this client id/pid
  */
-client_proc_t*
+static client_proc_t*
 find_client(const char * fromid, const char * cpid)
 {
-	pid_t	pid;
+	pid_t	pid = -1;
 	client_proc_t* client;
 
 	if (cpid != NULL) {

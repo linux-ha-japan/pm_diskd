@@ -27,6 +27,9 @@
 
 #define	OPTIONS	"F:p:t:sSlLvh"
 
+extern char *	optarg;
+extern int	optind, opterr, optopt;
+
 void usage(const char * cmd, int exit_status);
 
 void
@@ -60,8 +63,6 @@ main(int argc, char** argv)
 	int		listhosts = 0;
 	int		listtypes = 0;
 
-	extern char *	optarg;
-	extern int	optind, opterr, optopt;
 	int		c;
 	int		errors = 0;
 	int		argcount;
@@ -123,7 +124,7 @@ main(int argc, char** argv)
 		char **	typelist;
 
 		typelist = stonith_types();
-		if (s == NULL || typelist == NULL) {
+		if (typelist == NULL) {
 			syslog(LOG_ERR, "Could not list Stonith types.");
 		}else{
 			char **	this;

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.101 2001/05/09 23:21:21 mmoerz Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.102 2001/05/10 22:36:37 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -293,8 +293,8 @@ const char *		rsc_msg[] =	{NO_RESOURCES, LOCAL_RESOURCES,
         				 FOREIGN_RESOURCES, ALL_RESOURCES};
 int		verbose = 0;
 
-const char *	cmdname = "heartbeat";
-const char **	Argv = NULL;
+static char hbname []= "heartbeat";
+char *	cmdname = hbname;
 int		Argc = -1;
 int		debug = 0;
 int 		nice_failback = 0;
@@ -626,12 +626,12 @@ ha_log(int priority, const char * fmt, ...)
 	}
 }
 
+extern int	sys_nerr;
 void
 ha_perror(const char * fmt, ...)
 {
 	const char *	err;
 	char	errornumber[16];
-	extern int	sys_nerr;
 
 	va_list ap;
 	char buf[MAXLINE];
@@ -1860,7 +1860,8 @@ notify_world(struct ha_msg * msg, const char * ostatus)
  *
  */
 	char		command[STATUSLENG];
-	const char *	argv[MAXFIELDS+3];
+	char 		rc_arg0 [] = RC_ARG0;
+	char *	const argv[MAXFIELDS+3] = {rc_arg0, command, NULL};
 	const char *	fp;
 	char *		tp;
 	int		pid, status;
@@ -1887,9 +1888,6 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 		++fp; ++tp;
 	}
 	*tp = EOS;
-	argv[0] = RC_ARG0;
-	argv[1] = command;
-	argv[2] = NULL;
 
 	switch ((pid=fork())) {
 
@@ -1912,7 +1910,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				if (nice_failback) {
 					setenv(HANICEFAILBACK, "yes", 1);
 				}
-				execv(RCSCRIPT, (char **)argv);
+				execv(RCSCRIPT, argv);
 
 				ha_log(LOG_ERR, "cannot exec %s", RCSCRIPT);
 				cleanexit(1);
@@ -2911,14 +2909,14 @@ usage(void)
 }
 
 
+extern int	optind;
 int
-main(int argc, const char ** argv)
+main(int argc, char * argv[])
 {
 	int		flag;
 	int		argerrs = 0;
 	int		j;
 	char *		CurrentStatus=NULL;
-	extern int	optind;
 	pid_t		running_hb_pid = get_running_hb_pid();
 
 	num_hb_media_types = 0;
@@ -2932,10 +2930,8 @@ main(int argc, const char ** argv)
 	}
 
 	Argc = argc;
-	Argv = argv;
 
-
-	while ((flag = getopt(argc, (char **)argv, OPTARGS)) != EOF) {
+	while ((flag = getopt(argc, argv, OPTARGS)) != EOF) {
 
 		switch(flag) {
 
@@ -3251,6 +3247,7 @@ get_running_hb_pid()
 }
 
 
+extern pid_t getsid(pid_t);
 void
 make_daemon(void)
 {
@@ -3258,7 +3255,6 @@ make_daemon(void)
 	FILE *		lockfd;
 	sigset_t	sighup;
 
-	extern pid_t getsid(pid_t);
 
 
 	/* See if heartbeat is already running... */
@@ -3981,6 +3977,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.102  2001/05/10 22:36:37  alan
+ * Deleted Makefiles from CVS and made all the warnings go away.
+ *
  * Revision 1.101  2001/05/09 23:21:21  mmoerz
  * autoconf & automake & libtool changes
  *

@@ -46,6 +46,8 @@ usage(const char * cmd)
 	exit(S_INVAL);
 }
 
+extern char *	optarg;
+extern int	optind, opterr, optopt;
 int
 main(int argc, char** argv)
 {
@@ -56,8 +58,6 @@ main(int argc, char** argv)
 	const char *	opthost = NULL;
 	int		clearhost = 0;
 
-	extern char *	optarg;
-	extern int	optind, opterr, optopt;
 	int		c, argcount;
 	int		errors = 0;
 

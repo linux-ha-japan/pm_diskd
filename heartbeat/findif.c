@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.8 2001/02/05 04:55:27 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.9 2001/05/10 22:36:37 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *	It's really simple to write in C, but hard to write in the shell...
@@ -49,6 +49,10 @@ static const char _findif_c [] = "$Id: findif.c,v 1.8 2001/02/05 04:55:27 alan E
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
+#undef __OPTIMIZE__	/* This gets rid of some silly -Wtraditional warnings on Linux
+ 			 * because the netinet header has some slightly funky constants
+			 * in it.
+			 */
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -263,6 +267,9 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
+ * Revision 1.9  2001/05/10 22:36:37  alan
+ * Deleted Makefiles from CVS and made all the warnings go away.
+ *
  * Revision 1.8  2001/02/05 04:55:27  alan
  * Sparc fix from Uzi.
  *

@@ -503,7 +503,7 @@ hb_api_delete(struct ll_cluster* ci)
 /*
  * Set message filter mode.
  */
-int
+static int
 hb_api_setfilter(struct ll_cluster* ci, unsigned fmask)
 {
 	struct ha_msg*	request;
@@ -566,7 +566,7 @@ hb_api_setfilter(struct ll_cluster* ci, unsigned fmask)
  * Set signal for message notification.
  * This is not believed to be a security hole :-)
  */
-int
+static int
 hb_api_setsignal(ll_cluster_t* lcl, int nsig)
 {
 	struct ha_msg*	request;
@@ -1544,7 +1544,7 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 static char	APILogBuf[MAXLINE] = "";
 int		BufLen = 0;
 
-void
+static void
 ClearLog(void)
 {
 	APILogBuf[0] = EOS;
@@ -1590,12 +1590,12 @@ ha_error(const char * msg)
 	ha_log(0, msg);
 }
 
+extern int	sys_nerr;
 void
 ha_perror(const char * fmt, ...)
 {
 	const char *	err;
 	char	errornumber[16];
-	extern int	sys_nerr;
 
 	va_list ap;
 	char buf[MAXLINE];

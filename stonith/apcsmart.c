@@ -134,13 +134,13 @@ int st_setconfinfo(Stonith * s, const char *info);
  * own prototypes 
  */
 
-int APC_open_serialport(char *port, speed_t speed);
+int APC_open_serialport(const char *port, speed_t speed);
 void APC_close_serialport(int upsfd);
 void APC_sh_serial_timeout(int sig);
-int APC_send_cmd(int upsfd, char *cmd);
+int APC_send_cmd(int upsfd, const char *cmd);
 int APC_recv_rsp(int upsfd, char *rsp);
 int APC_enter_smartmode(int upsfd);
-int APC_set_ups_var(int upsfd, char *cmd, char *newval);
+int APC_set_ups_var(int upsfd, const char *cmd, char *newval);
 int APC_parse_config_info(struct APCDevice *ad, const char *info );
 int APC_init( struct APCDevice *ad );
 void APC_deinit( int upsfd );
@@ -149,7 +149,8 @@ void APC_deinit( int upsfd );
  * signal handler for serial port timeouts 
  */
 
-void APC_sh_serial_timeout(int sig)
+void
+APC_sh_serial_timeout(int sig)
 {
     struct sigaction sa;
     sigset_t sigmask;
@@ -177,7 +178,8 @@ void APC_sh_serial_timeout(int sig)
  * open serial port and set it to b2400 
  */
 
-int APC_open_serialport(char *port, speed_t speed)
+int
+APC_open_serialport(const char *port, speed_t speed)
 {
     struct sigaction sa;
     sigset_t sigmask;
@@ -284,7 +286,8 @@ int APC_open_serialport(char *port, speed_t speed)
  * close serial port and restore old settings 
  */
 
-void APC_close_serialport(int upsfd)
+void
+APC_close_serialport(int upsfd)
 {
 
 #ifdef APC_DEBUG
@@ -302,7 +305,8 @@ void APC_close_serialport(int upsfd)
  * send a command to the ups 
  */
 
-int APC_send_cmd(int upsfd, char *cmd)
+int
+APC_send_cmd(int upsfd, const char *cmd)
 {
     int i;
 
@@ -326,7 +330,8 @@ int APC_send_cmd(int upsfd, char *cmd)
  * get the response from the ups 
  */
 
-int APC_recv_rsp(int upsfd, char *rsp)
+int
+APC_recv_rsp(int upsfd, char *rsp)
 {
     char *p = rsp;
     char inp;
@@ -387,7 +392,8 @@ int APC_recv_rsp(int upsfd, char *rsp)
  *  enter smart mode
  */
 
-int APC_enter_smartmode(int upsfd)
+int
+APC_enter_smartmode(int upsfd)
 {
     int rc;
     char resp[MAX_STRING];
@@ -396,11 +402,11 @@ int APC_enter_smartmode(int upsfd)
     syslog(LOG_DEBUG, "%s: called.", __FUNCTION__);
 #endif
 
-    strcpy( resp, _(RSP_SMART_MODE));
+    strcpy( resp, RSP_SMART_MODE);
 
-    if (((rc = APC_send_cmd(upsfd, _(CMD_SMART_MODE))) == S_OK) && \
-	((rc = APC_recv_rsp(upsfd, resp)) == S_OK) && \
-	(strcmp(_(RSP_SMART_MODE), resp) == 0))
+    if (((rc = APC_send_cmd(upsfd, CMD_SMART_MODE)) == S_OK) &&
+	((rc = APC_recv_rsp(upsfd, resp)) == S_OK) &&
+	(strcmp(RSP_SMART_MODE, resp) == 0))
 	return (S_OK);
 
     return (S_ACCESS);
@@ -410,7 +416,8 @@ int APC_enter_smartmode(int upsfd)
  * set a value in the hardware using the <cmdchar> '-' (repeat) approach
  */
 
-int APC_set_ups_var(int upsfd, char *cmd, char *newval)
+int
+APC_set_ups_var(int upsfd, const char *cmd, char *newval)
 {
     char resp[MAX_STRING];
     char orig[MAX_STRING];
@@ -431,7 +438,7 @@ int APC_set_ups_var(int upsfd, char *cmd, char *newval)
     *resp = '\0';
 
     while (strcmp(resp, orig) != 0) {
-	if (((rc = APC_send_cmd(upsfd, _(SWITCH_TO_NEXT_VAL))) != S_OK) || \
+	if (((rc = APC_send_cmd(upsfd, SWITCH_TO_NEXT_VAL)) != S_OK) || \
 	    ((rc = APC_recv_rsp(upsfd, resp)) != S_OK))
 	    return (rc);
 
@@ -455,7 +462,8 @@ int APC_set_ups_var(int upsfd, char *cmd, char *newval)
  * initialize the ups
  */
 
-int APC_init( struct APCDevice *ad )
+int
+APC_init( struct APCDevice *ad )
 {
   int upsfd;
   char value[MAX_STRING];
@@ -477,13 +485,13 @@ int APC_init( struct APCDevice *ad )
 
   // get the old settings and store them               
   strcpy(value, SHUTDOWN_DELAY);
-  if (APC_set_ups_var(upsfd, _(CMD_SHUTDOWN_DELAY), value) != S_OK)
+  if (APC_set_ups_var(upsfd, CMD_SHUTDOWN_DELAY, value) != S_OK)
     return (-1);  
 
   strcpy(old_shutdown_delay, value);
 
   strcpy(value, WAKEUP_DELAY);
-  if (APC_set_ups_var(upsfd, _(CMD_WAKEUP_DELAY), value) != S_OK)
+  if (APC_set_ups_var(upsfd, CMD_WAKEUP_DELAY, value) != S_OK)
     return (-1);
 
   strcpy(old_wakeup_delay, value);
@@ -497,12 +505,13 @@ int APC_init( struct APCDevice *ad )
  * restore original settings and close the port
  */
 
-void APC_deinit( int upsfd )
+void
+APC_deinit( int upsfd )
 {
       APC_enter_smartmode( upsfd );
 
-      APC_set_ups_var(upsfd, _(CMD_SHUTDOWN_DELAY), old_shutdown_delay);
-      APC_set_ups_var(upsfd, _(CMD_WAKEUP_DELAY), old_wakeup_delay);
+      APC_set_ups_var(upsfd, CMD_SHUTDOWN_DELAY, old_shutdown_delay);
+      APC_set_ups_var(upsfd, CMD_WAKEUP_DELAY, old_wakeup_delay);
 
       // close serial port
       APC_close_serialport(upsfd);
@@ -512,7 +521,8 @@ void APC_deinit( int upsfd )
  * parse config
  */
 
-int APC_parse_config_info(struct APCDevice *ad, const char *info )
+int
+APC_parse_config_info(struct APCDevice *ad, const char *info )
 {
   char hostname[MAX_STRING];
   static char devicename[MAX_STRING];
@@ -557,7 +567,8 @@ int APC_parse_config_info(struct APCDevice *ad, const char *info )
  * return the status for this device 
  */
 
-int st_status(Stonith * s)
+int
+st_status(Stonith * s)
 {
     struct APCDevice *ad;
     char resp[MAX_STRING];
@@ -583,7 +594,7 @@ int st_status(Stonith * s)
 
     // get status
     if (((rc = APC_init( ad ) == S_OK) && \
-	((rc = APC_send_cmd(ad->upsfd, _(CMD_GET_STATUS))) == S_OK) && \
+	((rc = APC_send_cmd(ad->upsfd, CMD_GET_STATUS)) == S_OK) && \
 	((rc = APC_recv_rsp(ad->upsfd, resp)) == S_OK)))
 	return (S_OK);		// everything ok.
 
@@ -599,7 +610,8 @@ int st_status(Stonith * s)
  * return the list of hosts configured for this device 
  */
 
-char **st_hostlist(Stonith * s)
+char **
+st_hostlist(Stonith * s)
 {
     int numhosts;
     char **hl;
@@ -648,7 +660,8 @@ char **st_hostlist(Stonith * s)
  * free the hostlist 
  */
 
-void st_freehostlist(char **hlist)
+void
+st_freehostlist(char **hlist)
 {
     char **hl = hlist;
 
@@ -673,7 +686,8 @@ void st_freehostlist(char **hlist)
  * reset the host 
  */
 
-int st_reset(Stonith * s, int request, const char *host)
+int
+st_reset(Stonith * s, int request, const char *host)
 {
     struct APCDevice *ad;
     char resp[MAX_STRING];
@@ -718,20 +732,20 @@ int st_reset(Stonith * s, int request, const char *host)
 
     // enter smartmode and get status
     if (((rc = APC_init(ad)) == S_OK) && \
-	((rc = APC_send_cmd(ad->upsfd, _(CMD_RESET))) == S_OK) && \
+	((rc = APC_send_cmd(ad->upsfd, CMD_RESET)) == S_OK) && \
 	((rc = APC_recv_rsp(ad->upsfd, resp)) == S_OK) && \
-	(strcmp(resp, _(RSP_RESET)) == 0)) {
+	(strcmp(resp, RSP_RESET) == 0)) {
 
 	// ok, reset is initiated. ups don't accept any cmds until
 	// reboot -> reboot complete if status cmd accepted
 	// we wait max. 30 sec after shutdown
 
-	sleep(atoi(_(SHUTDOWN_DELAY)));
+	sleep(atoi(SHUTDOWN_DELAY));
 
 	// ups should be dead now -> wait for rebirth
 
 	for (i = 0; i < 10; i++) {
-	    if (((rc = APC_send_cmd(ad->upsfd, _(CMD_GET_STATUS))) == S_OK) && \
+	    if (((rc = APC_send_cmd(ad->upsfd, CMD_GET_STATUS)) == S_OK) && \
 	        ((rc = APC_recv_rsp(ad->upsfd, resp)) == S_OK))
 		return (S_OK);
 	    sleep(1);
@@ -749,7 +763,8 @@ int st_reset(Stonith * s, int request, const char *host)
  * and stash it away... 
  */
 
-int st_setconffile(Stonith * s, const char *configname)
+int
+st_setconffile(Stonith * s, const char *configname)
 {
     FILE *cfgfile;
     char confline[MAX_STRING];
@@ -783,7 +798,8 @@ int st_setconffile(Stonith * s, const char *configname)
  * Parse the config information in the given string, and stash it away... 
  */
 
-int st_setconfinfo(Stonith * s, const char *info)
+int
+st_setconfinfo(Stonith * s, const char *info)
 {
     struct APCDevice *ad;
 
@@ -809,7 +825,8 @@ int st_setconfinfo(Stonith * s, const char *info)
  * get info about the stonith device 
  */
 
-const char *st_getinfo(Stonith * s, int reqtype)
+const char *
+st_getinfo(Stonith * s, int reqtype)
 {
     struct APCDevice *ad;
     const char *ret;
@@ -854,7 +871,8 @@ const char *st_getinfo(Stonith * s, int reqtype)
  * APC Stonith destructor... 
  */
 
-void st_destroy(Stonith * s)
+void
+st_destroy(Stonith * s)
 {
     struct APCDevice *ad;
 
@@ -893,7 +911,8 @@ void st_destroy(Stonith * s)
  * static 
  */
 
-void *st_new(void)
+void *
+st_new(void)
 {
     struct APCDevice *ad = MALLOCT(struct APCDevice);
 

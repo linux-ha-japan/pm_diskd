@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.2 2001/03/11 03:16:12 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.3 2001/05/10 22:36:37 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -136,7 +136,11 @@ int hb_dev_isping (void)
  * for example:
  * mcast eth0 225.0.0.1 694 1 0
  */
-int hb_dev_parse(const char *line)
+extern struct hb_media* sysmedia[];
+extern int		nummedia;
+
+int
+hb_dev_parse(const char *line)
 {
 	const char *	bp = line;
 	char		dev[MAXLINE];
@@ -146,8 +150,6 @@ int hb_dev_parse(const char *line)
 	u_char		ttl;
 	u_char		loop;
 	int		toklen;
-	extern struct hb_media* sysmedia[];
-	extern int		nummedia;
 	struct hb_media *	mp;
 
 	/* Skip over white space, then grab the device */
@@ -352,7 +354,8 @@ int hb_dev_close(struct hb_media* hbm)
  * Receive a heartbeat multicast packet from UDP interface
  */
 
-struct ha_msg * hb_dev_read(struct hb_media* hbm)
+struct ha_msg *
+hb_dev_read(struct hb_media* hbm)
 {
 	struct mcast_private *	mcp;
 	char			buf[MAXLINE];
@@ -421,7 +424,8 @@ int hb_dev_write(struct hb_media* hbm, struct ha_msg * msgptr)
  * Set up socket for sending multicast UDP heartbeats
  */
 
-int HB_make_send_sock(struct hb_media * hbm)
+static int
+HB_make_send_sock(struct hb_media * hbm)
 {
 	int sockfd;
 	struct mcast_private * mcp;
@@ -456,7 +460,8 @@ int HB_make_send_sock(struct hb_media * hbm)
  */
 
 #define	MAXBINDTRIES	10
-int HB_make_receive_sock(struct hb_media * hbm)
+static int
+HB_make_receive_sock(struct hb_media * hbm)
 {
 
 	struct mcast_private * mcp;
@@ -725,6 +730,9 @@ static int get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.3  2001/05/10 22:36:37  alan
+ * Deleted Makefiles from CVS and made all the warnings go away.
+ *
  * Revision 1.2  2001/03/11 03:16:12  alan
  * Fixed the problem with mcast not incrementing nummedia.
  * Installed mcast module in the makefile.

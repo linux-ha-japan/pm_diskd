@@ -16,6 +16,7 @@ A million repetitions of "a"
 
 /* #define LITTLE_ENDIAN * This should be #define'd if true. */
 /* #define SHA1HANDSOFF * Copies data before messing with it. */
+#define SHA1HANDSOFF 1
 
 #include <stdio.h>
 #include <string.h>
@@ -24,9 +25,9 @@ A million repetitions of "a"
 
 extern unsigned char result[MAXLINE];
 
-void SHA1Transform(unsigned long state[5], unsigned char buffer[64]);
+void SHA1Transform(unsigned long state[5], const unsigned char buffer[64]);
 void SHA1Init(SHA1_CTX* context);
-void SHA1Update(SHA1_CTX* context, unsigned char* data, unsigned int len);
+void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len);
 void SHA1Final(unsigned char digest[20], SHA1_CTX* context);
 
 const unsigned char *
@@ -52,8 +53,8 @@ int hb_auth_atype(char **buffer)
 /* blk0() and blk() perform the initial expand. */
 /* I got the idea of expanding during the round function from SSLeay */
 #ifdef LITTLE_ENDIAN
-#define blk0(i) (block->l[i] = (rol(block->l[i],24)&0xFF00FF00) \
-    |(rol(block->l[i],8)&0x00FF00FF))
+#define blk0(i) (block->l[i] = (rol(block->l[i],24)&0xFF00FF00U) \
+    |(rol(block->l[i],8)&0x00FF00FFU))
 #else
 #define blk0(i) block->l[i]
 #endif
@@ -70,7 +71,7 @@ int hb_auth_atype(char **buffer)
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 
-void SHA1Transform(unsigned long state[5], unsigned char buffer[64])
+void SHA1Transform(unsigned long state[5], const unsigned char buffer[64])
 {
 unsigned long a, b, c, d, e;
 typedef union {
@@ -139,7 +140,7 @@ void SHA1Init(SHA1_CTX* context)
 
 /* Run your data through this. */
 
-void SHA1Update(SHA1_CTX* context, unsigned char* data, unsigned int len)
+void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len)
 {
 unsigned int i, j;
 
@@ -163,16 +164,18 @@ unsigned int i, j;
 
 void SHA1Final(unsigned char digest[20], SHA1_CTX* context)
 {
-unsigned long i, j;
-unsigned char finalcount[8];
+    unsigned long i, j;
+    unsigned char finalcount[8];
+    unsigned char twohundred [] = "\200";
+    unsigned char twozeroes [] = "\00";
 
     for (i = 0; i < 8; i++) {
         finalcount[i] = (unsigned char)((context->count[(i >= 4 ? 0 : 1)]
          >> ((3-(i & 3)) * 8) ) & 255);  /* Endian independent */
     }
-    SHA1Update(context, (unsigned char *)"\200", 1);
+    SHA1Update(context, twohundred, 1);
     while ((context->count[0] & 504) != 448) {
-        SHA1Update(context, (unsigned char *)"\0", 1);
+        SHA1Update(context, twozeroes, 1);
     }
     SHA1Update(context, finalcount, 8);  /* Should cause a SHA1Transform() */
     for (i = 0; i < 20; i++) {
@@ -200,10 +203,12 @@ hb_auth_calc (const struct auth_info *info, const char * text)
 	unsigned char   tk[SHA_DIGESTSIZE];
 	unsigned char   buf[SHA_BLOCKSIZE];
 	int	i, text_len, key_len;
-	const char * key = info->key;
+	unsigned char * key;
 
 	(void) _heartbeat_h_Id;
 	(void) _ha_msg_h_Id;
+	key = ha_malloc(sizeof(char)*(strlen(info->key)+1));
+	strcpy(key, info->key);
 
 	text_len = strlen(text);
 	key_len = strlen(key);
@@ -211,8 +216,8 @@ hb_auth_calc (const struct auth_info *info, const char * text)
 	if (key_len > SHA_BLOCKSIZE) {
 		SHA1_CTX         tctx ;
 		SHA1Init(&tctx);
-		SHA1Update(&tctx, (unsigned char *)key, key_len);
-		SHA1Final((unsigned char *)key, &tctx);
+		SHA1Update(&tctx, key, key_len);
+		SHA1Final(key, &tctx);
 		key = tk;
 		key_len = SHA_DIGESTSIZE;
 	}
@@ -226,7 +231,7 @@ hb_auth_calc (const struct auth_info *info, const char * text)
 	for (i = key_len ; i < SHA_BLOCKSIZE ; ++i) buf[i] = 0x36 ;
 
 	SHA1Update(&ictx, buf, SHA_BLOCKSIZE) ;
-	SHA1Update(&ictx, (unsigned char *)text, text_len) ;
+	SHA1Update(&ictx, (const unsigned char *)text, text_len) ;
 
 	SHA1Final(isha, &ictx) ;
 
@@ -248,6 +253,7 @@ hb_auth_calc (const struct auth_info *info, const char * text)
 		sprintf(tk, "%02x", osha[i]);
 		strcat(result, tk);
 	}
+	ha_free(key);
 
 	return(result);
 }

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.21 2000/12/12 23:23:47 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.22 2001/05/10 22:36:37 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -225,7 +225,17 @@ ttysetup(int fd)
 	ti.c_oflag &= ~(OPOST);
 	ti.c_cflag &= ~(CBAUD|CSIZE|PARENB);
 
-	ti.c_cflag |=  (serial_baud|CS8|CREAD|CLOCAL|CRTSCTS);
+/*
+ * Make a silly Linux/Gcc -Wtraditional warning go away
+ * This is not my fault, you understand...                       ;-)
+ * Suggestions on how to better work around it would be welcome.
+ */
+#if CRTSCTS == 020000000000
+#	undef CRTSCTS
+#	define CRTSCTS 020000000000U
+#endif
+
+	ti.c_cflag |=  (serial_baud|(unsigned)CS8|(unsigned)CREAD|(unsigned)CLOCAL|(unsigned)CRTSCTS);
 
 	ti.c_lflag &= ~(ICANON|ECHO|ISIG);
 #if !defined(IRIX) && !defined(BSD)
@@ -460,6 +470,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.22  2001/05/10 22:36:37  alan
+ * Deleted Makefiles from CVS and made all the warnings go away.
+ *
  * Revision 1.21  2000/12/12 23:23:47  alan
  * Changed the type of times from time_t to TIME_T (unsigned long).
  * Added BuildPreReq: lynx
