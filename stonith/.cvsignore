@@ -6,3 +6,4 @@ meatclient
 *.lo
 .deps
 .libs
+.*.swp

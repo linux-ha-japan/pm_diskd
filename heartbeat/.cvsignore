@@ -8,3 +8,4 @@ findif
 api_test
 *.la
 *.lo
+.*.swp
