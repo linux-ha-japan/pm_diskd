@@ -239,7 +239,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 {
 	struct ha_msg*	request;
 	struct ha_msg*	reply;
-	int		fd;
+	int		fd, Regfd;
 	struct utsname	un;
 	int		rc;
 	const char *	result;
@@ -380,9 +380,19 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	 */
 	setvbuf(pi->ReplyFIFO, NULL, _IONBF, 0);
 
+	/*  Open up the registration FIFO. We will open it in nonblocking
+	 *  mode, to verify if heartbeat has already opened the other end.
+	 *  If we do not use nonblocking open, we will end up getting 
+	 *  blocked for ever till heartbeat opens the other end of the fifo.
+	 */
+	if((Regfd = open(API_REGFIFO, O_WRONLY|O_NONBLOCK)) == -1) {
+		ha_api_log(LOG_ERR, "hb_api_signon: Can't open register fifo "
+			API_REGFIFO);
+		ZAPMSG(request);
+		return HA_FAIL;
+	}
 
-	/* Open up the registration FIFO */
-	if ((RegFIFO = fopen(API_REGFIFO, "w")) == NULL) {
+	if ((RegFIFO = fdopen(Regfd, "w")) == NULL) {
 		ha_api_perror("Can't fopen " API_REGFIFO);
 		ZAPMSG(request);
 		return HA_FAIL;
@@ -856,6 +866,21 @@ get_deadtime(ll_cluster_t* lcl)
 
 	return (pi->deadtime_ms);
 }
+
+/*
+ * Return my nodeid.
+ */
+static const char *
+get_mynodeid(ll_cluster_t* lcl)
+{
+	if (!ISOURS(lcl)) {
+		ha_api_log(LOG_ERR, "get_mynodeid: bad cinfo");
+		return NULL;
+	}
+	return (OurNode);
+}
+
+
 
 /*
  * Return the status of the given interface for the given machine.
@@ -1701,6 +1726,7 @@ static struct llc_ops heartbeat_ops = {
 	setfmode,		/* setfmode */
 	get_deadtime,		/* deadtime */
 	get_keepalive,		/* keepalive */
+	get_mynodeid,		/* my node id */
 	APIError,		/* errormsg */
 };
 

@@ -3457,8 +3457,7 @@ ccm_initialize()
 	unsigned	fmask;
 	const char *	node;
 	const char *	status;
-	char 		hname[256];
-	size_t		hlen = 256;
+	const char *	hname;
 	llm_info_t 	*llm;
 	ccm_info_t 	*global_info;
 	ll_cluster_t*	hb_fd;
@@ -3473,15 +3472,10 @@ ccm_initialize()
 			"======================");
 	}
 
-	if(gethostname(hname,hlen) != 0) {
-		cl_log(LOG_ERR, "gethostname() failed");
-		return NULL;
-	}
 
 	hb_fd = ll_cluster_new("heartbeat");
 	
 	cl_log(LOG_INFO, "PID=%ld", (long)getpid());
-	cl_log(LOG_INFO, "Hostname: %s", hname);
 
 	cl_log(LOG_INFO, "Signing in with Heartbeat");
 	if (hb_fd->llc_ops->signon(hb_fd, "ccm")!= HA_OK) {
@@ -3500,12 +3494,12 @@ ccm_initialize()
 		return NULL;
 	}
 
-/*	if (hb_fd->llc_ops->set_nstatus_callback(hb_fd, nodelist_update, global_info) 
-					!=HA_OK){
-		cl_log(LOG_ERR, "Cannot set node status callback");
-		cl_log(LOG_ERR, "REASON: %s", hb_fd->llc_ops->errmsg(hb_fd));
+	if((hname = hb_fd->llc_ops->get_mynodeid(hb_fd)) == NULL) {
+		cl_log(LOG_ERR, "get_mynodeid() failed");
 		return NULL;
-	} */
+	}
+	cl_log(LOG_INFO, "Hostname: %s", hname);
+
 
 	if (hb_fd->llc_ops->set_ifstatus_callback(hb_fd, LinkStatus, NULL)
 					!=HA_OK){

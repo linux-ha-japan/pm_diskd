@@ -236,6 +236,12 @@ struct llc_ops {
  */
 	const long (*get_keepalive)(ll_cluster_t *);
 
+/*
+ *	Return my node id
+ */
+	const char * (*get_mynodeid)(ll_cluster_t *);
+
+
 	const char * (*errmsg)(ll_cluster_t*);
 };
 
