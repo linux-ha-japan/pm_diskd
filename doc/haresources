@@ -9,12 +9,21 @@
 #	You need to make this right for your installation, then install it in
 #	/etc/ha.d
 #
+#	Each logical line in the file constitutes a "resource group".
+#	A resource group is a list of resources which move together from
+#	one node to another - in the order listed.  It is assumed that there
+#	is no relationship between different resource groups.  These
+#	resource in a resource group are started left-to-right, and stopped
+#	right-to-left.  Long lists of resources can be continued from line
+#	to line by ending the lines with backslashes ("\").
+#
 #	These resources in this file are either IP addresses, or the name
 #	of scripts to run to "start" or "stop" the given resource.
 #
 #	The format is like this:
 #
 #node-name resource1 resource2 ... resourceN
+#
 #
 #	If the resource name contains an :: in the middle of it, the
 #	part after the :: is passed to the resource script as an argument.
@@ -112,3 +121,10 @@
 #       the delimiter '::' to separate each argument.
 #
 #node1  10.0.0.170 Filesystem::/dev/sda1::/data1::ext2
+#
+#	Regarding the node-names in this file:
+#
+#	They must match the names of the nodes listed in ha.cf, which in turn
+#	must match the `uname -n` of some node in the cluster.  So they aren't
+#	virtual in any sense of the word.
+#
