@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.61 2002/11/20 02:15:22 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.62 2002/11/28 09:55:09 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -98,10 +98,11 @@ Defines the number of second between server checks. Default is 10 seconds.
 
 B<autoreload = >[B<yes>|B<no>]
 
-Defines if <ldirectord> should continuously check the configuration
-file for modification. If this is set to 'yes' and the configuration
-file changed on disk, the configuration is automatically reloaded.
-Default is no.
+Defines if <ldirectord> should continuously check the configuration file
+for modification. If this is set to 'yes' and the configuration file
+changed on disk and its modification time (mtime) is newer than the
+previous version, the configuration is automatically reloaded.  Default is
+no.
 
 B<callback = ">I</path/to/callback>B<">
 
