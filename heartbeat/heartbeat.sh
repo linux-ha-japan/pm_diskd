@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.17 2000/04/23 13:16:17 alan Exp $
+#	$Id: heartbeat.sh,v 1.18 2000/04/24 06:34:45 horms Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -12,7 +12,9 @@
 # description: Startup script high-availability services.
 # processname: heartbeat
 # pidfile: /var/run/heartbeat.pid
-# config: /etc/ha.d/heartbeat.cf
+# config: /etc/ha.d/ha.cf
+
+[ -f /etc/ha.d/ha.cf ] || exit 0
 
 HA_DIR=/etc/ha.d; export HA_DIR
 CONFIG=$HA_DIR/ha.cf
@@ -143,7 +145,7 @@ init_proc_ha() {
 
 start_heartbeat() {
   if
-    $HA_BIN/heartbeat # -d >& /dev/null
+    ERROR=$($HA_BIN/heartbeat 2>&1)
   then
     : OK
   else
@@ -177,9 +179,16 @@ StartHA() {
   if
     start_heartbeat
   then
-    : OK
+    echo_success
+    return 0 
   else
-    echo_failure $?
+    RC=$?
+    echo_failure $RC
+    if [ ! -x "$ERROR" ]; then
+      echo
+      echo $ERROR
+    fi 
+    return $RC
   fi
 }
 
@@ -242,6 +251,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.18  2000/04/24 06:34:45  horms
+#  Made init work cleanly with RH 6.2 again
+#
 #  Revision 1.17  2000/04/23 13:16:17  alan
 #  Changed the code in heartbeat.sh to no longer user RH's daemon or
 #  killproc functions.
