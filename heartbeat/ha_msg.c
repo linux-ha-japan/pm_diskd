@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.22 2002/02/21 21:43:33 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.23 2002/04/11 05:57:44 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -395,7 +395,7 @@ ha_log_message (const struct ha_msg *m)
 	ha_log(LOG_INFO, "MSG: Dumping message with %d fields", m->nfields);
 
 	for (j=0; j < m->nfields; ++j) {
-		ha_log(LOG_INFO, "MSG[%d]: %s=%s",j, m->names[j], m->values[j]);
+		ha_log(LOG_INFO, "MSG[%d]: [%s=%s]",j, m->names[j], m->values[j]);
 	}
 }
 
@@ -422,6 +422,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.23  2002/04/11 05:57:44  alan
+ * Made some of the debugging output clearer.
+ *
  * Revision 1.22  2002/02/21 21:43:33  alan
  * Put in a few fixes to make the client API work more reliably.
  * Put in a few changes to the process exit handling code which
