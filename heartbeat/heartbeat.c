@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.24 1999/10/25 15:35:03 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.25 1999/11/06 03:41:15 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -137,7 +137,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.24 1999/10/25 15:35:
  *
  */
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -146,6 +145,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.24 1999/10/25 15:35:
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <errno.h>
 #include <time.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -2139,6 +2139,7 @@ req_our_resources()
 	int	rc;
 
 	
+	ha_log(LOG_INFO, "Requesting our resources.");
 	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
@@ -2865,6 +2866,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.25  1999/11/06 03:41:15  alan
+ * Fixed some bugs regarding logging
+ * Also added some printout for initially taking over resources
+ *
  * Revision 1.24  1999/10/25 15:35:03  alan
  * Added code to move a little ways along the path to having error recovery
  * in the heartbeat protocol.

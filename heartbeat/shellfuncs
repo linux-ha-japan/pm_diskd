@@ -11,7 +11,7 @@
 : ${HA_LOGTAG=heartbeat}
 
 export HA_DIR HA_RCDIR HA_FIFO HA_BIN 
-export HA_DEBUGLOG HA_LOGFILE HA_LOG_FACILITY
+export HA_DEBUGLOG HA_LOGFILE HA_LOGFACILITY
 export HA_DATEFMT HA_RESOURCEDIR HA_DOCDIR
 
 hadate() {
@@ -20,11 +20,11 @@ hadate() {
 
 ha_log() {
 	if
-	  [ -n "$HA_LOG_FACILITY" ]
+	  [ -n "$HA_LOGFACILITY" ]
         then
 	  : logging throug syslog
 	  # loglevel is unknown, use 'notice' for now
-	  logger -t $LOGTAG -p ${HA_LOG_FACILITY}.notice "${*}"
+	  logger -t $LOGTAG -p ${HA_LOGFACILITY}.notice "${*}"
         fi
 	if
 	  [ -n "$HA_LOGFILE" ]
@@ -33,7 +33,7 @@ ha_log() {
 	  echo "$HA_LOGTAG: "`hadate`"${*}" >> $HA_LOGFILE
 	fi
 	if
-	  [ ! -n "$HA_LOG_FACILITY"  -a ! -n "$HA_DEBUGLOG" ]
+	  [ ! -n "$HA_LOGFACILITY"  -a ! -n "$HA_LOGFILE" ]
 	then
 	  echo `hadate`"${*}" >&2
 	fi
@@ -41,10 +41,10 @@ ha_log() {
 
 ha_debug() {
 	if
-	  [ -n "$HA_LOG_FACILITY" ]
+	  [ -n "$HA_LOGFACILITY" ]
 	then
 	  : logging throug syslog
-	  logger -t $LOGTAG -p ${HA_LOG_FACILITY}.debug "${*}"
+	  logger -t $LOGTAG -p ${HA_LOGFACILITY}.debug "${*}"
 	fi
 	if
 	  [ -n "$HA_DEBUGLOG" ]
@@ -53,7 +53,7 @@ ha_debug() {
 	  echo "$HA_LOGTAG: "`hadate`"${*}" >> $HA_DEBUGLOG
 	fi
 	if
-	  [ ! -n "$HA_LOG_FACILITY"  -a ! -n "$HA_DEBUGLOG" ]
+	  [ ! -n "$HA_LOGFACILITY"  -a ! -n "$HA_DEBUGLOG" ]
 	then
 	  echo `hadate`"${*}" >&2
 	fi
