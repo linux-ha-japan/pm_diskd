@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.146 2001/10/12 23:05:21 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.147 2001/10/13 00:23:05 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1563,7 +1563,7 @@ process_clustermsg(FILE * f)
 		if (!standby_running) {
 			/* someone wants to go standby!!! */
 			ask_for_resources(msg);
-		} else {
+		}else{
 			ha_log(LOG_INFO,
 			"Standby delay is running. MSG from %s ignored", from);
 		}
@@ -3148,7 +3148,7 @@ req_our_resources(int getthemanyway)
 
 	if (rsc_count == 0) {
 		ha_log(LOG_INFO, "No local resources [%s]", cmd);
-	}else {
+	}else{
 		if (ANYDEBUG) {
 			ha_log(LOG_INFO, "%d local resources from [%s]"
 			,	rsc_count, cmd);
@@ -3168,8 +3168,7 @@ go_standby(enum standby who)
 	char		cmd[MAXLINE];
 	char		buf[MAXLINE];
 	int		finalrc = HA_OK;
-	/* avoid "rc might be used uninitialized" warning - dirty hack */
-	int		rc=0;
+	int		rc = 0;
 	pid_t		pid;
 
 	/* We need to fork so we can make child procs not real time */
@@ -3209,7 +3208,7 @@ go_standby(enum standby who)
 		}
 		if (who == ME) {
 			sprintf(cmd, HALIB "/ResourceManager givegroup %s",buf);
-		} else {
+		}else{
 			if (who == OTHER) {
 				sprintf(cmd, HALIB
 					"/ResourceManager takegroup %s", buf);
@@ -3226,7 +3225,7 @@ go_standby(enum standby who)
 		i_hold_resources = NO_RSC;
 		ha_log(LOG_INFO, "Giving up all HA resources (standby).");
 		ha_log(LOG_INFO, "All HA resources relinquished.");
-	} else {
+	}else{
 		if (who == OTHER) {
 			i_hold_resources |= FOREIGN_RSC;
 			ha_log(LOG_INFO,
@@ -4465,13 +4464,18 @@ ask_for_resources(struct ha_msg *msg)
 	}
 	info = ha_msg_value(msg, F_COMMENT);
 	from = ha_msg_value(msg, F_ORIG);
-	msgfromme = !strcmp(from, curnode->nodename);
+
+	if (info == NULL || from == NULL) {
+		ha_log(LOG_ERR, "Received standby message without info/from");
+		return;
+	}
+	msgfromme = strcmp(from, curnode->nodename) == 0;
 
 	/* Starting the STANDBY 3-phased protocol */
 
 	switch(going_standby) {
 	case NOT:	
-		if ((!strncasecmp(info,"me",2))) {
+		if (strncasecmp(info, "me", 2) != 0) {
 			ha_log(LOG_INFO, "%s wants to go standby", from);
 			if (msgfromme) {
 				ha_log(LOG_INFO, "i_hold_resources: %d"
@@ -4480,7 +4484,7 @@ ask_for_resources(struct ha_msg *msg)
 					/* I want to go standby */
 					going_standby = ME;
 				}
-			} else {
+			}else{
 				ha_log(LOG_INFO, "other_holds_resources: %d"
 				,		other_holds_resources);
 				if (other_holds_resources!=NO_RSC) {
@@ -4517,6 +4521,19 @@ ask_for_resources(struct ha_msg *msg)
 			go_standby(OTHER);
 			going_standby = DONE;
 			ha_log(LOG_INFO, "takeover complete...");
+			/*
+			 * THIS IS BROKEN!
+			 * It can cause resources to be held by both
+			 * sides simultaneously. This is DEADLY for disks.
+			 * This message should be sent from the child process
+			 * we forked in go_standby() **after** it has performed
+			 * the resource transition, and NOT here.
+			 * We should do that remaining work (state change, etc.)
+			 * *after* we receive the "done" message it sends out.
+			 *
+			 * This would eliminate the need for the timer, and
+			 * make the code MUCH safer.
+			 */
 			send_standby_msg(going_standby);
 			ha_log(LOG_INFO,
 				"Standby process finished. /Me primary");
@@ -4548,6 +4565,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.147  2001/10/13 00:23:05  alan
+ * Put in comments about a serious problem with respect to resource takeover...
+ *
  * Revision 1.146  2001/10/12 23:05:21  alan
  * Put in a message about standby only being implemented when nice_failback
  * is on.
