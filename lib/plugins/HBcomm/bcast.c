@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.3 2001/08/15 02:14:49 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.4 2001/08/15 16:17:12 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -47,9 +47,6 @@ static const char _bcast_Id [] = "$Id: bcast.c,v 1.3 2001/08/15 02:14:49 alan Ex
 
 #define	EOS	'\0'
 
- 
-#include <HBcomm.h>
- 
 #define PIL_PLUGINTYPE          HB_COMM_TYPE
 #define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
 #define PIL_PLUGIN              bcast
@@ -670,6 +667,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.4  2001/08/15 16:17:12  alan
+ * Fixed the code so that serial comm plugins build/load/work.
+ *
  * Revision 1.3  2001/08/15 02:14:49  alan
  * Put in #include net/if.h needed for FreeBSD and solaris
  *

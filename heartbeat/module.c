@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.33 2001/08/10 17:35:38 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.34 2001/08/15 16:17:12 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -41,6 +41,7 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.33 2001/08/10 17:35:38 al
 #include <pils/generic.h>
 #include "../libltdl/config.h"
 #include <HBcomm.h>
+#include "lock.h"
 
 /* BSD wants us to cast the select parameter to scandir */
 #ifdef BSD
@@ -65,6 +66,8 @@ static const char *	ParameterValue(const char * name);
 struct hb_media_imports	CommImports =
 {	ParameterValue
 ,	RegisterNewMedium
+,	ttylock
+,	ttyunlock
 };
 
 extern struct hb_media* sysmedia[];

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.1 2001/08/10 17:16:44 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.2 2001/08/15 16:17:12 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -43,47 +43,121 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.1 2001/08/10 17:16:44 alan
 #include <sys/param.h>
 
 #include <heartbeat.h>
-#include <lock.h>
+#include <HBcomm.h>
 
-#define MODULE serial
-#include <hb_module.h>
+#define PIL_PLUGINTYPE		HB_COMM_TYPE
+#define PIL_PLUGINTYPE_S	HB_COMM_TYPE_S
+#define PIL_PLUGIN		serial
+#define PIL_PLUGIN_S		"serial"
+#include <pils/plugin.h>
+
 
 struct serial_private {
-        char *  ttyname;
-        int     ttyfd;                  /* For direct TTY i/o */ 
-        struct hb_media * next;   
+        char *			ttyname;
+        int			ttyfd;		/* For direct TTY i/o */ 
+        struct hb_media*	next;
 };
 
-extern int serial_baud;
-extern int baudrate;
+static int serial_baud = 0;
 
 /* Used to maintain a list of our serial ports in the ring */
 static struct hb_media*		lastserialport;
 
-struct hb_media*	EXPORT(hb_dev_new)(const char * value);
-struct ha_msg*	EXPORT(hb_dev_read)(struct hb_media *mp);
+static struct hb_media*	serial_new(const char * value);
+static struct ha_msg*	serial_read(struct hb_media *mp);
 static char *		ttygets(char * inbuf, int length
 ,				struct serial_private *tty);
-int		EXPORT(hb_dev_write)(struct hb_media*mp, struct ha_msg *msg);
-int		EXPORT(hb_dev_open)(struct hb_media* mp);
+static int		serial_write(struct hb_media*mp, struct ha_msg *msg);
+static int		serial_open(struct hb_media* mp);
 static int		ttysetup(int fd);
 static int		opentty(char * serial_device);
-int		EXPORT(hb_dev_close)(struct hb_media* mp);
-int		EXPORT(hb_dev_init)(void);
+static int		serial_close(struct hb_media* mp);
+static int		serial_init(void);
 
 static void		serial_localdie(void);
 
-int		EXPORT(hb_dev_mtype)(char **buffer);
-int		EXPORT(hb_dev_descr)(char **buffer);
-int		EXPORT(hb_dev_isping)(void);
+static int		serial_mtype(char **buffer);
+static int		serial_descr(char **buffer);
+static int		serial_isping(void);
+
+/*
+ * serialclosepi is called as part of unloading the serial HBcomm plugin.
+ * If there was any global data allocated, or file descriptors opened, etc.
+ * which is associated with the plugin, and not a single interface
+ * in particular, here's our chance to clean it up.
+ */
+
+static void
+serialclosepi(PILPlugin*pi)
+{
+	serial_localdie();
+}
+
+
+/*
+ * serialcloseintf called as part of shutting down the serial HBcomm interface.
+ * If there was any global data allocated, or file descriptors opened, etc.
+ * which is associated with the serial implementation, here's our chance
+ * to clean it up.
+ */
+static PIL_rc
+serialcloseintf(PILInterface* pi, void* pd)
+{
+	return PIL_OK;
+}
+
+static struct hb_media_fns serialOps ={
+	serial_new,	/* Create single object function */
+	NULL,		/* whole-line parse function */
+	serial_open,
+	serial_close,
+	serial_read,
+	serial_write,
+	serial_mtype,
+	serial_descr,
+	serial_isping,
+};
+
+PIL_PLUGIN_BOILERPLATE("1.0", Debug, serialclosepi);
+static const PILPluginImports*  PluginImports;
+static PILPlugin*               OurPlugin;
+static PILInterface*		OurInterface;
+static struct hb_media_imports*	OurImports;
+static void*			interfprivate;
+
+PIL_rc
+PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
+
+PIL_rc
+PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
+{
+	/* Force the compiler to do a little type checking */
+	(void)(PILPluginInitFun)PIL_PLUGIN_INIT;
+
+	PluginImports = imports;
+	OurPlugin = us;
+
+	/* Register ourself as a plugin */
+	imports->register_plugin(us, &OurPIExports);  
+
+	serial_init();
+	/*  Register our interface implementation */
+ 	return imports->register_interface(us, PIL_PLUGINTYPE_S
+	,	PIL_PLUGIN_S
+	,	&serialOps
+	,	serialcloseintf		/*close */
+	,	&OurInterface
+	,	(void*)&OurImports
+	,	interfprivate); 
+}
 
 #define		IsTTYOBJECT(mp)	((mp) && ((mp)->vf == (void*)&serial_media_fns))
 //#define		TTYASSERT(mp)	ASSERT(IsTTYOBJECT(mp))
 #define		TTYASSERT(mp)
 #define		RTS_WARNTIME	3600
 
-int
-EXPORT(hb_dev_mtype) (char **buffer) { 
+static int
+serial_mtype (char **buffer) { 
 	
 	*buffer = ha_malloc((strlen("serial") * sizeof(char)) + 1);
 
@@ -92,8 +166,8 @@ EXPORT(hb_dev_mtype) (char **buffer) {
 	return strlen("serial");
 }
 
-int
-EXPORT(hb_dev_descr) (char **buffer) { 
+static int
+serial_descr (char **buffer) { 
 
 	const char *str = "serial ring";	
 
@@ -104,28 +178,35 @@ EXPORT(hb_dev_descr) (char **buffer) {
 	return strlen(str);
 }
 
-int
-EXPORT(hb_dev_isping) (void) {
+static int
+serial_isping (void) {
 	return 0;
 }
 
 /* Initialize global serial data structures */
-int
-EXPORT(hb_dev_init) (void)
+static int
+serial_init (void)
 {
 	(void)_serial_c_Id;
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;	/* ditto */
 	lastserialport = NULL;
-	curnode = NULL;
-	serial_baud = DEFAULTBAUD;
-	baudrate = DEFAULTBAUDRATE;
+	/* This eventually ought be done through the configuration API */
+	if (serial_baud <= 0) {
+		const char *	chbaud;
+		if ((chbaud  = OurImports->ParamValue("baud")) != NULL) {
+			serial_baud = OurImports->StrToBaud(chbaud);
+		}
+	}
+	if (serial_baud <= 0) {
+		serial_baud = DEFAULTBAUD;
+	}
 	return(HA_OK);
 }
 
 /* Process a serial port declaration */
-struct hb_media *
-EXPORT(hb_dev_new) (const char * port)
+static struct hb_media *
+serial_new (const char * port)
 {
 	char	msg[MAXLINE];
 	struct	stat	sbuf;
@@ -158,6 +239,11 @@ EXPORT(hb_dev_new) (const char * port)
 		struct serial_private * sp;
 		sp = MALLOCT(struct serial_private);
 		if (sp != NULL)  {
+			/*
+			 * This implies we have to process the "new"
+			 * for this object in the parent process of us all...
+			 * otherwise we can't do this linking stuff...
+			 */
 			sp->next = lastserialport;
 			lastserialport=ret;
 			sp->ttyname = (char *)ha_malloc(strlen(port)+1);
@@ -175,15 +261,15 @@ EXPORT(hb_dev_new) (const char * port)
 	return(ret);
 }
 
-int
-EXPORT(hb_dev_open) (struct hb_media* mp)
+static int
+serial_open (struct hb_media* mp)
 {
 	struct serial_private*	sp;
 	char			msg[MAXLINE];
 
 	TTYASSERT(mp);
 	sp = (struct serial_private*)mp->pd;
-	if (ttylock(sp->ttyname) < 0) {
+	if (OurImports->devlock(sp->ttyname) < 0) {
 		snprintf(msg, MAXLINE, "cannot lock line %s", sp->ttyname);
 		ha_error(msg);
 		return(HA_FAIL);
@@ -195,8 +281,8 @@ EXPORT(hb_dev_open) (struct hb_media* mp)
 	return(HA_OK);
 }
 
-int
-EXPORT(hb_dev_close) (struct hb_media* mp)
+static int
+serial_close (struct hb_media* mp)
 {
 	struct serial_private*	sp;
 	int rc;
@@ -204,7 +290,7 @@ EXPORT(hb_dev_close) (struct hb_media* mp)
 	TTYASSERT(mp);
 	sp = (struct serial_private*)mp->pd;
 	rc = close(sp->ttyfd) < 0 ? HA_FAIL : HA_OK;
-	ttyunlock(sp->ttyname);
+	OurImports->devunlock(sp->ttyname);
 	return rc;
 }
 
@@ -300,9 +386,9 @@ serial_localdie(void)
 	}
 }
 
-/* This process does all the writing to our tty ports */
-int
-EXPORT(hb_dev_write) (struct hb_media*mp, struct ha_msg*m)
+/* This function does all the writing to our tty ports */
+static int
+serial_write (struct hb_media*mp, struct ha_msg*m)
 {
 	char *		str;
 
@@ -313,8 +399,7 @@ EXPORT(hb_dev_write) (struct hb_media*mp, struct ha_msg*m)
 
 	TTYASSERT(mp);
 
-	ourmedia = mp;
-	localdie = serial_localdie;
+	ourmedia = mp;	/* Only used for the "localdie" function */
 	ourtty = ((struct serial_private*)(mp->pd))->ttyfd;
 	if ((str=msg2string(m)) == NULL) {
 		ha_error("Cannot convert message to tty string");
@@ -353,9 +438,9 @@ EXPORT(hb_dev_write) (struct hb_media*mp, struct ha_msg*m)
 	return(HA_OK);
 }
 
-/* This process does all the reading from our tty ports */
-struct ha_msg *
-EXPORT(hb_dev_read) (struct hb_media*mp)
+/* This function does all the reading from our tty ports */
+static struct ha_msg *
+serial_read (struct hb_media*mp)
 {
 	char buf[MAXLINE];
 	struct hb_media*	sp;
@@ -438,7 +523,15 @@ EXPORT(hb_dev_read) (struct hb_media*mp)
 			}
 			newmsglen = strlen(newmsg);
 		}
+		/*
+		 * This will eventually have to be changed
+		 * if/when we change from FIFOs to more general IPC
+		 */
 		if (newmsglen) {
+			/*
+			 * I suppose it just becomes an IPC abstraction
+			 * and we issue a "msgput" or some such on it...
+			 */
 			write(sp->wpipe[P_WRITEFD], newmsg, newmsglen);
 		}
 	}
@@ -478,6 +571,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.2  2001/08/15 16:17:12  alan
+ * Fixed the code so that serial comm plugins build/load/work.
+ *
  * Revision 1.1  2001/08/10 17:16:44  alan
  * New code for the new plugin loading system.
  *

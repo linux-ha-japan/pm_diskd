@@ -44,6 +44,12 @@ struct hb_media_fns {
 struct hb_media_imports {
 	const char *	(*ParamValue)(const char * ParamName);
 	void		(*RegisterNewMedium)(struct hb_media* mp);
+	int		(*devlock)(const char *);	/* Lock a device */
+	int		(*devunlock)(const char *);	/* Unlock a device */
+	int		(*StrToBaud)(const char *);	/* Convert baudrate */
+	/* Actually there are lots of other dependencies that ought to
+	 * be handled, but this is a start ;-)
+	 */
 };
 
 #define	PKTTRACE	4
