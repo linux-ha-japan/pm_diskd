@@ -1,4 +1,4 @@
-const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.2 2001/09/07 01:18:15 alan Exp $";
+const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.3 2001/09/07 05:51:19 horms Exp $";
 
 /*
  * setproctitle.c
@@ -77,12 +77,12 @@ static char **Argv = NULL;
 static char *LastArgv = NULL;
 extern char **environ;
 
-void init_set_proc_title(int argc, char *argv[], char *envp[])
-{
 #ifdef HAVE___PROGNAME
   extern char *__progname, *__progname_full;
 #endif /* HAVE___PROGNAME */
-  
+
+void init_set_proc_title(int argc, char *argv[], char *envp[])
+{
   int i, envpsize;
   char **p;
   
