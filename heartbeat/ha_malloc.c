@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.16 2003/04/16 18:32:28 msoffen Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.17 2003/04/18 17:06:43 alan Exp $";
 #include <portability.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -106,8 +106,8 @@ static void	ha_dump_item(struct ha_bucket*b);
 	static int	pristoff;
 #endif
 
-#define	BHDR(p)	 ((struct ha_bucket*)(((char*)p)-ha_malloc_hdr_offset))
-#define	CBHDR(p) ((const struct ha_bucket*)(((const char*)p)-ha_malloc_hdr_offset))
+#define	BHDR(p)	 ((struct ha_bucket*)(void*)(((char*)p)-ha_malloc_hdr_offset))
+#define	CBHDR(p) ((const struct ha_bucket*)(const void*)(((const char*)p)-ha_malloc_hdr_offset))
 #define	MEMORYSIZE(p)(CBHDR(p)->hdr.reqsize)
 
 #ifdef MAKE_GUARD
