@@ -226,7 +226,7 @@ class_valid(class_t *class)
 static gboolean
 already_present(oc_node_t *arr, uint size, oc_node_t node)
 {
-	int i;
+	uint i;
 	for ( i = 0 ; i < size ; i ++ ) {
 		if(arr[i].node_id == node.node_id &&
 			arr[i].node_born_on >= node.node_born_on) {
@@ -315,7 +315,7 @@ get_new_membership(mbr_private_t *private,
 			}
 		}
 
-		for ( i = 0 ; i < OC_EV_GET_N_MEMBER(oldmbr) ; i++ ) {
+		for ( i = 0 ; (uint)i < OC_EV_GET_N_MEMBER(oldmbr) ; i++ ) {
 			if(!already_present(OC_EV_GET_NODEARRY(newmbr), 
 					OC_EV_GET_N_MEMBER(newmbr), 
 					OC_EV_GET_NODE(oldmbr,i))){
@@ -366,7 +366,7 @@ mem_quorum(mbr_private_t *private, mbr_track_t *mbr)
 static void
 update_bornons(mbr_private_t *private, mbr_track_t *mbr)
 {
-	int i,j;
+	uint i,j;
 	for(i=0; i < OC_EV_GET_N_MEMBER(mbr); i++) {
 		g_hash_table_insert(private->bornon,
 			GINT_TO_POINTER(OC_EV_GET_NODEID(mbr,i)),
@@ -383,7 +383,7 @@ update_bornons(mbr_private_t *private, mbr_track_t *mbr)
 static gboolean
 membership_unchanged(mbr_private_t *private, mbr_track_t *mbr)
 {
-	int i;
+	uint i;
 	mbr_track_t *oldmbr = (mbr_track_t *) 
 				cookie_get_data(private->cookie);
 

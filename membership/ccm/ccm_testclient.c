@@ -41,7 +41,7 @@ my_ms_events(oc_ed_t event, void *cookie,
 		size_t size, const void *data)
 {
 	const oc_ev_membership_t *oc = (const oc_ev_membership_t *)data;
-	int i;
+	uint i;
 	int i_am_in;
 
  	cl_log(LOG_INFO,"event=%s", 

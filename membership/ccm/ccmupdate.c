@@ -72,7 +72,7 @@ update_add_memlist_request(ccm_update_t *tab,
 void
 update_free_memlist_request(ccm_update_t *tab) 
 {
-	int i;
+	uint i;
 	leader_info_t *obj;
 
 	for (i = 0; i < g_slist_length(UPDATE_GET_CLHEAD(tab)); i++) {
