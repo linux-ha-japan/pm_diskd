@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.8 2000/10/02 20:56:37 eric Exp $
+#	$Id: Makefile,v 1.9 2000/11/06 10:43:29 jacob Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -43,7 +43,6 @@ CFLAGS=-g 				\
 	-Wpointer-arith			\
 	-Wwrite-strings			\
 	-Werror                         \
-	-Wtraditional			\
 	-I.				\
 	-DST_TEXTDOMAIN='"Stonith"'	\
 	-DLOCALEDIR='"/usr/share/locale"'

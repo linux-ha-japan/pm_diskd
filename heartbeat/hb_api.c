@@ -75,6 +75,7 @@
 #include <hb_api_core.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 static int api_ping_iflist(const struct ha_msg* msg, struct node_info * node
 ,	struct ha_msg* resp
