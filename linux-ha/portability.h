@@ -34,4 +34,21 @@ inet_pton(int af, const char *src, void *dst);
 
 #endif /* HAVE_INET_PTON */
 
+#ifdef CLK_TCK_IN_TIME_H
+#  include <time.h>
+#else
+#  ifdef CLK_TCK_IN_LIMITS_H
+#    include <limits.h>
+#  endif
+#endif
+#ifndef CLK_TCK
+#  include <unistd.h>
+#  ifdef _SC_CLK_TCK
+#    define CLK_TCK	((clock_t)sysconf(_SC_CLK_TCK))
+#  else
+#    error "No definition for CLK_TCK available"
+#  endif
+#endif
+
+
 #endif /* HAVE_CONFIG_H */

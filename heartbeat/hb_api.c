@@ -209,7 +209,7 @@ api_audit_clients(void)
 	}
 
 	lastnow = now;
-	audittime = now + (CLOCKS_PER_SEC * 10); /* Every 10 seconds */
+	audittime = now + (CLK_TCK * 10); /* Every 10 seconds */
 
 	for (client=client_list; client != NULL; client=nextclient) {
 		nextclient=client->next;

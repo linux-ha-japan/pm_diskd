@@ -5,3 +5,9 @@
 
 /* netinet/in.h : sin_len */
 #undef HAVE_SOCKADDR_IN_SIN_LEN
+
+/* limits.h: CLK_TCK */
+#undef CLK_TCK_IN_LIMITS_H
+
+/* time.h: CLK_TCK */
+#undef CLK_TCK_IN_TIME_H

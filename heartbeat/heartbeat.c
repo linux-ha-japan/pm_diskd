@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.116 2001/06/16 12:19:08 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.117 2001/06/23 07:01:48 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1418,7 +1418,7 @@ process_clustermsg(FILE * f)
 			,	"Late heartbeat: Node %s:"
 			" interval %ld ms"
 			,	thisnode->nodename
-			,	(heartbeat_interval * 1000) / CLOCKS_PER_SEC);
+			,	(heartbeat_interval * 1000) / CLK_TCK);
 		}
 
 		thisnode->rmt_lastupdate = msgtime;
@@ -1742,7 +1742,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	rstate = newrstate;
 
 	if (newrstate == R_RSCRCVD && local_takeover == 0L) {
-		local_takeover = now + (CLOCKS_PER_SEC * RQSTDELAY);
+		local_takeover = now + (CLK_TCK * RQSTDELAY);
 	}
 
 
@@ -2244,20 +2244,22 @@ check_for_timeouts(void)
 {
 	clock_t	now = times(NULL);
 	struct node_info *	hip;
-	clock_t dead_ticks = (CLOCKS_PER_SEC * config->deadtime_interval);
+	clock_t dead_ticks = (CLK_TCK * config->deadtime_interval);
 	clock_t	TooOld;
 	int	j;
 
 	if (heartbeat_comm_state != COMM_LINKSUP) {
 		/*
-		 * Compute alternative dead_ticks value for very first dead interval
+		 * Compute alternative dead_ticks value for very first
+		 * dead interval.
+		 *
 		 * We do this because for some unknown reason sometimes
 		 * the network is slow start working.  Experience indicates that
 		 * 30 seconds is generally enough.  It would be nice to have a
-		 * better way to * detect that the network isn't really working,
+		 * better way to detect that the network isn't really working,
 		 * but I don't know any easy way.  Patches are being accepted ;-)
 		 */
-		dead_ticks = (CLOCKS_PER_SEC * config->initial_deadtime);
+		dead_ticks = (CLK_TCK * config->initial_deadtime);
 	}
 	TooOld = now - dead_ticks;
 
@@ -3709,7 +3711,7 @@ check_rexmit_reqs(void)
 			now = times(NULL);
 		}
 		/* Allow for lbolt wraparound here */
-		if ((now - t->last_rexmit_req) <= CLOCKS_PER_SEC
+		if ((now - t->last_rexmit_req) <= CLK_TCK
 		&&	now >= t->last_rexmit_req) {
 			continue;
 		}
@@ -3824,7 +3826,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			 */
 			last_rexmit = hist->lastrexmit[msgslot];
 			if (last_rexmit != 0L && now > last_rexmit
-			&&	(now - last_rexmit) < CLOCKS_PER_SEC) {
+			&&	(now - last_rexmit) < CLK_TCK) {
 				/* Continue to outer loop */
 				goto NextReXmit;
 			}
@@ -3998,6 +4000,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.117  2001/06/23 07:01:48  alan
+ * Changed CLOCKS_PER_SEC back into CLK_TCK.
+ * Quite a few places, and add portability stuff for it to portability.h
+ *
  * Revision 1.116  2001/06/16 12:19:08  alan
  * Updated various pieces of code to use CLOCKS_PER_SEC instead of CLK_TCK
  * and moved the portability #ifdefs to only two places...

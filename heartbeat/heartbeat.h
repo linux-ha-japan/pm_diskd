@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.54 2001/06/16 12:19:08 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.55 2001/06/23 07:01:48 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -44,24 +44,10 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.54 2001/06/16 12:19:
 #include <sys/shm.h>
 #include <time.h>
 #include <sys/times.h>
-
-/* 
- * Just in case we are on an out of date system 
- */
-#ifndef CLOCKS_PER_SEC
-#  ifndef CLK_TCK
-#    error Neither CLOCKS_PER_SEC nor CLK_TCK (obsolete) are defined
-#  endif /* CLK_TCK */
-#  define CLOCKS_PER_SEC CLK_TCK
-#endif /* CLOCKS_PER_SEC */
-
-
-
 #include <netinet/in.h>
 
 #include <ha_msg.h>
 #include <stonith.h>
-
 #include <ltdl.h>
 
 /*
