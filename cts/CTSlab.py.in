@@ -284,7 +284,7 @@ if __name__ == '__main__':
     Environment = CtsLab(["sgi1", "sgi2"])
     #Environment["RandSeed"] = (156, 104, 218)
     Environment["DoStonith"] = 1
-    Environment["DoStandby"] = 0
+    Environment["DoStandby"] = 1
     Environment.SupplyDefaults()
 
     print Environment
