@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.43 2000/12/05 15:28:46 alan Exp $
+#	$Id: Makefile,v 1.44 2000/12/05 22:02:33 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -173,13 +173,23 @@ $(LDIRECTORD):
 install: install_lib install_bin
 
 install_bin: all
-	RHGID=70
+	SECGID=70
 	if grep '^$(APIGROUP):' /etc/group >/dev/null; then : OK; 	\
-	elif /usr/sbin/groupadd -g $(APIGID) $(APIGROUP);		\
-        then : OK;							\
-        else /usr/sbin/groupadd -g $(RHGID) $(APIGROUP);		\
+	elif								\
+          [ -x /usr/sbin/groupadd ];					\
+        then								\
+	  if /usr/sbin/groupadd -g $(APIGID) $(APIGROUP);		\
+          then : Group $(APIGID) added successfully;			\
+          else /usr/sbin/groupadd -g $(SECGID) $(APIGROUP);		\
+          fi;								\
+	elif								\
+          [ -x /usr/sbin/pw  ];						\
+        then								\
+          /usr/sbin/pw group add $(APIGROUP);				\
         fi
 	[ -d $(VARLIB) ]    || mkdir  -m 755 -p $(VARLIB)
+	fifo() { if [ ! -p $$2 ]; then mkfifo $$2; chmod $$1 $$2; fi;};	\
+        fifo 600 $(FIFO); fifo 620 $(APIREG)
 	[ -p $(FIFO) ]      || mkfifo -m 600    $(FIFO)
 	[ -p $(APIREG) ]    || mkfifo -m 620    $(APIREG)
 	[ -d $(APIDIR) ]    || mkdir  -m 755 -p $(APIDIR)
