@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.13 1999/11/08 02:07:59 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.14 1999/11/23 08:50:01 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -24,6 +24,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.13 1999/11/08 02:07:
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/times.h>
 
 #ifndef PAGE_SIZE
 #	include <sys/param.h>
@@ -137,6 +138,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.13 1999/11/08 02:07:
 #define	MAXMISSING	16
 #define	NOSEQUENCE	0xffffffffUL
 struct seqtrack {
+	clock_t		last_rexmit_req;
 	int		nmissing;
 	unsigned long	last_seq;
 	unsigned long	seqmissing[MAXMISSING];
@@ -211,7 +213,7 @@ struct hb_media_fns {
 struct msg_xmit_hist {
 	struct ha_msg*		msgq[MAXMSGHIST];
 	int			seqnos[MAXMSGHIST];
-	time_t			lastxmits[MAXMSGHIST];
+	clock_t			lastrexmit[MAXMSGHIST];
 	int			lastmsg;
 	int			hiseq;
 	int			lowseq; /* one less than min actually present */

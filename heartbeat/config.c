@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.2 1999/11/09 06:13:02 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.3 1999/11/23 08:50:01 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -475,6 +475,7 @@ add_node(const char * value)
 		return(HA_FAIL);
 	}
 	hip = &config->nodes[config->nodecount];
+	memset(hip, 0, sizeof(*hip));
 	++config->nodecount;
 	strcpy(hip->status, INITSTATUS);
 	strcpy(hip->nodename, value);

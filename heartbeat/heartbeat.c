@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.32 1999/11/22 20:39:49 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.33 1999/11/23 08:50:01 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -228,6 +228,8 @@ void	AlarmUhOh(int sig);
 void	dump_proc_stats(volatile struct process_info * proc);
 void	dump_all_proc_stats(void);
 void	check_node_timeouts(void);
+void	request_msg_rexmit(struct node_info *, unsigned long lowseq, unsigned long hiseq);
+void	check_rexmit_reqs(void);
 void	mark_node_dead(struct node_info* hip);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
 pid_t	get_running_hb_pid(void);
@@ -775,6 +777,9 @@ master_status_process(void)
 
 		/* Scan nodes to see if any have timed out */
 		check_node_timeouts();
+
+		/* Check to see we need to resend any rexmit requests... */
+		check_rexmit_reqs();
 
 		msg = msgfromstream(f);
 
@@ -2064,31 +2069,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 			ha_log(LOG_ERR, "lost a lot of packets!");
 			return(IsToUs ? KEEPIT : DROPIT);
 		}else{
-			struct ha_msg*	hmsg;
-			char	low[16];
-			char	high[16];
-			if ((hmsg = ha_msg_new(6)) == NULL) {
-				ha_log(LOG_ERR, "no memory for " T_REXMIT);
-			}
-
-			sprintf(low, "%lu", t->last_seq+1L);
-			sprintf(high, "%lu", seq-1L);
-
-
-			if (	hmsg != NULL
-			&& 	ha_msg_add(hmsg, F_TYPE, T_REXMIT) == HA_OK
-			&&	ha_msg_add(hmsg, F_TO,thisnode->nodename)==HA_OK
-			&&	ha_msg_add(hmsg, F_FIRSTSEQ, low) == HA_OK
-			&&	ha_msg_add(hmsg, F_LASTSEQ, high) == HA_OK) {
-				/* Send a re-transmit request */
-				if (send_cluster_msg(hmsg) == HA_FAIL) {
-					ha_log(LOG_ERR, "cannot send " T_REXMIT
-					" request to %s", thisnode->nodename);
-				}
-			}else{
-				ha_log(LOG_ERR, "no memory for " T_REXMIT);
-			}
-			ha_msg_del(hmsg);
+			request_msg_rexmit(thisnode, t->last_seq+1L, seq-1L);
 		}
 
 		/* Try and Record each of the missing sequence numbers */
@@ -2179,6 +2160,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 			,	seq, t->last_seq);
 			t->nmissing = 0;
 			t->last_seq = seq;
+			t->last_rexmit_req = 0L;
 			return(IsToUs ? KEEPIT : DROPIT);
 		}
 	}
@@ -2189,6 +2171,72 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	}
 	return(DROPIT);
 
+}
+
+void
+request_msg_rexmit(struct node_info *node, unsigned long lowseq, unsigned long hiseq)
+{
+	struct ha_msg*	hmsg;
+	char	low[16];
+	char	high[16];
+	if ((hmsg = ha_msg_new(6)) == NULL) {
+		ha_log(LOG_ERR, "no memory for " T_REXMIT);
+	}
+
+	sprintf(low, "%lu", lowseq);
+	sprintf(high, "%lu", hiseq);
+
+
+	if (	hmsg != NULL
+	&& 	ha_msg_add(hmsg, F_TYPE, T_REXMIT) == HA_OK
+	&&	ha_msg_add(hmsg, F_TO, node->nodename)==HA_OK
+	&&	ha_msg_add(hmsg, F_FIRSTSEQ, low) == HA_OK
+	&&	ha_msg_add(hmsg, F_LASTSEQ, high) == HA_OK) {
+		/* Send a re-transmit request */
+		if (send_cluster_msg(hmsg) == HA_FAIL) {
+			ha_log(LOG_ERR, "cannot send " T_REXMIT
+			" request to %s", node->nodename);
+		}
+		node->track.last_rexmit_req = times(NULL);
+	}else{
+		ha_log(LOG_ERR, "no memory for " T_REXMIT);
+	}
+	ha_msg_del(hmsg);
+}
+void
+check_rexmit_reqs(void)
+{
+	time_t	now = 0L;
+	int	j;
+
+	for (j=0; j < config->nodecount; ++j) {
+		struct node_info *	hip = &config->nodes[j];
+		struct seqtrack *	t = &hip->track;
+		int			seqidx;
+
+		if (t->nmissing <= 0 ) {
+			continue;
+		}
+		/* We rarely reach this code, so avoid the extra system call */
+		if (now == 0L) {
+			now = times(NULL);
+		}
+		/* Allow for lbolt wraparound here */
+		if ((now - t->last_rexmit_req) <= CLK_TCK && now >= t->last_rexmit_req) {
+			continue;
+		}
+		/* Time to ask for some packets again ... */
+		for (seqidx = 0; seqidx < t->nmissing; ++seqidx) {
+			if (t->seqmissing[seqidx] != NOSEQUENCE) {
+				/*
+				 * The code for asking for these by groups here is
+				 * complicated.  This code is not.
+				 */
+				request_msg_rexmit(hip, t->seqmissing[seqidx]
+				,	t->seqmissing[seqidx]);
+			}
+		}
+	}
 }
 
 /* Initialize the transmit history */
@@ -2202,7 +2250,7 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 	for (j=0; j< MAXMSGHIST; ++j) {
 		hist->msgq[j] = NULL;
 		hist->seqnos[j] = 0;
-		hist->lastxmits[j] = 0L;
+		hist->lastrexmit[j] = 0L;
 	}
 }
 
@@ -2229,7 +2277,7 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 	}
 	hist->msgq[slot] = msg;
 	hist->seqnos[slot] = seq;
-	hist->lastxmits[slot] = time(NULL);
+	hist->lastrexmit[slot] = 0L;
 	hist->lastmsg = slot;
 }
 
@@ -2267,6 +2315,8 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 		;	!foundit && msgslot != (firstslot+1); --msgslot) {
 			char *	smsg;
 			int	len;
+			clock_t	now = times(NULL);
+			clock_t	last_rexmit;
 			if (msgslot < 0) {
 				msgslot = MAXMSGHIST;
 			}
@@ -2276,7 +2326,18 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			if (hist->seqnos[msgslot] != thisseq) {
 				continue;
 			}
-			/* Found it! */
+
+			/*
+			 * We resend a packet unless it has been re-sent in
+			 * the last second.  We treat lbolt wraparound as though
+			 * the packet needs resending (should this occur).
+			 */
+			last_rexmit = hist->lastrexmit[msgslot];
+			if (last_rexmit != 0L && now > last_rexmit
+			&&	(now - last_rexmit) < CLK_TCK) {
+				continue;
+			}
+			/* Found it!	Let's send it again! */
 			firstslot = msgslot -1;
 			foundit=1;
 			ha_log(LOG_INFO, "Retransmitting pkt %d", thisseq);
@@ -2288,6 +2349,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			/* If it didn't convert, throw original message away */
 			if (smsg != NULL) {
 				len = strlen(smsg);
+				hist->lastrexmit[msgslot] = now;
 				send_to_all_media(smsg, len);
 			}
 
@@ -2341,6 +2403,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.33  1999/11/23 08:50:01  alan
+ * Put in the complete basis for the "reliable" packet transport for heartbeat.
+ * This include throttling the packet retransmission on both sides, both
+ * from the requestor not asking too often, and from the resender, who won't
+ * retransmit a packet any more often than once a second.
+ * I think this looks pretty good at this point (famous last words :-)).
+ *
  * Revision 1.32  1999/11/22 20:39:49  alan
  * Removed references to the now-obsolete monitoring code...
  *
