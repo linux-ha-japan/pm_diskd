@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.43 2002/09/11 04:30:32 msoffen Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.44 2002/10/05 19:45:10 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -94,7 +94,9 @@ module_init(void)
 { 
 	static int initialised = 0;
 
+#if 0
 	int errors = 0;
+#endif
 	PIL_rc	rc;
 
 	(void)_module_c_Id;
@@ -108,10 +110,12 @@ module_init(void)
 	/* Initialize libltdl's list of preloaded modules */
 	LTDL_SET_PRELOADED_SYMBOLS();
 
+#if 0
 	/* Initialize ltdl */
 	if ((errors = lt_dlinit())) {
 		return HA_FAIL;
 	}
+#endif
 
 	if ((PluginLoadingSystem = NewPILPluginUniv(HA_PLUGIN_D))
 	==	NULL) {

@@ -79,6 +79,8 @@
 #include <clplumbing/apphb_cs.h>
 #include <clplumbing/cl_log.h>
 #include <clplumbing/cl_poll.h>
+#include <clplumbing/realtime.h>
+#include <clplumbing/uids.h>
 #include <pils/generic.h>
 #include <pils/plugin.h>
 
@@ -165,10 +167,10 @@ struct AppHBNotifyImports_s {
 static void apphb_notify(apphb_client_t* client, apphb_event_t event);
 static long get_running_pid(gboolean * anypidfile);
 static void make_daemon(void);
-static int init_start(void);
+static int init_start(const char * watchdogdev);
 static int init_stop(void);
 static int init_status(void);
-static int init_restart(void);
+static int init_restart(const char * watchdogdev);
 static void load_notification_plugin(const char *optarg);
 static gboolean open_watchdog(const char * dev);
 static void tickle_watchdog(void);
@@ -752,7 +754,7 @@ extern pid_t getsid(pid_t);
  */
 GMainLoop*	mainloop = NULL;
 
-#define OPTARGS	"sSrRwd:n:"
+#define OPTARGS	"sSrRwdl:n:"
 int
 main(int argc, char ** argv)
 {
@@ -766,7 +768,7 @@ main(int argc, char ** argv)
 	cl_log_set_facility(LOG_USER);
 
 	if (argc < 2) {
-		return init_start();
+		return init_start(NULL);
 	}
 
 	while ((flag = getopt(argc, argv, OPTARGS)) != EOF) {
@@ -774,17 +776,21 @@ main(int argc, char ** argv)
 			case 's':		/* Status */
 			return init_status();
 
-			case 'S':		/* Stop */
+			case 'k':		/* Stop (kill) */
 			return init_stop();
 
 			case 'r':		/* Restart */
-			return init_restart();
+			return init_restart(watchdogdev);
 
 			case 'w':		/* Watchdog dev */
 			watchdogdev = optarg;
 			break;
 
-			case 'n':		/* Plugin */
+			case 'l':		/* low priority */
+			disable_realtime();
+			break;
+
+			case 'n':		/* Notification Plugin */
 			load_notification_plugin(optarg);
 			break;
 
@@ -793,10 +799,7 @@ main(int argc, char ** argv)
 		}
 	}
 
-	if (watchdogdev) {
-		open_watchdog(watchdogdev);
-	}
-	return init_start();
+	return init_start(watchdogdev);
 }
 
 static void
@@ -815,7 +818,7 @@ shutdown(int nsig)
 
 
 static int
-init_start(void)
+init_start(const char * watchdogdev)
 {
 	char		path[] = PATH_ATTR;
 	char		commpath[] = APPHBSOCKPATH;
@@ -826,7 +829,6 @@ init_start(void)
 	int		wcfd;
 	GPollFD		pollfd;
 	
-	openlog("apphbd", LOG_NDELAY|LOG_NOWAIT|LOG_PID, LOG_USER);
 
 	make_daemon();
 	/* Create a "waiting for connection" object */
@@ -863,6 +865,11 @@ init_start(void)
 	if (watchdogfd >= 0) {
 		Gmain_timeout_add(1000, tickle_watchdog_timer, NULL);
 	}
+	make_realtime(SCHED_RR, 100, 64);
+	if (watchdogdev) {
+		open_watchdog(watchdogdev);
+	}
+	become_nobody(-1);
 	g_main_run(mainloop);
 	close_watchdog();
 	wconn->ops->destroy(wconn);
@@ -955,10 +962,10 @@ init_stop(void)
 	return 0;
 }
 static int
-init_restart(void)
+init_restart(const char * wd)
 {
 	init_stop();
-	return init_start();
+	return init_start(wd);
 }
 static int
 init_status(void)

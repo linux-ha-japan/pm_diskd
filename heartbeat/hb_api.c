@@ -857,6 +857,10 @@ api_flush_msgQ(client_proc_t* client)
 		msglen = strlen(msgstring);
 		rc=write(client->output_fifofd, msgstring, msglen);
 		if (rc != msglen) {
+			if (rc < 0 && errno == EPIPE) {
+				closereason = "EPIPE";
+				break;
+			}
 			if (rc >= 0 || errno != EAGAIN) {
 				ha_perror("Cannot write message to client"
 				" %ld (write failure %d)"

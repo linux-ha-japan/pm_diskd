@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.214 2002/10/04 14:34:32 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.215 2002/10/05 19:45:10 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -255,6 +255,8 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.214 2002/10/04 14:34
 #include <clplumbing/lsb_exitcodes.h>
 #include <clplumbing/timers.h>
 #include <clplumbing/cl_poll.h>
+#include <clplumbing/realtime.h>
+#include <clplumbing/uids.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api_core.h>
@@ -307,7 +309,6 @@ int		other_is_stable = 0; /* F_ISSTABLE */
 int		takeover_in_progress = 0;
 int		killrunninghb = 0;
 int		rpt_hb_status = 0;
-int		RunAtLowPrio = 0;
 int		DoManageResources = 1;
 int		childpid = -1;
 char *		watchdogdev = NULL;
@@ -461,8 +462,6 @@ void	nak_rexmit(unsigned long seqno, const char * reason);
 void	req_our_resources(int getthemanyway);
 void	giveup_resources(void);
 void	go_standby(enum standby who);
-void	make_realtime(int stackgrow_K);
-void	make_normaltime(void);
 int	IncrGeneration(unsigned long * generation);
 void	ask_for_resources(struct ha_msg *msg);
 void	process_control_packet(struct msg_xmit_hist* msghist
@@ -921,102 +920,6 @@ initialize_heartbeat()
 	return(HA_FAIL);
 }
 
-/*
- *	Make us behave like a soft real-time process.
- *	We need scheduling priority and being locked in memory.
- */
-
-void
-make_realtime(int stackgrowK)
-{
-
-#ifdef SCHED_RR
-#	define HB_SCHED_POLICY	SCHED_RR
-#endif
-
-#ifdef HB_SCHED_POLICY
-	struct sched_param	sp;
-	int			staticp;
-
-	if (RunAtLowPrio) {
-		ha_log(LOG_INFO, "Request to set high priority ignored.");
-		return;
-	}
-	if (ANYDEBUG) {
-		ha_log(LOG_INFO, "Setting process %d to realtime", (int) getpid());
-	}
-	if ((staticp=sched_getscheduler(0)) < 0) {
-		ha_log(LOG_ERR, "unable to get scheduler parameters.");
-	}else{
-		memset(&sp, 0, sizeof(sp));
-		sp.sched_priority = HB_STATIC_PRIO;
-		if (sched_setscheduler(0, HB_SCHED_POLICY, &sp) < 0) {
-			ha_log(LOG_ERR, "unable to set scheduler parameters.");
-		}else if (ANYDEBUG) {
-			ha_log(LOG_INFO
-			,	"scheduler priority set to %d", HB_STATIC_PRIO);
-		}
-	}
-#endif
-
-#ifdef MCL_FUTURE
-#ifdef	HAVE_USABLE_BRK
-	{
-	/*
-	 *	Try and pre-allocate a little memory before locking
-	 *	ourselves into memory...
-	 */
-		long	currbrk;
-
-		currbrk = brk(NULL);
-
-		if (currbrk >= 0) {
-			if (brk((void*)(currbrk+stackgrowK*1024)) >= 0) {
-				if (ANYDEBUG) {
-					ha_log(LOG_INFO
-					,	"Break value incremented"
-					" by %d bytes."
-					,	stackgrowK*1024);
-				}
-			}else{
-				ha_log(LOG_ERR
-				,	"Got bad return from brk(0x%x)"
-				,	stackgrowK*1024);
-			}
-		}else{
-			ha_log(LOG_INFO
-			,	"Could not retrieve current brk value");
-		}
-	}
-#endif
-	if (mlockall(MCL_FUTURE) < 0) {
-		ha_log(LOG_ERR, "unable to lock pid %d in memory", (int) getpid());
-	}else if (ANYDEBUG) {
-		ha_log(LOG_INFO, "pid %d locked in memory.", (int) getpid());
-	}
-#endif
-}
-
-void
-make_normaltime()
-{
-#ifdef HB_SCHED_POLICY
-	struct sched_param	sp;
-	memset(&sp, 0, sizeof(sp));
-	sp.sched_priority = 0;
-	if (sched_setscheduler(0, SCHED_OTHER, &sp) < 0) {
-		ha_log(LOG_ERR, "unable to (re)set scheduler parameters.");
-	}else if (ANYDEBUG) {
-		ha_log(LOG_INFO
-		,	"scheduler priority set to %d", 0);
-	}
-#endif
-#ifdef _POSIX_MEMLOCK
-	/* Not strictly necessary. */
-	munlockall();
-#endif
-}
-
 /* Create a read child process (to read messages from hb medium) */
 void
 read_child(struct hb_media* mp)
@@ -1025,9 +928,10 @@ read_child(struct hb_media* mp)
 	int	rc;
 	int	statusfd = status_pipe[P_WRITEFD];
 
-	make_realtime(32);
+	make_realtime(-1, -1, 32);
 	curproc->pstat = RUNNING;
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
+	become_nobody(0);
 
 	process_pending_handlers();
 	for (;;) {
@@ -1085,10 +989,11 @@ write_child(struct hb_media* mp)
 	int	ourpipe =	mp->wpipe[P_READFD];
 	FILE *	ourfp		= fdopen(ourpipe, "r");
 
-	make_realtime(32);
+	make_realtime(-1, -1, 32);
 	siginterrupt(SIGALRM, 1);
 	signal(SIGALRM, ignore_signal);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
+	become_nobody(0);
 	curproc->pstat = RUNNING;
 
 	for (;;) {
@@ -1133,7 +1038,7 @@ control_process(FILE * fp, int fifoofd)
 	siginterrupt(SIGQUIT, 1);
 
 	set_proc_title("%s: control process", cmdname);
-	make_realtime(64);
+	make_realtime(-1, -1, 32);
 
 //	setmsrepeattimer(10);
 	for(;;) {
@@ -1401,7 +1306,7 @@ master_status_process(void)
 	siginterrupt(SIGTERM, 1);
 	signal(SIGTERM, term_sig);
 
-	make_realtime(64);
+	make_realtime(-1, -1, 64);
 	send_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
 	set_proc_title("%s: master status process", cmdname);
@@ -1831,9 +1736,20 @@ process_clustermsg(FILE * f)
 	}
 	messagetime = time_longclock();
 
+	/* FIXME: We really ought to use gmainloop timers for this */
 	if (cmp_longclock(standby_running, zero_longclock) != 0) {
-		/* if there's a standby timer running, verify if it's
-		   time to enable the standby messages again... */
+		if (DEBUGDETAILS) {
+			unsigned long	msleft;
+			msleft = longclockto_ms(sub_longclock(standby_running
+			,	now));
+			ha_log(LOG_WARNING, "Standby timer has %ld ms left"
+			,	msleft);
+		}
+
+		/*
+                 * If there's a standby timer running, verify if it's
+                 * time to enable the standby messages again...
+                 */
 		if (cmp_longclock(now, standby_running) >= 0) {
 			standby_running = zero_longclock;
 			other_is_stable = 1;
@@ -3880,9 +3796,11 @@ DumpAllProcStats(gpointer p)
 {
 	int	j;
 
+	cl_log(LOG_INFO, "Daily informational memory statistics");
 	for (j=0; j < procinfo->nprocs; ++j) {
 		dump_proc_stats(procinfo->info+j);
 	}
+	cl_log(LOG_INFO, "These are nothing to worry about.");
 	return TRUE;
 }
 
@@ -4599,7 +4517,7 @@ main(int argc, char * argv[], char * envp[])
 				generic_error = LSB_STATUS_UNKNOWN;
 				break;
 			case 'l':
-				++RunAtLowPrio;
+				disable_realtime();
 				break;
 
 			case 'v':
@@ -5817,7 +5735,7 @@ ask_for_resources(struct ha_msg *msg)
 	const char *	info;
 	const char *	from;
 	int 		msgfromme;
-	TIME_T 		now = time(NULL);
+	longclock_t 	now = time_longclock();
 	int		message_ignored = 0;
 	const enum standby	orig_standby = going_standby;
 	longclock_t	standby_rsc_to = msto_longclock(STANDBY_RSC_TO_MS);
@@ -6015,6 +5933,19 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.215  2002/10/05 19:45:10  alan
+ * Make apphbd run at high priority and locked into memory.
+ * Moved make_realtime() into the clplumbing library
+ * Added functions to clplumbing library to run as nobody.
+ * Fixed the ping packet dump debug code
+ * Memory statistics dumps have been marked more clearly as informational
+ * Heartbeat network-facing (read, write) processes now run as nobody.
+ * apphbd now also runs as nobody.
+ * Fixed a bug in the standby timer code that would keep it from
+ * timing out properly.
+ * Minor updates for the OCF membership header file as per comments
+ * 	from OCF group.
+ *
  * Revision 1.214  2002/10/04 14:34:32  alan
  * Closed a security hole pointed out by Nathan Wallwork.
  *
