@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.52 2001/05/31 13:50:56 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.53 2001/06/06 23:07:45 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -184,7 +184,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.52 2001/05/31 13:50:
 #define HA_FUNCS	HA_D "/shellfuncs"
 
 #define	RC_ARG0		"harc"
-#define	DIMOF(a)	((sizeof(a)/sizeof(a[0])))
+#define	DIMOF(a)		((sizeof(a)/sizeof(a[0])))
+#define STRLEN(conststr)	(sizeof(conststr)-1)
 
 
 /* Which side of a pipe is which? */

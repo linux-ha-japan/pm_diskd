@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.6 2001/04/19 13:41:54 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.7 2001/06/06 23:07:44 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -107,32 +107,53 @@ msg2if_string(const struct ha_msg *m, const char *iface)
 
 	int	j;
 	char *	buf;
-	char *	bp;
+	char *	bp;	/* current position in output string (buf)
+			 * Maintaining this makes this code lots faster because
+			 * otherwise strcat is pretty slow
+			 */
+	int	ifaceLen;
+	int	mlen;
 
 	if (m->nfields <= 0) {
 		ha_error("msg2if_string: Message with zero fields");
 		return(NULL);
 	}
 
-	buf = ha_malloc(m->stringlen + ((strlen(iface) + sizeof(IFACE)) * sizeof(char )));
+	ifaceLen = strlen(iface);
+
+	/* Note: m->stringlen is # of chars to convert "m" to a plain string */
+	mlen = STRLEN(IFACE) + ifaceLen + STRLEN("\n") + m->stringlen;
+
+	buf = ha_malloc(mlen * sizeof(char ));
 
 	if (buf == NULL) {
 		ha_error("msg2if_string: no memory for string");
 	}else{
-		bp = buf;
+		/* Prepend information indicating incoming "interface" */
 		strcpy(buf, IFACE);
-		strcat(buf, iface);
-		strcat(buf, "\n");
+		bp = buf + STRLEN(IFACE);
+
+		strcat(bp, iface);
+		bp += ifaceLen;
+
+		strcat(bp, "\n");
+		bp += STRLEN("\n");
+
+		/* Append the normal (plain) string representation of the message */
 		strcat(buf, MSG_START);
 		for (j=0; j < m->nfields; ++j) {
+
 			strcat(bp, m->names[j]);
 			bp += m->nlens[j];
+
 			strcat(bp, "=");
-			bp++;
+			bp += STRLEN("=");
+
 			strcat(bp, m->values[j]);
 			bp += m->vlens[j];
+
 			strcat(bp, "\n");
-			bp++;
+			bp += STRLEN("\n");
 		}
 		strcat(bp, MSG_END);
 	}
@@ -442,6 +463,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.7  2001/06/06 23:07:44  alan
+ * Put in some code clarifications suggested by Emily Ratliff.  Thanks Emily!
+ *
  * Revision 1.6  2001/04/19 13:41:54  alan
  * Removed the two annoying "error" messages that occur when heartbeat
  * is shut down.  They are: "controlfifo2msg: cannot create message"
