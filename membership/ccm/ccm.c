@@ -3324,7 +3324,7 @@ ccm_initialize()
 
 	hb_fd = ll_cluster_new("heartbeat");
 	
-	fprintf(stderr, "PID=%d\n", getpid());
+	fprintf(stderr, "PID=%d\n", (int)getpid());
 	fprintf(stderr, "Hostname: %s\n", hname);
 
 	fprintf(stderr, "Signing in with Heartbeat\n");

@@ -23,9 +23,11 @@
 #ifndef _CLUSTER_MANAGER_H_
 #define _CLUSTER_MANAGER_H_
  
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
@@ -38,19 +40,14 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <stdarg.h>
-#include <heartbeat.h>
-#include <hb_api_core.h>
-#include <hb_api.h>
-#include <hb_proc.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
 #include <assert.h>
 #include <glib.h>
 #include <ipc.h>
 
-
+#include <heartbeat.h>
+#include <hb_api_core.h>
+#include <hb_api.h>
+#include <hb_proc.h>
 
 
 // BEGINNING OF version request tracking interfaces

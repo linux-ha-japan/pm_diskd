@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.195 2002/08/02 22:47:49 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.196 2002/08/07 18:20:33 msoffen Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -282,7 +282,12 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.195 2002/08/02 22:47
 
 #define OPTARGS		"dkMrRsvlC:"
 
-#define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
+#if HAVE_SIGIGNORE && !defined(linux)
+#define IGNORESIG(s) sigignore(s)
+#else
+#define IGNORESIG(s) ((void)signal((s), SIG_IGN))
+#endif
+
 
 /*
  *	Note that the _RSC defines below are bit fields!
@@ -1080,7 +1085,7 @@ make_realtime()
 		return;
 	}
 	if (ANYDEBUG) {
-		ha_log(LOG_INFO, "Setting process %d to realtime", getpid());
+		ha_log(LOG_INFO, "Setting process %d to realtime", (int) getpid());
 	}
 	if ((staticp=sched_getscheduler(0)) < 0) {
 		ha_log(LOG_ERR, "unable to get scheduler parameters.");
@@ -1098,9 +1103,9 @@ make_realtime()
 
 #ifdef MCL_FUTURE
 	if (mlockall(MCL_FUTURE) < 0) {
-		ha_log(LOG_ERR, "unable to lock pid %d in memory", getpid());
+		ha_log(LOG_ERR, "unable to lock pid %d in memory", (int) getpid());
 	}else if (ANYDEBUG) {
-		ha_log(LOG_INFO, "pid %d locked in memory.", getpid());
+		ha_log(LOG_INFO, "pid %d locked in memory.", (int) getpid());
 	}
 #endif
 }
@@ -1550,7 +1555,7 @@ master_status_process(void)
 				if (ANYDEBUG) {
 					ha_log(LOG_DEBUG
 					, "Waiting for pid %d type %d stat %d"
-					, pinfo->pid, pinfo->type
+					, (int) pinfo->pid, pinfo->type
 					, pinfo->pstat);
 				}
 				allstarted=0;
@@ -1877,7 +1882,7 @@ MSPFinalShutdown(gpointer p)
 	/* Tell init process we're going away */
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Sending SIGQUIT to pid %d"
-		,       processes[0]);
+		,       (int) processes[0]);
 	}
 	kill(processes[0], SIGQUIT);
 	cleanexit(0);
@@ -2710,7 +2715,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				make_normaltime();
 				set_proc_title("%s: notify_world()", cmdname);
 				setpgid(0,0);
-				signal(SIGCHLD, SIG_DFL);
+				signal(SIGCHLD,SIG_DFL);
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
 					sprintf(ename, "HA_%s", msg->names[j]);
@@ -2771,7 +2776,7 @@ debug_sig(int sig)
 			break;
 	}
  	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL , debug);
-	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, getpid());
+	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, (int) getpid());
 	dump_proc_stats(curproc);
 }
 
@@ -2834,7 +2839,7 @@ CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged
 	if (shutdown_in_progress) {
 		p->privatedata = NULL;
 		ha_log(LOG_INFO,"Core process %d exited. %d remaining"
-		,	p->pid, CoreProcessCount);
+		,	(int) p->pid, CoreProcessCount);
 
 		if (CoreProcessCount <= 1) {
 			FinalCPShutdown();
@@ -3116,7 +3121,7 @@ KillTrackedProcess(ProcTrack* p, void * data)
 		porg = "process";
 	}
 	ha_log(LOG_INFO, "killing %s %s %d with signal %d", pname, porg
-	,	p->pid, nsig);
+	,	(int) p->pid, nsig);
 	/* Suppress logging this process' death */
 	p->loglevel = PT_LOGNONE;
 	kill(pid, nsig);
@@ -3161,12 +3166,12 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	pid_t			pid;
 
 	ha_log(LOG_INFO, "Starting child client %s (%d,%d)"
-	,	centry->command, centry->u_runas
-	,	centry->g_runas);
+	,	centry->command, (int) centry->u_runas
+	,	(int) centry->g_runas);
 
 	if (centry->pid != 0) {
 		ha_log(LOG_ERR, "OOPS! client %s already running as pid %d"
-		,	centry->command, centry->pid);
+		,	centry->command, (int) centry->pid);
 	}
 
 	/*
@@ -3207,8 +3212,8 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	}
 
 	ha_log(LOG_INFO, "Starting %s as uid %d  gid %d (pid %d)"
-	,	centry->command, centry->u_runas
-	,	centry->g_runas, getpid());
+	,	centry->command, (int) centry->u_runas
+	,	(int) centry->g_runas, (int) getpid());
 
 	if (	setgid(centry->g_runas) < 0
 	||	setuid(centry->u_runas) < 0
@@ -3220,7 +3225,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		const char *	devnull = "/dev/null";
 		int	j;
 		struct rlimit		oflimits;
-		signal(SIGCHLD, SIG_DFL);
+		signal(SIGCHLD,SIG_DFL);
 		alarm(0);
 		IGNORESIG(SIGALRM);
 
@@ -3260,7 +3265,7 @@ term_action(void)
 	IGNORESIG(SIGTERM);
 	make_normaltime();
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Process %d processing SIGTERM", getpid());
+		ha_log(LOG_DEBUG, "Process %d processing SIGTERM", (int) getpid());
 	}
 	if (curproc->type == PROC_MST_STATUS) {
 		if (procinfo->giveup_resources) {
@@ -3313,7 +3318,7 @@ dump_proc_stats(volatile struct process_info * proc)
 
 	ha_log(LOG_INFO, "MSG stats: %ld/%ld age %ld [pid%d/%s]"
 	,	proc->allocmsgs, proc->totalmsgs
-	,	time(NULL) - proc->lastmsg, proc->pid, ct);
+	,	time(NULL) - proc->lastmsg, (int) proc->pid, ct);
 
 	if (proc->numalloc > proc->numfree) {
 		curralloc = proc->numalloc - proc->numfree;
@@ -3323,10 +3328,10 @@ dump_proc_stats(volatile struct process_info * proc)
 
 	ha_log(LOG_INFO, "ha_malloc stats: %lu/%lu  %lu/%lu [pid%d/%s]"
 	,	curralloc, proc->numalloc
-	,	proc->nbytes_alloc, proc->nbytes_req, proc->pid, ct);
+	,	proc->nbytes_alloc, proc->nbytes_req, (int) proc->pid, ct);
 
 	ha_log(LOG_INFO, "RealMalloc stats: %lu total malloc bytes."
-	" pid [%d/%s]", proc->mallocbytes, proc->pid, ct);
+	" pid [%d/%s]", proc->mallocbytes, (int) proc->pid, ct);
 }
 
 void
@@ -3437,7 +3442,7 @@ restart_heartbeat(void)
 		pid_t	pid = procinfo->info[j].pid;
 		if (pid != curpid) {
 			ha_log(LOG_INFO, "Killing process %d with signal %d"
-			,	pid, killsig);
+			,	(int) pid, killsig);
 			kill(pid, killsig);
 		}
 	}
@@ -3608,7 +3613,7 @@ false_alarm_sig(int sig)
 void
 false_alarm_action(void)
 {
-	ha_log(LOG_ERR, "Unexpected alarm in process %d", getpid());
+	ha_log(LOG_ERR, "Unexpected alarm in process %d", (int) getpid());
 }
 
 
@@ -3841,7 +3846,7 @@ send_cluster_msg(struct ha_msg* msg)
 		}
 		if (DEBUGPKTCONT) {
 			ha_log(LOG_DEBUG, "%d bytes written to %s by %d"
-			,	length, FIFONAME, getpid());
+			,	length, FIFONAME, (int) getpid());
 			ha_log(LOG_DEBUG, "Packet content: %s", smsg);
 		}
 #ifdef OPEN_FIFO_FOR_EACH_MESSAGE
@@ -3999,7 +4004,7 @@ send_local_status(const char * st)
 	if (DEBUGDETAILS){
 		ha_log(LOG_DEBUG, "PID %d: Sending local status"
 		" curnode = %lx status: %s"
-		,	getpid(), (unsigned long)curnode, st);
+		,	(int) getpid(), (unsigned long)curnode, st);
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
 		ha_log(LOG_ERR, "Cannot send local status.");
@@ -4192,7 +4197,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 	make_normaltime();
 	setpgid(0,0);
 	set_proc_title("%s: Initiate_Reset()", cmdname);
-	signal(SIGCHLD, SIG_DFL);
+	signal(SIGCHLD,SIG_DFL);
 
 	ha_log(LOG_INFO
 	,	"Resetting node %s with [%s]"
@@ -4548,7 +4553,7 @@ giveup_resources(void)
 		send_resources_held(rsc_msg[procinfo->i_hold_resources]
 		,	0, "shutdown");
 	}
-	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)", getpid());
+	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)", (int) getpid());
 
 	/* We need to fork so we can make child procs not real time */
 
@@ -4938,7 +4943,7 @@ cleanexit(rc)
 	}
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Exiting from pid %d [rc=%d]"
-		,	getpid(), rc);
+		,	(int) getpid(), rc);
 	}
 	if (config && config->log_facility >= 0) {
 		closelog();
@@ -4952,7 +4957,7 @@ force_shutdown(void)
 	ha_log(LOG_ERR, "Beginning forced shutdown.");
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "sending SIGTERM to Control Process: %d"
-		,	processes[0]);
+		,	(int) processes[0]);
 	}
 
 	if (curproc->pid == processes[0]) {
@@ -5006,7 +5011,7 @@ signal_all(int sig)
 		if (sig == SIGTERM) {
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG, "sending SIGTERM to MSP: %d"
-				,	master_status_pid);
+				,	(int) master_status_pid);
 			}
 			if (kill(master_status_pid, SIGTERM) >= 0) {
 				/* Tell master status proc to shut down */
@@ -5030,7 +5035,7 @@ signal_all(int sig)
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG
 				,	"%d: Signalling process %d [%d]"
-				,	us, processes[j], sig);
+				,	us, (int) processes[j], (int) sig);
 			}
 			kill(processes[j], sig);
 		}
@@ -6081,6 +6086,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.196  2002/08/07 18:20:33  msoffen
+ * Cleaned up many warning messages from FreeBSD and Solaris.
+ * Cleaned up signal calls with SIG_IGN for Solaris to use sigignore function (to remove some warnings).
+ *
  * Revision 1.195  2002/08/02 22:47:49  alan
  * Fixed a minor and obscure protocol bug.
  * When we got a rexmit packet just as we start up, it might be from

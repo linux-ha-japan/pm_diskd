@@ -58,7 +58,6 @@
 
 #include <syslog.h>
 #include <portability.h>
-#include <signal.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -76,9 +75,16 @@
 #include <clplumbing/ipc.h>
 #include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/apphb_cs.h>
+#include <signal.h>
 
 #ifndef PIDFILE
 #	define	PIDFILE "/var/run/apphbd.pid"
+#endif
+
+#if HAVE_SIGIGNORE && !defined(linux)
+#define IGNORESIG(s) sigignore(s)
+#else
+#define IGNORESIG(s) ((void)signal((s), SIG_IGN))
 #endif
 
 const char *	cmdname = "apphbd";
@@ -685,9 +691,16 @@ make_daemon(void)
 	for (j=0; j < 3; ++j) {
 		close(j);
 	}
-	signal(SIGINT, SIG_IGN);
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGQUIT, SIG_IGN);
+
+	  if (IGNORESIG(SIGINT) != 0)
+	      signal(SIGINT, stop_main);
+#ifdef SIGHUP
+          if (IGNORESIG(SIGHUP) != 0)
+              signal(SIGHUP, stop_main);
+#endif
+          if (IGNORESIG(SIGQUIT) != 0)
+              signal(SIGQUIT, stop_main);
+
 	signal(SIGTERM, stop_main);
 }
 

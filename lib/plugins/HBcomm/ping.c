@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.8 2002/08/01 20:08:04 lars Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.9 2002/08/07 18:20:33 msoffen Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -325,7 +325,7 @@ ping_read(struct hb_media* mp)
 	PINGASSERT(mp);
 	ei = (struct ping_private *) mp->pd;
 
-	if ((numbytes=recvfrom(ei->sock, &buf.cbuf, sizeof(buf.cbuf)-1, 0
+	if ((numbytes=recvfrom(ei->sock, (void *) &buf.cbuf, sizeof(buf.cbuf)-1, 0
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
 		LOG(PIL_CRIT, "Error receiving from socket: %s", strerror(errno));
 		return NULL;
@@ -463,7 +463,7 @@ ping_write(struct hb_media* mp, struct ha_msg * msg)
 	/* Compute the ICMP checksum */
 	icp->icmp_cksum = in_cksum((u_short *)icp, pktsize);
 
-	if ((rc=sendto(ei->sock, icmp_pkt, pktsize, 0
+	if ((rc=sendto(ei->sock, (void *) icmp_pkt, pktsize, 0
 	,	(struct sockaddr *)&ei->addr
 	,	sizeof(struct sockaddr))) != pktsize) {
 		LOG(PIL_CRIT, "Error sending packet: %s", strerror(errno));

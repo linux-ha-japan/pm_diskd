@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.20 2002/07/16 17:10:32 msoffen Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.21 2002/08/07 18:20:33 msoffen Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -434,7 +434,7 @@ bcast_make_send_sock(struct hb_media * mp)
 	}
 
 	/* Warn that we're going to broadcast */
-	if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &one,sizeof(one))==-1){
+	if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, (const void *) &one, sizeof(one))==-1){
 		LOG(PIL_CRIT, "Error setting socket option SO_BROADCAST: %s"
 		,	strerror(errno));
 		close(sockfd);
@@ -450,7 +450,7 @@ bcast_make_send_sock(struct hb_media * mp)
 
 #if defined(SO_DONTROUTE) && !defined(USE_ROUTING)
 	/* usually, we don't want to be subject to routing. */
-	if (setsockopt(sockfd, SOL_SOCKET, SO_DONTROUTE,&one,sizeof(int))==-1) {
+	if (setsockopt(sockfd, SOL_SOCKET, SO_DONTROUTE,(const void *) &one,sizeof(int))==-1) {
 		LOG(PIL_CRIT, "Error setting socket option SO_DONTROUTE: %s"
 		,	strerror(errno));
 		close(sockfd);
@@ -475,7 +475,7 @@ bcast_make_send_sock(struct hb_media * mp)
 		strcpy(i.ifr_name,  mp->name);
 
 		if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE
-		,	&i, sizeof(i)) == -1) {
+		,	(const void *) &i, sizeof(i)) == -1) {
 			LOG(PIL_CRIT
 			,	"Error setting socket option SO_BINDTODEVICE"
 			": %s"
@@ -536,7 +536,7 @@ bcast_make_receive_sock(struct hb_media * mp) {
  	 * with thanks to Clinton Work <work@scripty.com>
  	 */
 	j = 1;
-	if(setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR, (void *)&j, sizeof j) <0){
+	if(setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR, (const void *)&j, sizeof j) <0){
 		/* Ignore it.  It will almost always be OK anyway. */
 		LOG(PIL_CRIT, "Error setting socket option SO_REUSEADDR: %s"
 		,	strerror(errno));
@@ -556,7 +556,7 @@ bcast_make_receive_sock(struct hb_media * mp) {
 		strcpy(i.ifr_name,  ei->interface);
 
 		if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE
-		,	&i, sizeof(i)) == -1) {
+		,	(const void *)&i, sizeof(i)) == -1) {
 			LOG(PIL_CRIT
 			,	"Error setting socket option"
 			" SO_BINDTODEVICE(r) on %s: %s"
@@ -766,6 +766,10 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.21  2002/08/07 18:20:33  msoffen
+ * Cleaned up many warning messages from FreeBSD and Solaris.
+ * Cleaned up signal calls with SIG_IGN for Solaris to use sigignore function (to remove some warnings).
+ *
  * Revision 1.20  2002/07/16 17:10:32  msoffen
  * Changed so that Lars shouldn't have the issue with the struct copy.
  *
