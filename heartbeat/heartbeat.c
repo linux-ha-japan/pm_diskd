@@ -1,9 +1,9 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.124 2001/07/17 15:00:04 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.125 2001/08/02 01:45:16 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
  *
- * Copyright (C) 1999,2000 Alan Robertson <alanr@unix.sh>
+ * Copyright (C) 1999,2000,2001 Alan Robertson <alanr@unix.sh>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1165,7 +1165,7 @@ master_status_process(void)
 	}while (!allstarted);
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG
-		,	"All your child processes are belong to us");
+		,	"All your child process are belong to us");
 	}
 	curproc->pstat = RUNNING;
 	/* Reset timeout times to "now" */
@@ -3965,6 +3965,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.125  2001/08/02 01:45:16  alan
+ * copyright change and message change.
+ *
  * Revision 1.124  2001/07/17 15:00:04  alan
  * Put in Matt's changes for findif, and committed my changes for the new module loader.
  * You now have to have glib.
