@@ -20,7 +20,8 @@
 MAINTAINERCLEANFILES    = Makefile.in
 CLEANFILES	       	= ldirectord.8
 
-EXTRA_DIST              = ldirectord ldirectord.cf README
+EXTRA_DIST              = ldirectord ldirectord.cf README	\
+				supervise-ldirectord-config
 
 harcconfdir		= $(sysconfdir)/ha.d/conf
 
