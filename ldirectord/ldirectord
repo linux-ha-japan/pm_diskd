@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.37 2001/08/29 06:58:34 horms Exp $
+# $Id: ldirectord,v 1.38 2001/09/07 04:17:39 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -579,24 +579,7 @@ sub read_config
 				$line++;
 				$_ =~ s/\t/    /g;
 				unless ($_ =~ /^ {4,}(.*)/) {
-					# As the protocol needs to be 
-					# known to call getservbyname
-					# all resolution must be delayed
-					# until the protocol is finalised.
-					# That is after the entire config
-					# for a virtual service has been
-					# parsed
-
-					&_ld_read_config_fallback_resolve(
-						$fallback_line, \%vsrv);
-					&_ld_read_config_virtual_resolve(
-						$virtual_line, \%vsrv, 
-						$ip_port);
-					&_ld_read_config_real_resolve(\%vsrv,
-						\@rsrv_todo);
-
-					#Arggh a goto :(
-					goto outer_loop;
+					last;
 				}
 				my $rcmd = $1;
 				next if ($rcmd =~ /^#/);
@@ -690,6 +673,20 @@ sub read_config
 					&config_error($line, "Unknown command $_");
 				}
 			}
+			# As the protocol needs to be known to call
+			# getservbyname() all resolution must be 
+			# delayed until the protocol is finalised.
+			# That is after the entire configuration
+			# for a virtual service has been parsed.
+
+			&_ld_read_config_fallback_resolve($fallback_line, 
+				\%vsrv);
+			&_ld_read_config_virtual_resolve($virtual_line, \%vsrv,
+				$ip_port);
+			&_ld_read_config_real_resolve(\%vsrv, \@rsrv_todo);
+
+			#Arggh a goto :(
+			goto outer_loop;
 		}
 		next if ($_ =~ /^\s*$/ || $_ =~ /^\s*#/);
 		if ($_ =~ /^checktimeout\s*=\s*(.*)/) {
