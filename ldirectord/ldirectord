@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.36 2001/08/28 07:53:32 jacob Exp $
+# $Id: ldirectord,v 1.37 2001/08/29 06:58:34 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -1204,7 +1204,7 @@ sub ld_start
 			my $or = $$ov{real};
 			for $nr (@$nreal) {
 				if (exists($$or{"$$nr{server}:$$nr{port}"})) {
-					&system_wrapper("$IPVSADM -e $$nv{proto} " . &get_virtual($nv) . " -R $$nr{server}:$$nr{port} $$nr{forw} $$nr{wght}");
+					&system_wrapper("$IPVSADM -e $$nv{proto} " . &get_virtual($nv) . " -r $$nr{server}:$$nr{port} $$nr{forw} $$nr{wght}");
 					$$nr{status} = 1;
 					$$nv{status}++;
 					&ld_log("Changed real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
@@ -1215,7 +1215,7 @@ sub ld_start
 			}
 			# remove remaining entries for real servers
 			for my $k (keys %$or) {
-				&system_wrapper("$IPVSADM -d $$nv{proto} " . &get_virtual($nv) . " -R $k");
+				&system_wrapper("$IPVSADM -d $$nv{proto} " . &get_virtual($nv) . " -r $k");
 				print ("Removed real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
 			}
 			delete $oldsrv->{&get_virtual($nv) . " " . $$nv{protocol}};
@@ -1259,7 +1259,7 @@ sub ld_stop
 		my $real = $$v{real};
 		foreach my $r (@$real) {
 			if ($$r{status}>0) {
-				&system_wrapper("$IPVSADM -d $$v{proto} " . &get_virtual($v) . " -R $$r{server}:$$r{port}");
+				&system_wrapper("$IPVSADM -d $$v{proto} " . &get_virtual($v) . " -r $$r{server}:$$r{port}");
 				$$r{status} = 0;
 				$$v{status}--;
 				&ld_log("Removed real server: $$r{server}:$$r{port} ($$v{status} x " . &get_virtual($v) );
@@ -1564,7 +1564,7 @@ sub _quiecent_service {
         my $ipvsadm_args;
         my $log_args;
 
-	$ipvsadm_args = "$$v{proto} " . &get_virtual($v) . " -R $rservice";
+	$ipvsadm_args = "$$v{proto} " . &get_virtual($v) . " -r $rservice";
         $log_args = "$tag server: $rservice "
                     . "($$v{status} x " .  &get_virtual($v) . ")";
 
@@ -1614,7 +1614,7 @@ sub _restore_service {
         my $log_args;
 
 	$ipvsadm_args = "$$v{proto} " . &get_virtual($v) 
-                        . " -R $rservice $rforw $rwght";
+                        . " -r $rservice $rforw $rwght";
         $log_args = "$tag server: $rservice "
                     . "($$v{status} x " .  &get_virtual($v) . ")";
 
