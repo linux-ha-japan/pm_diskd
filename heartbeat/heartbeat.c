@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.63 2000/06/15 06:03:50 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.64 2000/06/15 14:24:31 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -485,7 +485,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.63 2000/06/15 06:03:50 alan Exp $$' | sort -u"
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.64 2000/06/15 14:24:31 alan Exp $$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -2712,7 +2712,7 @@ main(int argc, const char ** argv)
 		 * have changed nice_failback options in the config file
 		 */
 		if (CurrentStatus) {
-			ha_log(LOG_INFO, "restart: i_old_resources = %s"
+			ha_log(LOG_INFO, "restart: i_hold_resources = %s"
 			,	rsc_msg[i_hold_resources]);
 		}
 
@@ -2726,14 +2726,14 @@ main(int argc, const char ** argv)
 				ha_log(LOG_INFO, "restart: assuming LOCAL_RSC");
 			}else{
 				/* From nice_failback to nice_failback */
-				/* Cool. Nothing to do. */;
+				/* Cool. Nothing special to do. */;
 			}
 		}else{
 			/* nice_failback is currently OFF */
 
 			if (CurrentStatus == NULL) {
 				/* From !nice_failback to !nice_failback */
-				/* Cool. Nothing to do. */ ;
+				/* Cool. Nothing special to do. */ ;
 			}else{
 				/* From nice_failback to not nice_failback */
 				if ((i_hold_resources & LOCAL_RSC)) {
@@ -3494,6 +3494,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.64  2000/06/15 14:24:31  alan
+ * Changed the version #.  Minor comment changes.
+ *
  * Revision 1.63  2000/06/15 06:03:50  alan
  * Missing '[' in debug message.  pretty low priority.
  *
