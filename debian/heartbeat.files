@@ -4,6 +4,7 @@ etc/ha.d/rc.d/ip-request
 etc/ha.d/rc.d/ip-request-resp
 etc/ha.d/rc.d/ns_st
 etc/ha.d/rc.d/shutdone
+etc/ha.d/rc.d/ask_resources
 etc/ha.d/rc.d/status
 etc/ha.d/resource.d/AudibleAlarm
 etc/ha.d/resource.d/Filesystem
@@ -32,6 +33,7 @@ usr/lib/heartbeat/api_test
 usr/lib/heartbeat/findif
 usr/lib/heartbeat/heartbeat
 usr/lib/heartbeat/mach_down
+usr/lib/heartbeat/hb_standby
 usr/lib/heartbeat/plugins/HBauth/crc.a
 usr/lib/heartbeat/plugins/HBauth/crc.la
 usr/lib/heartbeat/plugins/HBauth/crc.so

@@ -22,6 +22,6 @@ MAINTAINERCLEANFILES    = Makefile.in
 harcddir		= $(sysconfdir)/ha.d/rc.d
 
 harcd_SCRIPTS		= ip-request ip-request-resp status \
-			ns_st ifstat shutdone stonith
+			ns_st ifstat shutdone stonith ask_resources
 
 EXTRA_DIST              = $(harcd_SCRIPTS)

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.144 2001/10/12 17:18:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.145 2001/10/12 22:38:06 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -295,6 +295,10 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.144 2001/10/12 17:18
 #define ALL_RSC			(LOCAL_RSC|FOREIGN_RSC)
 #define ALL_RESOURCES		"all"
 
+enum standby { NOT, ME, OTHER, DONE };
+enum standby going_standby = NOT;
+int  standby_running = 0;
+
 const char *		rsc_msg[] =	{NO_RESOURCES, LOCAL_RESOURCES,
         				 FOREIGN_RESOURCES, ALL_RESOURCES};
 int		verbose = 0;
@@ -404,6 +408,7 @@ void	dump_all_proc_stats(void);
 void	check_for_timeouts(void);
 void	check_comm_isup(void);
 int	send_resources_held(const char *str, int stable);
+int	send_standby_msg(enum standby state);
 int	send_local_starting(void);
 int	send_local_status(void);
 int	set_local_status(const char * status);
@@ -433,9 +438,11 @@ void	process_registermsg(FILE * f);
 void	nak_rexmit(unsigned long seqno, const char * reason);
 void	req_our_resources(int getthemanyway);
 void	giveup_resources(int);
+void	go_standby(enum standby who);
 void	make_realtime(void);
 void	make_normaltime(void);
 int	IncrGeneration(unsigned long * generation);
+void	ask_for_resources(struct ha_msg *msg);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -1407,6 +1414,14 @@ process_clustermsg(FILE * f)
 	now = time(NULL);
 	messagetime = times(&proforma_tms);
 
+	if (standby_running) {
+		/* if there's a standby timer running, verify if it's
+		   time to enable the standby messages again... */
+		if (now >= standby_running) {
+			standby_running = 0;
+		}
+	}
+
 	/* Extract message type, originator, timestamp, auth */
 	type = ha_msg_value(msg, F_TYPE);
 	from = ha_msg_value(msg, F_ORIG);
@@ -1542,6 +1557,19 @@ process_clustermsg(FILE * f)
 		goto psm_done;
 	}
 
+	/* If someone asked us to turn "standby" mode on... */
+	if (strcasecmp(type, T_ASKRESOURCES) == 0) {
+		/* if the last standby conversation finished... */
+		if (!standby_running) {
+			/* someone wants to go standby!!! */
+			ask_for_resources(msg);
+		} else {
+			ha_log(LOG_INFO,
+			"Standby delay is running. MSG from %s ignored", from);
+		}
+		goto psm_done;
+	}
+		
 	/* Is this a status update (i.e., "heartbeat") message? */
 	if (strcasecmp(type, T_STATUS) == 0
 	||	strcasecmp(type, T_NS_STATUS) == 0) {
@@ -2711,6 +2739,42 @@ send_resources_held(const char *str, int stable)
 }
 
 
+/* Send "standby" related msgs out to the cluster */
+int
+send_standby_msg(enum standby state)
+{
+	const char * standby_msg[] = { "not", "me", "other", "done"};
+        struct ha_msg * m;
+        int             rc;
+        char            timestamp[16];
+
+        sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
+
+	if (ANYDEBUG) {
+        	ha_log(LOG_DEBUG, "Sending standby [%s] msg"
+		,			standby_msg[state]);
+	}
+        if ((m=ha_msg_new(0)) == NULL) {
+                ha_log(LOG_ERR, "Cannot send standby [%s] msg"
+		,			standby_msg[state]);
+                return(HA_FAIL);
+        }
+        if ((ha_msg_add(m, F_TYPE, T_ASKRESOURCES) == HA_FAIL)
+        ||  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
+        ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)
+        ||  (ha_msg_add(m, F_COMMENT, standby_msg[state]) == HA_FAIL)) {
+                ha_log(LOG_ERR, "send_standby_msg: "
+                "Cannot create standby reply msg");
+                rc = HA_FAIL;
+        }else{
+                rc = send_cluster_msg(m);
+        }
+
+        ha_msg_del(m);
+        return(rc);
+}
+
+
 /* Send the starting msg out to the cluster */
 int
 send_local_starting(void)
@@ -3015,10 +3079,12 @@ req_our_resources(int getthemanyway)
 		||	(i_hold_resources & LOCAL_RSC) != 0)
 		&&	!getthemanyway) {
 
-			/* Someone already owns our resources */
-			ha_log(LOG_INFO
-			,	"Resource acquisition completed. (none)");
-			return;
+			if (going_standby == NOT) {
+				/* Someone already owns our resources */
+				ha_log(LOG_INFO
+				,     "Resource acquisition completed. (none)");
+				return;
+			}
 		}
 
 		/*
@@ -3093,6 +3159,88 @@ req_our_resources(int getthemanyway)
 	}
 	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
+}
+
+void
+go_standby(enum standby who)
+{
+	FILE *		rkeys;
+	char		cmd[MAXLINE];
+	char		buf[MAXLINE];
+	int		finalrc = HA_OK;
+	/* avoid "rc might be used uninitialized" warning - dirty hack */
+	int		rc=0;
+	pid_t		pid;
+
+	/* We need to fork so we can make child procs not real time */
+
+	switch((pid=fork())) {
+
+		case -1:	ha_log(LOG_ERR, "Cannot fork.");
+				return;
+
+				/*
+				 * We shouldn't block here, because then we
+				 * aren't sending heartbeats out...
+				 */
+		default:	/* waitpid(pid, NULL, 0); */
+				return;
+
+		case 0:		/* Child */
+				break;
+	}
+
+	make_normaltime();
+	signal(SIGCHLD, SIG_DFL);
+	/*
+	 *	We could do this ourselves fairly easily...
+	 */
+
+	sprintf(cmd, HALIB "/ResourceManager listkeys '.*'");
+
+	if ((rkeys = popen(cmd, "r")) == NULL) {
+		ha_log(LOG_ERR, "Cannot run command %s", cmd);
+		return;
+	}
+
+	while (fgets(buf, MAXLINE, rkeys) != NULL) {
+		if (buf[strlen(buf)-1] == '\n') {
+			buf[strlen(buf)-1] = EOS;
+		}
+		if (who == ME) {
+			sprintf(cmd, HALIB "/ResourceManager givegroup %s",buf);
+		} else {
+			if (who == OTHER) {
+				sprintf(cmd, HALIB
+					"/ResourceManager takegroup %s", buf);
+			}
+		}
+		if ((rc=system(cmd)) != 0) {
+			ha_log(LOG_ERR, "%s returned %d", cmd, rc);
+			finalrc=HA_FAIL;
+		}
+	}
+	pclose(rkeys);
+	ha_log(LOG_INFO, "who: %d", who);
+	if (who == ME) {
+		i_hold_resources = NO_RSC;
+		ha_log(LOG_INFO, "Giving up all HA resources (standby).");
+		ha_log(LOG_INFO, "All HA resources relinquished.");
+	} else {
+		if (who == OTHER) {
+			i_hold_resources |= FOREIGN_RSC;
+			ha_log(LOG_INFO,
+				"Taking over foreign HA resources (primary).");
+			ha_log(LOG_INFO, "Foreign resources acquired.");
+		}
+	}
+
+	if (nice_failback) {
+		send_resources_held(rsc_msg[i_hold_resources],1);
+	}
+
+	exit(rc);
+	
 }
 
 void
@@ -4302,6 +4450,87 @@ IncrGeneration(unsigned long * generation)
 	return HA_OK;
 }
 
+
+void ask_for_resources(struct ha_msg *msg)
+{
+
+	const char * info, * from;
+	int 	msgfromme;
+								
+	info = ha_msg_value(msg, F_COMMENT);
+	from = ha_msg_value(msg, F_ORIG);
+	msgfromme = !strcmp(from, curnode->nodename);
+
+	/* Starting the STANDBY 3-phased protocol */
+
+	switch(going_standby) {
+	case NOT:	
+		if ((!strncasecmp(info,"me",2))) {
+			ha_log(LOG_INFO, "%s wants to go standby", from);
+			if (msgfromme) {
+				ha_log(LOG_INFO, "i_hold_resources: %d"
+				,		i_hold_resources);
+				if (i_hold_resources!=NO_RSC) {
+					/* I want to go standby */
+					going_standby = ME;
+				}
+			} else {
+				ha_log(LOG_INFO, "other_holds_resources: %d"
+				,		other_holds_resources);
+				if (other_holds_resources!=NO_RSC) {
+					/* the other node wants to go standby */
+					going_standby = OTHER;
+					send_standby_msg(going_standby);
+				}
+			}
+		}
+		break;
+	case ME:
+		/* other node is alive, so it's time to give up my resources */	
+		if ((!msgfromme) && (!strncasecmp(info,"other",5))) {
+			TIME_T 	now = time(NULL);
+
+			ha_log(LOG_INFO, "%s can hold my resources", from);
+			go_standby(ME);
+			going_standby = DONE;
+			ha_log(LOG_INFO, "Resources released...");
+			send_standby_msg(going_standby);
+			ha_log(LOG_INFO,
+				"Standby process finished. /Me secondary");
+			standby_running = now + 15;
+			going_standby = NOT;
+		}
+		break;
+	case OTHER:
+		/* It's time to give up my resources */	
+		if ((!msgfromme) && (!strncasecmp(info,"done",4))) {
+			TIME_T 	now = time(NULL);
+
+			ha_log(LOG_INFO, "time to hold [%s] resources", from);
+			req_our_resources(1);
+			go_standby(OTHER);
+			going_standby = DONE;
+			ha_log(LOG_INFO, "takeover complete...");
+			send_standby_msg(going_standby);
+			ha_log(LOG_INFO,
+				"Standby process finished. /Me primary");
+			standby_running= now + 15;
+			going_standby = NOT;
+		}
+		break;
+	case DONE:
+		/* if ((!msgfromme)&&(!strncasecmp(info,"done",4))) {
+			ha_log(LOG_INFO,
+				"Standby process finished. /Me secondary");
+			going_standby = NOT;
+		}
+		*/
+		break;
+	}
+			
+}
+
+
 #ifdef IRIX
 void
 setenv(const char *name, const char * value, int why)
@@ -4313,6 +4542,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.145  2001/10/12 22:38:06  alan
+ * Added Luis' patch for providing the standby capability
+ *
  * Revision 1.144  2001/10/12 17:18:37  alan
  * Changed the code to allow for signals happening while signals are being processed.
  * Changed the code to allow us to have finer heartbeat timing resolution.

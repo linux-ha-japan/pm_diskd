@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# This script sets the node (where it was called) to *standby*
+# It forces the node to release all the held resources and lets
+# the other node do a takeover.
+
+#	This script will only work for a two machine setup...
+#	More than that and you need to vote, or something...
+
+. /etc/ha.d/shellfuncs
+
+: Now running $0: $*
+
+    ha_log "I'm going to standby mode :)"
+  	ha_clustermsg <<-!MSG
+	t=ask_resources
+	info=me
+	!MSG

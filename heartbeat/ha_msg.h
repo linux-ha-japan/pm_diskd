@@ -20,7 +20,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.16 2001/06/06 17:49:58 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.17 2001/10/12 22:38:06 alan Exp $";
 #include <stdio.h>
 
 struct ha_msg {
@@ -69,6 +69,7 @@ struct ha_msg {
 #define	T_IFSTATUS	"ifstat"	/* Interface status */
 #define T_APIREQ	"hbapi-req" 	/* Heartbeat API request */
 #define T_APIRESP	"hbapi-resp" 	/* Heartbeat API response */
+#define	T_ASKRESOURCES	"ask_resources"	/* Let other node ask my resources */
 #define	T_STONITH	"stonith"	/* Stonith return code */
 #define T_SHUTDONE	"shutdone"      /* External Shutdown complete */
 
