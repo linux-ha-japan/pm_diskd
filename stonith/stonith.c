@@ -18,13 +18,16 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
 #include <syslog.h>
-#include <libintl.h>
+#ifdef HAVE_LIBINTL_H
+#    include <libintl.h>
+#endif
 #include <sys/wait.h>
 #include <sys/param.h>
 #include <dlfcn.h>
