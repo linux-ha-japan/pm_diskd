@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.10 1999/10/10 19:45:21 alanr Exp $
+#	$Id: heartbeat.sh,v 1.11 1999/10/19 01:49:10 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -256,6 +256,7 @@ case "$1" in
 
   restart|reload)
 	StopHA
+	sleep 2	# wait for processes to die
 	StartHA
 	RC=$?
 	;;
@@ -269,6 +270,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.11  1999/10/19 01:49:10  alan
+#  Put in a sleep between stop and start in restart to make it more reliable.
+#
 #  Revision 1.10  1999/10/10 19:45:21  alanr
 #  Changed comment
 #
