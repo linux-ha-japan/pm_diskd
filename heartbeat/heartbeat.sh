@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.9 1999/10/05 05:17:49 alanr Exp $
+#	$Id: heartbeat.sh,v 1.10 1999/10/10 19:45:21 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -184,9 +184,7 @@ StartHA() {
 }
 
 #
-#	Give up all our precious HA-protected IP addresses to the rest
-#	of the cluster.  Hope they know what to do with them!
-#	Then we kill heartbeat.
+#	Ask heartbeat to stop.  It will give up it's resources...
 #
 StopHA() {
 
@@ -271,6 +269,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.10  1999/10/10 19:45:21  alanr
+#  Changed comment
+#
 #  Revision 1.9  1999/10/05 05:17:49  alanr
 #  Added -s (status) option to heartbeat, and used it in heartbeat.sh...
 #
