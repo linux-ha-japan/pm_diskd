@@ -274,6 +274,7 @@ RegisterGenIF(PILInterface* intf,  void** imports)
 			if (GenDebugFlag) {
 				GenPIImports->log(PIL_DEBUG
 				,	"%s IF manager: callback 0x%lx"
+				,	PIL_PLUGIN_S
 				,	ifinfo->callback);
 			}
 			ifinfo->callback(PIL_REGISTER
@@ -325,18 +326,13 @@ UnregisterGenIF(PILInterface*intf)
 			if (GenDebugFlag) {
 				GenPIImports->log(PIL_DEBUG
 				,	"%s IF manager: callback 0x%lx"
+				,	PIL_PLUGIN_S
 				,	ifinfo->callback);
 			}
 			ifinfo->callback(PIL_REGISTER
 			,	t->universe->piuniv, intf->interfacename
 			,	t->typename, ifinfo->userptr);
 		}
-
-		/* Destroy the underlying hash table */
-		g_hash_table_destroy(ifmap);
-
-		/* Set the user's hash table pointer to NULL */
-		*(ifinfo->ifmap) = NULL;
 
 		/* Remove the client entry from master table */
 		g_hash_table_remove(ifmap, intf->interfacename);
