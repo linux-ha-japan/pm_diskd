@@ -55,7 +55,7 @@ logfacility	local0
 #
 #	What UDP port to use for udp or ppp-udp communication?
 #
-#udpport	1001
+#udpport	694
 #
 #	What interfaces to heartbeat over?
 #

@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.32 2000/04/26 07:06:41 horms Exp $
+#	$Id: Makefile,v 1.33 2000/04/27 12:50:20 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -9,7 +9,7 @@
 #
 #
 PKG=heartbeat
-VERS=0.4.7apre3
+VERS=0.4.7a
 RPMREL=1
 
 INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
@@ -58,8 +58,9 @@ HTML2TXT = lynx -dump
 INSTALL = install
 
 WEBDIR=/usr/home/alanr/ha-web/download
-RPMSRC=$(DESTDIR)/usr/src/redhat/SRPMS/$(PKG)-$(VERS)-$(RPMREL).src.rpm
-RPM386=$(DESTDIR)/usr/src/redhat/RPMS/i386/$(PKG)-$(VERS)-$(RPMREL).i386.rpm
+RPMDIR=/usr/src/redhat
+RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PKG)-$(VERS)-$(RPMREL).src.rpm
+RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-$(VERS)-$(RPMREL).i386.rpm
 
 .PHONY =  \
 	all \

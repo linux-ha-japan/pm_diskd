@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.42 2000/04/12 23:03:49 marcelo Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.43 2000/04/27 12:50:20 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -24,7 +24,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.42 2000/04/12 23:03:
  *	deadtime  10
  *	hopfudge 2
  *	baud 19200
- *	udpport 1001
+ *	udpport 694
  *
  *	"Serial" lines tell us about our heartbeat configuration.
  *	If there is more than one serial port configured, we are in a "ring"
@@ -87,12 +87,12 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.42 2000/04/12 23:03:
  *
  *	For a system using 2 ttys and UDP, this is 8 processes.
  *
- *	If every second, each node writes out 100 chars of status,
- *	and we have 8 nodes, and the data rate would be about 800 chars/sec.
- *	This would require about 8000 bps.
- *	This seems awfully close to 9600.  Better run faster than that
+ *	If every second, each node writes out 150 chars of status,
+ *	and we have 8 nodes, and the data rate would be about 1200 chars/sec.
+ *	This would require about 12000 bps.  Better run faster than that.
+ *
  *	for such a cluster...  With good UARTs and CTS/RTS, and good cables,
- *	you should be able to.
+ *	you should be able to.  Maybe 56K would be a good choice...
  *
  *
  *	Process/Pipe configuration:
@@ -2740,6 +2740,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.43  2000/04/27 12:50:20  alan
+ * Changed the port number to 694.  Added the pristene target to the ldirectord
+ * Makefile.  Minor tweaks to heartbeat.sh, so that it gives some kind of
+ * message if there is no configuration file yet.
+ *
  * Revision 1.42  2000/04/12 23:03:49  marcelo
  * Added per-link status instead per-host status. Now we will able
  * to develop link<->service dependacy scheme.

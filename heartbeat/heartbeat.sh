@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.19 2000/04/24 07:08:13 horms Exp $
+#	$Id: heartbeat.sh,v 1.20 2000/04/27 12:50:20 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -13,8 +13,7 @@
 # processname: heartbeat
 # pidfile: /var/run/heartbeat.pid
 # config: /etc/ha.d/ha.cf
-
-[ -f /etc/ha.d/ha.cf ] || exit 0
+  
 
 HA_DIR=/etc/ha.d; export HA_DIR
 CONFIG=$HA_DIR/ha.cf
@@ -42,7 +41,7 @@ then
 	$HA_BIN/heartbeat -s
   }
   echo_failure() {
-      echo "Heartbeat failure [rc=$1]"
+      echo " Heartbeat failure [rc=$1]"
       return $1
   }
   echo_success() {
@@ -52,6 +51,18 @@ then
 else
   . $RHFUNCS
 fi
+
+#
+#	See if they've configured things yet...
+#
+if
+  [ ! -f /etc/ha.d/ha.cf ]
+then
+  echo -n "Heartbeat not configured."
+  echo_failure 1
+  exit 0
+fi
+
 
 #
 #	Install the softdog module if we need to
@@ -251,6 +262,11 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.20  2000/04/27 12:50:20  alan
+#  Changed the port number to 694.  Added the pristene target to the ldirectord
+#  Makefile.  Minor tweaks to heartbeat.sh, so that it gives some kind of
+#  message if there is no configuration file yet.
+#
 #  Revision 1.19  2000/04/24 07:08:13  horms
 #  Added init script to ldirectord, fixed hearbeat.sh to work with RH6.2 again, heartbeat.sh now aborts if /etc/ha.d/ha.cf is not present. Added sample ldirectord.cf. Moved logging directives to the top of the sample ha.cf. Incremented version in master Makefile to 0.4.7apre2. KERNELDIRS now don't get any treatment in the master makefile, this is to fix a bug (introduced by me) with using an emty  in a for i in  under some shells
 #

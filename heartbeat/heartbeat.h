@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.21 2000/04/26 22:59:53 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.22 2000/04/27 12:50:20 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -88,7 +88,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.21 2000/04/26 22:59:
 #define	PIDFILE		VAR_RUN_D "/heartbeat.pid"
 #define KEYFILE         HA_D "/authkeys"
 #define HA_SERVICENAME	"ha-heartbeat"
-#define	UDPPORT		1001	/* probably already used :-) */
+#define	UDPPORT		694	/* Our official, registered port number */
 
 /* Environment variables we pass to our scripts... */
 #define CURHOSTENV	"HA_CURHOST"
