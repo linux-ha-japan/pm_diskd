@@ -22,7 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.16 2003/02/13 03:08:08 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.17 2003/03/28 03:32:35 alan Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 
@@ -150,6 +150,10 @@ struct ha_msg *	string2msg(const char * s, size_t length);
 
 /* Converts a message into a string for sending out UDP interface */
 char *		msg2string(const struct ha_msg *m);
+/* Converts an ha_msg into an IPC message */
+IPC_Message* hamsg2ipcmsg(struct ha_msg* m, IPC_Channel* ch);
+/* Converts an IPC message into an ha_msg */
+struct ha_msg* ipcmsg2hamsg(IPC_Message*m);
 
 /* Reads from control fifo, and creates a new message from it */
 /* This adds the default sequence#, load avg, etc. to the message */
