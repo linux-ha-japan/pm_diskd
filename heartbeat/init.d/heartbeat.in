@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.18 2002/09/20 02:13:20 horms Exp $
+#	$Id: heartbeat.in,v 1.19 2002/10/09 18:35:54 msoffen Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -205,12 +205,6 @@ StartHA() {
   then
     mv $HA_DIR/ipresources $HA_DIR/haresources
   fi
-  # Run pre-startup script if it exists
-  if
-    [  -f $HA_DIR/resource.d/startstop ]
-  then
-    $HA_DIR/resource.d/startstop start
-  fi
   #	Start heartbeat daemon
   if
     start_heartbeat
@@ -270,11 +264,21 @@ ReloadHA() {
   fi
 }
 
+RunStartStop() {
+  # Run pre-startup script if it exists
+  if
+    [  -f $HA_DIR/resource.d/startstop ]
+  then
+    $HA_DIR/resource.d/startstop  $1
+  fi
+}
+
 RC=0
 # See how we were called.
 
 case "$1" in
   start)
+	RunStartStop "pre-start"
 	StartHA
 	RC=$?
 	Echo
@@ -284,13 +288,16 @@ case "$1" in
 	  [ ! -d $LOCKDIR ] && mkdir -p $LOCKDIR
 	  touch $LOCKDIR/$SUBSYS
 	fi
+	RunStartStop "post-start"
 	;;
 
   stop)
+	RunStartStop "pre-stop"
 	StopHA
 	RC=$?
 	Echo
 	[ $RC -eq 0 ] && rm -f $LOCKDIR/$SUBSYS
+	RunStartStop "post-stop"
 	;;
 
   status)
@@ -325,6 +332,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.19  2002/10/09 18:35:54  msoffen
+#  Created pre-start, pre-stop, post-stop, and pre-stop constructs in startstop and
+#  moved startstop to documents (to not override).
+#
 #  Revision 1.18  2002/09/20 02:13:20  horms
 #  Tidied up the output for the restart and reload targets.
 #  This follows what is done for start and stop.
