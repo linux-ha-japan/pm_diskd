@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.82 2000/08/13 04:36:16 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.83 2000/09/01 04:18:59 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -353,7 +353,7 @@ void	debug_sig(int sig);
 void	signal_all(int sig);
 void	parent_debug_sig(int sig);
 void	reread_config_sig(int sig);
-void	restart_heartbeat(void);
+void	restart_heartbeat(int quickrestart);
 int	parse_config(const char * cfgfile);
 int	parse_ha_resources(const char * cfgfile);
 void	dump_config(void);
@@ -1919,7 +1919,7 @@ parent_debug_sig(int sig)
 }
 
 void
-restart_heartbeat(void)
+restart_heartbeat(int quickrestart)
 {
 	struct	timeval		tv;
 	struct	timeval		newtv;
@@ -1928,6 +1928,7 @@ restart_heartbeat(void)
 	int			j;
 	pid_t			curpid = getpid();
 	struct rlimit		oflimits;
+	int			killsig = (quickrestart ? SIGKILL : SIGTERM);
 
 	/*
 	 * We need to do these things:
@@ -1944,6 +1945,10 @@ restart_heartbeat(void)
 
 
 	getrlimit(RLIMIT_NOFILE, &oflimits);
+
+	if (!quickrestart) {
+		giveup_resources();
+	}
 	alarm(0);
 	sleep(1);
 
@@ -1969,8 +1974,9 @@ restart_heartbeat(void)
 	for (j=0; j < procinfo->nprocs; ++j) {
 		pid_t	pid = procinfo->info[j].pid;
 		if (pid != curpid) {
-			ha_log(LOG_INFO, "Killing process %d", pid);
-			kill(pid, SIGKILL);
+			ha_log(LOG_INFO, "Killing process %d with signal %d"
+			,	pid, killsig);
+			kill(pid, killsig);
 		}
 	}
 
@@ -1981,13 +1987,19 @@ restart_heartbeat(void)
 
 	ha_log(LOG_INFO, "Performing heartbeat restart exec.");
 
-	if (nice_failback) {
-		execl(HALIB "/heartbeat", "heartbeat", "-R"
-		,	"-C", rsc_msg[i_hold_resources], NULL);
+	if (quickrestart) {
+		if (nice_failback) {
+			execl(HALIB "/heartbeat", "heartbeat", "-R"
+			,	"-C", rsc_msg[i_hold_resources], NULL);
+		}else{
+			execl(HALIB "/heartbeat", "heartbeat", "-R", NULL);
+		}
 	}else{
-		execl(HALIB "/heartbeat", "heartbeat", "-R", NULL);
+		/* "Normal" restart (not quick) */
+		unlink(PIDFILE);
+		execl(HALIB "/heartbeat", "heartbeat", NULL);
 	}
-	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat -R");
+	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat");
 	ha_log(LOG_ERR, "Shutting down...");
 	kill(curpid, SIGTERM);
 }
@@ -2006,7 +2018,7 @@ reread_config_sig(int sig)
 			return;
 		}
 		if (buf.st_mtime != config->cfg_time) {
-			restart_heartbeat();
+			restart_heartbeat(1);
 			/*NOTREACHED*/
 		}
 		if (stat(KEYFILE, &buf) < 0) {
@@ -2438,8 +2450,10 @@ healed_cluster_partition(struct node_info *t)
 	ha_log(LOG_WARNING
 	,	"Cluster node %s returning after partition"
 	,	t->nodename);
-	/* Request our resources.  The other guy probably has them ;-) */
-	req_our_resources(1);
+	/* Give up our resources, and restart ourselves */
+	/* This is cleaner than lots of other options. */
+	/* And, it really should work every time... :-) */
+	restart_heartbeat(0);
 }
 
 struct fieldname_map {
@@ -2554,6 +2568,7 @@ req_our_resources(int getthemanyway)
 	}else if (rc > 0) {
 		ha_log(LOG_ERR, "[%s] exited with 0x%x", cmd, rc);
 	}
+
 	if (rsc_count == 0) {
 		ha_log(LOG_INFO, "No local resources [%s]", cmd);
 	}else {
@@ -3650,6 +3665,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.83  2000/09/01 04:18:59  alan
+ * Added missing products to Specfile.
+ * Perhaps fixed the partitioned cluster problem.
+ *
  * Revision 1.82  2000/08/13 04:36:16  alan
  * Added code to make ping heartbeats work...
  * It looks like they do, too ;-)

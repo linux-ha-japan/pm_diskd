@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.56 2000/09/01 02:32:24 alan Exp $
+#	$Id: Specfile,v 1.57 2000/09/01 04:18:59 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -22,10 +22,12 @@ It implements the following kinds of heartbeats:
 	- Bidirectional Serial Rings ("raw" serial ports)
 	- UDP/IP braodcast (ethernet, etc)
 	- Bidirectional Serial PPP/UDP Rings (using PPP)
+	- "ping" heartbeats (for routers, switches, etc.)
+	   (used for breaking ties in 2-node systems)
 
 %changelog
 
-* Sun Jul 16 2000 Alan Robertson <alanr@suse.com>,
+* Thu Aug 31 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
@@ -35,15 +37,18 @@ It implements the following kinds of heartbeats:
 
 + Version 0.4.9 Beta series
   + Incorporated new ldirectord version
+  + Added STONITH API library
   + Added STONITH option to heartbeat (stonith)
+  + Added heartbeat API code
   + Added late heartbeat warning for heartbeats that arrive later than
     	0.75 of deadtime (warntime option)
   + Added better protection against replay attacks
   + Added detection of and recovery from cluster partitions
   + Added ping node/membership/link type for tiebreaking.  This will
-	be useful when implementing quorum.
+	be useful when implementing quorum on 2-node systems.
   + Fixed byte-ordering problem related to output in findif.c.
 	There are probably more, related to input ;-)
+  + More SuSE-compatibility changes thanks to Marius Tomaschewski <mt@suse.de>
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
@@ -297,6 +302,8 @@ install -m 644 rc.config.heartbeat $TEMPL
 /etc/ha.d/README.config
 /etc/ha.d/conf
 /usr/lib/heartbeat
+/usr/lib/libhbclient.so
+/usr/lib/libhbclient.a
 #  Things for the stonith library...
 /usr/lib/libstonith.a
 /usr/lib/libstonith.so
