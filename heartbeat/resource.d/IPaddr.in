@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.18 2002/04/29 07:32:44 alan Exp $
+#	$Id: IPaddr.in,v 1.19 2002/05/15 04:25:47 msoffen Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -454,11 +454,11 @@ ip_status() {
 #
 ip_monitor() {
   BASEIP=`echo $1 | sed s'%/.*%%'`
-  OPTS=" -c 1 -w 2 -q"
+  OPTS=" -c 1 @PING_TIMEOUT_OPT@ -q"
   for j in 1 2 3
   do
     if
-      ping $OPTS $BASEIP >/dev/null 2>&1
+      @PING@ $OPTS $BASEIP >/dev/null 2>&1
     then
       echo "OK"
       return 0
@@ -470,7 +470,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.18 2002/04/29 07:32:44 alan Exp $"
+  echo "$Id: IPaddr.in,v 1.19 2002/05/15 04:25:47 msoffen Exp $"
 }
 
 #
@@ -517,6 +517,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.19  2002/05/15 04:25:47  msoffen
+# Corrected Ping problem so that it would work in FreeBSD (using parameters from configure.in).
+#
 # Revision 1.18  2002/04/29 07:32:44  alan
 # Solaris extensions/enhancements from Thomas Hepper for Solaris 2.8
 #
