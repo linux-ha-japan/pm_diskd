@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.25 2002/07/16 04:25:42 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.26 2002/07/30 12:21:08 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -119,6 +119,13 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Added an application-level heartbeat API.
   + Added several new "plumbing" subsystems (IPC, longclock_t, proctrack, etc.)
   + Added a new "contrib" directory.
+  + Fixed serious (but trivial) bug in the process tracking code which caused
+	it to exit heartbeat - this occured repeatably for STONITH operations.
+  + Write a 'v' to the watchdog device to tell it not to reboot us when
+  	we close the device.
+  + Various ldirectord fixes due to Horms
+  + Minor patch from Lorn Kay to deal with loopback interfaces which might
+	have been put in by LVS direct routing
 
 * Fri Mar 16 2001 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
