@@ -26,7 +26,7 @@ Licensed under the GNU GPL.
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 from UserDict import UserDict
-import sys, time, types, syslog, whrandom, os, struct
+import sys, time, types, syslog, whrandom, os, struct, string
 from CTS  import ClusterManager
 from CM_hb import HeartbeatCM
 from socket import gethostbyname_ex
@@ -194,7 +194,7 @@ class CtsLab(UserDict):
     def log(self, args):
         "Log using each of the supplied logging methods"
         for logfcn in self._logfunctions:
-            logfcn(args)
+            logfcn(string.strip(args))
 
     def __setitem__(self, key, value):
         '''Since this function gets called whenever we modify the
