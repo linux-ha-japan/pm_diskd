@@ -68,20 +68,21 @@ static const char * NOTnullID = "Hey, dummy this has been destroyed (NullDev)";
 #define N_(text)	(text)
 #define _(text)		dgettext(ST_TEXTDOMAIN, text)
 
-static const char *
-		NULL_getinfo(Stonith * s, int InfoType);
-
-static char **	NULLlist_hosts(Stonith  *);
-static void	NULLfree_hostlist(char **);
-static int	NULL_status(Stonith * );
-static int	NULL_host_req(Stonith * s, int request, const char * host);
-static void	NULL_del(Stonith *);
+const char *
+	st_getinfo(Stonith * s, int InfoType);
+char **	st_hostlist(Stonith  *);
+void	st_freehostlist(char **);
+int	st_status(Stonith * );
+int	st_reset(Stonith * s, int request, const char * host);
+void	st_destroy(Stonith *);
 int		WordCount(const char * s);
-Stonith *	__NULL_new(void);
+void *	st_new(void);
+int st_setconffile(Stonith* s, const char * configname);
+int st_setconfinfo(Stonith* s, const char * info);
 
 
-static int
-NULL_status(Stonith  *s)
+int
+st_status(Stonith  *s)
 {
 
 	if (!ISNULLDEV(s)) {
@@ -96,8 +97,8 @@ NULL_status(Stonith  *s)
  *	Return the list of hosts configured for this NULL device
  */
 
-static char **
-NULLlist_hosts(Stonith  *s)
+char **
+st_hostlist(Stonith  *s)
 {
 	int		numnames = 0;
 	char **		ret = NULL;
@@ -127,7 +128,7 @@ NULLlist_hosts(Stonith  *s)
 	for (j=0; j < numnames-1; ++j) {
 		ret[j] = MALLOC(strlen(nd->hostlist[j])+1);
 		if (ret[j] == NULL) {
-			NULLfree_hostlist(ret);
+			st_freehostlist(ret);
 			ret = NULL;
 			return ret;
 		}
@@ -136,8 +137,8 @@ NULLlist_hosts(Stonith  *s)
 	return(ret);
 }
 
-static void
-NULLfree_hostlist (char ** hlist)
+void
+st_freehostlist (char ** hlist)
 {
 	char **	hl = hlist;
 	if (hl == NULL) {
@@ -206,7 +207,7 @@ NULL_parse_config_info(struct NullDevice* nd, const char * info)
 			s += strcspn(s, WHITESPACE);
 			ret[j] = MALLOC((1+(s-start))*sizeof(char));
 			if (ret[j] == NULL) {
-				NULLfree_hostlist(ret);
+				st_freehostlist(ret);
 				ret = NULL;
 				return S_OOPS;
 			}
@@ -223,12 +224,12 @@ NULL_parse_config_info(struct NullDevice* nd, const char * info)
  *	Pretend to reset the given host on this Stonith device.
  *	(we don't even error check the "request" type)
  */
-static int
-NULL_host_req(Stonith * s, int request, const char * host)
+int
+st_reset(Stonith * s, int request, const char * host)
 {
 
 	if (!ISNULLDEV(s)) {
-		syslog(LOG_ERR, "invalid argument to NULL_host_req");
+		syslog(LOG_ERR, "invalid argument to %s", __FUNCTION__);
 		return(S_OOPS);
 	}
 	syslog(LOG_INFO, _("Host %s null-reset."), host);
@@ -239,8 +240,8 @@ NULL_host_req(Stonith * s, int request, const char * host)
  *	Parse the information in the given configuration file,
  *	and stash it away...
  */
-static int
-NULL_set_configfile(Stonith* s, const char * configname)
+int
+st_setconffile(Stonith* s, const char * configname)
 {
 	FILE *	cfgfile;
 
@@ -270,13 +271,13 @@ NULL_set_configfile(Stonith* s, const char * configname)
 /*
  *	Parse the config information in the given string, and stash it away...
  */
-static int
-NULL_provide_config_info(Stonith* s, const char * info)
+int
+st_setconfinfo(Stonith* s, const char * info)
 {
 	struct NullDevice* nd;
 
 	if (!ISNULLDEV(s)) {
-		syslog(LOG_ERR, "NULL_provide_config_info: invalid argument");
+		syslog(LOG_ERR, "%s: invalid argument", __FUNCTION__);
 		return(S_OOPS);
 	}
 	nd = (struct NullDevice *)s->pinfo;
@@ -284,8 +285,8 @@ NULL_provide_config_info(Stonith* s, const char * info)
 	return(NULL_parse_config_info(nd, info));
 }
 
-static const char *
-NULL_getinfo(Stonith * s, int reqtype)
+const char *
+st_getinfo(Stonith * s, int reqtype)
 {
 	struct NullDevice* nd;
 	char *		ret;
@@ -326,20 +327,20 @@ NULL_getinfo(Stonith * s, int reqtype)
 /*
  *	NULL Stonith destructor...
  */
-static void
-NULL_del(Stonith *s)
+void
+st_destroy(Stonith *s)
 {
 	struct NullDevice* nd;
 
 	if (!ISNULLDEV(s)) {
-		syslog(LOG_ERR, "NULL_del: invalid argument");
+		syslog(LOG_ERR, "%s: invalid argument", __FUNCTION__);
 		return;
 	}
 	nd = (struct NullDevice *)s->pinfo;
 
 	nd->NULLid = NOTnullID;
 	if (nd->hostlist) {
-		NULLfree_hostlist(nd->hostlist);
+		st_freehostlist(nd->hostlist);
 		nd->hostlist = NULL;
 	}
 	nd->hostcount = -1;
@@ -349,22 +350,10 @@ NULL_del(Stonith *s)
 	s = NULL;
 }
 
-static struct stonith_ops	NullDevice_ops = {
-	NULL_del,		/* delete		*/
-	NULL_set_configfile,	/* set_config_file	*/
-	NULL_provide_config_info,/* provide_config_info	*/
-	NULL_getinfo,		/* devid		*/
-	NULL_status,		/* status		*/
-	NULL_host_req,		/* reset_req		*/
-	NULLlist_hosts,		/* list_hosts		*/
-	NULLfree_hostlist,	/* free_hostlist	*/
-};
-
 /* Create a new Null Stonith device.  Too bad this function can't be static */
-Stonith *
-__NULL_new(void)
+void *
+st_new(void)
 {
-	Stonith *	ret;
 	struct NullDevice*	nd = MALLOCT(struct NullDevice);
 
 	if (nd == NULL) {
@@ -375,13 +364,5 @@ __NULL_new(void)
 	nd->NULLid = NULLid;
 	nd->hostlist = NULL;
 	nd->hostcount = -1;
-	ret = MALLOCT(Stonith);
-	if (ret == NULL) {
-		syslog(LOG_ERR, "out of memory");
-		FREE(nd);
-		return(NULL);
-	}
-	ret->pinfo = nd;
-	ret->s_ops = &NullDevice_ops;
-	return(ret);
+	return((void *)nd);
 }

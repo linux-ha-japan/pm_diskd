@@ -57,6 +57,7 @@
 typedef struct stonith {
 	struct stonith_ops *	s_ops;
 	void *			pinfo;
+	void *			dlhandle;
 }Stonith;
 
 /*
@@ -65,8 +66,10 @@ typedef struct stonith {
  *	for them.
  */
 
+#define NR_STONITH_FNS 9
 
 struct stonith_ops {
+	void * (*new)		(void);
 	void (*destroy)			(Stonith*);
 	int (*set_config_file)		(Stonith *, const char   * filename); 
 	int (*set_config_info)		(Stonith *, const char   * confstring); 

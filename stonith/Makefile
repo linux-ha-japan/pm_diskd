@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.6 2000/08/30 22:36:27 alan Exp $
+#	$Id: Makefile,v 1.7 2000/09/04 17:10:43 marcelo Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -42,7 +42,7 @@ CFLAGS=-g 				\
 	-Wshadow			\
 	-Wpointer-arith			\
 	-Wwrite-strings			\
-	-Werror				\
+	-Werror                         \
 	-Wtraditional			\
 	-I.				\
 	-DST_TEXTDOMAIN='"Stonith"'	\
@@ -51,30 +51,40 @@ CFLAGS=-g 				\
 
 STONITH = stonith
 
+
 ARFILE = libstonith.a
 SHLIB  = libstonith.so
 
-S_OBJLIST =	expect.o	\
-		baytech.o	\
-		null.o		\
-		stonith.o
+S_OBJLIST =	stonith.o
+	
+
+MODULES = null.o
 
 S_HDRS    =	expect.h stonith.h
 
-LIBS=
+LIBS=  $(MODULES:.o=.so)
 
 BINDIR = $(BUILD_ROOT)/usr/sbin
 LIBDIR = $(BUILD_ROOT)/usr/lib
+MODDIR = $(LIBDIR)/$(STONITH)
+
+CFLAGS := $(CFLAGS) -DSTONITH_MODULES='"$(MODDIR)"'
 
 BINCMDS = $(STONITH)
 
 LIBFILES = $(ARFILE) $(SHLIB)
 
-PRODUCTS = $(BINCMDS)
+PRODUCTS = $(BINCMDS) $(LIBS) baytech.so
 
 SPECSRC = Specfile
 
 all: $(PRODUCTS)
+
+baytech.so:	baytech.o expect.o
+	$(CC) -shared -o $@ $^
+	
+$(MODULES:.o=.so): $(MODULES)
+	$(CC) -shared -o $@ $(@:.so=.o)
 
 $(ARFILE): $(S_OBJLIST)
 	ar rc $(ARFILE) $(S_OBJLIST)
@@ -83,19 +93,21 @@ $(SHLIB): $(ARFILE)
 	ld -shared -o $(SHLIB) --whole-archive $(ARFILE)
 
 $(STONITH): $(ARFILE) main.o
-	$(CC) main.o $(ARFILE) -o stonith
+	$(CC) -ldl main.o $(ARFILE) -o stonith
 
 $(S_OBJLIST) : $(S_HDRS)
 
 install: install_bin install_lib
 
 install_bin: all
-	[ ! -d $(BINDIR) ] && mkdir $(BINDIR)
+	if [ ! -d $(BINDIR) ]; then mkdir -p $(BINDIR) ; fi
 	$(INSTALL) -cm 755 $(BINCMDS) $(BINDIR)
 	ls -l $(BINDIR)/$(BINCMDS)
 
-install_lib: $(LIBFILES)
+install_lib: $(LIBFILES) $(MODULES) baytech.so
 	$(INSTALL) -cm 755 $(LIBFILES) $(LIBDIR)
+	mkdir -p $(MODDIR)
+	$(INSTALL) -cm 755 $(MODULES:.o=.so) baytech.so $(MODDIR)
 
 clean:	
 	rm -f *.o *.swp .*.swp *.a *.so core make.out

@@ -132,22 +132,22 @@ static int	RPCScanLine(struct BayTech* bt, int timeout, char * buf, int max);
 static int	RPCLogout(struct BayTech * bt);
 static void	RPCkillcomm(struct BayTech * bt);
 
-static int	RPC_set_configfile(Stonith *, const char * cfgname);
-static int	RPC_provide_config_info(Stonith *, const char * info);
+int  st_setconffile(Stonith *, const char * cfgname);
+int	st_setconfinfo(Stonith *, const char * info);
 static int	RPC_parse_config_info(struct BayTech* bt, const char * info);
-static const char *
-		RPC_getinfo(Stonith * s, int InfoType);
+const char *
+		st_getinfo(Stonith * s, int InfoType);
 
-static char **	RPClist_hosts(Stonith  *);
-static void	RPCfree_hostlist(char **);
-static int	RPC_status(Stonith * );
-static int	RPC_reset_host(Stonith * s, int request, const char * host);
+char **	st_hostlist(Stonith  *);
+void	st_freehostlist(char **);
+int	st_status(Stonith * );
+int	st_reset(Stonith * s, int request, const char * host);
 #if defined(ST_POWERON) && defined(ST_POWEROFF)
 static int	RPC_onoff(struct BayTech*, int unitnum, const char * unitid
 ,		int request);
 #endif
-static void	baytech_del(Stonith *);
-Stonith *	__baytech_new(void);
+void	st_destroy(Stonith *);
+void *	st_new(void);
 
 /*
  *	We do these things a lot.  Here are a few shorthand macros.
@@ -516,8 +516,8 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 	return(ret);
 }
 
-static int
-RPC_status(Stonith  *s)
+int
+st_status(Stonith  *s)
 {
 	struct BayTech*	bt;
 	int	rc;
@@ -554,8 +554,8 @@ RPC_status(Stonith  *s)
  *	Return the list of hosts (outlet names) for the devices on this BayTech unit
  */
 
-static char **
-RPClist_hosts(Stonith  *s)
+char **
+st_hostlist(Stonith  *s)
 {
 	char		NameMapping[128];
 	char*		NameList[64];
@@ -658,8 +658,8 @@ RPClist_hosts(Stonith  *s)
 	return(ret);
 }
 
-static void
-RPCfree_hostlist (char ** hlist)
+void
+st_freehostlist (char ** hlist)
 {
 	char **	hl = hlist;
 	if (hl == NULL) {
@@ -742,8 +742,8 @@ RPC_connect_device(struct BayTech * bt)
 /*
  *	Reset the given host on this Stonith device.
  */
-static int
-RPC_reset_host(Stonith * s, int request, const char * host)
+int
+st_reset(Stonith * s, int request, const char * host)
 {
 	int	rc = 0;
 	int	lorc = 0;
@@ -804,8 +804,8 @@ RPC_reset_host(Stonith * s, int request, const char * host)
  *	Parse the information in the given configuration file,
  *	and stash it away...
  */
-static int
-RPC_set_configfile(Stonith* s, const char * configname)
+int
+st_setconffile(Stonith* s, const char * configname)
 {
 	FILE *	cfgfile;
 
@@ -835,8 +835,8 @@ RPC_set_configfile(Stonith* s, const char * configname)
 /*
  *	Parse the config information in the given string, and stash it away...
  */
-static int
-RPC_provide_config_info(Stonith* s, const char * info)
+int
+st_setconfinfo(Stonith* s, const char * info)
 {
 	struct BayTech* bt;
 
@@ -848,8 +848,8 @@ RPC_provide_config_info(Stonith* s, const char * info)
 
 	return(RPC_parse_config_info(bt, info));
 }
-static const char *
-RPC_getinfo(Stonith * s, int reqtype)
+const char *
+st_getinfo(Stonith * s, int reqtype)
 {
 	struct BayTech* bt;
 	char *		ret;
@@ -890,8 +890,8 @@ RPC_getinfo(Stonith * s, int reqtype)
 /*
  *	Baytech Stonith destructor...
  */
-static void
-baytech_del(Stonith *s)
+void
+st_destroy(Stonith *s)
 {
 	struct BayTech* bt;
 
@@ -933,22 +933,11 @@ baytech_del(Stonith *s)
 	}
 }
 
-static struct stonith_ops	BayTech_ops = {
-	baytech_del,		/* delete		*/
-	RPC_set_configfile,	/* set_config_file	*/
-	RPC_provide_config_info,/* provide_config_info	*/
-	RPC_getinfo,		/* devid		*/
-	RPC_status,		/* status		*/
-	RPC_reset_host,		/* reset_req		*/
-	RPClist_hosts,		/* list_hosts		*/
-	RPCfree_hostlist,	/* free_hostlist	*/
-};
+/* Create a new BayTech Stonith device. */
 
-/* Create a new BayTech Stonith device.  Too bad this function can't be static */
-Stonith *
-__baytech_new(void)
+void *
+st_new(void)
 {
-	Stonith *	ret;
 	struct BayTech*	bt = MALLOCT(struct BayTech);
 
 	if (bt == NULL) {
@@ -968,13 +957,6 @@ __baytech_new(void)
 	bt->unitid = NULL;
 	REPLSTR(bt->idinfo, DEVICE);
 	REPLSTR(bt->unitid, "unknown");
-	ret = MALLOCT(Stonith);
-	if (ret == NULL) {
-		syslog(LOG_ERR, "out of memory");
-		FREE(bt);
-		return(NULL);
-	}
-	ret->pinfo = bt;
-	ret->s_ops = &BayTech_ops;
-	return(ret);
+
+	return((void *)bt);
 }
