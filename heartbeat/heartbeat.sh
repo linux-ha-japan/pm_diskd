@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.1 1999/09/23 15:31:24 alanr Exp $
+#	$Id: heartbeat.sh,v 1.2 1999/09/23 15:53:13 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -204,9 +204,9 @@ StartHA() {
   fi
   rm -f /var/run/ppp.d/*
   if
-    [ ! -f $HA_DIR/ipresources -a ! -f $HA_DIR/haresources ]
+    [  -f $HA_DIR/ipresources -a ! -f $HA_DIR/haresources ]
   then
-    mv $HA_DIR/ipresources -a $HA_DIR/haresources
+    mv $HA_DIR/ipresources $HA_DIR/haresources
   fi
   #	Start heartbeat daemon
   if
@@ -325,8 +325,12 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
-#  Revision 1.1  1999/09/23 15:31:24  alanr
-#  Initial revision
+#  Revision 1.2  1999/09/23 15:53:13  alanr
+#  First version to work :-)
+#  Got this first version to work...
+#
+#  Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+#  High-Availability Linux
 #
 #  Revision 1.12  1999/09/14 23:07:09  alanr
 #  another comment change...
