@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.31 2003/02/07 08:37:17 horms Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.32 2003/06/24 06:50:13 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -403,7 +403,7 @@ bcast_write(struct hb_media* mp, struct ha_msg * msgptr)
    	}
 
 	if (DEBUGPKTCONT) {
-		PILCallLog(LOG, PIL_DEBUG, pkt);
+		PILCallLog(LOG, PIL_DEBUG, "bcast pkt out: [%s]", pkt);
    	}
 	ha_free(pkt);
 	return(HA_OK);
@@ -775,6 +775,11 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.32  2003/06/24 06:50:13  alan
+ * Added a missing format string.
+ * With the right level of debugging enabled, this could have allowed
+ * a hole to occur.
+ *
  * Revision 1.31  2003/02/07 08:37:17  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.
