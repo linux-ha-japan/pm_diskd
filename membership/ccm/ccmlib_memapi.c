@@ -288,12 +288,14 @@ get_new_membership(mbr_private_t *private,
 	j = OC_EV_SET_MEMB_IDX(newmbr,0);
 
 	for ( i = 0 ; i < n_members; i++ ) {
+		gpointer	gborn; /* Help make gcc warning go away */
 		uuid =  CLLM_GET_UUID(private->llm, mbrinfo->member[i]);
 
 		OC_EV_SET_NODEID(newmbr,j,uuid);
 
-		born = GPOINTER_TO_INT(g_hash_table_lookup(private->bornon, 
-				GINT_TO_POINTER(mbrinfo->member[i])));
+		gborn = g_hash_table_lookup(private->bornon, 
+				GINT_TO_POINTER(mbrinfo->member[i]));
+		born = GPOINTER_TO_INT(gborn);
 
 		/* if there is already a born entry for the
 		 * node, use it. Otherwise create a born entry
