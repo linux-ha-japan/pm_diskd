@@ -36,7 +36,7 @@
 
 #include <stdio.h>
 
-static struct OCF_IPC_CHANNEL*	hbcomm = NULL;
+static struct IPC_CHANNEL*	hbcomm = NULL;
 static GHashTable *		hbattrs;
 static int			hbstatus = -1;
 
@@ -50,7 +50,7 @@ apphb_getrc(void)
 	struct apphb_rc * rcs;
 	int		rc;
 
-	struct OCF_IPC_MESSAGE * msg;
+	struct IPC_MESSAGE * msg;
 
 	while (!hbcomm->ops->is_message_pending(hbcomm)) {
 		;
@@ -71,7 +71,7 @@ int
 apphb_register(const char * appname)
 {
 	int	err;
-	struct OCF_IPC_MESSAGE Msg;
+	struct IPC_MESSAGE Msg;
 	struct apphb_signupmsg msg;
 	static char path [] = PATH_ATTR;
 	static char sockpath [] = APPHBSOCKPATH;
@@ -115,7 +115,7 @@ apphb_register(const char * appname)
 	Msg.msg_len = sizeof(msg);
 	Msg.msg_done = NULL;
 	Msg.msg_private = NULL;
-	Msg.ch = hbcomm;
+	Msg.msg_ch = hbcomm;
 
 	if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
 		apphb_unregister();
@@ -137,7 +137,7 @@ apphb_unregister(void)
 	int	rc = 0;
 	int	err;
 	struct apphb_msg msg;
-	struct OCF_IPC_MESSAGE Msg;
+	struct IPC_MESSAGE Msg;
 
 
 	if (hbcomm == NULL || hbstatus != IPC_OK) {
@@ -152,7 +152,7 @@ apphb_unregister(void)
 		Msg.msg_len = sizeof(msg);
 		Msg.msg_done = NULL;
 		Msg.msg_private = NULL;
-		Msg.ch = hbcomm;
+		Msg.msg_ch = hbcomm;
 
 		if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
 			rc = -1;
@@ -185,7 +185,7 @@ int
 apphb_setinterval(int hbms)
 {
 	struct apphb_msmsg	msg;
-	struct OCF_IPC_MESSAGE	Msg;
+	struct IPC_MESSAGE	Msg;
 	int			err;
 
 	if (hbcomm == NULL || hbstatus != IPC_OK) {
@@ -202,7 +202,7 @@ apphb_setinterval(int hbms)
 	Msg.msg_len = sizeof(msg);
 	Msg.msg_done = NULL;
 	Msg.msg_private = NULL;
-	Msg.ch = hbcomm;
+	Msg.msg_ch = hbcomm;
 
 	if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
 		errno = EBADF;
@@ -220,7 +220,7 @@ int
 apphb_hb(void)
 {
 	struct apphb_msg msg;
-	struct OCF_IPC_MESSAGE	Msg;
+	struct IPC_MESSAGE	Msg;
 
 	if (hbcomm == NULL || hbstatus != IPC_OK) {
 		errno = ESRCH;
@@ -231,7 +231,7 @@ apphb_hb(void)
 	Msg.msg_len = sizeof(msg);
 	Msg.msg_done = NULL;
 	Msg.msg_private = NULL;
-	Msg.ch = hbcomm;
+	Msg.msg_ch = hbcomm;
 
 	if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
 		errno = EBADF;
