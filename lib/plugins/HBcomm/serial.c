@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.7 2001/10/02 20:15:41 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.8 2001/10/02 21:57:19 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -69,7 +69,7 @@ static char *		ttygets(char * inbuf, int length
 ,				struct serial_private *tty);
 static int		serial_write(struct hb_media*mp, struct ha_msg *msg);
 static int		serial_open(struct hb_media* mp);
-static int		ttysetup(int fd);
+static int		ttysetup(int fd, const char * ourtty);
 static int		opentty(char * serial_device);
 static int		serial_close(struct hb_media* mp);
 static int		serial_init(void);
@@ -194,6 +194,7 @@ serial_init (void)
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;	/* ditto */
 	lastserialport = NULL;
+
 	/* This eventually ought be done through the configuration API */
 	if (serial_baud <= 0) {
 		const char *	chbaud;
@@ -203,6 +204,10 @@ serial_init (void)
 	}
 	if (serial_baud <= 0) {
 		serial_baud = DEFAULTBAUD;
+	}
+	if (ANYDEBUG) {
+		LOG(PIL_DEBUG, "serial_init: serial_baud = 0x%x"
+		,	serial_baud);
 	}
 	return(HA_OK);
 }
@@ -217,7 +222,8 @@ serial_new (const char * port)
 
 	/* Let's see if this looks like it might be a serial port... */
 	if (*port != '/') {
-		LOG(PIL_CRIT, "Serial port not full pathname [%s] in config file"
+		LOG(PIL_CRIT
+		,	"Serial port not full pathname [%s] in config file"
 		,	port);
 		return(NULL);
 	}
@@ -228,7 +234,8 @@ serial_new (const char * port)
 		return(NULL);
 	}
 	if (!S_ISCHR(sbuf.st_mode)) {
-		LOG(PIL_CRIT, "Serial port [%s] not a char device in config file"
+		LOG(PIL_CRIT
+		,	"Serial port [%s] not a char device in config file"
 		,	port);
 		return(NULL);
 	}
@@ -293,7 +300,7 @@ serial_close (struct hb_media* mp)
 
 /* Set up a serial line the way we want it be done */
 static int
-ttysetup(int fd)
+ttysetup(int fd, const char * ourtty)
 {
 	struct TERMIOS	ti;
 
@@ -338,6 +345,14 @@ ttysetup(int fd)
 		LOG(PIL_CRIT, "cannot set tty attributes: %s", strerror(errno));
 		return(HA_FAIL);
 	}
+	if (ANYDEBUG) {
+		LOG(PIL_DEBUG, "tty setup on %s complete.", ourtty);
+		LOG(PIL_DEBUG, "Baud rate set to: 0x%x", serial_baud);
+		LOG(PIL_DEBUG, "ti.c_iflag = 0x%x", ti.c_iflag);
+		LOG(PIL_DEBUG, "ti.c_oflag = 0x%x", ti.c_oflag);
+		LOG(PIL_DEBUG, "ti.c_cflag = 0x%x", ti.c_cflag);
+		LOG(PIL_DEBUG, "ti.c_lflag = 0x%x", ti.c_lflag);
+	}
 	/* For good measure */
 	FLUSH(fd);
 	return(HA_OK);
@@ -353,7 +368,7 @@ opentty(char * serial_device)
 		LOG(LOG_CRIT, "cannot open %s: %s", serial_device, strerror(errno));
 		return(fd);
 	}
-	if (!ttysetup(fd)) {
+	if (!ttysetup(fd, serial_device)) {
 		close(fd);
 		return(-1);
 	}
@@ -575,6 +590,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.8  2001/10/02 21:57:19  alan
+ * Added debugging to the tty code.
+ *
  * Revision 1.7  2001/10/02 20:15:41  alan
  * Debug code, etc. from Matt Soffen...
  *
