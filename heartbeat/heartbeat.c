@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.59 2000/06/14 06:17:35 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.60 2000/06/14 15:43:14 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -2794,6 +2794,12 @@ signal_all(int sig)
 				ha_log(LOG_INFO
 				,	"Heartbeat shutdown in progress.");
 				giveup_resources();
+				signal(SIGTERM, SIG_IGN);
+
+				/* Kill any lingering takeover processes, etc. */
+				kill(-getpid(), SIGTERM);
+				sleep(1);
+
 				ha_log(LOG_INFO, "Heartbeat shutdown complete.");
 				unlink(PIDFILE);
 			}
@@ -3436,6 +3442,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.60  2000/06/14 15:43:14  alan
+ * Put in a little shutdown code to make child processes that we've started go away.
+ *
  * Revision 1.59  2000/06/14 06:17:35  alan
  * Changed comments quite a bit, and the code a little...
  *
