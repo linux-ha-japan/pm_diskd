@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.68 2002/09/17 13:41:38 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.69 2002/09/20 02:09:50 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -66,14 +66,13 @@ extern char *				watchdogdev;
 extern int				nummedia;
 extern int                              nice_failback;
 extern int				DoManageResources;
-extern clock_t				hb_warn_ticks;
 extern PILPluginUniv*			PluginLoadingSystem;
 extern GHashTable*			CommFunctions;
 
 int	islegaldirective(const char *directive);
 int     parse_config(const char * cfgfile, char *nodename);
 int	parse_ha_resources(const char * cfgfile);
-static clock_t get_ticks(const char * input);
+static long get_msec(const char * input);
 void	dump_config(void);
 int	add_option(const char *	option, const char * value);
 int	add_node(const char * value, int nodetype);
@@ -125,9 +124,9 @@ init_config(const char * cfgfile)
 		return(HA_FAIL);
 	}
 	config->format_vers = 100;
-	config->heartbeat_interval = 2;
-	config->deadtime_interval = 5;
-	config->initial_deadtime = -1;
+	config->heartbeat_ms = 2000;
+	config->deadtime_ms = 5000;
+	config->initial_deadtime_ms = -1;
 	config->hopfudge = 1;
 	config->log_facility = -1;
 	config->client_children = g_hash_table_new(g_direct_hash
@@ -158,9 +157,9 @@ init_config(const char * cfgfile)
 		++errcount;
 	}
 
-	if (config->warntime_interval <= 0) {
-		config->warntime_interval
-		=	(config->deadtime_interval * CLK_TCK*3)/4;
+	if (config->warntime_ms <= 0) {
+		config->warntime_ms
+		=	(config->deadtime_ms *3)/4;
 	}
 	
 #if !defined(MITJA)
@@ -188,35 +187,35 @@ init_config(const char * cfgfile)
 #endif
 	}
 	setenv(CURHOSTENV, u.nodename, 1);
-	if (config->deadtime_interval <= 2 * config->heartbeat_interval) {
+	if (config->deadtime_ms <= 2 * config->heartbeat_ms) {
 		ha_log(LOG_ERR
-		,	"Dead time [%d] is too small compared to keeplive [%d]"
-		,	config->deadtime_interval, config->heartbeat_interval);
+		,	"Dead time [%ld] is too small compared to keeplive [%ld]"
+		,	config->deadtime_ms, config->heartbeat_ms);
 		++errcount;
 	}
-	if (config->initial_deadtime < 0) {
-		if (config->deadtime_interval > 10) {
-			config->initial_deadtime = config->deadtime_interval;
+	if (config->initial_deadtime_ms < 0) {
+		if (config->deadtime_ms > 10000) {
+			config->initial_deadtime_ms = config->deadtime_ms;
 		}else{
-			if (config->deadtime_interval < 6) {
-				config->initial_deadtime = 12;
+			if (config->deadtime_ms < 6000) {
+				config->initial_deadtime_ms = 12000;
 			}else{
-				config->initial_deadtime = 
-					2 * config->deadtime_interval;
+				config->initial_deadtime_ms = 
+					2 * config->deadtime_ms;
 			}
 		}
 	}
 
 	/* Check deadtime parameters */
-	if (config->initial_deadtime < config->deadtime_interval) {
+	if (config->initial_deadtime_ms < config->deadtime_ms) {
 		ha_log(LOG_ERR
-		,	"Initial dead time [%d] is smaller than"
-	        " deadtime [%d]"
-		,	config->initial_deadtime, config->deadtime_interval);
+		,	"Initial dead time [%ld] is smaller than"
+	        " deadtime [%ld]"
+		,	config->initial_deadtime_ms, config->deadtime_ms);
 		++errcount;
-	}else if (config->initial_deadtime < 10) {
-		ha_log(LOG_WARNING, "Initial dead time [%d] may be too small!"
-		,	config->initial_deadtime);
+	}else if (config->initial_deadtime_ms < 10000) {
+		ha_log(LOG_WARNING, "Initial dead time [%ld ms] may be too small!"
+		,	config->initial_deadtime_ms);
 		ha_log(LOG_INFO
 		, "Initial dead time accounts for slow network startup time");
 		ha_log(LOG_INFO
@@ -290,9 +289,9 @@ init_config(const char * cfgfile)
 
 int add_normal_node(const char *);
 int set_hopfudge(const char *);
-int set_keepalive(const char *);
-int set_deadtime_interval(const char *);
-int set_initial_deadtime(const char *);
+int set_keepalive_ms(const char *);
+int set_deadtime_ms(const char *);
+int set_initial_deadtime_ms(const char *);
 int set_watchdogdev(const char *);
 int set_baudrate(const char *);
 int set_udpport(const char *);
@@ -300,7 +299,7 @@ int set_facility(const char *);
 int set_logfile(const char *);
 int set_dbgfile(const char *);
 int set_nice_failback(const char *);
-int set_warntime_interval(const char *);
+int set_warntime_ms(const char *);
 int set_stonith_info(const char *);
 int set_stonith_host_info(const char *);
 int add_client_child(const char *);
@@ -311,10 +310,10 @@ struct directive {
 }Directives[] =
 {	{KEY_HOST,	add_normal_node}
 ,	{KEY_HOPS,	set_hopfudge}
-,	{KEY_KEEPALIVE,	set_keepalive}
-,	{KEY_DEADTIME,	set_deadtime_interval}
-,	{KEY_INITDEAD,	set_initial_deadtime}
-,	{KEY_WARNTIME,	set_warntime_interval}
+,	{KEY_KEEPALIVE,	set_keepalive_ms}
+,	{KEY_DEADTIME,	set_deadtime_ms}
+,	{KEY_INITDEAD,	set_initial_deadtime_ms}
+,	{KEY_WARNTIME,	set_warntime_ms}
 ,	{KEY_WATCHDOG,	set_watchdogdev}
 ,	{KEY_BAUDRATE,	set_baudrate}
 ,	{KEY_UDPPORT,	set_udpport}
@@ -350,9 +349,8 @@ parse_config(const char * cfgfile, char *nodename)
 	int		errcount = 0;
 	int		j;
 	int		i;
-	clock_t		cticks;
+	longclock_t	cticks;
 	struct stat	sbuf;
-	struct tms	proforma_tms;
 
 	if ((f = fopen(cfgfile, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot open config file [%s]", cfgfile);
@@ -487,7 +485,7 @@ parse_config(const char * cfgfile, char *nodename)
 		}
 	}
 
-	cticks = times(&proforma_tms);
+	cticks = time_longclock();
 
 	for (i=0; i < config->nodecount; ++i) {
 		if (config->nodes[i].nodetype == PINGNODE) {
@@ -533,7 +531,6 @@ parse_config(const char * cfgfile, char *nodename)
  *	Dump the configuration file - as a configuration file :-)
  *
  *	This does not include every directive at this point.
- *	At this point, we don't dump ppp-udp lines correctly.
  */
 void
 dump_config(void)
@@ -563,10 +560,10 @@ dump_config(void)
 	printf("#\n#	Global HA configuration and status\n#\n");
 	printf("#\n%s	%d\t# hops allowed above #nodes (below)\n"
 	,	KEY_HOPS, config->hopfudge);
-	printf("%s	%d\t# (heartbeat interval in seconds)\n"
-	,	KEY_KEEPALIVE, config->heartbeat_interval);
-	printf("%s	%d\t# (seconds to \"node dead\")\n#\n"
-	,	KEY_DEADTIME, config->deadtime_interval);
+	printf("%s	%ldms\t# (heartbeat interval in milliseconds)\n"
+	,	KEY_KEEPALIVE, config->heartbeat_ms);
+	printf("%s	%ldms\t# (milliseconds to \"node dead\")\n#\n"
+	,	KEY_DEADTIME, config->deadtime_ms);
 	if (watchdogdev) {
 		printf("%s	%s\t# (watchdog device name)\n#\n"
 		,	KEY_WATCHDOG, watchdogdev);
@@ -776,7 +773,6 @@ int
 add_node(const char * value, int nodetype)
 {
 	struct node_info *	hip;
-	struct tms		proforma_tms;
 	if (config->nodecount >= MAXNODE) {
 		return(HA_FAIL);
 	}
@@ -788,7 +784,7 @@ add_node(const char * value, int nodetype)
 	hip->rmt_lastupdate = 0L;
 	hip->has_resources = TRUE;
 	hip->anypacketsyet  = 0;
-	hip->local_lastupdate = times(&proforma_tms);
+	hip->local_lastupdate = time_longclock();
 	hip->track.nmissing = 0;
 	hip->track.last_seq = NOSEQUENCE;
 	hip->nodetype = nodetype;
@@ -818,11 +814,11 @@ set_hopfudge(const char * value)
 
 /* Set the keepalive time */
 int
-set_keepalive(const char * value)
+set_keepalive_ms(const char * value)
 {
-	config->heartbeat_interval = atoi(value);
+	config->heartbeat_ms = get_msec(value);
 
-	if (config->heartbeat_interval > 0) {
+	if (config->heartbeat_ms > 0) {
 		return(HA_OK);
 	}
 	return(HA_FAIL);
@@ -831,10 +827,10 @@ set_keepalive(const char * value)
 
 /* Set the dead timeout */
 int
-set_deadtime_interval(const char * value)
+set_deadtime_ms(const char * value)
 {
-	config->deadtime_interval = atoi(value);
-	if (config->deadtime_interval >= 0) {
+	config->deadtime_ms = get_msec(value);
+	if (config->deadtime_ms >= 0) {
 		return(HA_OK);
 	}
 	return(HA_FAIL);
@@ -842,10 +838,10 @@ set_deadtime_interval(const char * value)
 
 /* Set the initial dead timeout */
 int
-set_initial_deadtime(const char * value)
+set_initial_deadtime_ms(const char * value)
 {
-	config->initial_deadtime = atoi(value);
-	if (config->initial_deadtime >= 0) {
+	config->initial_deadtime_ms = get_msec(value);
+	if (config->initial_deadtime_ms >= 0) {
 		return(HA_OK);
 	}
 	return(HA_FAIL);
@@ -1071,47 +1067,85 @@ set_nice_failback(const char * value)
         return(HA_OK);
 }
 
-#define	NUMCHARS	"0123456789."
 
-static clock_t
-get_ticks(const char * input)
+/*
+ *	Convert a string into a positive, rounded number of milliseconds.
+ *
+ *	Returns -1 on error.
+ *
+ *	Permissible forms:
+ *		[0-9]+			units are seconds
+ *		[0-9]*.[0-9]+		units are seconds
+ *		[0-9]+ *[Mm][Ss]	units are milliseconds
+ *		[0-9]*.[0-9]+ *[Mm][Ss]	units are milliseconds
+ *		[0-9]+ *[Uu][Ss]	units are microseconds
+ *		[0-9]*.[0-9]+ *[Uu][Ss]	units are microseconds
+ *
+ *	Examples:
+ *
+ *		1		= 1000 milliseconds
+ *		1000ms		= 1000 milliseconds
+ *		1000000us	= 1000 milliseconds
+ *		0.1		= 100 milliseconds
+ *		100ms		= 100 milliseconds
+ *		100000us	= 100 milliseconds
+ *		0.001		= 1 millisecond
+ *		1ms		= 1 millisecond
+ *		1000us		= 1 millisecond
+ *		499us		= 0 milliseconds
+ *		501us		= 1 millisecond
+ */
+#define	NUMCHARS	"0123456789."
+static long
+get_msec(const char * input)
 {
 	const char *	cp = input;
 	const char *	units;
-	int		multiplier = CLK_TCK;
-	int		divisor = 1;
-	clock_t		ret;
+	long		multiplier = 1000;
+	long		divisor = 1;
+	long		ret = -1;
 	double		dret;
 
 	cp += strspn(cp, WHITESPACE);
 	units = cp + strspn(cp, NUMCHARS);
 	units += strspn(units, WHITESPACE);
 
+	if (strchr(NUMCHARS, *cp) == NULL) {
+		return ret;
+	}
+
 	if (strncasecmp(units, "ms", 2) == 0
 	||	strncasecmp(units, "msec", 4) == 0) {
-		multiplier = CLK_TCK;
+		multiplier = 1;
+		divisor = 1;
+	}else if (strncasecmp(units, "us", 2) == 0
+	||	strncasecmp(units, "usec", 4) == 0) {
+		multiplier = 1;
 		divisor = 1000;
+	}else if (*units != EOS && *units != '\n'
+	&&	*units != '\r') {
+		return ret;
 	}
 	dret = atof(cp);
 	dret *= (double)multiplier;
 	dret /= (double)divisor;
 	dret += 0.5;
-	ret = (clock_t)dret;
+	ret = (long)dret;
 	return(ret);
 }
 
 /* Set warntime interval */
 int
-set_warntime_interval(const char * value)
+set_warntime_ms(const char * value)
 {
-	clock_t	warntime;
-	warntime = get_ticks(value);
+	long	warntime;
+	warntime = get_msec(value);
 
 	if (warntime <= 0) {
 		fprintf(stderr, "Warn time [%s] is invalid.\n", value);
 		return(HA_FAIL);
 	}
-	config->warntime_interval = warntime;
+	config->warntime_ms = warntime;
 	return(HA_OK);
 }
 
@@ -1365,6 +1399,12 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.69  2002/09/20 02:09:50  alan
+ * Switched heartbeat to do everything with longclock_t instead of clock_t.
+ * Switched heartbeat to be configured fundamentally from millisecond times.
+ * Changed heartbeat to not use alarms for much of anything.
+ * These are relatively major changes, but the seem to work fine.
+ *
  * Revision 1.68  2002/09/17 13:41:38  alan
  * Fixed a bug in PILS pointed out by lmb which kept it from working
  * 	when a user specified a STONITH directive in heartbeat.

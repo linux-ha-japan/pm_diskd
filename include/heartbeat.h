@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.19 2002/09/13 05:38:34 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.20 2002/09/20 02:09:51 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -51,6 +51,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.19 2002/09/13 05:38:
 #include <HBcomm.h>
 #include <stonith/stonith.h>
 #include <clplumbing/cl_log.h>
+#include <clplumbing/longclock.h>
 #include <ltdl.h>
 #define index FooIndex
 #define time FooTime
@@ -213,7 +214,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.19 2002/09/13 05:38:
 #define	MAXMISSING	16
 #define	NOSEQUENCE	0xffffffffUL
 struct seqtrack {
-	clock_t		last_rexmit_req;
+	longclock_t	last_rexmit_req;
 	int		nmissing;
 	unsigned long	generation;	/* Heartbeat generation # */
 	unsigned long	last_seq;
@@ -222,7 +223,7 @@ struct seqtrack {
 };
 
 struct link {
-	clock_t		lastupdate;
+	longclock_t	lastupdate;
 	const char *	name;
 	int		isping;
 	char		status[STATUSLENG]; /* up or down */
@@ -233,14 +234,14 @@ struct link {
 #define	PINGNODE	1
 
 struct node_info {
-	int	nodetype;
-	char	nodename[HOSTLENG];	/* Host name from config file */
-	char	status[STATUSLENG];	/* Status from heartbeat */
-	struct link links[MAXMEDIA];
-	int	nlinks;
-	time_t	rmt_lastupdate;		/* node's idea of last update time */
+	int		nodetype;
+	char		nodename[HOSTLENG];	/* Host name from config file */
+	char		status[STATUSLENG];	/* Status from heartbeat */
+	struct link	links[MAXMEDIA];
+	int		nlinks;
+	time_t		rmt_lastupdate;	/* node's idea of last update time */
 	unsigned long	status_seqno;	/* Seqno of last status update */
-	clock_t	local_lastupdate;	/* Date of last update in clock_t time*/
+	longclock_t	local_lastupdate;/* Date of last update in clock_t time*/
 	int	status_gen;		/* Status generation # */
 	int	anypacketsyet;		/* True after reception of 1st pkt */
 	struct seqtrack	track;
@@ -251,23 +252,23 @@ struct node_info {
 #define MAXAUTH	16
 
 struct sys_config {
-	time_t	cfg_time;		/* Timestamp of config file */
-	time_t	auth_time;		/* Timestamp of authorization file */
-	time_t	rsc_time;		/* Timestamp of haresources file */
-	int	format_vers;		/* Version of this info */
-	int	nodecount;		/* Number of nodes in cluster */
-	int	heartbeat_interval;	/* Seconds between heartbeats */
-	int	deadtime_interval;	/* Seconds before declaring dead */
-	int	initial_deadtime;	/* Secs before saying dead 1st time*/
-	clock_t	warntime_interval;	/* Ticks before declaring dead */
-	int	hopfudge;		/* hops beyond nodecount allowed */
-	int     log_facility;		/* syslog facility, if any */
-	char	facilityname[PATH_MAX];	/* syslog facility name (if any) */
-	char    logfile[PATH_MAX];	/* path to log file, if any */
-        int     use_logfile;            /* Flag to use the log file*/
-	char	dbgfile[PATH_MAX];	/* path to debug file, if any */
-        int     use_dbgfile;            /* Flag to use the debug file*/
-	int	rereadauth;		/* 1 if we need to reread auth file */
+	time_t		cfg_time;		/* Timestamp of config file */
+	time_t		auth_time;		/* Timestamp of authorization file */
+	time_t		rsc_time;		/* Timestamp of haresources file */
+	int		format_vers;		/* Version of this info */
+	int		nodecount;		/* Number of nodes in cluster */
+	long		heartbeat_ms;	/* Milliseconds between heartbeats */
+	long		deadtime_ms;	/* Ticks before declaring dead */
+	long		initial_deadtime_ms;	/* Ticks before saying dead 1st time*/
+	long		warntime_ms;	/* Ticks before declaring dead */
+	int		hopfudge;		/* hops beyond nodecount allowed */
+	int    		log_facility;		/* syslog facility, if any */
+	char		facilityname[PATH_MAX];	/* syslog facility name (if any) */
+	char   		logfile[PATH_MAX];	/* path to log file, if any */
+        int    		use_logfile;            /* Flag to use the log file*/
+	char		dbgfile[PATH_MAX];	/* path to debug file, if any */
+        int    		use_dbgfile;            /* Flag to use the debug file*/
+	int		rereadauth;		/* 1 if we need to reread auth file */
 	unsigned long	generation;	/* Heartbeat generation # */
 	int		authnum;
 	Stonith*	stonith;	/* Stonith method: WE NEED A LIST TO SUPPORT MULTIPLE STONITH DEVICES PER NODE -EZA */
@@ -301,12 +302,12 @@ int parse_authfile(void);
 
 #define	MAXMSGHIST	100
 struct msg_xmit_hist {
-	struct ha_msg*		msgq[MAXMSGHIST];
-	int			seqnos[MAXMSGHIST];
-	clock_t			lastrexmit[MAXMSGHIST];
-	int			lastmsg;
-	int			hiseq;
-	int			lowseq; /* one less than min actually present */
+	struct ha_msg*	msgq[MAXMSGHIST];
+	int		seqnos[MAXMSGHIST];
+	longclock_t	lastrexmit[MAXMSGHIST];
+	int		lastmsg;
+	int		hiseq;
+	int		lowseq; /* one less than min actually present */
 };
 
 /*
@@ -320,7 +321,6 @@ struct client_child {
 	int	respawn;	/* Respawn it if it dies? */
 	uid_t	u_runas;	/* Which user to run as? */
 	gid_t	g_runas;	/* Which group id to run as? */
-	clock_t	lastrespawn;	/* Last time we respawned this command */
 	int	respawncount;	/* Last time we respawned this command */
 	int	shortrcount;	/* How many times has it respawned too fast? */
 	char*	command;	/* What command to run? */

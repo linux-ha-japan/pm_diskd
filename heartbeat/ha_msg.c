@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.27 2002/09/17 20:48:06 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.28 2002/09/20 02:09:50 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -154,6 +154,7 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 		ha_log(LOG_ERR
 		,	"ha_msg_nadd: newline in value. name [%s]"
 		" value [%s]", name, value);
+		return(HA_FAIL);
 	}
 
 	if ((cpname = ha_malloc(namelen+1)) == NULL) {
@@ -445,6 +446,12 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.28  2002/09/20 02:09:50  alan
+ * Switched heartbeat to do everything with longclock_t instead of clock_t.
+ * Switched heartbeat to be configured fundamentally from millisecond times.
+ * Changed heartbeat to not use alarms for much of anything.
+ * These are relatively major changes, but the seem to work fine.
+ *
  * Revision 1.27  2002/09/17 20:48:06  alan
  * Put in a check for NULL in ha_msg_mod().
  *

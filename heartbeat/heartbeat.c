@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.210 2002/09/17 18:53:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.211 2002/09/20 02:09:50 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -248,6 +248,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.210 2002/09/17 18:53
 #	include <sched.h>
 #endif
 
+#include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/longclock.h>
 #include <clplumbing/proctrack.h>
 #include <clplumbing/ipc.h>
@@ -265,6 +266,11 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.210 2002/09/17 18:53
 
 #define OPTARGS		"dkMrRsvlC:"
 
+#define	ONEDAY	(24*60*60)
+#define	PRI_SENDSTATUS	G_PRIORITY_HIGH
+#define	PRI_DUMPSTATS	G_PRIORITY_LOW
+#define	PRI_APIREGISTER	(G_PRIORITY_LOW-1)
+#define	PRI_CLUSTERMSG	G_PRIORITY_DEFAULT
 
 /*
  *	Note that the _RSC defines below are bit fields!
@@ -283,7 +289,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.210 2002/09/17 18:53
 
 enum standby { NOT, ME, OTHER, DONE };
 enum standby going_standby = NOT;
-TIME_T  standby_running = 0L;
+longclock_t  standby_running = 0L;
 
 const char *		rsc_msg[] =	{NO_RESOURCES, LOCAL_RESOURCES,
 					FOREIGN_RESOURCES, ALL_RESOURCES};
@@ -304,8 +310,6 @@ int		DoManageResources = 1;
 int		childpid = -1;
 char *		watchdogdev = NULL;
 int		watchdogfd = -1;
-TIME_T		starttime = 0L;
-TIME_T		next_statsdump = 0L;
 void		(*localdie)(void);
 void		cl_glib_msg_handler(const gchar *log_domain
 ,			GLogLevelFlags log_level, const gchar *message
@@ -336,8 +340,7 @@ const char *ha_log_priority[8] = {
 #define PARENT_DEBUG_USR1_SIG		0x0004UL
 #define PARENT_DEBUG_USR2_SIG		0x0008UL
 #define REREAD_CONFIG_SIG		0x0010UL
-#define DING_SIG			0x0020UL
-#define FALSE_ALARM_SIG			0x0040UL
+#define FALSE_ALARM_SIG			0x0020UL
 
 volatile unsigned long pending_handlers = 0;
 
@@ -366,8 +369,6 @@ void	parent_debug_usr2_sig(int sig);
 void	parent_debug_usr2_action(void);
 void	reread_config_sig(int sig);
 void	reread_config_action(void);
-void	ding_sig(int sig);
-void	ding_action(void);
 void	ignore_signal(int sig);
 void	false_alarm_sig(int sig);
 void	false_alarm_action(void);
@@ -388,7 +389,6 @@ void	usage(void);
 int	init_config(const char * cfgfile);
 void	init_procinfo(void);
 int	initialize_heartbeat(void);
-void	init_status_alarm(void);
 void	ha_versioninfo(void);
 static	const char * core_proc_name(enum process_type t);
 
@@ -419,7 +419,6 @@ void	KillTrackedProcess(ProcTrack* p, void * data);
 static	void FinalCPShutdown(void);
 
 void	dump_proc_stats(volatile struct process_info * proc);
-void	dump_all_proc_stats(void);
 void	check_for_timeouts(void);
 void	check_comm_isup(void);
 int	send_resources_held(const char *str, int stable, const char * comment);
@@ -480,8 +479,6 @@ void master_status_process(void);		/* The real biggie */
 
 pid_t		processes[MAXPROCS];
 pid_t		master_status_pid;
-int		send_status_now = 1;	/* Send initial status immediately */
-int		dump_stats_now = 0;
 int		parse_only = 0;
 int		RestartRequested = 0;
 static int	shutdown_in_progress = 0;
@@ -725,7 +722,6 @@ initialize_heartbeat()
 	int		fifoofd;
 
 	localdie = NULL;
-	starttime = time(NULL);
 
 
 	if (IncrGeneration(&config->generation) != HA_OK) {
@@ -1135,7 +1131,7 @@ control_process(FILE * fp, int fifoofd)
 	 */
 	reaper_action(0);
 
-	/* That's All Folks... */
+	/* That's All Folks...  -- NOTREACHED*/
 	cleanexit(LSB_EXIT_OK);
 }
 
@@ -1353,6 +1349,8 @@ void LookForClockJumps(void);
 static int			ClockJustJumped = 0;
 
 static gboolean MSPFinalShutdown(gpointer p);
+static gboolean SendLocalStatus(gpointer p);
+static gboolean DumpAllProcStats(gpointer p);
 
 /* The master status process */
 void
@@ -1368,7 +1366,6 @@ master_status_process(void)
 	GPollFD			APIRegistrationGFD;
 	GMainLoop*		mainloop;
 
-	init_status_alarm();
 	init_watchdog();
 	siginterrupt(SIGTERM, 1);
 	signal(SIGTERM, term_sig);
@@ -1410,6 +1407,7 @@ master_status_process(void)
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Waiting for child processes to start");
 	}
+	send_local_status(NULL);
 	/* Wait until all the child processes are really running */
 	do {
 		allstarted = 1;
@@ -1422,6 +1420,7 @@ master_status_process(void)
 					, pinfo->pstat);
 				}
 				allstarted=0;
+				send_local_status(NULL);
 				sleep(1);
 			}
 		}
@@ -1430,6 +1429,7 @@ master_status_process(void)
 		ha_log(LOG_DEBUG
 		,	"All your child process are belong to us");
 	}
+	send_local_status(NULL);
 	curproc->pstat = RUNNING;
 
 	g_source_add(G_PRIORITY_HIGH, FALSE, &polled_input_SourceFuncs
@@ -1437,22 +1437,30 @@ master_status_process(void)
 
 	ClusterMsgGFD.fd = fd;
 	ClusterMsgGFD.events = G_IO_IN|G_IO_HUP|G_IO_ERR;
-	g_main_add_poll(&ClusterMsgGFD, G_PRIORITY_DEFAULT);
-	g_source_add(G_PRIORITY_DEFAULT, FALSE, &clustermsg_input_SourceFuncs
+	g_main_add_poll(&ClusterMsgGFD, PRI_CLUSTERMSG);
+	g_source_add(PRI_CLUSTERMSG, FALSE, &clustermsg_input_SourceFuncs
 	,	&ClusterMsgGFD,	f, NULL);
 
 	APIRegistrationGFD.fd = regfd;
 	APIRegistrationGFD.events = G_IO_IN;
-	g_main_add_poll(&APIRegistrationGFD, G_PRIORITY_LOW);
-	g_source_add(G_PRIORITY_LOW, FALSE, &APIregistration_input_SourceFuncs
+	g_main_add_poll(&APIRegistrationGFD, PRI_APIREGISTER);
+	g_source_add(PRI_APIREGISTER, FALSE, &APIregistration_input_SourceFuncs
 	,	&APIRegistrationGFD, regfifo, NULL);
 
+	if (ANYDEBUG) {
+		cl_log(LOG_DEBUG
+		,	"Starting local status message @ %ld ms intervals"
+		,	config->heartbeat_ms);
+	}
+	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
+	,	SendLocalStatus, NULL, NULL);
+	Gmain_timeout_add_full(PRI_DUMPSTATS, ONEDAY*1000
+	,	DumpAllProcStats, NULL, NULL);
 	/* Reset timeout times to "now" */
 	for (j=0; j < config->nodecount; ++j) {
 		struct node_info *	hip;
-		struct tms		proforma_tms;
 		hip= &config->nodes[j];
-		hip->local_lastupdate = times(&proforma_tms);
+		hip->local_lastupdate = time_longclock();
 	}
 
 	mainloop = g_main_new(TRUE);
@@ -1477,10 +1485,7 @@ LookForClockJumps(void)
 	if (now < lastnow) {
 		ha_log(LOG_INFO
 		,	"Clock jumped backwards. Compensating.");
-		init_status_alarm();
-		send_status_now = 1;
 		ClockJustJumped = 1;
-		standby_running = 0L;
 		other_is_stable = 1;
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG
@@ -1498,12 +1503,14 @@ polled_input_prepare(gpointer source_data, GTimeVal* current_time
 {
 
 	/* MUST set timeout FIXME!! */
-	*timeout = 1000;
+	*timeout = 5000;
+	if (DEBUGDETAILS){
+		cl_log(LOG_DEBUG,"polled_input_prepare(): timeout=%d"
+		,	*timeout);
+	}
 	LookForClockJumps();
 
 	return (pending_handlers != 0)
-	||	send_status_now
-	||	dump_stats_now
 	||	ClockJustJumped;
 }
 
@@ -1516,10 +1523,14 @@ static gboolean
 polled_input_check(gpointer source_data, GTimeVal* current_time
 ,	gpointer	user_data)
 {
-	struct tms	proforma_tms;
-	longclock_t		now = times(&proforma_tms);
+	longclock_t		now = time_longclock();
 
 	LookForClockJumps();
+
+	if (DEBUGDETAILS) {
+		cl_log(LOG_DEBUG,"polled_input_check(): result = %d"
+		,	cmp_longclock(now, NextPoll) >= 0);
+	}
 
 	return (cmp_longclock(now, NextPoll) >= 0);
 }
@@ -1530,22 +1541,18 @@ polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 {
 	longclock_t	now = time_longclock();
 
+	if (DEBUGDETAILS){
+		cl_log(LOG_DEBUG,"polled_input_dispatch()");
+	}
 	NextPoll = add_longclock(now, msto_longclock(POLL_INTERVAL));
+
 
 	LookForClockJumps();
 
 	if (pending_handlers) {
 		process_pending_handlers();
 	}
-	if (send_status_now) {
-		send_status_now = 0;
-		send_local_status(NULL);
 
-	}
-	if (dump_stats_now) {
-		dump_stats_now = 0;
-		dump_all_proc_stats();
-	}
 
 	/* Scan nodes and links to see if any have timed out */
 	if (!ClockJustJumped) {
@@ -1610,6 +1617,9 @@ static gboolean
 clustermsg_input_prepare(gpointer source_data, GTimeVal* current_time
 ,	gint* timeout, gpointer user_data)
 {
+	if (DEBUGDETAILS){
+		cl_log(LOG_DEBUG,"clustermsg_input_prepare()");
+	}
 	return FALSE;
 }
 
@@ -1629,6 +1639,9 @@ clustermsg_input_dispatch(gpointer source_data, GTimeVal* current_time
 	GPollFD*	gpfd = source_data;
 
 
+	if (DEBUGDETAILS){
+		cl_log(LOG_DEBUG,"clustermsg_input_dispatch()");
+	}
 	if (fileno(f) != gpfd->fd) {
 		/* Bad boojum! */
 		ha_log(LOG_ERR, "FD mismatch in clustermsg_input_dispatch");
@@ -1765,13 +1778,12 @@ process_clustermsg(FILE * f)
 	struct	link *		lnk;
 
 	TIME_T			msgtime = 0;
-	TIME_T			now = time(NULL);
+	longclock_t		now = time_longclock();
 	const char *		from;
 	const char *		ts;
 	const char *		type;
 	int			action;
-	clock_t			messagetime;
-	struct tms		proforma_tms;
+	longclock_t		messagetime;
 	const char *		cseq;
 	unsigned long		seqno = 0;
 	int			stgen;
@@ -1783,14 +1795,13 @@ process_clustermsg(FILE * f)
 	if ((msg = if_msgfromstream(f, iface)) == NULL) {
 		return;
 	}
-	now = time(NULL);
-	messagetime = times(&proforma_tms);
+	messagetime = time_longclock();
 
-	if (standby_running) {
+	if (cmp_longclock(standby_running, zero_longclock) != 0) {
 		/* if there's a standby timer running, verify if it's
 		   time to enable the standby messages again... */
-		if (now >= standby_running) {
-			standby_running = 0L;
+		if (cmp_longclock(now, standby_running) >= 0) {
+			standby_running = zero_longclock;
 			other_is_stable = 1;
 			going_standby = NOT;
 			ha_log(LOG_WARNING, "No reply to standby request"
@@ -1956,15 +1967,16 @@ process_clustermsg(FILE * f)
 		/* Have we seen an update from here before? */
 
 		if (thisnode->local_lastupdate) {
-			clock_t		heartbeat_interval;
-			heartbeat_interval = messagetime
-			-	thisnode->local_lastupdate;
-			if (heartbeat_interval > config->warntime_interval) {
+			long		heartbeat_ms;
+			heartbeat_ms = longclockto_ms(sub_longclock
+			(	messagetime, thisnode->local_lastupdate));
+
+			if (heartbeat_ms > config->warntime_ms) {
 				ha_log(LOG_WARNING
 				,	"Late heartbeat: Node %s:"
 				" interval %ld ms"
 				,	thisnode->nodename
-				,	(heartbeat_interval*1000) / CLK_TCK);
+				,	heartbeat_ms);
 			}
 		}
 
@@ -2022,7 +2034,7 @@ process_clustermsg(FILE * f)
 				,	"Received T_SHUTDONE from ourselves.");
 		    	}
 			/* Trigger final shutdown in a second */
-			g_timeout_add(1000, MSPFinalShutdown, NULL);
+			Gmain_timeout_add(1000, MSPFinalShutdown, NULL);
 		}else{
 			thisnode->has_resources = FALSE;
 			other_is_stable = 0;
@@ -2451,15 +2463,6 @@ check_auth_change(struct sys_config *conf)
 	}
 }
 
-/* Function called to set up status alarms */
-void
-init_status_alarm(void)
-{
-	siginterrupt(SIGALRM, 1);
-	signal(SIGALRM, ding_sig);
-	ding_action();
-}
-
 /*
  * We look at the directory /etc/ha.d/rc.d to see what
  * scripts are there to avoid trying to run anything
@@ -2784,12 +2787,14 @@ ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode
 
 	if (managedchild->respawn && !shutdown_in_progress
 	&&	exitcode != 100) {
-		struct tms	proforma_tms;
-		clock_t		now = times(&proforma_tms);
-		clock_t		minticks = CLK_TCK * 30;
+		longclock_t	now = time_longclock();
+		longclock_t	minticks = msto_longclock(30000);
+		longclock_t	shorttime
+		=	add_longclock(p->startticks, minticks);
+
 		++managedchild->respawncount;
 
-		if ((now - p->startticks) < minticks) {
+		if (cmp_longclock(now, shorttime) < 0) {
 			++managedchild->shortrcount;
 		}else{
 			managedchild->shortrcount = 0;
@@ -2814,7 +2819,7 @@ ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode
 	if (managed_child_count == 0 && shutdown_in_progress
 	&&	! procinfo->giveup_resources) {
 
-		g_timeout_add(1000, MSPFinalShutdown, NULL);
+		Gmain_timeout_add(1000, MSPFinalShutdown, NULL);
 	}
 }
 
@@ -3149,7 +3154,7 @@ term_action(void)
 			ForEachProc(&RscMgmtProcessTrackOps, KillTrackedProcess
 			,	GINT_TO_POINTER(SIGKILL));
 			/* Trigger final shutdown in a second */
-			g_timeout_add(1000, MSPFinalShutdown, NULL);
+			Gmain_timeout_add(1000, MSPFinalShutdown, NULL);
 		}
 		
 	}else if (curproc->type == PROC_CONTROL) {
@@ -3204,15 +3209,6 @@ dump_proc_stats(volatile struct process_info * proc)
 	" pid [%d/%s]", proc->mallocbytes, (int) proc->pid, ct);
 }
 
-void
-dump_all_proc_stats()
-{
-	int	j;
-
-	for (j=0; j < procinfo->nprocs; ++j) {
-		dump_proc_stats(procinfo->info+j);
-	}
-}
 
 static void
 __parent_debug_action(int sig)
@@ -3345,7 +3341,7 @@ restart_heartbeat(void)
 		}
 	}else{
 		/* Make sure they notice we're dead */
-		sleep(config->deadtime_interval+1);
+		sleep((config->deadtime_ms+999)/1000+1);
 		/* "Normal" restart (not quick) */
 		unlink(PIDFILE);
 		execl(HALIB "/heartbeat", "heartbeat", NULL);
@@ -3423,51 +3419,6 @@ reread_config_action(void)
 	}
 }
 
-#define	ONEDAY	(24*60*60)
-
-#define	HB_uS_HZ 	2L		/* 2 = 500ms/tick */
-#define	HB_uS_PERIOD	(1000000L/HB_uS_HZ)
-			/* 100000 microseconds = 100 milliseconds = 10 HZ */
-
-/* Ding!  Activated once per second in the status process */
-void
-ding_sig(int sig)
-{
-	signal(sig, ding_sig);
-	pending_handlers|=DING_SIG;
-}
-
-void
-ding_action(void)
-{
-	TIME_T			now = time(NULL);
-	struct tms		proforma_tms;
-	clock_t			clknow = times(&proforma_tms);
-	static clock_t		clknext = 0L;
-	struct itimerval	nexttime =
-	{	{(HB_uS_PERIOD/1000000), (HB_uS_PERIOD % 1000000)}	/* Repeat Interval */
-	,	{(HB_uS_PERIOD/1000000), (HB_uS_PERIOD % 1000000)}};	/* Timer Value */
-
-	if (DEBUGDETAILS) {
-		ha_log(LOG_DEBUG, "Ding!");
-	}
-
-	if (clknow >= clknext) {
-		clknext = clknow + config->heartbeat_interval * CLK_TCK;
-		if (clknext - clknow > 1) {
-			clknext --; /* Be conservative */
-		}
-		/* Note that it's time to send out our status update */
-		send_status_now = 1;
-	}
-	if (now > next_statsdump) {
-		if (next_statsdump != 0L) {
-			dump_stats_now = 1;
-		}
-		next_statsdump = now + ONEDAY;
-	}
-	setitimer(ITIMER_REAL, &nexttime, NULL);
-}
 
 void
 ignore_signal(int sig)
@@ -3525,10 +3476,6 @@ process_pending_handlers(void)
 			reread_config_action();
 		}
 
-		if (handlers&DING_SIG) {
-			ding_action();
-
-		}
 		if (handlers&FALSE_ALARM_SIG) {
 			false_alarm_action();
 		}
@@ -3543,12 +3490,11 @@ process_pending_handlers(void)
 void
 check_for_timeouts(void)
 {
-	struct tms		proforma_tms;
-	clock_t			now = times(&proforma_tms);
+	longclock_t		now = time_longclock();
 	struct node_info *	hip;
-	clock_t			dead_ticks
-	=	(CLK_TCK * config->deadtime_interval);
-	clock_t			TooOld;
+	longclock_t		dead_ticks
+	=			msto_longclock(config->deadtime_ms);
+	longclock_t		TooOld;
 	int			j;
 
 	if (heartbeat_comm_state != COMM_LINKSUP) {
@@ -3557,31 +3503,25 @@ check_for_timeouts(void)
 		 * dead interval.
 		 *
 		 * We do this because for some unknown reason sometimes
-		 * the network is slow to start working.  Experience indicates that
-		 * 30 seconds is generally enough.  It would be nice to have a
-		 * better way to detect that the network isn't really working,
-		 * but I don't know any easy way.  Patches are being accepted ;-)
+		 * the network is slow to start working.  Experience indicates
+		 * that 30 seconds is generally enough.  It would be nice to
+		 * have a better way to detect that the network isn't really
+		 * working, but I don't know any easy way.
+		 * Patches are being accepted ;-)
 		 */
-		dead_ticks = (CLK_TCK * config->initial_deadtime);
+		dead_ticks = msto_longclock(config->initial_deadtime_ms);
 	}
-	TooOld = now - dead_ticks;
-
-	/* We need to be careful to handle clock_t wrapround carefully */
-	if (now < dead_ticks) {
-		return; /* Ignore timeouts during wraparound */
-			/* This doubles our timeout at this time */
-			/* Sorry. */
+	if (cmp_longclock(now, dead_ticks) <= 0) {
+		TooOld  = zero_longclock;
+	}else{
+		TooOld = sub_longclock(now, dead_ticks);
 	}
 
 	for (j=0; j < config->nodecount; ++j) {
 		hip= &config->nodes[j];
-		if (hip->local_lastupdate > now) {
-			/* This means wraparound has occurred */
-			/* Fudge it to make comparisons work */
-			hip->local_lastupdate = 0L;
-		}
+
 		/* If it's recently updated, or already dead, ignore it */
-		if (hip->local_lastupdate >= TooOld
+		if (cmp_longclock(hip->local_lastupdate, TooOld) >= 0
 		||	strcmp(hip->status, DEADSTATUS) == 0 ) {
 			continue;
 		}
@@ -3601,7 +3541,7 @@ check_for_timeouts(void)
 			if (lnk->lastupdate > now) {
 					lnk->lastupdate = 0L;
 			}
-			if (lnk->lastupdate >= TooOld
+			if (cmp_longclock(lnk->lastupdate, TooOld) >= 0
 			||  strcmp(lnk->status, DEADSTATUS) == 0 ) {
 				i++;
 				continue;
@@ -3895,6 +3835,22 @@ send_local_status(const char * st)
 	ha_msg_del(m);
 	return(rc);
 }
+static gboolean
+SendLocalStatus(gpointer p)
+{
+	send_local_status(NULL);
+	return TRUE;
+}
+static gboolean
+DumpAllProcStats(gpointer p)
+{
+	int	j;
+
+	for (j=0; j < procinfo->nprocs; ++j) {
+		dump_proc_stats(procinfo->info+j);
+	}
+	return TRUE;
+}
 
 /* Mark the given link dead */
 void
@@ -3945,10 +3901,9 @@ mark_node_dead(struct node_info *hip)
 		
 		return;
 	}
-	standby_running = 0L;
 
 	strncpy(hip->status, DEADSTATUS, sizeof(hip->status));
-	standby_running = 0L;
+	standby_running = zero_longclock;
 	if (hip->nodetype != PINGNODE) {
 		if (!hip->has_resources
 		||	(nice_failback && other_holds_resources == NO_RSC)) {
@@ -5390,7 +5345,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		thisnode->rmt_lastupdate = newts;
 		t->nmissing = 0;
 		t->last_seq = seq;
-		t->last_rexmit_req = 0L;
+		t->last_rexmit_req = zero_longclock;
 		t->last_iface = iface;
 		return(IsToUs ? KEEPIT : DROPIT);
 	}
@@ -5445,7 +5400,6 @@ request_msg_rexmit(struct node_info *node, unsigned long lowseq
 	struct ha_msg*	hmsg;
 	char		low[16];
 	char		high[16];
-	struct tms	proforma_tms;
 	if ((hmsg = ha_msg_new(6)) == NULL) {
 		ha_log(LOG_ERR, "no memory for " T_REXMIT);
 	}
@@ -5464,41 +5418,52 @@ request_msg_rexmit(struct node_info *node, unsigned long lowseq
 			ha_log(LOG_ERR, "cannot send " T_REXMIT
 			" request to %s", node->nodename);
 		}
-		node->track.last_rexmit_req = times(&proforma_tms);
+		node->track.last_rexmit_req = time_longclock();
 	}else{
 		ha_log(LOG_ERR, "no memory for " T_REXMIT);
 	}
 	ha_msg_del(hmsg);
 }
+
+#define REXMIT_MS	1000
+
 void
 check_rexmit_reqs(void)
 {
-	clock_t	now = 0L;
-	int	j;
+	longclock_t	minrexmit = 0L;
+	int		gottimeyet = FALSE;
+	int		j;
 
 	for (j=0; j < config->nodecount; ++j) {
 		struct node_info *	hip = &config->nodes[j];
 		struct seqtrack *	t = &hip->track;
 		int			seqidx;
-		struct tms		proforma_tms;
 
 		if (t->nmissing <= 0 ) {
 			continue;
 		}
-		/* We rarely reach this code, so avoid the extra system call */
-		if (now == 0L) {
-			now = times(&proforma_tms);
+		/* We rarely reach this code, so avoid the extra system call*/
+		if (!gottimeyet) {
+			longclock_t	rexmitms = msto_longclock(REXMIT_MS);
+			longclock_t	now = time_longclock();
+
+			gottimeyet = TRUE;
+			if (cmp_longclock(now, rexmitms) < 0) {
+				minrexmit = zero_longclock;
+			}else{
+				minrexmit = sub_longclock(now, rexmitms);
+			}
 		}
-		/* Allow for lbolt wraparound here */
-		if ((now - t->last_rexmit_req) <= CLK_TCK
-		&&	now >= t->last_rexmit_req) {
+
+		if (cmp_longclock(t->last_rexmit_req, minrexmit) < 0) {
+			/* Too soon to ask for retransmission */
 			continue;
 		}
 		/* Time to ask for some packets again ... */
 		for (seqidx = 0; seqidx < t->nmissing; ++seqidx) {
 			if (t->seqmissing[seqidx] != NOSEQUENCE) {
 				/*
-				 * The code for asking for these by groups here
+				 * The code for asking for these by groups
 				 * is complicated.  This code is not.
 				 */
 				request_msg_rexmit(hip, t->seqmissing[seqidx]
@@ -5519,7 +5484,7 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 	for (j=0; j< MAXMSGHIST; ++j) {
 		hist->msgq[j] = NULL;
 		hist->seqnos[j] = 0;
-		hist->lastrexmit[j] = 0L;
+		hist->lastrexmit[j] = zero_longclock;
 	}
 }
 
@@ -5599,9 +5564,8 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 		;	!foundit && msgslot != (firstslot+1); --msgslot) {
 			char *		smsg;
 			int		len;
-			struct tms	proforma_tms;
-			clock_t		now = times(&proforma_tms);
-			clock_t		last_rexmit;
+			longclock_t	now = time_longclock();
+			longclock_t	last_rexmit;
 			if (msgslot < 0) {
 				msgslot = MAXMSGHIST;
 			}
@@ -5614,12 +5578,13 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 
 			/*
 			 * We resend a packet unless it has been re-sent in
-			 * the last second.  We treat lbolt wraparound as though
-			 * the packet needs resending
+			 * the last REXMIT_MS milliseconds.
 			 */
 			last_rexmit = hist->lastrexmit[msgslot];
-			if (last_rexmit != 0L && now > last_rexmit
-			&&	(now - last_rexmit) < CLK_TCK) {
+
+			if (cmp_longclock(last_rexmit, zero_longclock) != 0
+			&&	longclockto_ms(sub_longclock(now,last_rexmit))
+			<	REXMIT_MS) {
 				/* Continue to outer loop */
 				goto NextReXmit;
 			}
@@ -5807,8 +5772,8 @@ IncrGeneration(unsigned long * generation)
 	return HA_OK;
 }
 
-#define	STANDBY_INIT_TO	10L	/* timeout for initial reply */
-#define	STANDBY_RSC_TO	600L	/* timeout waiting for resource handling */
+#define	STANDBY_INIT_TO_MS	10000L		/* ms timeout for initial reply */
+#define	STANDBY_RSC_TO_MS	1200000L	/* resource handling timeout (ms)*/
 
 void
 ask_for_resources(struct ha_msg *msg)
@@ -5820,6 +5785,7 @@ ask_for_resources(struct ha_msg *msg)
 	TIME_T 		now = time(NULL);
 	int		message_ignored = 0;
 	const enum standby	orig_standby = going_standby;
+	longclock_t	standby_rsc_to = msto_longclock(STANDBY_RSC_TO_MS);
 
 	if (!nice_failback) {
 		ha_log(LOG_INFO
@@ -5841,12 +5807,19 @@ ask_for_resources(struct ha_msg *msg)
 		,	info, from, going_standby);
 	}
 
-	if (standby_running && now < standby_running
+	if (cmp_longclock(standby_running, zero_longclock) != 0
+	&&	cmp_longclock(now, standby_running) < 0
 	&&	strcasecmp(info, "me") == 0) {
+		unsigned long	secs_left;
+
+		secs_left = longclockto_ms(sub_longclock(standby_running, now));
+
+		secs_left = (secs_left+999)/1000;
+
 		ha_log(LOG_ERR
 		,	"Standby in progress"
-		"- new request from %s ignored [%ld secs left]"
-		,	from, standby_running - now);
+		"- new request from %s ignored [%ld seconds left]"
+		,	from, secs_left);
 		return;
 	}
 
@@ -5865,7 +5838,9 @@ ask_for_resources(struct ha_msg *msg)
 			return;
 		}
 		if (strcasecmp(info, "me") == 0) {
-			standby_running = now + STANDBY_INIT_TO;
+			longclock_t	init_to = msto_longclock(STANDBY_INIT_TO_MS);
+			standby_running = add_longclock(now, init_to);
+
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG
 				, "ask_for_resources: other now unstable");
@@ -5898,7 +5873,7 @@ ask_for_resources(struct ha_msg *msg)
 	case ME:
 		/* Other node is alive, so give up our resources */
 		if (!msgfromme) {
-			standby_running = now + STANDBY_RSC_TO;
+			standby_running = add_longclock(now, standby_rsc_to);
 			if (strcasecmp(info,"other") == 0) {
 				ha_log(LOG_INFO
 				,	"standby: %s can take our resources"
@@ -5918,14 +5893,14 @@ ask_for_resources(struct ha_msg *msg)
 			,	"Standby process finished. /Me secondary");
 			going_standby = DONE;
 			procinfo->i_hold_resources = NO_RSC;
-			standby_running = now + STANDBY_RSC_TO;
+			standby_running = add_longclock(now, standby_rsc_to);
 		}else{
 			message_ignored = 1;
 		}
 		break;
 	case OTHER:
 		if (strcasecmp(info, "done") == 0) {
-			standby_running = now + STANDBY_RSC_TO;
+			standby_running = add_longclock(now, standby_rsc_to);
 			if (!msgfromme) {
 				/* It's time to acquire resources */
 
@@ -5948,7 +5923,7 @@ ask_for_resources(struct ha_msg *msg)
 
 	case DONE:
 		if (strcmp(info, "done")== 0) {
-			standby_running = 0L;
+			standby_running = zero_longclock;
 			going_standby = NOT;
 			if (msgfromme) {
 				ha_log(LOG_INFO
@@ -6005,6 +5980,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.211  2002/09/20 02:09:50  alan
+ * Switched heartbeat to do everything with longclock_t instead of clock_t.
+ * Switched heartbeat to be configured fundamentally from millisecond times.
+ * Changed heartbeat to not use alarms for much of anything.
+ * These are relatively major changes, but the seem to work fine.
+ *
  * Revision 1.210  2002/09/17 18:53:37  alan
  * Put in a fix to keep mach_down from doing anything with ping node information.
  * Also put in a change to make lmb's last portability fix more portable ;-)
