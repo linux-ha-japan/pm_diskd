@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.8 2002/11/21 15:46:03 lars Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.9 2003/01/08 21:14:08 msoffen Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -473,7 +473,7 @@ HB_make_send_sock(struct hb_media * mp)
  */
 
 #define	MAXBINDTRIES	10
-int
+static int
 HB_make_receive_sock(struct hb_media * mp) {
 
 	struct ip_private * ei;
