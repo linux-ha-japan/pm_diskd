@@ -36,9 +36,11 @@
 #	The broadcast address for the IP alias that is created to support
 #	an IP address defaults to the highest address on the subnet.
 #
-#	The netmask for the interface that is brought up on this IP address
-#	defaults to the same netmask as the route that it selected in
-#	in the step above.
+#	The netmask for the IP alias that is created defaults to the same
+#	netmask as the route that it selected in in the step above.
+#
+#	The base interface for the IPalias that is created defaults to the
+#	same netmask as the route that it selected in in the step above.
 #
 #	If you want to specify that this IP address is to be brought up
 #	on a subnet with a netmask of 255.255.255.0, you would specify
@@ -47,6 +49,14 @@
 #	If you wished to tell it that the broadcast address for this subnet
 #	was 135.9.8.210, then you would specify that this way:
 #		IPaddr::135.9.8.7/8/135.9.8.210
+#
+#	If you wished to tell it that the interface to add the address to
+#	is eth0, then you would need to specify it this way:
+#		IPaddr::135.9.8.7/8/eth0
+#
+#       And this way to specify both the broadcast address and the
+#       interface:
+#		IPaddr::135.9.8.7/8/eth0/135.9.8.210
 #
 #	The IP addresses you list in this file are called "service" addresses,
 #	since they're they're the publicly advertised addresses that clients
@@ -90,10 +100,10 @@
 #just.linux-ha.org	135.9.216.110 135.9.215.111 135.9.216.112 httpd
 #-------------------------------------------------------------------
 #
-#	One service address, with funny subnet and bcast addr
-#		Stop and start httpd service with the subnet address
+#	One service address, with the subnet, interface and bcast addr
+#       explicitly defined.
 #
-#just.linux-ha.org	135.9.216.3/4/135.9.216.12 httpd
+#just.linux-ha.org	135.9.216.3/4/eth0/135.9.216.12 httpd
 #
 #-------------------------------------------------------------------
 #

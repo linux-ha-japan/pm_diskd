@@ -230,8 +230,8 @@ above.&nbsp; The actual line could have read (we've canned the maid): </p>
 Where <b><i>IPaddr</i></b> is the name of our service script, taking
 the argument 192.168.85.3.&nbsp; Sure enough, if you look in the
 directory /etc/ha.d/resource.d, you will find a script called
-IPaddr.&nbsp; This script will also allow you to manipulate the netmask
-and broadcast address of this IP service.&nbsp; To specify a subnet with
+IPaddr.&nbsp; This script will also allow you to manipulate the netmask,
+broadcast address and base interface of this IP service.&nbsp; To specify a subnet with
 32 addresses, you could define the service as (leaving off the IPaddr
 because we can!):
 <pre><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; linuxha1 192.168.85.3/27 httpd smb</b></pre>
@@ -264,7 +264,11 @@ address to be taken over.&nbsp; In the case of a tie, it chooses the
 first route found.&nbsp; For most configurations this means the default
 route will be least preferred. </p>
 <p>If you don't specify a netmask for the IP address in the haresources
-file, the netmask associated with the selected route will be used. <br>
+file, the netmask associated with the selected route will be used. 
+Simmilarly, if an interface is not specivied, then the virtual ip address
+will be added to the interface associated with the selected route.
+If the broadcast address is omitted then the hightest address in
+the subnet is used.<br>
 &nbsp; </p>
 <p><b><font size="+2">Configuring Authkeys</font></b> </p>
 <p>The third file to configure determines your authentication

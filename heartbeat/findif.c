@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.22 2003/02/07 08:37:16 horms Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.23 2003/02/27 06:46:35 horms Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -30,13 +30,21 @@ static const char _findif_c [] = "$Id: findif.c,v 1.22 2003/02/07 08:37:16 horms
  ***********************************************************
  *
  *	Our single argument is of the form:
- *		address/CIDR-netmask/{interface/}broadcast address
- *	with the everything but the address being optional
+ *		address[/netmask[/interface][/boadcast]]
  *
  *	So, the following forms are legal:
+ *	         address
+ *	         address/netmask
+ *	         address/netmask/broadcast
+ *	         address/netmask/interface
+ *	         address/netmask/interface/broadcast
+ *
+ *     E.g.
  *		135.9.216.100
  *		135.9.216.100/24		Implies a 255.255.255.0 netmask
- *		135.9.216.100/8/135.9.216.255
+ *		135.9.216.100/24/255.255.255.0/135.9.216.255
+ *		135.9.216.100/24/255.255.255.0/eth0
+ *		135.9.216.100/24/255.255.255.0/eth0/135.9.216.255
  *
  *
  *	If the CIDR netmask is omitted, we choose the netmask associated with
@@ -45,6 +53,13 @@ static const char _findif_c [] = "$Id: findif.c,v 1.22 2003/02/07 08:37:16 horms
  *	If the broadcast address was omitted, we assume the highest address
  *	in the subnet.
  *
+ *	If the interfaceis omitted, we choose the interface associated with
+ *	the route we selected.
+ *
+ *
+ *	See http://www.doom.net/docs/netmask.html for a table explaining
+ *	CIDR address format and their relationship to life, the universe
+ *	and everything.
  */
 
 #include <portability.h>
@@ -345,18 +360,10 @@ GetAddress (char *inputaddress, char **address, char **netmaskbits
 ,	 char **bcast_arg, char **if_specified)
 {
 	/*
-	 *	Our argument is of the form:
-	 *		address/CIDR-bitcount/broadcast address
-	 *	with the last two portions being optional
-	 *
-	 *	So, the following forms are legal:
-	 *		135.9.216.100
-	 *		135.9.216.100/8
-	 *		135.9.216.100/8/135.9.216.255
-	 *
-	 *	See http://www.doom.net/docs/netmask.html for a table
-	 *	explaining CIDR address format and their relationship
-	 *	to life, the universe and everything.
+	 *	See comment at the top of this file for
+	 *	the format of the argument passed to this programme.
+	 *	The format is broken out into the strings
+	 *	passed to this function.
 	 *
 	 */
 	*address = inputaddress;
@@ -527,9 +534,19 @@ main(int argc, char ** argv) {
 void
 usage()
 {
-	fprintf(stderr, "usage: %s "
-	"ip-address[/CIDR-maskbits[/broadcast-addr]]\n"
-	,	cmdname);
+	fprintf(stderr, "\n"
+		"%s version " VERSION " Copyright Alan Robertson\n"
+		"\n"
+		"Usage: %s address[/netmask[/interface][/boadcast]]\n"
+		"\n"
+		"Where:\n"
+		"    address: IP address of the new virtual interface\n"
+		"    netmask: CIDR netmask of the network that "
+			"address belongs to\n"
+		"    interface: interface to add the virtual interface to\n"
+		"    broadcast: broadcast address of the network that "
+			"address belongs to\n"
+	,	cmdname, cmdname);
 	exit(1);
 }
 		
@@ -601,6 +618,10 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.23  2003/02/27 06:46:35  horms
+ * Slightly better documentation of the options to findif and thus IPaddr.
+ * In particular, how to explicitly define the base interface for a VIP.
+ *
  * Revision 1.22  2003/02/07 08:37:16  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.
