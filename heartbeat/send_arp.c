@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.20 2003/04/15 11:07:05 horms Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.21 2003/04/15 18:56:33 msoffen Exp $";
 /* 
  * send_arp
  * 
@@ -117,7 +117,6 @@ main(int argc, char *argv[])
  */
     c = send_arp(l, ip, device, macaddr, broadcast, netmask, ARPOP_REQUEST);
     c = send_arp(l, ip, device, macaddr, broadcast, netmask, ARPOP_REPLY);
-    printf("\n");
     return (c == -1 ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
@@ -228,6 +227,9 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.21  2003/04/15 18:56:33  msoffen
+ * Removed printf("\n") that served no purpose anymore (used to print .\n).
+ *
  * Revision 1.20  2003/04/15 11:07:05  horms
  * errors go to stderr, not stdout
  *
