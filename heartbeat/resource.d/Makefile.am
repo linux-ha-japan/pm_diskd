@@ -33,8 +33,10 @@ hard_SCRIPTS	=			\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
+			OCF		\
 			portblock	\
 			ServeRAID	\
 			Raid1		\
 			WAS		\
-			WinPopup
+			WinPopup	\
+			Xinetd
