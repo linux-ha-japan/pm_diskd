@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.35 2002/09/17 15:21:38 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.36 2002/09/17 18:53:36 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -72,6 +72,7 @@ implementing any number of interfaces.
 
   0.4.9d:
   + removed an "open" call for /proc/loadavg (improve realtime behavior)
+  + changed API code to not 1-char reads from clients
   + Ignored certain error conditions from API clients
   + fixed an obscure error message about trying to retransmit a packet
 	which we haven't sent yet.  This happens after restarts.
@@ -80,6 +81,19 @@ implementing any number of interfaces.
   + improved debugging for NV failure cases...
   + updated AUTHORS file and simplified the changelog authorship
 	(look in AUTHORS for the real story)
+  + Added Ram Pai's CCM membership code
+  + Added the application heartbeat code
+  + Added the Kevin Dwyer's ipfail client code to the distribution
+  + Many fixes for various tool versions and OS combinations.
+  + Fixed a few bugs related to clients disconnecting.
+  + Fixed some bugs in the CTS test code.
+  + Added BasicSanityCheck script to tell if built objects look good.
+  + Added PATH-like capabilities to PILS
+  + Changed STONITH to use the new plugin system.
+  + *Significantly* improved STONITH usage message (from Lorn Kay)
+  + Fixed some bugs related to restarting.
+  + Made exit codes more LSB-compliant.
+  + Fixed various things so that ping nodes don't break takeovers.
 
   0.4.9c and before:
   + Cluster partitioning  now handled correctly (really!)

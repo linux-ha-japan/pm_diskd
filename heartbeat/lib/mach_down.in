@@ -17,6 +17,10 @@ mdown=$1;	#	The name of the downed machine...
 case $mdown in
   $HA_CURHOST)	exit 0;;	# Oh No!  It's us!
 esac
+
+case $HA_info in
+  *ping*)	exit 0;;
+esac
 #
 #	In the case of nice_failback, we may know that we
 #	already own these resources, but we ignore that fact

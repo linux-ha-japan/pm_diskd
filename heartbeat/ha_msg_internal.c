@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.24 2002/09/17 17:08:00 lars Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.25 2002/09/17 18:53:37 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -234,7 +234,8 @@ controlfifo2msg(FILE * f)
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
 			ha_error("NV failure (controlfifo2msg):");
-			ha_log(LOG_INFO, "[%s] %zd chars", buf, strlen(buf));
+			ha_log(LOG_INFO, "[%s] %ld chars", buf
+			,	(long)strlen(buf));
 			ha_log(LOG_INFO, "First char: 0x%02x"
 			,	(unsigned int)buf[0]);
 			ha_msg_del(ret);
@@ -529,6 +530,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.25  2002/09/17 18:53:37  alan
+ * Put in a fix to keep mach_down from doing anything with ping node information.
+ * Also put in a change to make lmb's last portability fix more portable ;-)
+ *
  * Revision 1.24  2002/09/17 17:08:00  lars
  * strlen() returns size_t and requires %zd instead of %d in *printf() according
  * to ISO C. (Portability fix to compile on size_t != int archs)

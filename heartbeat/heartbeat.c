@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.209 2002/09/17 14:13:24 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.210 2002/09/17 18:53:37 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2587,7 +2587,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				}
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
-					sprintf(ename, "HA_%s", msg->names[j]);
+					snprintf(ename, sizeof(ename), "HA_%s", msg->names[j]);
 					setenv(ename, msg->values[j], 1);
 				}
 				if (ostatus) {
@@ -4003,6 +4003,14 @@ takeover_from_node(const char * nodename)
 		ha_log(LOG_ERR, "no memory to mark node dead");
 		ha_msg_del(hmsg);
 		return;
+	}
+
+	if (hip->nodetype == PINGNODE) {
+		if (ha_msg_add(hmsg, F_COMMENT, "ping") != HA_OK) {
+			ha_log(LOG_ERR, "no memory to mark ping node dead");
+			ha_msg_del(hmsg);
+			return;
+		}
 	}
 
 	/* Sending this message triggers the "mach_down" script */
@@ -5997,6 +6005,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.210  2002/09/17 18:53:37  alan
+ * Put in a fix to keep mach_down from doing anything with ping node information.
+ * Also put in a change to make lmb's last portability fix more portable ;-)
+ *
  * Revision 1.209  2002/09/17 14:13:24  alan
  * A bit more LSB compliance code.
  *
