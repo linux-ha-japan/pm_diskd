@@ -27,6 +27,13 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 
 halibdir		= $(libdir)/@HEARTBEATPKG@
 
+havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
+# fifos with path
+apigid			= @APIGID@
+ipfailuid			= @CCMUID@
+ipfreqfifo		= $(havarlibdir)/api/ipfail.req
+ipfresfifo		= $(havarlibdir)/api/ipfail.rsp
+
 halib_PROGRAMS		= ipfail
 
 ## SOURCES
@@ -34,3 +41,18 @@ ipfail_SOURCES		= ipfail.c
 ipfail_LDADD		=$(top_builddir)/replace/libreplace.la	\
 			$(top_builddir)/lib/clplumbing/libplumb.la \
 			$(top_builddir)/heartbeat/libhbclient.la $(GLIBLIB)
+
+
+## additional Makefile targets
+# additional installations not covered normally
+install-exec-local:
+	test -p $(DESTDIR)$(ipfreqfifo) || mkfifo -m 200 $(DESTDIR)$(ipfreqfifo)
+	test -p $(DESTDIR)$(ipfresfifo) || mkfifo -m 600 $(DESTDIR)$(ipfresfifo)
+	-chgrp $(apigid) $(DESTDIR)/$(ipfreqfifo)
+	-chgrp $(apigid) $(DESTDIR)/$(ipfresfifo)
+	-chown $(ipfailuid) $(DESTDIR)/$(ipfreqfifo)
+	-chown $(ipfailuid) $(DESTDIR)/$(ipfresfifo)
+
+uninstall-local:
+	-test -p $(DESTDIR)$(ipfreqfifo) && rm $(DESTDIR)$(ipfreqfifo)
+	-test -p $(DESTDIR)$(ipfresfifo) && rm $(DESTDIR)$(ipfresfifo)
