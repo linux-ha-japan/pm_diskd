@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <clplumbing/cl_log.h>
 #include <clplumbing/cl_signal.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
@@ -32,7 +33,6 @@
 #include <sys/stat.h>
 #include <stdarg.h>
 #include <syslog.h>
-#include <heartbeat.h>
 #include <hb_api_core.h>
 #include <hb_api.h>
 
@@ -79,7 +79,6 @@ main(int argc, char ** argv)
 	const char *	intf;
 	int		msgcount=0;
 
-	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
 
 	cl_log_set_entity(argv[0]);
