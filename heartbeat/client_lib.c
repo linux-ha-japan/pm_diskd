@@ -455,8 +455,8 @@ hb_api_signoff(struct ll_cluster* cinfo)
 		ha_perror("can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
-	if (!pi->iscasual && DoLock(HBPREFIX, OurClientID) != 0) {
-		ha_log(LOG_ERR, "Cannot lock FIFO for %s", OurClientID);
+	if (!pi->iscasual && DoUnLock(HBPREFIX, OurClientID) != 0) {
+		ha_log(LOG_ERR, "Cannot unlock FIFO for %s", OurClientID);
 	}
 	ZAPMSG(request);
 	OurClientID = NULL;
@@ -1077,7 +1077,7 @@ read_api_msg(llc_private_t* pi)
 		if ((msg=msgfromstream(pi->ReplyFIFO)) == NULL) {
 			ha_perror("read_api_msg: "
 			"Cannot read reply from ReplyFIFO");
-			return NULL;
+			continue;
 		}
 		if ((type=ha_msg_value(msg, F_TYPE)) != NULL
 		&&	strcmp(type, T_APIRESP) == 0) {
