@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.34 2003/04/30 22:24:22 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.35 2003/05/05 11:46:02 alan Exp $";
 
 #ifdef SYSV
 #	include <sys/termio.h>
@@ -294,11 +294,9 @@ struct hb_media {
 	char*		description;	/* Medium description */
 	const struct hb_media_fns*vf;	/* Virtual Functions */
 	IPC_Channel*	wchan[2];
-		/* Read by the write child processes.
-		 * Written to by control and tty read processes
-		 *	(for status changes and ring passthrough).
-		 */
+		/* Read by the write child processes.  */
 	IPC_Channel*	rchan[2];
+		/* Written to by the read child processes.  */
 };
 
 int parse_authfile(void);

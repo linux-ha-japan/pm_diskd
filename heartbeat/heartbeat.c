@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.256 2003/04/30 22:28:09 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.257 2003/05/05 11:46:02 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -239,6 +239,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.256 2003/04/30 22:28
 #include <clplumbing/uids.h>
 #include <clplumbing/GSource.h>
 #include <clplumbing/cl_signal.h>
+#include <clplumbing/cpulimits.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api_core.h>
@@ -399,6 +400,7 @@ static gboolean	polled_input_dispatch(gpointer source_data
 static gboolean	APIregistration_input_dispatch(int fd, gpointer user_data);
 static gboolean	FIFO_child_msg_dispatch(IPC_Channel* chan, gpointer udata);
 static gboolean	read_child_dispatch(IPC_Channel* chan, gpointer user_data);
+static gboolean hb_update_cpu_limit(gpointer p);
 
 
 /*
@@ -489,6 +491,7 @@ init_procinfo()
 void
 hb_versioninfo(void)
 {
+#ifdef STRINGSCMD
 	static int	everprinted=0;
 	char		cmdline[MAXLINE];
 	char		buf[MAXLINE];
@@ -514,8 +517,8 @@ hb_versioninfo(void)
 	/* This command had better be well-behaved! */
 	snprintf(cmdline, MAXLINE
 		/* Break up the string so RCS won't react to it */
-	,	"strings %s/%s | grep '^\\$Id" ": .*\\$' | sort -u"
-	,	HALIB, cmdname);
+	,	"%s %s/%s | grep '^\\$Id" ": .*\\$' | sort -u"
+	,	STRINGSCMD, HALIB, cmdname);
 
 	if ((f = popen(cmdline, "r")) == NULL) {
 		cl_perror("Cannot run: %s", cmdline);
@@ -531,6 +534,7 @@ hb_versioninfo(void)
 	}
 
 	pclose(f);
+#endif
 }
 
 /*
@@ -657,6 +661,10 @@ initialize_heartbeat()
 
 		if (ipc_channel_pair(smj->wchan) != IPC_OK) {
 			cl_perror("cannot create hb write channel IPC");
+			return HA_FAIL;
+		}
+		if (ipc_channel_pair(smj->rchan) != IPC_OK) {
+			cl_perror("cannot create hb read channel IPC");
 			return HA_FAIL;
 		}
 		if (ANYDEBUG) {
@@ -799,7 +807,7 @@ initialize_heartbeat()
 static void
 read_child(struct hb_media* mp)
 {
-	IPC_Channel* ourchan =	mp->wchan[P_READFD];
+	IPC_Channel* ourchan =	mp->rchan[P_READFD];
 
 	if (hb_signal_set_read_child(NULL) < 0) {
 		cl_log(LOG_ERR, "read_child(): hb_signal_set_read_child(): "
@@ -813,6 +821,10 @@ read_child(struct hb_media* mp)
 	hb_signal_process_pending();
 	curproc->pstat = RUNNING;
 
+	if (ANYDEBUG) {
+		/* Limit ourselves to 10% of the CPU */
+		cl_cpu_limit_setpercent(10);
+	}
 	for (;;) {
 		struct	ha_msg*	m;
 		IPC_Message*	imsg;
@@ -843,6 +855,7 @@ read_child(struct hb_media* mp)
 				return;
 			}
 		}
+		cl_cpu_limit_update();
 		cl_realtime_malloc_check();
 	}
 }
@@ -864,6 +877,10 @@ write_child(struct hb_media* mp)
 	// drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
 
+	if (ANYDEBUG) {
+		/* Limit ourselves to 10% of the CPU */
+		cl_cpu_limit_setpercent(10);
+	}
 	for (;;) {
 		struct ha_msg * msgp = msgfromIPC(ourchan);
 
@@ -877,6 +894,7 @@ write_child(struct hb_media* mp)
 		}
 		ha_msg_del(msgp); msgp = NULL;
 		hb_signal_process_pending();
+		cl_cpu_limit_update();
 		cl_realtime_malloc_check();
 	}
 }
@@ -921,6 +939,11 @@ fifo_child(IPC_Channel* chan)
 	// drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
 
+	if (ANYDEBUG) {
+		/* Limit ourselves to 10% of the CPU */
+		cl_cpu_limit_setpercent(10);
+	}
+
 	for (;;) {
 
 		msg = msgfromstream(fifo);
@@ -951,6 +974,7 @@ fifo_child(IPC_Channel* chan)
 			}
 			exit(2);
 		}
+		cl_cpu_limit_update();
 		cl_realtime_malloc_check();
 	}
 }
@@ -1082,6 +1106,14 @@ master_control_process(IPC_Channel* fifoproc)
 			"Soldiering on...");
 	}
 
+	if (ANYDEBUG) {
+		/* Limit ourselves to 10% of the CPU */
+		cl_cpu_limit_setpercent(20);
+		/* Update our CPU limit periodically */
+		Gmain_timeout_add_full(G_PRIORITY_HIGH-1
+		,	cl_cpu_limit_ms_interval()
+		,	hb_update_cpu_limit, NULL, NULL);
+	}
 	cl_make_realtime(-1, hb_realtime_prio, 32, 150);
 
 	set_proc_title("%s: master control process", cmdname);
@@ -1146,11 +1178,18 @@ master_control_process(IPC_Channel* fifoproc)
 	/* Child I/O processes */
 	for(j = 0; j < nummedia; j++) {
 		/*
-		 * We write to the write children, and read from
-		 * the read children using a single socket for both
+		 * We cannot share a socket between the the write and read
+		 * children, though it might sound like it would work ;-)
 		 */
-		G_main_add_IPC_Channel(
-			PRI_CLUSTERMSG, sysmedia[j]->wchan[P_WRITEFD], FALSE
+
+		/* Connect up the write child IPC channel... */
+		G_main_add_IPC_Channel(PRI_CLUSTERMSG
+		,	sysmedia[j]->wchan[P_WRITEFD], FALSE
+		,	NULL, sysmedia+j, NULL);
+
+		/* Connect up the read child IPC channel... */
+		G_main_add_IPC_Channel(PRI_CLUSTERMSG
+		,	sysmedia[j]->rchan[P_WRITEFD], FALSE
 		,	read_child_dispatch, sysmedia+j, NULL);
 	}
 
@@ -2534,6 +2573,13 @@ gboolean
 hb_send_local_status(gpointer p)
 {
 	send_local_status();
+	return TRUE;
+}
+
+static gboolean
+hb_update_cpu_limit(gpointer p)
+{
+	cl_cpu_limit_update();
 	return TRUE;
 }
 
@@ -4031,6 +4077,11 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.257  2003/05/05 11:46:02  alan
+ * Added code to limit our CPU usage when we're running with debugging on.
+ * Changed the code to use separate IPC_Channels for read and write children.
+ * 	This latter was to fix a reasonably nasty bug...
+ *
  * Revision 1.256  2003/04/30 22:28:09  alan
  * Changed heartbeat.c to use cl_log instead of ha_log.
  * Fixed up various formatting things.
