@@ -370,8 +370,6 @@ struct MLModuleImports_s {
 					/* Logging function		*/
 };
 
-MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
-
 /***************************************************************************
  *
  * Start of MLModuleType.h or something like that ;-)
@@ -398,6 +396,10 @@ MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
  * For other modules that implement more than one plugin, one of the plugin
  * names should match the module name.
  */
+
+/* This is how we get started ;-) */
+MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
+
 ML_rc
 MLLoadModule(MLModuleUniv* moduniv, const char * moduletype
 ,	const char * modulename);
@@ -422,17 +424,10 @@ struct MLModuleType_s {
 	GHashTable*		Modules;
 			/* Key is module type, value is MLModule */
 
-	int	(*IsLoaded)	(MLModuleType*, const char * modulename);
-	ML_rc	(*Load)		(MLModuleType*, const char * modulename);
-	ML_rc	(*UnLoad)	(MLModuleType*, const char * modulename);
 	int	(*refcount)	(MLModuleType*, const char * modulename);
 	int	(*modrefcount)	(MLModuleType*, const char * modulename
 	,			int plusminus);
-	void	(*UnloadUnRef)	(MLModuleType*);
-	void	(*setdebuglevel)(MLModuleType*, const char *  modulename);
-					/* modulename may be NULL */
-	int	(*getdebuglevel)(MLModuleType*, const char *  modulename);
-	char**	(*listmodules)(MLModuleType*);
+	char**	(*listmodules)(MLModuleType*, int* listlen);
 };
 /*
  *	MLModuleUniv (aka struct MLModuleUniv_s) is the structure which

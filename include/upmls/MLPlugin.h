@@ -62,8 +62,9 @@ struct MLPluginUniv_s{
 	GHashTable*		pitypes;	/* containing
 						 * MLPluginType objects
 						 */
-	struct MLModuleUniv_s*	modenv;	/* parallel universe of modules */
-	MLModuleImports*	imports;
+	struct MLModuleUniv_s*	moduniv;	/* parallel universe of
+						 * modules
+						 */
 };
 
 /*

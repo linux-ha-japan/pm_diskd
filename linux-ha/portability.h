@@ -1,4 +1,13 @@
-#ifdef HAVE_CONFIG_H
+#ifndef PORTABILITY_H
+#  define PORTABILITY_H
+
+
+#define	EOS			'\0'
+#define	DIMOF(a)		(sizeof(a)/sizeof(a[0]))
+#define	STRLEN(conststr)	((sizeof(conststr)/sizeof(char))-1)
+
+
+#  ifdef HAVE_CONFIG_H
 #	include <config.h>
 
 #ifndef HAVE_SETENV
@@ -61,4 +70,5 @@ inet_pton(int af, const char *src, void *dst);
 #endif
 
 
-#endif /* HAVE_CONFIG_H */
+#  endif /* HAVE_CONFIG_H */
+#endif /* !PORTABILITY_H */

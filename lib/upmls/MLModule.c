@@ -1,42 +1,65 @@
+#include <portability.h>
 #include <unistd.h>
+#include <string.h>
+#include <dirent.h>
+
+/* Dumbness... */
+#define time FooTimeParameter
+#define index FooIndexParameter
+#	include <glib.h>
+#undef time
+#undef index
+
+
 #include <upmls/MLPlugin.h>
 #include "../../libltdl/config.h"
+
+#ifdef BSD
+#	define SCANSEL_C	(void *)
+#else
+#	define SCANSEL_C	/* Nothing */
+#endif
 
 static MLModuleImports MLModuleImportSet;/* UNINITIALIZED: FIXME! */
 
 static void MLPlugin_del(MLPlugin*	plugintype);
 
+#define MODULESUFFIX	LTDL_SHLIB_EXT
 
-static int	debuglevel = 0;
+static int	ModuleDebugLevel = 0;
+
+#define DEBUGMODULE	(ModuleDebugLevel > 0)
 
 static const char * ml_module_version(void);
 static const char * ml_module_name(void);
-/* Cannot be static -- needed for bootstrapping! */
-ML_rc PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* env
-		);
+
+
+static ML_rc PluginPlugin_module_init(MLModuleUniv* univ);
+
 static int ml_GetDebugLevel(void);
 static void ml_SetDebugLevel (int level);
 static void ml_close (MLModule*);
+static char** MLModTypeListModules(MLModuleType* mtype, int* modcount);
 
-extern MLModule* NewMLModule(MLModuleType* mtype
+static MLModule* NewMLModule(MLModuleType* mtype
 	,	const char *	module_name
 	,	lt_dlhandle	dlhand
 	,	MLModuleInitFun ModuleSym);
 
-extern MLModuleType* NewMLModuleType(MLModuleUniv* moduleuniv
+static MLModuleType* NewMLModuleType(MLModuleUniv* moduleuniv
 	,	const char *	moduletype
-	,	MLModuleImports * imports
-	
 );
+
 static MLPlugin* NewMLPlugin(MLPluginType*	plugintype
 	,	const char*	pluginname
 	,	void *		exports
 	,	void*		ud_plugin
 );
 
-MLPluginType* NewMLPluginType(MLPluginUniv*, const char * typename
+static MLPluginType* NewMLPluginType(MLPluginUniv*, const char * typename
 ,	void* pieports, void* user_data);
 
+static MLPluginUniv* NewMLPluginUniv(MLModuleUniv*);
 
 static MLModuleOps ModExports =
 {	ml_module_version
@@ -61,7 +84,7 @@ static void pipi_del_while_walk(gpointer key, gpointer value
 
 static MLPluginOps  PiExports =
 {		pipi_register_plugin
-	,	pipi_unregister_plugin
+	,	pipi_unregister_plugin	/* Whack!! (?) FIXME(?) */
 	,	pipi_close_plugin
 	,	pipi_new_plugintype
 	,	pipi_del_plugintype
@@ -84,9 +107,10 @@ static MLPluginImports PIHandlerImports = {
  *	There are a few potential bootstrapping problems here ;-)
  *
  */
-ML_rc
-PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
+static ML_rc
+PluginPlugin_module_init(MLModuleUniv* univ)
 {
+	MLModuleImports* imports = univ->imports;
 	MLModuleType*	modtype;
 	MLPlugin*	piinfo;
 	MLPluginType*	pitype;
@@ -94,12 +118,12 @@ PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 	MLModule*	pipi_module;
 	ML_rc		rc;
 
-	if (univ->piuniv) {
-		return ML_INVAL;
-	}
 
-	pitype = NewMLPluginType(univ->piuniv, PLUGIN_PLUGIN, &PiExports, NULL);
-	modtype = NewMLModuleType(univ, PLUGIN_PLUGIN, imports);
+	pitype = NewMLPluginType(univ->piuniv, PLUGIN_PLUGIN, &PiExports
+	,	NULL);
+
+	modtype = NewMLModuleType(univ, PLUGIN_PLUGIN);
+
 	pipi_module= NewMLModule(modtype, PLUGIN_PLUGIN, NULL, NULL);
 
 	/* We can call register_module, since it doesn't depend on us... */
@@ -120,7 +144,6 @@ PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 	 * need to bypass the hash table handler lookup that register_plugin
 	 * would do and call the function that register_plugin would call...
 	 *
-	 * The function to call is pipi_register_plugin()...
 	 */
 
 	/* The first argument is the MLPluginType */
@@ -133,27 +156,32 @@ PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 
 
 
+/* Return current PiPi "module" version (not very interesting for us) */
 static const char *
 ml_module_version(void)
 {
 	return("1.0");
 }
+
+/* Return current PiPi "module" name (not very interesting for us) */
 static const char *
 ml_module_name(void)
 {
 	return(PLUGIN_PLUGIN);
 }
 
+/* Return current PiPi debug level */
 static int
 ml_GetDebugLevel(void)
 {
-	return(debuglevel);
+	return(ModuleDebugLevel);
 }
 
+/* Set current PiPi debug level */
 static void
 ml_SetDebugLevel (int level)
 {
-	debuglevel = level;
+	ModuleDebugLevel = level;
 }
 
 /*
@@ -161,15 +189,19 @@ ml_SetDebugLevel (int level)
  *
  * The observant reader will note that this code looks pretty indirect.
  *
- * The reason why it's so indirect is that we have no knowledge of how to shut down
- * a plugin of a given type.  However, every PluginPlugin (plugin manager) exports
- * an interface which will close down any plugin of the type it manages.
+ * The reason why it's so indirect is that we have no knowledge of how to
+ * shut down a plugin of a given type.  However, every PluginPlugin
+ * (plugin manager) exports an interface which will close down any plugin
+ * of the type it manages.
  *
  * It is required for it to understand the Ops which plugins of the type it
  * manages export so it will be able to know how to do that.
+ *
+ * The interface of this module is dicated by what g_hash_table_foreach()
+ * expects.
  */
 
-static void	/* Interface is a GHashTable: required for g_hash_table_foreach() */
+static void	/* IsA GHashFunc: required for g_hash_table_foreach() */
 close_a_plugin
 (	gpointer pluginname	/* Name of this plugin (not used) */
 ,	gpointer vplugin	/* MLPlugin we want to close */
@@ -186,44 +218,70 @@ close_a_plugin
 	pitype =  plugin->plugintype;	/* Find our base plugin type */
 	g_assert(pitype != NULL);
 
-	pipi_ref = pitype->pipi_ref;	/* Find the PluginPlugin that manages us */
+	/* Find the PluginPlugin that manages us */
+	pipi_ref = pitype->pipi_ref;
+
 	g_assert(pipi_ref != NULL);
 
-	exports =  pipi_ref->exports;	/* Find the exported functions from that PIPI */
+	/* Find the exported functions from that PIPI */
+	exports =  pipi_ref->exports;
 
 	g_assert(exports != NULL && exports->CloseOurPI != NULL);
 
-	/* Now, ask that interface to shut us down properly and close us up */
+	/* Now, ask that function to shut us down properly and close us up */
 	exports->CloseOurPI(pipi_ref, plugin);
 }
+
+
+/* Close/shutdown the Module */
 static void
 ml_close (MLModule* module)
 {
 	/* Need to find all the plugins associated with this Module...  */
 	GHashTable*	pi = module->Plugins;
 
-	/* Close every plugin associated with this module */
+	/* Try to close each plugin associated with this module */
 	g_hash_table_foreach(pi, close_a_plugin, NULL);
+
 	/* FIXME:  There is no doubt more cleanup work to do... */
+
+	/*
+	 * In particular, we need to check our reference count
+	 * and unload our module if we can (?)
+	 */
 }
 
 
+/* Register a Plugin Plugin */
 static MLPlugin*
-pipi_register_plugin(MLPluginType* univ
+pipi_register_plugin(MLPluginType* pitype
 	,	const char * pluginname, void * exports, void * user_data
 	,	void**		imports)
 {
 	MLPlugin* ret;
 
-	if (g_hash_table_lookup(univ->plugins, pluginname) != NULL) {
+	if (g_hash_table_lookup(pitype->plugins, pluginname) != NULL) {
 		return NULL;
 	}
-	ret = NewMLPlugin(univ, pluginname, exports, user_data);
-	g_hash_table_insert(univ->plugins, g_strdup(pluginname), ret);
+	ret = NewMLPlugin(pitype, pluginname, exports, user_data);
+	g_hash_table_insert(pitype->plugins, g_strdup(pluginname), ret);
 	*imports = &PIHandlerImports;
 	return ret;
 }
 
+/* Unregister a Plugin Plugin - whack it (is this right? FIXME?)*/
+static ML_rc
+pipi_unregister_plugin(MLPlugin* plugin)
+{
+	MLPluginType*	pitype = plugin->plugintype;
+	g_hash_table_remove(pitype->plugins, plugin->pluginname);
+	MLPlugin_del(plugin);
+	return ML_OK;
+}
+
+/* I'm a little confused: FIXME (ALR) */
+
+/* Close / UnRegister a Plugin Plugin of type Plugin */
 static ML_rc
 pipi_close_plugin(MLPlugin* basepi, MLPlugin*plugin)
 {
@@ -231,28 +289,22 @@ pipi_close_plugin(MLPlugin* basepi, MLPlugin*plugin)
 	g_assert(basepi == plugin);
 	return pipi_unregister_plugin(basepi);
 }
-static ML_rc
-pipi_unregister_plugin(MLPlugin* plugin)
-{
-	MLPluginType*	univ = plugin->plugintype;
-	g_hash_table_remove(univ->plugins, plugin->pluginname);
-	MLPlugin_del(plugin);
-	return ML_OK;
-}
 
-
-/* Create a new MLPluginType object */
+/* Create a new MLPluginType object for PLUGINPLUGIN */
 static MLPluginType*
 pipi_new_plugintype(MLPluginUniv* pluginuniv)
 {
-	MLPluginType*	ret;
+	MLPluginType*	ret = g_new(MLPluginType, 1);
 
-	ret = NEW(MLPluginType);
+	ret->ud_pi_type = NULL;
+	ret->universe = pluginuniv;
 
-	if (!ret) {
-		return ret;
-	}
+	/* FIXME: Need to set pipi_ref - our managing plugin plugin */
+	/* (kind of a pain) */
+	ret->pipi_ref = NULL;
+
 	ret->plugins = g_hash_table_new(g_str_hash, g_str_equal);
+
 	if (!ret->plugins) {
 		DELETE(ret);
 		ret = NULL;
@@ -260,7 +312,7 @@ pipi_new_plugintype(MLPluginUniv* pluginuniv)
 	return(ret);
 }
 
-/* Destroy a MLPluginType object */
+/* Destroy a MLPluginType object - Whack it! */
 static void
 pipi_del_plugintype(MLPluginType* univ)
 {
@@ -271,7 +323,7 @@ pipi_del_plugintype(MLPluginType* univ)
 	DELETE(univ);
 }
 
-static void
+static void	/* IsA GHashFunc: required for g_hash_table_foreach() */
 pipi_del_while_walk(gpointer key, gpointer value, gpointer user_data)
 {
 	GHashTable* t = user_data;
@@ -391,6 +443,26 @@ PiUnloadIfPossible(MLPlugin *epiinfo)
  
 #endif /* __GNUC__ */
  
+#if 0
+static void
+LogMsg(GLogLevelFlags level, const gchar *format, ...)
+{
+  va_list args;
+  va_start (args, format);
+  g_logv (G_LOG_DOMAIN, level, format, args);
+  va_end (args);
+}
+#endif
+
+static void
+DebugMsg(const gchar *format, ...)
+{
+  va_list args;
+  va_start (args, format);
+  g_logv (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, format, args);
+  va_end (args);
+}
+
 
 ML_rc
 RegisterAPlugin(MLModule* modinfo
@@ -460,8 +532,7 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 
 	}else{
 		/* Create a new MLModuleType object */
-		mtype = NewMLModuleType(universe, moduletype
-		,	&MLModuleImportSet);
+		mtype = NewMLModuleType(universe, moduletype);
 	}
 
 	g_assert(mtype != NULL);
@@ -601,8 +672,96 @@ NewMLModule(	MLModuleType* mtype
 	return ret;
 }
 
+static int MLModrefcount(MLModuleType*, const char * modulename);
+static int MLModmodrefcount(MLModuleType* mltype, const char * modulename
+,	int plusminus);
+
+static MLModuleType dummymlmtype =
+{	NULL			/*moduletype*/
+,	NULL			/*moduniv*/
+,	NULL			/*Modules*/
+,	MLModrefcount		/* refcount */
+,	MLModmodrefcount	/* modrefcount */
+,	MLModTypeListModules	/* listmodules */
+};
+
+static MLModuleType*
+NewMLModuleType(MLModuleUniv* moduleuniv
+	,	const char *	moduletype
+)
+{
+	MLModuleType*	ret = g_new(MLModuleType, 1);
+
+	*ret = dummymlmtype;
+
+	ret->moduletype = g_strdup(moduletype);
+	ret->moduniv = moduleuniv;
+	ret->moduniv = moduleuniv;
+
+
+	return ret;
+}
+
+MLModuleUniv*
+NewMLModuleUniv(const char * basemoduledirectory)
+{
+	MLModuleUniv*	ret = g_new(MLModuleUniv, 1);
+
+	if (!g_path_is_absolute(basemoduledirectory)) {
+		g_free(ret); ret = NULL;
+		return(ret);
+	}
+	ret->rootdirectory = g_strdup(basemoduledirectory);
+
+	ret->ModuleTypes = g_hash_table_new(g_str_hash, g_str_equal);
+	ret->imports = &MLModuleImportSet;
+	ret->piuniv = NewMLPluginUniv(ret);
+	return ret;
+}
+
+static MLPluginUniv*
+NewMLPluginUniv(MLModuleUniv* moduniv)
+{
+	MLPluginUniv*	ret = g_new(MLPluginUniv, 1);
+
+	ret->moduniv = moduniv;
+	ret->pitypes = g_hash_table_new(g_str_hash, g_str_equal);
+
+	PluginPlugin_module_init(moduniv);
+	return ret;
+}
+
+
+static int
+MLModrefcount(MLModuleType* mtype, const char * modulename)
+{
+	MLModule*	modinfo;
+
+	if ((modinfo = g_hash_table_lookup(mtype->Modules, modulename))
+	==	NULL) {
+		return -1;
+	}
+	return modinfo->refcnt;
+}
+static int
+MLModmodrefcount(MLModuleType* mtype, const char * modulename
+,	int plusminus)
+{
+	MLModule*	modinfo;
+
+	if ((modinfo = g_hash_table_lookup(mtype->Modules, modulename))
+	==	NULL) {
+		return -1;
+	}
+	if ((modinfo->refcnt += plusminus) < 0) {
+		modinfo->refcnt = 0;
+	}
+	return modinfo->refcnt;
+}
+
+
 /*
- * We need to write lots more functions:  These include...
+ * We need to write more functions:  These include...
  *
  * Module functions:
  *
@@ -610,9 +769,120 @@ NewMLModule(	MLModuleType* mtype
  *
  * MLModuleTypeList()	- returns list of modules of a given type
  *
- * MLLoadPluginModule()	- Loads the PluginPlugin Module for the given type
- * 
- * PluginPlugin functions:
- *
- *
  */
+static void free_dirlist(struct dirent** dlist, int n);
+
+static int qsort_string_cmp(const void *a, const void *b);
+
+
+static void
+free_dirlist(struct dirent** dlist, int n)
+{
+	int	j;
+	for (j=0; j < n; ++j) {
+		if (dlist[j]) {
+			free(dlist[j]);
+			dlist[j] = NULL;
+		}
+	}
+	free(dlist);
+}
+
+static int
+qsort_string_cmp(const void *a, const void *b)
+{
+	return(strcmp(*(const char * const *)a, *(const char * const *)b));
+}
+
+#define FREE_DIRLIST(dlist, n)	{free_dirlist(dlist, n); dlist = NULL;}
+
+static int
+so_select (const struct dirent *dire)
+{ 
+    
+	const char obj_end [] = MODULESUFFIX;
+	const char *end = &dire->d_name[strlen(dire->d_name)
+	-	(STRLEN(obj_end))];
+	
+	
+	if (DEBUGMODULE) {
+		DebugMsg("In so_select: %s.", dire->d_name);
+	}
+	if (obj_end < dire->d_name) {
+			return 0;
+	}
+	if (strcmp(end, obj_end) == 0) {
+		if (DEBUGMODULE) {
+			DebugMsg("FILE %s looks like a module name."
+			,	dire->d_name);
+		}
+		return 1;
+	}
+	if (DEBUGMODULE) {
+		DebugMsg("FILE %s Doesn't look like a module name [%s] "
+		"%d %d %s."
+		,	dire->d_name, end
+		,	sizeof(obj_end), strlen(dire->d_name)
+		,	&dire->d_name[strlen(dire->d_name)
+		-	(sizeof(obj_end)-1)]);
+	}
+	
+	return 0;
+}
+
+/* Return (sorted) list of available module names */
+static char**
+MLModTypeListModules(MLModuleType* mtype
+,	int *		modcount	/* Can be NULL ... */)
+{
+	const char *	basedir = mtype->moduniv->rootdirectory;
+	const char *	modclass = mtype->moduletype;
+	GString*	path;
+	char **		result = NULL;
+	struct dirent**	files;
+	int		modulecount;
+	int		j;
+
+
+	/* Base module directory must be a full path name */
+	if (!g_path_is_absolute(basedir)) {
+		return(NULL);
+	}
+
+	path = g_string_new(basedir);
+	if (modclass) {
+		if (g_string_append_c(path, G_DIR_SEPARATOR) == NULL
+		||	g_string_append(path, modclass) == NULL) {
+			g_string_free(path, 1); path = NULL;
+			return(NULL);
+		}
+	}
+
+	modulecount = scandir(path->str, &files, SCANSEL_C &so_select, NULL);
+	g_string_free(path, 1); path=NULL;
+
+	result = (char **) g_malloc((modulecount+1)*sizeof(char *));
+
+	for (j=0; j < modulecount; ++j) {
+		char*	s;
+		int	slen = strlen(files[j]->d_name)
+		-	STRLEN(MODULESUFFIX);
+
+		s = g_malloc(slen+1);
+		strncpy(s, files[j]->d_name, slen);
+		s[slen] = EOS;
+		result[j] = s;
+	}
+	result[j] = NULL;
+	FREE_DIRLIST(files, modulecount);
+
+	/* Return them in sorted order... */
+	qsort(result, modulecount, sizeof(char *), qsort_string_cmp);
+
+	if (modcount != NULL) {
+		*modcount = modulecount;
+	}
+
+	return(result);
+}
+
