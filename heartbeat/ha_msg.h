@@ -20,7 +20,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.13 2000/08/13 04:36:16 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.14 2000/08/13 15:44:43 alan Exp $";
 #include <stdio.h>
 
 struct ha_msg {
@@ -41,8 +41,8 @@ struct ha_msg {
 
 	/* Common field names for our messages */
 #define	F_TYPE		"t"		/* Message type */
-#define	F_ORIG		"src"		/* Originator */
-#define	F_NODE		"node"		/* Originator */
+#define	F_ORIG		"src"		/* Real Originator */
+#define	F_NODE		"node"		/* Node being described */
 #define	F_TO		"dest"		/* Destination (optional) */
 #define	F_STATUS	"st"		/* New status (type = status) */
 #define	F_TIME		"ts"		/* Timestamp */
@@ -63,17 +63,23 @@ struct ha_msg {
 #define F_APIRESULT	"result"	/* API request result code */
 #define F_IFNAME	"ifname"	/* Interface name */
 
+	/* Message types */
+#define	T_STATUS	"status"	/* Status (heartbeat) */
+#define	T_IFSTATUS	"ifstat"	/* Interface status */
+#define T_APIREQ	"hbapi-req" 	/* Heartbeat API request */
+#define T_APIRESP	"hbapi-resp" 	/* Heartbeat API response */
 
-#define	T_STATUS	"status"	/* Message type = Status */
-#define	T_IFSTATUS	"ifstat"	/* Message type = Interface status */
-#define	NOSEQ_PREFIX	"NS_"		/* Give no sequence number */
-#define	T_REXMIT	NOSEQ_PREFIX "rexmit" /* type = Retransmit req */
-#define	T_NAKREXMIT	NOSEQ_PREFIX "nak_rexmit" /* type = NAK Rexmit req */
-#define	T_NS_STATUS	NOSEQ_PREFIX "st" /* type = ping status */
-#define T_STARTING      "starting"      /* Message type = Starting Heartbeat */
-#define T_RESOURCES	"resource"      /* Message type = Resources info */
-#define T_APIREQ	"hbapi-req" 	/* Message type = Heartbeat API req */
-#define T_APIRESP	"hbapi-resp" 	/* Message type = Heartbeat API req */
+#define	NOSEQ_PREFIX	"NS_"		/* PREFIX: Give no sequence number    */
+	/* Used for messages which can't be retransmitted		      */
+	/* Either they're protocol messages or from dumb (ping) endpoints     */
+#define	T_REXMIT	NOSEQ_PREFIX "rexmit"    	 /* Rexmit request    */
+#define	T_NAKREXMIT	NOSEQ_PREFIX "nak_rexmit"	/* NAK Rexmit request */
+#define	T_NS_STATUS	NOSEQ_PREFIX "st"		/* ping status        */
+
+/* Messages associated with nice_failback */
+#define T_STARTING      "starting"      /* Starting Heartbeat		*/
+					/* (requesting resource report)	*/
+#define T_RESOURCES	"resource"      /* Resources report		*/
 
 
 /* Allocate new (empty) message */

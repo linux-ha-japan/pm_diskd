@@ -1,11 +1,17 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.1 2000/08/13 05:09:36 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.2 2000/08/13 15:44:43 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
  * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
  *
  * The checksum code in this file code was borrowed from the ping program.
- *	
+ *
+ * SECURITY NOTE:  It would be very easy for someone to masquerade as the
+ * device that you're pinging.  If they don't know the password, all they can
+ * do is echo back the packets that you're sending out, or send out old ones.
+ * This does mean that if you're using such an approach, that someone could
+ * make you think you have quorum when you don't during a cluster partition.
+ * The danger in that seems small, but you never know ;-)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,20 +45,9 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.1 2000/08/13 05:09:36 alan Exp $
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <signal.h>
-
-#if defined(__linux__)
-typedef unsigned int in_addr_t;
-#endif
-
-
-#define	ICMP_HDR_SZ	sizeof(struct icmphdr)
-
-#define	DEFDATALEN	(64 - ICMP_HDR_SZ)		/* default data length */
 #include "heartbeat.h"
 
-#if defined(SO_BINDTODEVICE)
-#	include <net/if.h>
-#endif
+#define	ICMP_HDR_SZ	sizeof(struct icmphdr)		/* 8 */
 
 #define	EOS	'\0'
 
@@ -336,6 +331,7 @@ ping_write(struct hb_media* mp, struct ha_msg * msg)
 	icp->icmp_cksum = 0;
 	icp->icmp_seq = htons(ei->iseq);
 	icp->icmp_id = ei->ident;
+	++ei->iseq;
 
 	/* Compute the ICMP checksum */
 	icp->icmp_cksum = in_cksum((u_short *)icp, pktsize);

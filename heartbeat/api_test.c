@@ -1130,7 +1130,10 @@ CallbackCall(llc_private_t* p, struct ha_msg * msg)
 	
 	/* Special case: node status (change) */
 
-	if (p->node_callback && strcasecmp(mtype, T_STATUS) == 0) {
+	if (p->node_callback
+	&&	(strcasecmp(mtype, T_STATUS) == 0
+	||		strcasecmp(mtype, T_NS_STATUS) == 0)) {
+
 		p->node_callback(ha_msg_value(msg, F_ORIG)
 		,	ha_msg_value(msg, F_STATUS), p->node_private);
 		return(1);
