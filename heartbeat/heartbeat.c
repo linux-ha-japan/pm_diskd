@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.196 2002/08/07 18:20:33 msoffen Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.197 2002/08/09 15:11:20 msoffen Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -282,10 +282,12 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.196 2002/08/07 18:20
 
 #define OPTARGS		"dkMrRsvlC:"
 
-#if HAVE_SIGIGNORE && !defined(linux)
-#define IGNORESIG(s) sigignore(s)
+#if HAVE_SIGIGNORE 
+#	if !defined(linux)
+#		define IGNORESIG(s) sigignore(s)
+#	endif
 #else
-#define IGNORESIG(s) ((void)signal((s), SIG_IGN))
+#	define IGNORESIG(s) (signal((s), SIG_IGN))
 #endif
 
 
@@ -2666,6 +2668,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
  *	HA_OSTATUS:	Status of node (before this change)
  *
  */
+	struct sigaction sa;
 	char		command[STATUSLENG];
 	char 		rc_arg0 [] = RC_ARG0;
 	char *	const argv[MAXFIELDS+3] = {rc_arg0, command, NULL};
@@ -2715,7 +2718,11 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				make_normaltime();
 				set_proc_title("%s: notify_world()", cmdname);
 				setpgid(0,0);
-				signal(SIGCHLD,SIG_DFL);
+				sigaction(SIGCHLD, NULL, &sa);
+				if (sa.sa_handler != SIG_DFL) {
+					ha_log(LOG_DEBUG, "notify_world: setting SIGCHLD Handler to SIG_DFL");
+					signal(SIGCHLD,SIG_DFL);
+				}
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
 					sprintf(ename, "HA_%s", msg->names[j]);
@@ -6086,6 +6093,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.197  2002/08/09 15:11:20  msoffen
+ * Same change as apphb/apphbd.c (for the sigignore fix).
+ *
  * Revision 1.196  2002/08/07 18:20:33  msoffen
  * Cleaned up many warning messages from FreeBSD and Solaris.
  * Cleaned up signal calls with SIG_IGN for Solaris to use sigignore function (to remove some warnings).
