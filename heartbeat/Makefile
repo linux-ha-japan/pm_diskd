@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.30 2000/09/01 21:09:12 marcelo Exp $
+#	$Id: Makefile,v 1.31 2000/09/03 22:52:01 marcelo Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -86,14 +86,9 @@ H_OBJLIST = 	heartbeat.o		\
 		lock.o			\
 		module.o
 
-COMM_MODULES =	serial.so \
-			udp.so \
-			ppp-udp.so \
-			ping.so
+COMM_OBJS = ping.o serial.o ppp-udp.o udp.o 
 
-AUTH_MODULES =	md5.so \
-			sha1.so \
-			crc.so
+AUTH_OBJS =	md5.o sha1.o crc.o
 
 H_HDRS    = heartbeat.h ha_msg.h hb_api.h hb_api_core.h
 HBLIBS=	../stonith/libstonith.a
@@ -111,11 +106,11 @@ CLIENTOBJS = ha_msg.o lock.o client_lib.o
 CLIENTLIB = libhbclient.a
 CLIENTSO =  libhbclient.so
 
-LIBS = $(CLIENTLIB) $(CLIENTSO)
+LIBS = $(CLIENTLIB) $(CLIENTSO) $(COMM_OBJS:.o=.so) $(AUTH_OBJS:.o=.so)
 
 LIBCMDS = $(HEARTBEAT) $(SENDARP) $(FINDIF) $(LDIRECTORD) api_test
 
-PRODUCTS = $(LIBCMDS) $(LIBS) modules
+PRODUCTS = $(LIBCMDS) $(LIBS) 
 
 LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 
@@ -130,7 +125,7 @@ SPECSRC = Specfile
 all: $(PRODUCTS)
 
 $(HEARTBEAT): $(H_OBJLIST) $(H_HDRS) $(HBLIBS)
-	$(CC) $(SHAREDFLAGS) $(LDFLAGS) $(H_OBJLIST) $(HBLIBS) -o $(HEARTBEAT)
+	$(CC) $(SHAREDFLAGS) $(LDFLAGS) $(H_OBJLIST) $(HBLIBS) -o $@
 
 $(CLIENTLIB): $(CLIENTOBJS)
 	ar rc $(CLIENTLIB) $(CLIENTOBJS)
@@ -138,17 +133,14 @@ $(CLIENTLIB): $(CLIENTOBJS)
 $(CLIENTSO): $(CLIENTLIB)
 	ld -shared -o $(CLIENTSO) --whole-archive $(CLIENTLIB)
 
-modules: serial.o udp.o ppp-udp.o ping.o md5.o sha1.o crc.o
-	$(CC) -shared -o serial.so serial.o
-	$(CC) -shared -o udp.so udp.o
-	$(CC) -shared -o ppp-udp.so ppp-udp.o
-	$(CC) -shared -o ping.so ping.o
-	$(CC) -shared -o md5.so md5.o
-	$(CC) -shared -o sha1.so sha1.o
-	$(CC) -shared -o crc.so crc.o
+$(COMM_OBJS:.o=.so): $(COMM_OBJS)
+	$(CC) -shared -o $@ $<
+
+$(AUTH_OBJS:.o=.so): $(AUTH_OBJS)
+	$(CC) -shared -o $@ $<
 
 api_test: api_test.o $(CLIENTLIB)
-	$(CC) $(LDFLAGS) api_test.o $(CLIENTLIB) -o api_test
+	$(CC) $(LDFLAGS) $^ -o api_test
 
 $(H_OBJLIST) : $(H_HDRS)
 
@@ -171,8 +163,8 @@ install_bin: all
 	$(INSTALL) -cm 755 $(ROOTFILES) $(HA)
 	mkdir -p $(COMM_MODULES_DIR)
 	mkdir -p $(AUTH_MODULES_DIR)
-	$(INSTALL) -cm 755 $(COMM_MODULES) $(COMM_MODULES_DIR)
-	$(INSTALL) -cm 755 $(AUTH_MODULES) $(AUTH_MODULES_DIR)
+	$(INSTALL) -cm 755 $(COMM_OBJS:.o=.so) $(COMM_MODULES_DIR)
+	$(INSTALL) -cm 755 $(AUTH_OBJS:.o=.so) $(AUTH_MODULES_DIR)
 	if [ ! -d  $(BUILD_ROOT)/$(INITD) ]; then mkdir -p $(BUILD_ROOT)/$(INITD); fi
 	$(INSTALL) -cm 755 heartbeat.sh $(INITSCRIPT)
 	[ -d $(LOGROTATED) ] && \
