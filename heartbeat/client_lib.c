@@ -308,7 +308,8 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		ha_perror("uname failure");
 		return HA_FAIL;
 	}
-	strncpy(OurNode, un.nodename, sizeof(OurNode));
+        bzero(OurNode, sizeof(OurNode));
+	strncpy(OurNode, un.nodename, sizeof(OurNode) -1 );
 
 	/* Crank out the boilerplate */
 	if ((request = hb_api_boilerplate(API_SIGNON)) == NULL) {
@@ -790,7 +791,8 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	strcmp(result, API_OK) == 0
 	&&	(status = ha_msg_value(reply, F_STATUS)) != NULL) {
-		strncpy(statbuf, status, sizeof(statbuf));
+                bzero(statbuf, sizeof(statbuf));
+		strncpy(statbuf, status, sizeof(statbuf) - 1);
 		ret = statbuf;
 	}else{
 		ret = NULL;
@@ -854,7 +856,8 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	strcmp(result, API_OK) == 0
 	&&	(status = ha_msg_value(reply,F_STATUS)) != NULL) {
-		strncpy(statbuf, status, sizeof(statbuf));
+                bzero(statbuf, sizeof(statbuf));
+		strncpy(statbuf, status, sizeof(statbuf) - 1);
 		ret = statbuf;
 	}else{
 		ret = NULL;
@@ -1550,6 +1553,7 @@ int		BufLen = 0;
 static void
 ClearLog(void)
 {
+        bzero(APILogBuf, sizeof(APILogBuf));
 	APILogBuf[0] = EOS;
 	BufLen = 1;
 }
@@ -1576,12 +1580,12 @@ ha_log(int priority, const char * fmt, ...)
 		ClearLog();
 	}
 		
-	if (APILogBuf[0] != EOS && APILogBuf[strlen(APILogBuf)-1] != '\n') {
-		strncat(APILogBuf, "\n", sizeof(APILogBuf));
+	if (APILogBuf[0] != EOS && APILogBuf[BufLen-1] != '\n') {
+		strncat(APILogBuf, "\n", sizeof(APILogBuf)-BufLen-1);
 		BufLen++;
 	}
 
-	strncat(APILogBuf, buf, sizeof(APILogBuf));
+	strncat(APILogBuf, buf, sizeof(APILogBuf)-BufLen-1);
 	BufLen += len;
 }
 
@@ -1604,7 +1608,7 @@ ha_perror(const char * fmt, ...)
 	char buf[MAXLINE];
 
 	if (errno < 0 || errno >= sys_nerr) {
-		sprintf(errornumber, "error %d\n", errno);
+		snprintf(errornumber, sizeof(errornumber), "error %d\n", errno);
 		err = errornumber;
 	}else{
 #ifdef HAVE_STRERROR
