@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.60 2000/06/14 15:43:14 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.61 2000/06/14 22:08:29 lclaudio Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -2521,7 +2521,7 @@ main(int argc, const char ** argv)
 	int		flag;
 	int		argerrs = 0;
 	int		j;
-	char *		CurrentStatus;
+	char *		CurrentStatus=NULL;
 	extern int	optind;
 	pid_t		running_hb_pid = get_running_hb_pid();
 
@@ -3442,6 +3442,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.61  2000/06/14 22:08:29  lclaudio
+ * *** empty log message ***
+ *
  * Revision 1.60  2000/06/14 15:43:14  alan
  * Put in a little shutdown code to make child processes that we've started go away.
  *
