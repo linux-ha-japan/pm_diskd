@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.56 2000/06/13 17:59:53 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.57 2000/06/13 20:19:24 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -262,7 +262,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.56 2000/06/13 17:59:
 #include <ha_msg.h>
 #include <test.h>
 
-#define OPTARGS		"dkrRsv"
+#define OPTARGS		"dkrRsvC:"
 
 /*
  *	This next set of defines is for the types of packets that come through heartbeat.
@@ -1328,6 +1328,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	const char *		type;
 	clock_t			now = times(NULL);
 	enum rsc_state		newrstate = rstate;
+	int			first_time = 1;
 
 	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
 		return;
@@ -1340,6 +1341,10 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			req_our_resources();
 		}
 		return;
+	}
+
+	if (first_time && WeAreRestarting) {
+		rstate = newrstate = R_STABLE;
 	}
 
 	/* Otherwise, we're in the nice_failback case */
@@ -2486,11 +2491,17 @@ usage(void)
 			const char *	desc = "unknown-flag-argument";
 
 			/* Put a switch statement here eventually... */
+			switch(thislet[0]) {
+			case 'C':	desc = "Current-resource-state";
+					break;
+			}
 
 			fprintf(stderr, " [-%c %s]", *thislet, desc);
 		}
 	}
 	fprintf(stderr, "\n");
+	fprintf(stderr, "\t-C only valid with -R\n");
+	fprintf(stderr, "\t-r is mutually exclusive with -R\n");
 	cleanexit(1);
 }
 
@@ -2498,11 +2509,12 @@ usage(void)
 int
 main(int argc, const char ** argv)
 {
-	int	flag;
-	int	argerrs = 0;
-	int	j;
+	int		flag;
+	int		argerrs = 0;
+	int		j;
+	char *		CurrentStatus;
 	extern int	optind;
-	pid_t	running_hb_pid = get_running_hb_pid();
+	pid_t		running_hb_pid = get_running_hb_pid();
 
 	if ((cmdname = strrchr(argv[0], '/')) != NULL) {
 		++cmdname;
@@ -2535,6 +2547,12 @@ main(int argc, const char ** argv)
 				++rpt_hb_status;
 				break;
 
+			case 'C':
+				CurrentStatus = optarg;
+				i_hold_resources
+				=	encode_resources(CurrentStatus);
+				break;
+
 			case 'v':
 				++verbose;
 				break;
@@ -2548,9 +2566,10 @@ main(int argc, const char ** argv)
 	if (optind > argc) {
 		++argerrs;
 	}
-	if (argerrs) {
+	if (argerrs || (CurrentStatus && !WeAreRestarting)) { 
 		usage();
 	}
+
 
 
 	setenv(HADIRENV, HA_D, 1);
@@ -2611,7 +2630,7 @@ main(int argc, const char ** argv)
 	}
 
 	/*
-	 *	We should perform an "exec" of ourselves to restart.
+	 *	We think we just performed an "exec" of ourselves to restart.
 	 */
 
 	if (WeAreRestarting) {
@@ -2625,6 +2644,38 @@ main(int argc, const char ** argv)
 			,	"ERROR: Heartbeat already running [pid %d].\n"
 			,	running_hb_pid);
 			cleanexit(1);
+		}
+
+		/*
+		 * Nice_failback complicates things a bit here...
+		 * We need to allow for the possibility that the user might
+		 * have changed nice_failback options in the config file
+		 */
+
+		if (nice_failback) {
+			/* nice_failback is currently ON */
+
+			if (CurrentStatus == NULL) {
+				/* From !nice_failback to nice_failback */
+				i_hold_resources = LOCAL_RSC;
+				send_resources_held(rsc_msg[LOCAL_RSC],1);
+			}else{
+				/* From nice_failback to nice_failback */
+				/* Cool. Nothing to do. */;
+			}
+		}else{
+			/* nice_failback is currently OFF */
+
+			if (CurrentStatus == NULL) {
+				/* From !nice_failback to !nice_failback */
+				/* Cool. Nothing to do. */ ;
+			}else{
+				/* From nice_failback to not nice_failback */
+				if ((i_hold_resources & LOCAL_RSC)) {
+					/* We expect to have those */
+					req_our_resources();
+				}
+			}
 		}
 	}
 
@@ -2644,6 +2695,7 @@ main(int argc, const char ** argv)
 			ha_log(LOG_INFO
 			,	"Signalling heartbeat pid %d to reread"
 			" config files", running_hb_pid);
+	
 			if (kill(running_hb_pid, SIGHUP) >= 0) {
 				cleanexit(0);
 			}
@@ -3365,6 +3417,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.57  2000/06/13 20:19:24  alan
+ * Added code to make restarting (-R) work with nice_failback. But, not enough, yet...
+ *
  * Revision 1.56  2000/06/13 17:59:53  alan
  * Fixed the nice_failback code to change the way it handles states.
  *
