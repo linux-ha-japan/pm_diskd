@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.59 2000/10/04 17:03:21 eric Exp $
+#	$Id: Specfile,v 1.60 2000/10/25 20:49:26 eric Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -9,7 +9,15 @@ Group: Utilities
 Packager: Alan Robertson <alanr@henge.com>
 Source: http://linux-ha.org/download/%PKG%-%VERS%.tar.gz
 Buildroot: /var/tmp/%PKG%-root
+
+%package ldirectord
+Summary: Monitor daemon for maintaining high availability resources
+Group: Utilities
 Requires: LWP.pm, Net::SSLeay
+
+%package stonith
+Summary: Provides an interface to Shoot The Other Node In The Head 
+Group: Utilities
 
 %description
 %PKG% is a basic heartbeat subsystem for Linux-HA.
@@ -25,6 +33,24 @@ It implements the following kinds of heartbeats:
 	- "ping" heartbeats (for routers, switches, etc.)
 	   (used for breaking ties in 2-node systems)
 
+%description ldirectord
+The Linux Director Daemon (ldirectord) was written by Jacob Rief
+<jacob.rief@tiscover.com>
+
+The ldirectord is a stand-alone daemon to monitor services of real
+servers, currently http, https and ftp service. It is simple to
+install and works with the heartbeat code (http://www.linux-ha.org/).
+
+See 'ldirectord -h' for all the information about ldirectord.
+See linux-ha/doc/ldirectord for more information.
+
+%description stonith
+The STONITH module (a.k.a. STOMITH) provides an extensible interface
+for remotely powering down a node in the cluster.  The idea is quite simple:
+When the software running on one machine wants to make sure another
+machine in the cluster is not using a resource, pull the plug on the other 
+machine. It's simple and reliable, albiet admittedly brutal.
+
 %changelog
 
 * Thu Aug 31 2000 Alan Robertson <alanr@suse.com>,
@@ -32,14 +58,15 @@ It implements the following kinds of heartbeats:
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
      Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
-     Marcelo Tosatti <marcelo@conectiva.com.br>
-     and Horms <horms@vergenet.net>
+     Marcelo Tosatti <marcelo@conectiva.com.br>,
+     Horms <horms@vergenet.net>, Eric Z. Ayers <eric.ayers@compgen.com>
 
 + Version 0.4.9 Beta series
   + Made media modules and authentication modules dynamically loadable.
   + Incorporated new ldirectord version
   + Added STONITH API library
-  + Added STONITH option to heartbeat (stonith)
+  + Added STONITH option to heartbeat (stonith & stonith_node)
+  + Added STONITH support for WTI RPS10 and Night/Ware RPC100S
   + Added heartbeat API code
   + Added late heartbeat warning for heartbeats that arrive later than
     	0.75 of deadtime (warntime option)
@@ -50,6 +77,10 @@ It implements the following kinds of heartbeats:
   + Fixed byte-ordering problem related to output in findif.c.
 	There are probably more, related to input ;-)
   + More SuSE-compatibility changes thanks to Marius Tomaschewski <mt@suse.de>
+  + Fetch broadcast IP from kernel calls instead of output of ifconfig in udp.c
+  + Accept multiple arguments for resource scripts
+  + Added Raid1 and Filesystem resource scripts
+  + Split into 3 rpms - heartbeat, heartbeat-stonith heartbeat-ldirectord
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
@@ -305,23 +336,30 @@ install -m 644 rc.config.heartbeat $TEMPL
 /usr/lib/heartbeat
 /usr/lib/libhbclient.so
 /usr/lib/libhbclient.a
-#  Things for the stonith library...
-/usr/lib/libstonith.a
-/usr/lib/libstonith.so
-%dir /usr/lib/stonith/*.so
-/usr/sbin/stonith
 /etc/ha.d/resource.d
 /etc/rc.d/init.d/heartbeat
 /etc/logrotate.d/heartbeat
 /var/adm/fillup-templates/rc.config.heartbeat
 /var/run/heartbeat-fifo
 %dir /var/run/ppp.d
+%doc doc/*
+
+#  Things for the director deamon
+%files ldirectord
 /sbin/ldirectord
 /etc/logrotate.d/ldirectord
 /etc/rc.d/init.d/ldirectord
 /usr/man/man8/ldirectord.8*
-%doc doc/*
 %doc ldirectord/ldirectord.cf
+
+#  Things for the stonith library...
+%files stonith
+/usr/lib/libstonith.a
+/usr/lib/libstonith.so
+%dir /usr/lib/stonith/*.so
+/usr/sbin/stonith
+
+
 %clean
 rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_DIR/%PKG%-%VERS%
