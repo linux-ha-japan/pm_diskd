@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.2 2001/10/02 16:10:05 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.3 2002/08/23 12:52:29 alan Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -11,7 +11,12 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.2 2001/10/02 16:10:05 ala
  *	one should use the straight serial code and not write a ppp module
  *	again ;-)
  *
- * NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE
+ *	STRONG CAUTION:
+ *	It also has known sprintf-related security bugs which we won't fix
+ *	because we're not maintaining this file.  It probably also no longer
+ *	compiles against everything else in the system.
+ *
+ * NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE
  *
  * Copyright (C) 1999, 2000, 2001 Alan Robertson <alanr@unix.sh>
  *
@@ -1207,6 +1212,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.3  2002/08/23 12:52:29  alan
+ * I just put a caution about known security-related-bugs in this obsolete code.
+ *
  * Revision 1.2  2001/10/02 16:10:05  alan
  * Replaced the obsolescent bzero function with memset.
  *
