@@ -27,7 +27,7 @@
  * interfaces will be registered in a hash table.  If we manage
  * authentication modules, they'll have their (separate) hash table that
  * their exported interfaces are registered in.
- * 
+ *
  */
 
 #define	PIL_PLUGINTYPE		InterfaceMgr
@@ -270,12 +270,17 @@ RegisterGenIF(PILInterface* intf,  void** imports)
 			,	t->typename, ifinfo->userptr);
 		}
 		g_hash_table_insert(ifmap, intf->interfacename,intf->exports);
+
+		*imports = ifinfo->importfuns;
+
+		return PIL_OK;
+
 	}else{
 		GenPIImports->log(PIL_WARN
 		,	"UnregisterGenIF: interface type %s not found"
 		,	intf->interfacename);
 	}
-	return PIL_OK;
+	return PIL_INVAL;
 }
 
 /* Unregister an implementation -
