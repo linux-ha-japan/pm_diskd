@@ -1,0 +1,55 @@
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="GENERATOR" content="Mozilla/4.75 [en] (Windows NT 5.0; U) [Netscape]">
+   <title>Faq'n Tips</title>
+</head>
+<body>
+
+<center><b>Faq'n Tips</b></center>
+
+<p><br>
+<ol>
+<li>
+<a href="#FAQ">Hey!&nbsp; This doesn't look like a FAQ!&nbsp; What gives?</a></li>
+
+<li>
+<a href="#nettools">Every time my machine releases an IP alias, it loses
+the whole interface (i.e eth0)!&nbsp; How do I fix this?</a></li>
+
+<li>
+<a href="#manyIPs">I want a lot of IP addresses as resources (more than
+8).&nbsp; What's the best way?</a></li>
+</ol>
+
+<hr WIDTH="100%">
+<br>&nbsp;
+<ol>
+<li>
+<a NAME="FAQ"></a>Quit your bellyachin'!&nbsp; We needed a "catch-all"
+document to supply useful information in a way that was easily referenced
+and would grow without a lot of work.&nbsp; It's closer to a FAQ than anything
+else.</li>
+
+<li>
+<a NAME="nettools"></a>This isn't a problem with heartbeat, but rather
+is caused by various versions of net-tools.&nbsp; Upgrade to the most recent
+version of net-tools and it will go away.&nbsp; You can test it with ifconfig
+manually.</li>
+
+<li>
+<a NAME="manyIPs"></a>Instead of failing over many IP addresses, just fail
+over one router address.&nbsp; On your router, do the equivalent of "route
+add -net x.x.x.0/24 gw x.x.x.2", where x.x.x.2 is the cluster IP address
+controlled by heartbeat.&nbsp; Then, make every address within x.x.x.0/24
+that you wish to failover a permanent alias of lo0 on BOTH cluster nodes.&nbsp;
+This is done via "ifconfig lo:2 x.x.x.3 netmask 255.255.255.255 -arp" etc....</li>
+</ol>
+
+<hr WIDTH="100%">
+<br>Rev 0.0.1
+<br>(c) 2000 Rudy Pawul
+<br><a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a>
+</body>
+</html>
