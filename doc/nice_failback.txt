@@ -1,6 +1,6 @@
 Date: Mon, 22 May 2000 14:54:47 -0300 (BRST)
 From: Luis Claudio R. Goncalves <lclaudio@conectiva.com.br>
-To: Alan Robertson <alanr@suse.com>
+To: Alan Robertson <alanr@unix.sh>
 Subject: Re: Patch
 
 
