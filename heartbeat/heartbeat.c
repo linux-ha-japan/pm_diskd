@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.255 2003/04/23 01:32:27 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.256 2003/04/30 22:28:09 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -23,8 +23,8 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.255 2003/04/23 01:32
 
 /*
  *
- *	The basic facilities for round-robin (ring) and IP heartbeats are
- *	contained within.
+ *	The basic facilities for heartbeats and intracluster communication
+ *	are contained within.
  *
  *	There is a master configuration file which we open to tell us
  *	what to do.
@@ -73,27 +73,21 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.255 2003/04/23 01:32
  *	Here's our process structure:
  *
  *
- *		Control process - starts off children and reads a fifo
- *			for commands to send to the cluster.  These
- *			commands are sent to write pipes, and status pipe
- *
- *		Status process - reads the status pipe
- *			and forks off child processes to perform actions
- *			associated with config status changes
- *			It also sends out the periodic keepalive messages.
+ *		Master Status process - manages protocol and controls
+			everything.
  *
  *		hb channel read processes - each reads a hb channel, and
  *			copies messages to the status pipe.  The tty
  *			version of this cross-echos to the other ttys
  *			in the ring (ring passthrough)
  *
- *		hb channel write processes - one per hb channel, each reads its
- *			own pipe and send the result to its medium
+ *		hb channel write processes - one per hb channel, each reads
+ *		its own pipe and send the result to its medium
  *
  *	The result of all this hoorah is that we have the following procs:
  *
- *	One Control process
- *	One Master Status process
+ *	One Master Control process
+ *	One FIFO reader process
  *		"n" hb channel read processes
  *		"n" hb channel write processes
  *
@@ -111,42 +105,26 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.255 2003/04/23 01:32
  *	you should be able to.  Maybe 56K would be a good choice...
  *
  *
- *	Process/Pipe configuration:
- *
- *	Control process:
- *		Reads a control fifo for input
- *		Writes master status pipe
- *		Writes heartbeat channel pipes
- *
- *	Master Status process:
- *		Reads master status pipe
- *		forks children, etc. to deal with status changes
- *
- *	heartbeat read processes:
- *		Reads hb channel (tty, UDP, etc)
- *		copying to master status pipe
- *		For ttys ONLY:
- *			copying to tty write pipes (incrementing hop count and
- *				filtering out "ring wraparounds")
- *
- ****** Wish List: ************************************************************
+ ****** Wish List: **********************************************************
  *	[not necessarily in priority order]
  *
  *	Heartbeat API conversion to unix domain sockets:
  *		We ought to convert to UNIX domain sockets because we get
- *		better verification of the user, and we would get notified when
- *		they die.  This would use the now-written IPC libary.
+ *		better verification of the user, and we would get notified
+ *		when they die.  This should use the now-written IPC libary.
+ *		(NOTE:  this is currently in progress)
  *
  *	Fuzzy heartbeat timing
- *		Right now, the code works in such a way that it systematically
- *		gets everyone heartbeating on the same time intervals, so that
- *		they happen at precisely the same time. This isn't too good
- *		for non-switched ethernet (CSMA/CD) environments, where it
- *		generates gobs of collisions, packet losses and
- *		retransmissions.  It's especially bad if all the clocks are
- *		in sync, which of course, every good system administrator
- *		strives to do ;-) This is due to Alan Cox who pointed out
- *		section 3.3 "Timers" in RFC 1058, which it states:
+ *		Right now, the code works in such a way that it
+ *		systematically gets everyone heartbeating on the same time
+ *		intervals, so that they happen at precisely the same time.
+ *		This isn't too good for non-switched ethernet (CSMA/CD)
+ *		environments, where it generates gobs of collisions, packet
+ *		losses and retransmissions.  It's especially bad if all the
+ *		clocks are in sync, which of course, every good system
+ *		administrator strives to do ;-) This description is due to
+ *		Alan Cox who pointed out section 3.3 "Timers" in RFC 1058,
+ *		which it states:
  *
  *       	  "It is undesirable for the update messages to become
  *		   synchronized, since it can lead to unnecessary collisions
@@ -162,38 +140,36 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.255 2003/04/23 01:32
  *
  *		Martin Lichtin suggests:
  *		Could you skew the heartbeats, based on the interface IP#?
- *		Probably want to use select(2) to wake up more precisely.
  *
  *		AlanR replied:
- *		I've thought about using setitimer(2), which would probably
- *		be slightly more compatible with the way the code is currently
- *		 written.
  *
- *		I thought that perhaps I could set each machine to a different
- *		interval in a +- 0.25 second range.  For example, one machine
- *		might heartbeat at 0.75 second interval, and another at a 1.25
- *		second interval.  The tendency would be then for the timers to
- *		wander across second boundaries, and even if they started out
- *		in sync, they would be unlikely to stay in sync.
- *		[but in retrospect, I'm not 100% sure about this]
+ *		I thought that perhaps I could set each machine to a
+ *		different interval in a +- 0.25 second range.  For example,
+ *		one machine might heartbeat at 0.75 second interval, and
+ *		another at a 1.25 second interval.  The tendency would be
+ *		then for the timers to wander across second boundaries,
+ *		and even if they started out in sync, they would be unlikely
+ *		to stay in sync.  [but in retrospect, I'm not 100% sure
+ *		about this approach]
  *
- *		This would keep me from having to generate a random number for
- *		every single heartbeat as the RFC suggests.
+ *		This would keep me from having to generate a random number
+ *		for every single heartbeat as the RFC suggests.
  *
  *		Of course, there are only 100 ticks/second, so if the clocks
  *		get closely synchronized, you can only have 100 different
  *		times to heartbeat.  I suppose if you have something like
  *		50-100 nodes, you ought to use a switch, and not a hub, and
- *		this would likely eliminate the problems.
+ *		this would likely mitigate the problems.
  *
  *	Nearest Neighbor heartbeating (? maybe?)
- *		This is a candidate to replace the current policy of full-ring
- *		heartbeats In this policy, each machine only heartbeats to it's
- *		nearest neighbors.  The nearest neighbors only forward on
- *		status CHANGES to their neighbors.  This means that the total
- *		ring traffic in the non-error case is reduced to the same as
- *		a 3-node cluster.  This is a huge improvement.  It probably
- *		means that 19200 would be fast enough for almost any size
+ *		This is a candidate to replace the current policy of
+ *		full-ring heartbeats In this policy, each machine only
+ *		heartbeats to it's nearest neighbors.  The nearest neighbors
+ *		only forward on status CHANGES to their neighbors.
+ *		This means that the total ring traffic in the non-error
+ *		case is reduced to the same as a 3-node cluster.
+ *		This is a huge improvement.  It probably means that
+ *		19200 would be fast enough for almost any size
  *		network. Non-heartbeat admin traffic would need to be
  *		forwarded to all members of the ring as it was before.
  *
@@ -205,10 +181,11 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.255 2003/04/23 01:32
  *		seven years of bad luck :-)  On the other hand, the "mirror"
  *		could be a white painted board ;-)
  *
- *		The idea would be to make a bracket with the IrDA transceivers
- *		on them all facing the same way, then mount the bracket with
- *		the transceivers all facing the mirror.  Then each of the
- *		transceivers would be able to "see" each other.
+ *		The idea would be to make a bracket with the IrDA
+ *		transceivers on them all facing the same way, then mount
+ *		the bracket with the transceivers all facing the mirror.
+ *		Then each of the transceivers would be able to "see" each
+ *		other.
  *
  *		I do kind of wonder if the kernel's IrDA stacks would be up
  *		to so much contention as it seems unlikely that they'd ever
@@ -278,156 +255,184 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.255 2003/04/23 01:32
 
 #include "setproctitle.h"
 
-#define OPTARGS		"dkMrRsvlC:"
+#define OPTARGS			"dkMrRsvlC:"
+#define	ONEDAY			(24*60*60)	/* Seconds in a day */
 
-#define	ONEDAY	(24*60*60)	/* Seconds in a day */
-#define	PRI_SENDSTATUS	G_PRIORITY_HIGH
-#define	PRI_DUMPSTATS	G_PRIORITY_LOW
-#define	PRI_AUDITCLIENT	G_PRIORITY_LOW
-#define	PRI_APIREGISTER	(G_PRIORITY_LOW-1)
-#define	PRI_CLUSTERMSG	G_PRIORITY_DEFAULT
-#define	PRI_FIFOMSG	PRI_CLUSTERMSG-1
+#define	PRI_SENDSTATUS		G_PRIORITY_HIGH
+#define	PRI_DUMPSTATS		G_PRIORITY_LOW
+#define	PRI_AUDITCLIENT		G_PRIORITY_LOW
+#define	PRI_APIREGISTER		(G_PRIORITY_LOW-1)
+#define	PRI_CLUSTERMSG		G_PRIORITY_DEFAULT
+#define	PRI_FIFOMSG		PRI_CLUSTERMSG-1
 
+#define REAPER_SIG		0x0001UL
+#define TERM_SIG		0x0002UL
+#define DEBUG_USR1_SIG		0x0004UL
+#define DEBUG_USR2_SIG		0x0008UL
+#define PARENT_DEBUG_USR1_SIG	0x0010UL
+#define PARENT_DEBUG_USR2_SIG	0x0020UL
+#define REREAD_CONFIG_SIG	0x0040UL
+#define FALSE_ALARM_SIG		0x0080UL
 
-static int		verbose = 0;
+enum comm_state {
+	COMM_STARTING,
+	COMM_LINKSUP
+};
 
-static char 	hbname []= "heartbeat";
-const char *	cmdname = hbname;
-static int	Argc = -1;
-int		debug = 0;
-
-static int	killrunninghb = 0;
-static int	rpt_hb_status = 0;
-int		timebasedgenno = FALSE;
-char *		watchdogdev = NULL;
-static int	watchdogfd = -1;
-void		(*localdie)(void);
-
-
+static char 			hbname []= "heartbeat";
+const char *			cmdname = hbname;
+static int			Argc = -1;
+extern int			optind;
+void				(*localdie)(void);
+extern PILPluginUniv*		PluginLoadingSystem;
 struct hb_media*		sysmedia[MAXMEDIA];
 struct msg_xmit_hist		msghist;
 extern struct hb_media_fns**	hbmedia_types;
 extern int			num_hb_media_types;
-extern PILPluginUniv*		PluginLoadingSystem;
 int				nummedia = 0;
+struct sys_config  		config_init_value;
+struct sys_config *		config  = &config_init_value;
+struct node_info *		curnode = NULL;
+pid_t				processes[MAXPROCS];
+volatile struct pstat_shm *	procinfo = NULL;
+volatile struct process_info *	curproc = NULL;
+
+int				debug = 0;
+static int			verbose = FALSE;
+int				timebasedgenno = FALSE;
+int				parse_only = FALSE;
+static int			killrunninghb = FALSE;
+static int			rpt_hb_status = FALSE;
+int				RestartRequested = FALSE;
+static long			hb_pid_in_file = 0L;
+int				hb_realtime_prio = -1;
+char *				watchdogdev = NULL;
+static int			watchdogfd = -1;
+
+int				shutdown_in_progress = FALSE;
+int				WeAreRestarting = FALSE;
+enum comm_state			heartbeat_comm_state = COMM_STARTING;
+static int			CoreProcessCount = 0;
+static int			managed_child_count= 0;
+int				UseOurOwnPoll = FALSE;
+static longclock_t		NextPoll = 0UL;
+static int			ClockJustJumped = FALSE;
+longclock_t			local_takeover_time = 0L;
 
 
-
-#define REAPER_SIG			0x0001UL
-#define TERM_SIG			0x0002UL
-#define DEBUG_USR1_SIG			0x0004UL
-#define DEBUG_USR2_SIG			0x0008UL
-#define PARENT_DEBUG_USR1_SIG		0x0010UL
-#define PARENT_DEBUG_USR2_SIG		0x0020UL
-#define REREAD_CONFIG_SIG		0x0040UL
-#define FALSE_ALARM_SIG			0x0080UL
-
-struct sys_config  	config_init_value;
-struct sys_config *	config  = &config_init_value;
-struct node_info *	curnode = NULL;
-
-volatile struct pstat_shm *		procinfo = NULL;
-volatile struct process_info *		curproc = NULL;
-
+void		audit_xmit_hist(void);
 static void	restart_heartbeat(void);
 static void	usage(void);
 static void	init_procinfo(void);
 static int	initialize_heartbeat(void);
-static	const char * core_proc_name(enum process_type t);
+static
+const char*	core_proc_name(enum process_type t);
 
-static	void CoreProcessRegistered(ProcTrack* p);
-static	void CoreProcessDied(ProcTrack* p, int status, int signo
-,	int exitcode, int waslogged);
-static	const char * CoreProcessName(ProcTrack* p);
+static void	CoreProcessRegistered(ProcTrack* p);
+static void	CoreProcessDied(ProcTrack* p, int status, int signo
+,			int exitcode, int waslogged);
+static
+const char*	CoreProcessName(ProcTrack* p);
 
-void hb_kill_managed_children(int nsig);
-void hb_kill_rsc_mgmt_children(int nsig);
-void hb_kill_core_children(int nsig);
+void		hb_kill_managed_children(int nsig);
+void		hb_kill_rsc_mgmt_children(int nsig);
+void		hb_kill_core_children(int nsig);
 
 
-static	void	ManagedChildRegistered(ProcTrack* p);
-static	void	ManagedChildDied(ProcTrack* p, int status
-,	int signo, int exitcode, int waslogged);
-static	const char * ManagedChildName(ProcTrack* p);
+static void	ManagedChildRegistered(ProcTrack* p);
+static void	ManagedChildDied(ProcTrack* p, int status
+,			int signo, int exitcode, int waslogged);
+static
+const char*	ManagedChildName(ProcTrack* p);
 static void	check_for_timeouts(void);
 static void	check_comm_isup(void);
-
-
-
-
 static int	send_local_status(void);
 static int	set_local_status(const char * status);
 static void	request_msg_rexmit(struct node_info *, seqno_t lowseq
-,		seqno_t hiseq);
+,			seqno_t hiseq);
 static void	check_rexmit_reqs(void);
 static void	mark_node_dead(struct node_info* hip);
 static void	change_link_status(struct node_info* hip, struct link *lnk
-,		const char * new);
+,			const char * new);
 static void	comm_now_up(void);
 static long	get_running_hb_pid(void);
 static void	make_daemon(void);
-static void hb_del_ipcmsg(IPC_Message* m);
-static IPC_Message* hb_new_ipcmsg(const void* data, int len, IPC_Channel* ch
-,		int refcnt);
+static void	hb_del_ipcmsg(IPC_Message* m);
+static
+IPC_Message*	hb_new_ipcmsg(const void* data, int len, IPC_Channel* ch
+,			int refcnt);
 static void	send_to_all_media(const char * smsg, int len);
 static int	should_drop_message(struct node_info* node
 ,		const struct ha_msg* msg, const char *iface);
 static int	is_lost_packet(struct node_info * thisnode, seqno_t seq);
 static void	cause_shutdown_restart(void);
 static gboolean	CauseShutdownRestart(gpointer p);
-static void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
-,		seqno_t seq);
+static void	add2_xmit_hist (struct msg_xmit_hist * hist
+,			struct ha_msg* msg, seqno_t seq);
 static void	init_xmit_hist (struct msg_xmit_hist * hist);
-static void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
+static void	process_rexmit(struct msg_xmit_hist * hist
+,			struct ha_msg* msg);
 static void	process_clustermsg(struct ha_msg* msg, struct link* lnk);
 static void	process_registermsg(FILE * f);
 static void	nak_rexmit(seqno_t seqno, const char * reason);
 static int	IncrGeneration(seqno_t * generation);
 static int	GetTimeBasedGeneration(seqno_t * generation);
 static int	process_outbound_packet(struct msg_xmit_hist* msghist
-,	struct ha_msg * msg);
+,			struct ha_msg * msg);
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
+static void	LookForClockJumps(void);
 
 
+/*
+ * Glib Mainloop Source functions...
+ */
+static gboolean	polled_input_prepare(gpointer source_data
+,			GTimeVal* current_time
+,			gint* timeout, gpointer user_data);
+static gboolean	polled_input_check(gpointer source_data
+,			GTimeVal* current_time
+,			gpointer user_data);
+static gboolean	polled_input_dispatch(gpointer source_data
+,			GTimeVal* current_time
+,			gpointer user_data);
 
-/* The biggies */
-static void read_child(struct hb_media* mp);
-static void write_child(struct hb_media* mp);
-static void fifo_child(IPC_Channel* chan);		/* Reads from FIFO */
-static void master_control_process(IPC_Channel* fifoproc);/* The biggie ;-) */
-
-pid_t		processes[MAXPROCS];
-int		parse_only = 0;
-int		hb_realtime_prio = -1;
-int		RestartRequested = 0;
-int		shutdown_in_progress = 0;
-int		WeAreRestarting = 0;
-static long	hb_pid_in_file = 0L;
-
-enum comm_state {
-	COMM_STARTING,
-	COMM_LINKSUP
-};
-enum comm_state	heartbeat_comm_state = COMM_STARTING;
+static gboolean	APIregistration_input_dispatch(int fd, gpointer user_data);
+static gboolean	FIFO_child_msg_dispatch(IPC_Channel* chan, gpointer udata);
+static gboolean	read_child_dispatch(IPC_Channel* chan, gpointer user_data);
 
 
-static ProcTrack_ops CoreProcessTrackOps = {
-	CoreProcessDied,
-	CoreProcessRegistered,
-	CoreProcessName
-};
-static int CoreProcessCount = 0;
+/*
+ * The biggies
+ */
+static void	read_child(struct hb_media* mp);
+static void	write_child(struct hb_media* mp);
+static void	fifo_child(IPC_Channel* chan);		/* Reads from FIFO */
+		/* The REAL biggie ;-) */
+static void	master_control_process(IPC_Channel* fifoproc);
 
+/*
+ * Structures initialized to function pointer values...
+ */
 
-ProcTrack_ops ManagedChildTrackOps = {
+ProcTrack_ops			ManagedChildTrackOps = {
 	ManagedChildDied,
 	ManagedChildRegistered,
 	ManagedChildName
 };
 
-static int	managed_child_count= 0;
-int		UseOurOwnPoll = FALSE;
+static ProcTrack_ops		CoreProcessTrackOps = {
+	CoreProcessDied,
+	CoreProcessRegistered,
+	CoreProcessName
+};
 
+
+static GSourceFuncs		polled_input_SourceFuncs = {
+	polled_input_prepare,
+	polled_input_check,
+	polled_input_dispatch,
+	NULL,
+};
 
 static void
 init_procinfo()
@@ -444,7 +449,7 @@ init_procinfo()
 	(void)_setproctitle_h_Id;
 
 	if ((ipcid = shmget(IPC_PRIVATE, sizeof(*procinfo), 0666)) < 0) {
-		ha_perror("Cannot shmget for process status");
+		cl_perror("Cannot shmget for process status");
 		return;
 	}
 
@@ -453,7 +458,7 @@ init_procinfo()
 	 * way because of the way the shared memory API is designed.
 	 */
 	if (((long)(shm = shmat(ipcid, NULL, 0))) == -1L) {
-		ha_perror("Cannot shmat for process status");
+		cl_perror("Cannot shmat for process status");
 		shm = NULL;
 		return;
 	}
@@ -475,7 +480,7 @@ init_procinfo()
 	 * anyway (for all we've tested).
 	 */
 	if (shmctl(ipcid, IPC_RMID, NULL) < 0) {
-		ha_perror("Cannot IPC_RMID proc status shared memory id");
+		cl_perror("Cannot IPC_RMID proc status shared memory id");
 	}
 	procinfo->giveup_resources = 1;
 	procinfo->i_hold_resources = HB_NO_RSC;
@@ -489,7 +494,7 @@ hb_versioninfo(void)
 	char		buf[MAXLINE];
 	FILE	 	*f;
 
-	ha_log(LOG_INFO, "%s: version %s", cmdname, VERSION);
+	cl_log(LOG_INFO, "%s: version %s", cmdname, VERSION);
 
 	/*
 	 * The reason why we only do this once is that we are doing it with
@@ -513,7 +518,7 @@ hb_versioninfo(void)
 	,	HALIB, cmdname);
 
 	if ((f = popen(cmdline, "r")) == NULL) {
-		ha_perror("Cannot run: %s", cmdline);
+		cl_perror("Cannot run: %s", cmdline);
 		return;
 	}
 
@@ -522,13 +527,16 @@ hb_versioninfo(void)
 		if (buf[strlen(buf)-1] == '\n') {
 			buf[strlen(buf)-1] = EOS;
 		}
-		ha_log(LOG_INFO, "%s", buf);
+		cl_log(LOG_INFO, "%s", buf);
 	}
 
 	pclose(f);
 }
 
-/* Look up the interface in the node struct, returning the link info structure*/
+/*
+ *	Look up the interface in the node struct,
+ *	returning the link info structure
+ */
 struct link *
 lookup_iface(struct node_info * hip, const char *iface)
 {
@@ -543,7 +551,10 @@ lookup_iface(struct node_info * hip, const char *iface)
 	return NULL;
 }
 
-/* Look up the node in the configuration, returning the node info structure */
+/*
+ *	Look up the node in the configuration, returning the node
+ *	info structure
+ */
 struct node_info *
 lookup_node(const char * h)
 {
@@ -552,10 +563,10 @@ lookup_node(const char * h)
 
 	for (j=0; j < config->nodecount; ++j) {
 		if (strcmp(h, config->nodes[j].nodename) == 0) {
-			return(config->nodes+j);
+			return (config->nodes+j);
 		}
 	}
-	return(NULL);
+	return NULL;
 }
 
 /*
@@ -566,7 +577,7 @@ static int
 initialize_heartbeat()
 {
 /*
- *	Things we have to do:
+ * Things we have to do:
  *
  *	Create all our pipes
  *	Open all our heartbeat channels
@@ -590,43 +601,43 @@ initialize_heartbeat()
 		getgen = GetTimeBasedGeneration;
 	}
 	if (getgen(&config->generation) != HA_OK) {
-		ha_perror("Cannot get/increment generation number");
-		return(HA_FAIL);
+		cl_perror("Cannot get/increment generation number");
+		return HA_FAIL;
 	}
-	ha_log(LOG_INFO, "Heartbeat generation: %lu", config->generation);
+	cl_log(LOG_INFO, "Heartbeat generation: %lu", config->generation);
 
 	if (stat(FIFONAME, &buf) < 0 ||	!S_ISFIFO(buf.st_mode)) {
-		ha_log(LOG_INFO, "Creating FIFO %s.", FIFONAME);
+		cl_log(LOG_INFO, "Creating FIFO %s.", FIFONAME);
 		unlink(FIFONAME);
 		if (mkfifo(FIFONAME, FIFOMODE) < 0) {
-			ha_perror("Cannot make fifo %s.", FIFONAME);
-			return(HA_FAIL);
+			cl_perror("Cannot make fifo %s.", FIFONAME);
+			return HA_FAIL;
 		}
 	}
 
 	if (stat(FIFONAME, &buf) < 0) {
-		ha_log(LOG_ERR, "FIFO %s does not exist", FIFONAME);
-		return(HA_FAIL);
+		cl_log(LOG_ERR, "FIFO %s does not exist", FIFONAME);
+		return HA_FAIL;
 	}else if (!S_ISFIFO(buf.st_mode)) {
-		ha_log(LOG_ERR, "%s is not a FIFO", FIFONAME);
-		return(HA_FAIL);
+		cl_log(LOG_ERR, "%s is not a FIFO", FIFONAME);
+		return HA_FAIL;
 	}
 
 	if (stat(API_REGFIFO, &buf) < 0 || !S_ISFIFO(buf.st_mode)) {
-		ha_log(LOG_INFO, "Creating FIFO %s.", API_REGFIFO);
+		cl_log(LOG_INFO, "Creating FIFO %s.", API_REGFIFO);
 		unlink(API_REGFIFO);
 		if (mkfifo(API_REGFIFO, 0420) < 0) {
-			ha_perror("Cannot make fifo %s.", API_REGFIFO);
-			return(HA_FAIL);
+			cl_perror("Cannot make fifo %s.", API_REGFIFO);
+			return HA_FAIL;
 		}
 	}
 
 	if (stat(API_REGFIFO, &buf) < 0) {
-		ha_log(LOG_ERR, "FIFO %s does not exist", API_REGFIFO);
-		return(HA_FAIL);
+		cl_log(LOG_ERR, "FIFO %s does not exist", API_REGFIFO);
+		return HA_FAIL;
 	}else if (!S_ISFIFO(buf.st_mode)) {
-		ha_log(LOG_ERR, "%s is not a FIFO", API_REGFIFO);
-		return(HA_FAIL);
+		cl_log(LOG_ERR, "%s is not a FIFO", API_REGFIFO);
+		return HA_FAIL;
 	}
 
 
@@ -645,21 +656,21 @@ initialize_heartbeat()
 		struct hb_media* smj = sysmedia[j];
 
 		if (ipc_channel_pair(smj->wchan) != IPC_OK) {
-			ha_perror("cannot create hb write channel IPC");
-			return(HA_FAIL);
+			cl_perror("cannot create hb write channel IPC");
+			return HA_FAIL;
 		}
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "opening %s %s (%s)", smj->type
+			cl_log(LOG_DEBUG, "opening %s %s (%s)", smj->type
 			,	smj->name, smj->description);
 		}
 		if (smj->vf->open(smj) != HA_OK) {
-			ha_log(LOG_ERR, "cannot open %s %s"
+			cl_log(LOG_ERR, "cannot open %s %s"
 			,	smj->type
 			,	smj->name);
-			return(HA_FAIL);
+			return HA_FAIL;
 		}
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "%s channel %s now open..."
+			cl_log(LOG_DEBUG, "%s channel %s now open..."
 			,	smj->type, smj->name);
 		}
 	}
@@ -679,8 +690,8 @@ initialize_heartbeat()
 	hb_signal_set_common(NULL);
 
 	if (ipc_channel_pair(fifochildipc) != IPC_OK) {
-		ha_perror("cannot create FIFO ipc channel");
-		return(HA_FAIL);
+		cl_perror("cannot create FIFO ipc channel");
+		return HA_FAIL;
 	}
 
 	/* Now the fun begins... */
@@ -696,8 +707,8 @@ initialize_heartbeat()
 	/* Fork FIFO process... */
 	ourproc = procinfo->nprocs;
 	switch ((pid=fork())) {
-		case -1:	ha_perror("Can't fork FIFO process!");
-				return(HA_FAIL);
+		case -1:	cl_perror("Can't fork FIFO process!");
+				return HA_FAIL;
 				break;
 
 		case 0:		/* Child */
@@ -707,14 +718,14 @@ initialize_heartbeat()
 					sleep(1);
 				}
 				fifo_child(fifochildipc[P_WRITEFD]);
-				ha_perror("FIFO child process exiting!");
+				cl_perror("FIFO child process exiting!");
 				cleanexit(1);
 	}
 	NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 	,	&CoreProcessTrackOps);
 
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "FIFO process pid: %d", pid);
+		cl_log(LOG_DEBUG, "FIFO process pid: %d", pid);
 	}
 
 	ourproc = procinfo->nprocs;
@@ -725,8 +736,8 @@ initialize_heartbeat()
 		ourproc = procinfo->nprocs;
 
 		switch ((pid=fork())) {
-			case -1:	ha_perror("Can't fork write process");
-					return(HA_FAIL);
+			case -1:	cl_perror("Can't fork write proc.");
+					return HA_FAIL;
 					break;
 
 			case 0:		/* Child */
@@ -736,21 +747,22 @@ initialize_heartbeat()
 						sleep(1);
 					}
 					write_child(mp);
-					ha_perror("write process exiting");
+					cl_perror("write process exiting");
 					cleanexit(1);
 		}
-		NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
+		NewTrackedProc(pid, 0, PT_LOGVERBOSE
+		,	GINT_TO_POINTER(ourproc)
 		,	&CoreProcessTrackOps);
 
 		ourproc = procinfo->nprocs;
 
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "write process pid: %d", pid);
+			cl_log(LOG_DEBUG, "write process pid: %d", pid);
 		}
 
 		switch ((pid=fork())) {
-			case -1:	ha_perror("Can't fork read process");
-					return(HA_FAIL);
+			case -1:	cl_perror("Can't fork read process");
+					return HA_FAIL;
 					break;
 
 			case 0:		/* Child */
@@ -760,11 +772,11 @@ initialize_heartbeat()
 						sleep(1);
 					}
 					read_child(mp);
-					ha_perror("read child process exiting");
+					cl_perror("read_child() exiting");
 					cleanexit(1);
 		}
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "read child process pid: %d", pid);
+			cl_log(LOG_DEBUG, "read child process pid: %d", pid);
 		}
 		NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 		,	&CoreProcessTrackOps);
@@ -777,10 +789,10 @@ initialize_heartbeat()
 	master_control_process(fifochildipc[P_READFD]);
 
 	/*NOTREACHED*/
-	ha_log(LOG_ERR, "master_control_process exiting?");
+	cl_log(LOG_ERR, "master_control_process exiting?");
 	cleanexit(LSB_EXIT_GENERIC);
 	/*NOTREACHED*/
-	return(HA_FAIL);
+	return HA_FAIL;
 }
 
 /* Create a read child process (to read messages from hb medium) */
@@ -790,13 +802,13 @@ read_child(struct hb_media* mp)
 	IPC_Channel* ourchan =	mp->wchan[P_READFD];
 
 	if (hb_signal_set_read_child(NULL) < 0) {
-		ha_log(LOG_ERR, "read_child(): hb_signal_set_read_child(): "
-			"Soldiering on...");
+		cl_log(LOG_ERR, "read_child(): hb_signal_set_read_child(): "
+		"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 16, 32);
+	cl_make_realtime(-1, hb_realtime_prio, 16, 8);
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
-	drop_privs(0, 0);	/* Become nobody */
+	// drop_privs(0, 0);	/* Become nobody */
 
 	hb_signal_process_pending();
 	curproc->pstat = RUNNING;
@@ -831,6 +843,7 @@ read_child(struct hb_media* mp)
 				return;
 			}
 		}
+		cl_realtime_malloc_check();
 	}
 }
 
@@ -842,13 +855,13 @@ write_child(struct hb_media* mp)
 	IPC_Channel* ourchan =	mp->wchan[P_READFD];
 
 	if (hb_signal_set_write_child(NULL) < 0) {
-		ha_perror("write_child(): hb_signal_set_write_child(): "
+		cl_perror("write_child(): hb_signal_set_write_child(): "
 			"Soldiering on...");
 	}
 
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
-	cl_make_realtime(-1, hb_realtime_prio, 16, 32);
-	drop_privs(0, 0);	/* Become nobody */
+	cl_make_realtime(-1, hb_realtime_prio, 16, 8);
+	// drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
 
 	for (;;) {
@@ -859,11 +872,12 @@ write_child(struct hb_media* mp)
 			continue;
 		}
 		if (mp->vf->write(mp, msgp) != HA_OK) {
-			ha_perror("write failure on %s %s."
+			cl_perror("write failure on %s %s."
 			,	mp->type, mp->name);
 		}
 		ha_msg_del(msgp); msgp = NULL;
 		hb_signal_process_pending();
+		cl_realtime_malloc_check();
 	}
 }
 
@@ -884,13 +898,13 @@ fifo_child(IPC_Channel* chan)
 	struct ha_msg *	msg = NULL;
 
 	if (hb_signal_set_fifo_child(NULL) < 0) {
-		ha_perror("fifo_child(): hb_signal_set_fifo_child()"
+		cl_perror("fifo_child(): hb_signal_set_fifo_child()"
 		": Soldiering on...");
 	}
 	set_proc_title("%s: FIFO reader", cmdname);
 	fiforfd = open(FIFONAME, O_RDONLY|O_NDELAY);
 	if (fiforfd < 0) {
-		ha_perror("FIFO open (O_RDONLY) failed.");
+		cl_perror("FIFO open (O_RDONLY) failed.");
 		exit(1);
 	}
 	open(FIFONAME, O_WRONLY);	/* Keep reads from getting EOF */
@@ -904,7 +918,7 @@ fifo_child(IPC_Channel* chan)
 	}
 
 	cl_make_realtime(-1, hb_realtime_prio, 16, 32);
-	drop_privs(0, 0);	/* Become nobody */
+	// drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
 
 	for (;;) {
@@ -915,7 +929,7 @@ fifo_child(IPC_Channel* chan)
 		if (msg) {
 			IPC_Message*	m;
 			if (DEBUGDETAILS) {
-				ha_log(LOG_DEBUG, "fifo_child message:");
+				cl_log(LOG_DEBUG, "fifo_child message:");
 				ha_log_message(msg);
 			}
 			m = hamsg2ipcmsg(msg, chan);
@@ -932,71 +946,20 @@ fifo_child(IPC_Channel* chan)
 		}else if (feof(fifo)) {
 			if (ANYDEBUG) {
 				return_to_orig_privs();
-				ha_log(LOG_DEBUG
+				cl_log(LOG_DEBUG
 				,	"fifo_child: EOF on FIFO");
 			}
 			exit(2);
 		}
+		cl_realtime_malloc_check();
 	}
 }
-
-
-/*
- *	What are our abstract event sources?
- *
- *	Queued signals to be handled ("polled" high priority)
- *	Sending a heartbeat message (timeout-based) (high priority)
- *	Retransmitting packets for the protocol (timed medium priority)
- *	Timing out on heartbeats from other nodes (timed low priority)
- *
- *		We currently combine all our timed/polled events together.
- *		The only one that has critical timing needs is sending
- *		out heartbeat messages
- *
- *	Messages from the network (file descriptor medium-high priority)
- *
- *	API requests from clients (file descriptor medium-low priority)
- *
- *	Registration requests from clients (file descriptor low priority)
- *
- */
-
-/*
- * Combined polled/timed events...
- */
-static gboolean polled_input_prepare(gpointer source_data
-,	GTimeVal* current_time
-,	gint* timeout, gpointer user_data);
-static gboolean polled_input_check(gpointer source_data
-,	GTimeVal* current_time
-,	gpointer user_data);
-static gboolean polled_input_dispatch(gpointer source_data
-,	GTimeVal* current_time
-,	gpointer user_data);
-static void polled_input_destroy(gpointer user_data);
-
-static GSourceFuncs polled_input_SourceFuncs = {
-	polled_input_prepare,
-	polled_input_check,
-	polled_input_dispatch,
-	polled_input_destroy,
-};
-
-
-/*
- * API registration requests are one of our inputs
- */
-static gboolean APIregistration_input_dispatch(int fd, gpointer user_data);
-
-static void LookForClockJumps(void);
-
-static int			ClockJustJumped = 0;
 
 static gboolean
 Gmain_hb_signal_process_pending(void *data)
 {
 	hb_signal_process_pending();
-	return(TRUE);
+	return TRUE;
 }
 
 
@@ -1009,7 +972,7 @@ FIFO_child_msg_dispatch(IPC_Channel* source, gpointer user_data)
 	struct ha_msg*	msg = msgfromIPC(source);
 
 	if (DEBUGDETAILS) {
-		ha_log(LOG_DEBUG, "FIFO_child_msg_dispatch() called.");
+		cl_log(LOG_DEBUG, "FIFO_child_msg_dispatch() called.");
 	}
 	if (msg != NULL) {
 		/* send_cluster_msg disposes of "msg" */
@@ -1049,6 +1012,28 @@ read_child_dispatch(IPC_Channel* source, gpointer user_data)
 	return TRUE;
 }
 
+/*
+ * What are our abstract event sources?
+ *
+ *	Queued signals to be handled ("polled" high priority)
+ *
+ *	Sending a heartbeat message (timeout-based) (high priority)
+ *
+ *	Retransmitting packets for the protocol (timed medium priority)
+ *
+ *	Timing out on heartbeats from other nodes (timed low priority)
+ *
+ *		We currently combine all our timed/polled events together.
+ *		The only one that has critical timing needs is sending
+ *		out heartbeat messages
+ *
+ *	Messages from the network (file descriptor medium-high priority)
+ *
+ *	API requests from clients (file descriptor medium-low priority)
+ *
+ *	Registration requests from clients (file descriptor low priority)
+ *
+ */
 
 static void
 master_control_process(IPC_Channel* fifoproc)
@@ -1092,31 +1077,32 @@ master_control_process(IPC_Channel* fifoproc)
 	hb_init_watchdog();
 
 	if (hb_signal_set_master_control_process(NULL) < 0) {
-		ha_log(LOG_ERR, "master_control_process(): "
+		cl_log(LOG_ERR, "master_control_process(): "
 			"hb_signal_set_master_control_process(): "
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 64, 64);
+	cl_make_realtime(-1, hb_realtime_prio, 32, 150);
 
 	set_proc_title("%s: master control process", cmdname);
 
 
 	if ((regfd = open(API_REGFIFO, O_RDONLY|O_NDELAY)) < 0) {
-		ha_perror("master_control_process: Can't open " API_REGFIFO);
+		cl_perror("master_control_process: Can't open " API_REGFIFO);
 		cleanexit(1);
 	}
 	(void)open(API_REGFIFO, O_WRONLY);
 
 	if ((regfifo = fdopen(regfd, "r")) == NULL) {
-		ha_perror("master_control_process: Can't fdopen "API_REGFIFO);
+		cl_perror("master_control_process"
+		": Can't fdopen "API_REGFIFO);
 		cleanexit(1);
 	}
 	regfd = fileno(regfifo);	clearerr(regfifo);
 
 
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Waiting for child processes to start");
+		cl_log(LOG_DEBUG, "Waiting for child processes to start");
 	}
 	/* Wait until all the child processes are really running */
 	do {
@@ -1124,20 +1110,19 @@ master_control_process(IPC_Channel* fifoproc)
 		for (pinfo=procinfo->info; pinfo < curproc; ++pinfo) {
 			if (pinfo->pstat != RUNNING) {
 				if (ANYDEBUG) {
-					ha_log(LOG_DEBUG
-					, "Waiting for pid %d type %d stat %d"
+					cl_log(LOG_DEBUG
+					, "Wait for pid %d type %d stat %d"
 					, (int) pinfo->pid, pinfo->type
 					, pinfo->pstat);
 				}
 				allstarted=0;
-				send_local_status();
 				sleep(1);
 			}
 		}
 	}while (!allstarted);
 	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
+		cl_log(LOG_DEBUG
 		,	"All your child process are belong to us");
 	}
 	send_local_status();
@@ -1169,7 +1154,9 @@ master_control_process(IPC_Channel* fifoproc)
 		,	read_child_dispatch, sysmedia+j, NULL);
 	}
 
-	/* Things to do on a periodic basis... */
+	/*
+	 * Things to do on a periodic basis...
+	 */
 	
 	/* Send local status at the "right time" */
 	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
@@ -1237,11 +1224,11 @@ hb_new_ipcmsg(const void* data, int len, IPC_Channel* ch, int refcnt)
 	char*	copy;
 	
 	if ((hdr = (IPC_Message*)ha_malloc(sizeof(*hdr)))  == NULL) {
-		return(NULL);
+		return NULL;
 	}
 	if ((copy = (char*)ha_malloc(len)) == NULL) {
 		ha_free(hdr);
-		return(NULL);
+		return NULL;
 	}
 	memcpy(copy, data, len);
 	hdr->msg_len = len;
@@ -1275,7 +1262,7 @@ send_to_all_media(const char * smsg, int len)
 
 	outmsg = hb_new_ipcmsg(smsg, len, NULL, nummedia);
 	if (outmsg == NULL) {
-		ha_log(LOG_ERR, "Out of memory. Shutting down.");
+		cl_log(LOG_ERR, "Out of memory. Shutting down.");
 		hb_initiate_shutdown(FALSE);
 	}
 
@@ -1286,9 +1273,9 @@ send_to_all_media(const char * smsg, int len)
 
 		wrc=wch->ops->send(wch, outmsg);
 		if (wrc != IPC_OK) {
-			ha_perror("Cannot write to media pipe %d"
+			cl_perror("Cannot write to media pipe %d"
 			,	j);
-			ha_log(LOG_ERR, "Shutting down.");
+			cl_log(LOG_ERR, "Shutting down.");
 			hb_initiate_shutdown(FALSE);
 		}
 		alarm(0);
@@ -1296,12 +1283,6 @@ send_to_all_media(const char * smsg, int len)
 }
 
 
-/*
- *	Queued signals to be handled ("polled" high priority)
- *	Sending a heartbeat message (timeout-based) (high priority)
- *	Retransmitting packets for the protocol (timed medium priority)
- *	Timing out on heartbeats from other nodes (timed low priority)
- */
 
 static void
 LookForClockJumps(void)
@@ -1311,12 +1292,12 @@ LookForClockJumps(void)
 
 	/* Check for clock jumps */
 	if (now < lastnow) {
-		ha_log(LOG_INFO
+		cl_log(LOG_INFO
 		,	"Clock jumped backwards. Compensating.");
 		ClockJustJumped = 1;
 		other_is_stable = 1;
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG
+			cl_log(LOG_DEBUG
 			, "Clock Jumped: other now stable");
 		}
 	}else{
@@ -1324,6 +1305,9 @@ LookForClockJumps(void)
 	}
 	lastnow = now;
 }
+
+
+#define	POLL_INTERVAL	250 /* milliseconds */
 
 static gboolean
 polled_input_prepare(gpointer source_data, GTimeVal* current_time
@@ -1336,14 +1320,10 @@ polled_input_prepare(gpointer source_data, GTimeVal* current_time
 	}
 	LookForClockJumps();
 
-	return (hb_signal_pending() != 0)
-	||	ClockJustJumped;
+	return ((hb_signal_pending() != 0)
+	||	ClockJustJumped);
 }
 
-static longclock_t	NextPoll = 0UL;
-longclock_t	local_takeover_time = 0L;
-
-#define	POLL_INTERVAL	250 /* milliseconds */
 
 static gboolean
 polled_input_check(gpointer source_data, GTimeVal* current_time
@@ -1383,7 +1363,7 @@ polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 		/* We'll catch it again next time around... */
 		/* I'm not sure we really need to check for clock jumps
 		 * any more since we now use longclock_t for everything
-		 * and don't use time_t or clock_t anything critical.
+		 * and don't use time_t or clock_t for anything critical.
 		 */
 
 		check_for_timeouts();
@@ -1402,12 +1382,12 @@ polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 	&&	cmp_longclock(now, local_takeover_time) > 0) {
 		resourcestate = HB_R_STABLE;
 		req_our_resources(0);
-		ha_log(LOG_INFO,"local resource transition completed.");
-		hb_send_resources_held(decode_resources(procinfo->i_hold_resources)
+		cl_log(LOG_INFO,"local resource transition completed.");
+		hb_send_resources_held
+		(	decode_resources(procinfo->i_hold_resources)
 		,	1, NULL);
 		AuditResources();
 	}
-
 
 	return TRUE;
 }
@@ -1441,31 +1421,25 @@ comm_now_up()
 }
 
 
-static void
-polled_input_destroy(gpointer user_data)
-{
-}
-
-
-
 
 static gboolean
 APIregistration_input_dispatch(int fd,	gpointer user_data)
 {
 	FILE *		regfifo = user_data;
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
+		cl_log(LOG_DEBUG
 		,	"Processing register message from regfd %d."
 		,	fd);
 	}
 	if (fileno(regfifo) != fd) {
 		/* Bad boojum! */
-		ha_log(LOG_ERR
+		cl_log(LOG_ERR
 		,	"FD mismatch in APIregistration_input_dispatch");
 	}
 	process_registermsg(regfifo);
 	return TRUE;
 }
+
 void
 hb_kill_managed_children(int nsig)
 {
@@ -1501,13 +1475,13 @@ hb_kill_core_children(int nsig)
  *	delay
  *
  *   Final shutdown sequence:
- *	kill managed client children with SIGTERM
- *	if non-quick, kill rsc_mgmt children with SIGTERM
- *	delay
- *	if non-quick, kill rsc_mgmt children with SIGKILL
- *	kill core processes (except self) with SIGTERM
- *	delay
- *	kill core processes (except self) with SIGKILL
+ *	Kill managed client children with SIGTERM
+ *	If non-quick, kill rsc_mgmt children with SIGTERM
+ *	Delay
+ *	If non-quick, kill rsc_mgmt children with SIGKILL
+ *	Kill core processes (except self) with SIGTERM
+ *	Delay
+ *	Kill core processes (except self) with SIGKILL
  *	Wait for all children to die.
  *
  */
@@ -1515,7 +1489,7 @@ void
 hb_initiate_shutdown(int quickshutdown)
 {
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "hb_initiate_shutdown() called.");
+		cl_log(LOG_DEBUG, "hb_initiate_shutdown() called.");
 	}
 	send_local_status();
 	if (!quickshutdown) {
@@ -1536,11 +1510,11 @@ hb_mcp_final_shutdown(gpointer p)
 	static int shutdown_phase = 0;
 
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "hb_mcp_final_shutdown() phase %d"
+		cl_log(LOG_DEBUG, "hb_mcp_final_shutdown() phase %d"
 		,	shutdown_phase);
 	}
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "hb_mcp_final_shutdown(2) phase %d"
+		cl_log(LOG_DEBUG, "hb_mcp_final_shutdown(2) phase %d"
 		,	shutdown_phase);
 	}
 	DisableProcLogging();	/* We're shutting down */
@@ -1581,11 +1555,13 @@ hb_mcp_final_shutdown(gpointer p)
 	}
 
 	hb_close_watchdog();
+
 	/* Whack 'em */
 	hb_kill_core_children(SIGKILL);
-	ha_log(LOG_INFO,"Heartbeat shutdown complete.");
+	cl_log(LOG_INFO,"Heartbeat shutdown complete.");
+
 	if (procinfo->restart_after_shutdown) {
-		ha_log(LOG_INFO, "Heartbeat restart triggered.");
+		cl_log(LOG_INFO, "Heartbeat restart triggered.");
 		restart_heartbeat();
 	}
 
@@ -1630,7 +1606,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 			unsigned long	msleft;
 			msleft = longclockto_ms(sub_longclock(standby_running
 			,	now));
-			ha_log(LOG_WARNING, "Standby timer has %ld ms left"
+			cl_log(LOG_WARNING, "Standby timer has %ld ms left"
 			,	msleft);
 		}
 
@@ -1642,7 +1618,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 			standby_running = zero_longclock;
 			other_is_stable = 1;
 			going_standby = NOT;
-			ha_log(LOG_WARNING, "No reply to standby request"
+			cl_log(LOG_WARNING, "No reply to standby request"
 			".  Standby request cancelled.");
 		}
 	}
@@ -1654,7 +1630,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 	cseq = ha_msg_value(msg, F_SEQ);
 
 	if (!isauthentic(msg)) {
-		ha_log(LOG_WARNING
+		cl_log(LOG_WARNING
 		,       "process_clustermsg: node [%s]"
 		" failed authentication", from ? from : "?");
 		if (ANYDEBUG) {
@@ -1662,13 +1638,13 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 		}
 		return;
 	}else if (DEBUGDETAILS) {
-		ha_log(LOG_DEBUG
+		cl_log(LOG_DEBUG
 		,       "process_clustermsg: node [%s] auth ok"
 		,	from ? from :"?");
 	}
 
 	if (from == NULL || ts == NULL || type == NULL) {
-		ha_log(LOG_ERR
+		cl_log(LOG_ERR
 		,	"process_clustermsg: %s: iface %s, from %s"
 		,	"missing from/ts/type"
 		,	iface
@@ -1681,7 +1657,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 	}else{
 		seqno = 0L;
 		if (strncmp(type, NOSEQ_PREFIX, STRLEN(NOSEQ_PREFIX)) != 0) {
-			ha_log(LOG_ERR
+			cl_log(LOG_ERR
 			,	"process_clustermsg: %s: iface %s, from %s"
 			,	"missing seqno"
 			,	iface
@@ -1704,7 +1680,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 	if (thisnode == NULL) {
 #if defined(MITJA)
 		/* If a node isn't in the configfile, add it... */
-		ha_log(LOG_WARNING
+		cl_log(LOG_WARNING
 		,   "process_status_message: new node [%s] in message"
 		,	from);
 		add_node(from, NORMALNODE);
@@ -1714,7 +1690,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 		}
 #else
 		/* If a node isn't in the configfile - whine */
-		ha_log(LOG_ERR
+		cl_log(LOG_ERR
 		,   "process_status_message: bad node [%s] in message"
 		,	from);
 		ha_log_message(msg);
@@ -1784,7 +1760,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 
 		status = ha_msg_value(msg, F_STATUS);
 		if (status == NULL)  {
-			ha_log(LOG_ERR, "process_status_message: "
+			cl_log(LOG_ERR, "process_status_message: "
 			"status update without "
 			F_STATUS " field");
 			return;
@@ -1804,7 +1780,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 			(	messagetime, thisnode->local_lastupdate));
 
 			if (heartbeat_ms > config->warntime_ms) {
-				ha_log(LOG_WARNING
+				cl_log(LOG_WARNING
 				,	"Late heartbeat: Node %s:"
 				" interval %ld ms"
 				,	thisnode->nodename
@@ -1816,12 +1792,12 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 		/* Is the node status the same? */
 		if (strcasecmp(thisnode->status, status) != 0
 		&&	thisnode != curnode) {
-			ha_log(LOG_INFO
+			cl_log(LOG_INFO
 			,	"Status update for node %s: status %s"
 			,	thisnode->nodename
 			,	status);
 			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
+				cl_log(LOG_DEBUG
 				,	"Status seqno: %ld msgtime: %ld"
 				,	seqno, msgtime);
 			}
@@ -1861,12 +1837,13 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 	    	heartbeat_monitor(msg, action, iface);
 		if (thisnode == curnode) {
 			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				,	"Received T_SHUTDONE from ourselves.");
+				cl_log(LOG_DEBUG
+				,	"Received T_SHUTDONE from us.");
 		    	}
 			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				,	"Calling hb_mcp_final_shutdown in a second.");
+				cl_log(LOG_DEBUG
+				,	"Calling hb_mcp_final_shutdown"
+				" in a second.");
 		    	}
 			/* Trigger final shutdown in a second */
 			Gmain_timeout_add(1, hb_mcp_final_shutdown, NULL);
@@ -1875,7 +1852,7 @@ process_clustermsg(struct ha_msg* msg, struct link* lnk)
 			other_is_stable = 0;
 			other_holds_resources= HB_NO_RSC;
 
-		    	ha_log(LOG_INFO
+		    	cl_log(LOG_INFO
 			,	"Received shutdown notice from '%s'."
 			,	thisnode->nodename);
 			takeover_from_node(thisnode->nodename);
@@ -1957,7 +1934,7 @@ check_auth_change(struct sys_config *conf)
 		/* parse_authfile() resets 'rereadauth' */
 		if (parse_authfile() != HA_OK) {
 			/* OOPS.  Sayonara. */
-			ha_log(LOG_ERR
+			cl_log(LOG_ERR
 			,	"Authentication reparsing error, exiting.");
 			hb_initiate_shutdown(FALSE);
 			cleanexit(1);
@@ -1989,19 +1966,21 @@ CoreProcessRegistered(ProcTrack* p)
 
 /* Handle the death of a core heartbeat process */
 static void
-CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged)
+CoreProcessDied(ProcTrack* p, int status, int signo
+,	int exitcode, int waslogged)
 {
 	-- CoreProcessCount;
 
 	if (shutdown_in_progress) {
 		p->privatedata = NULL;
-		ha_log(LOG_INFO,"Core process %d exited. %d remaining"
+		cl_log(LOG_INFO,"Core process %d exited. %d remaining"
 		,	(int) p->pid, CoreProcessCount);
 
 		if (CoreProcessCount <= 1) {
-			ha_log(LOG_INFO,"Heartbeat shutdown complete.");
+			cl_log(LOG_INFO,"Heartbeat shutdown complete.");
 			if (procinfo->restart_after_shutdown) {
-				ha_log(LOG_INFO, "Heartbeat restart triggered.");
+				cl_log(LOG_INFO
+				,	"Heartbeat restart triggered.");
 				restart_heartbeat();
 			}
 			cleanexit(0);
@@ -2009,7 +1988,7 @@ CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged
 		return;
 	}
 	/* UhOh... */
-	ha_log(LOG_ERR
+	cl_log(LOG_ERR
 	,	"Core heartbeat process died! Restarting.");
 	cause_shutdown_restart();
 	p->privatedata = NULL;
@@ -2066,13 +2045,13 @@ ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode
 			managedchild->shortrcount = 0;
 		}
 		if (managedchild->shortrcount > 10) {
-			ha_log(LOG_ERR
+			cl_log(LOG_ERR
 			,	"Client %s %s"
 			,	managedchild->command
 			,	"respawning too fast");
 			managedchild->shortrcount = 0;
 		}else{
-			ha_log(LOG_INFO
+			cl_log(LOG_INFO
 			,	"Respawning client %s:"
 			,	managedchild->command);
 			start_a_child_client(managedchild
@@ -2114,7 +2093,7 @@ hb_kill_tracked_process(ProcTrack* p, void * data)
 			return;
 		}
 	}
-	ha_log(LOG_INFO, "killing %s %s %d with signal %d", pname, porg
+	cl_log(LOG_INFO, "killing %s %s %d with signal %d", pname, porg
 	,	(int) p->pid, nsig);
 	/* Suppress logging this process' death */
 	p->loglevel = PT_LOGNONE;
@@ -2131,12 +2110,12 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	pid_t			pid;
 	struct passwd*		pwent;
 
-	ha_log(LOG_INFO, "Starting child client %s (%d,%d)"
+	cl_log(LOG_INFO, "Starting child client %s (%d,%d)"
 	,	centry->command, (int) centry->u_runas
 	,	(int) centry->g_runas);
 
 	if (centry->pid != 0) {
-		ha_log(LOG_ERR, "OOPS! client %s already running as pid %d"
+		cl_log(LOG_ERR, "OOPS! client %s already running as pid %d"
 		,	centry->command, (int) centry->pid);
 	}
 
@@ -2147,14 +2126,14 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	 */
 
 	if (access(centry->command, F_OK|X_OK) < 0) {
-		ha_perror("Cannot exec %s", centry->command);
+		cl_perror("Cannot exec %s", centry->command);
 		return;
 	}
 
 	/* We need to fork so we can make child procs not real time */
 	switch(pid=fork()) {
 
-		case -1:	ha_log(LOG_ERR
+		case -1:	cl_log(LOG_ERR
 				,	"start_a_child_client: Cannot fork.");
 				return;
 
@@ -2177,7 +2156,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		sleep(1);
 	}
 
-	ha_log(LOG_INFO, "Starting %s as uid %d  gid %d (pid %d)"
+	cl_log(LOG_INFO, "Starting %s as uid %d  gid %d (pid %d)"
 	,	centry->command, (int) centry->u_runas
 	,	(int) centry->g_runas, (int) getpid());
 
@@ -2187,7 +2166,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	||	setuid(centry->u_runas) < 0
 	||	CL_SIGINTERRUPT(SIGALRM, 0) < 0) {
 
-		ha_perror("Cannot setup child process %s"
+		cl_perror("Cannot setup child process %s"
 		,	centry->command);
 	}else{
 		const char *	devnull = "/dev/null";
@@ -2208,7 +2187,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		(void)execl(centry->command, centry->command, NULL);
 
 		/* Should not happen */
-		ha_perror("Cannot exec %s", centry->command);
+		cl_perror("Cannot exec %s", centry->command);
 	}
 	/* Suppress respawning */
 	exit(100);
@@ -2225,7 +2204,7 @@ core_proc_name(enum process_type t)
 		case PROC_HBWRITE:	ct = "HBWRITE";		break;
 		case PROC_HBFIFO:	ct = "HBFIFO";		break;
 		case PROC_PPP:		ct = "PPP";		break;
-		default:		ct = "core process huh?";		break;
+		default:		ct = "core process??";	break;
 	}
 	return ct;
 }
@@ -2242,7 +2221,7 @@ hb_dump_proc_stats(volatile struct process_info * proc)
 
 	ct = core_proc_name(proc->type);
 
-	ha_log(LOG_INFO, "MSG stats: %ld/%ld age %ld [pid%d/%s]"
+	cl_log(LOG_INFO, "MSG stats: %ld/%ld age %ld [pid%d/%s]"
 	,	proc->allocmsgs, proc->totalmsgs
 	,	time(NULL) - proc->lastmsg, (int) proc->pid, ct);
 
@@ -2252,15 +2231,15 @@ hb_dump_proc_stats(volatile struct process_info * proc)
 		curralloc = 0;
 	}
 
-	ha_log(LOG_INFO, "ha_malloc stats: %lu/%lu  %lu/%lu [pid%d/%s]"
+	cl_log(LOG_INFO, "ha_malloc stats: %lu/%lu  %lu/%lu [pid%d/%s]"
 	,	curralloc, proc->numalloc
 	,	proc->nbytes_alloc, proc->nbytes_req, (int) proc->pid, ct);
 
-	ha_log(LOG_INFO, "RealMalloc stats: %lu total malloc bytes."
+	cl_log(LOG_INFO, "RealMalloc stats: %lu total malloc bytes."
 	" pid [%d/%s]", proc->mallocbytes, (int) proc->pid, ct);
 
 #ifdef HAVE_MALLINFO
-	ha_log(LOG_INFO, "Current arena value: %lu", proc->arena);
+	cl_log(LOG_INFO, "Current arena value: %lu", proc->arena);
 #endif
 }
 
@@ -2278,10 +2257,10 @@ restart_heartbeat(void)
 	shutdown_in_progress = 1;
 	cl_make_normaltime();
 	return_to_orig_privs();	/* Remain privileged 'til the end */
-	ha_log(LOG_INFO, "Restarting heartbeat.");
+	cl_log(LOG_INFO, "Restarting heartbeat.");
 	quickrestart = (procinfo->giveup_resources ? FALSE : TRUE);
 
-	ha_log(LOG_INFO, "Performing heartbeat restart exec.");
+	cl_log(LOG_INFO, "Performing heartbeat restart exec.");
 
 	getrlimit(RLIMIT_NOFILE, &oflimits);
 	for (j=3; j < oflimits.rlim_cur; ++j) {
@@ -2304,8 +2283,8 @@ restart_heartbeat(void)
 		unlink(PIDFILE);
 		execl(HALIB "/heartbeat", "heartbeat", NULL);
 	}
-	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat");
-	ha_log(LOG_ERR, "Shutting down...");
+	cl_log(LOG_ERR, "Could not exec " HALIB "/heartbeat");
+	cl_log(LOG_ERR, "Shutting down...");
 	hb_emergency_shutdown();
 }
 
@@ -2315,33 +2294,38 @@ check_for_timeouts(void)
 {
 	longclock_t		now = time_longclock();
 	struct node_info *	hip;
-	longclock_t		dead_ticks
-	=			msto_longclock(config->deadtime_ms);
+	longclock_t		dead_ticks;
 	longclock_t		TooOld;
 	int			j;
 
-	if (heartbeat_comm_state != COMM_LINKSUP) {
-		/*
-		 * Compute alternative dead_ticks value for very first
-		 * dead interval.
-		 *
-		 * We do this because for some unknown reason sometimes
-		 * the network is slow to start working.  Experience indicates
-		 * that 30 seconds is generally enough.  It would be nice to
-		 * have a better way to detect that the network isn't really
-		 * working, but I don't know any easy way.
-		 * Patches are being accepted ;-)
-		 */
-		dead_ticks = msto_longclock(config->initial_deadtime_ms);
-	}
-	if (cmp_longclock(now, dead_ticks) <= 0) {
-		TooOld  = zero_longclock;
-	}else{
-		TooOld = sub_longclock(now, dead_ticks);
-	}
 
 	for (j=0; j < config->nodecount; ++j) {
 		hip= &config->nodes[j];
+
+		if (heartbeat_comm_state != COMM_LINKSUP) {
+			/*
+			 * Compute alternative dead_ticks value for very first
+			 * dead interval.
+			 *
+			 * We do this because for some unknown reason
+			 * sometimes the network is slow to start working.
+			 * Experience indicates that 30 seconds is generally
+			 * enough.  It would be nice to have a better way to
+			 * detect that the network isn't really working, but
+			 * I don't know any easy way.
+			 * Patches are being accepted ;-)
+			 */
+			dead_ticks
+			=       msto_longclock(config->initial_deadtime_ms);
+		}else{
+			dead_ticks = hip->dead_ticks;
+		}
+
+               if (cmp_longclock(now, dead_ticks) <= 0) {
+                       TooOld  = zero_longclock;
+               }else{
+                       TooOld = sub_longclock(now, dead_ticks);
+               }
 
 		/* If it's recently updated, or already dead, ignore it */
 		if (cmp_longclock(hip->local_lastupdate, TooOld) >= 0
@@ -2412,18 +2396,20 @@ set_local_status(const char * newstatus)
 	if (strcmp(newstatus, curnode->status) != 0
 	&&	strlen(newstatus) > 1 && strlen(newstatus) < STATUSLENG) {
 
-		/* We can't do this because of conflicts between the two
+		/*
+		 * We can't do this because of conflicts between the two
 		 * paths the updates otherwise arrive through...
+		 * (Is this still true???)
 		 */
 
 		strncpy(curnode->status, newstatus, sizeof(curnode->status));
 		send_local_status();
-		ha_log(LOG_INFO, "Local status now set to: '%s'", newstatus);
-		return(HA_OK);
+		cl_log(LOG_INFO, "Local status now set to: '%s'", newstatus);
+		return HA_OK;
 	}
 
-	ha_log(LOG_INFO, "Unable to set local status to: %s", newstatus);
-	return(HA_FAIL);
+	cl_log(LOG_INFO, "Unable to set local status to: %s", newstatus);
+	return HA_FAIL;
 }
 
 /*
@@ -2442,9 +2428,9 @@ send_cluster_msg(struct ha_msg* msg)
 	pid_t		ourpid = getpid();
 
 	if (msg == NULL || (type = ha_msg_value(msg, F_TYPE)) == NULL) {
-		ha_perror("Invalid message in send_cluster_msg");
+		cl_perror("Invalid message in send_cluster_msg");
 		ha_msg_del(msg);
-		return(HA_FAIL);
+		return HA_FAIL;
 	}
 
 	/*
@@ -2465,10 +2451,13 @@ send_cluster_msg(struct ha_msg* msg)
 		/* We're a child process - copy it to the FIFO */
 		int	ffd = -1;
 		char *	smsg = NULL;
+		int	needprivs = !cl_have_full_privs();
 
-		return_to_orig_privs();
+		if (needprivs) {
+			return_to_orig_privs();
+		}
 		if (DEBUGDETAILS) {
-			ha_log(LOG_INFO, "Writing type [%s] message to FIFO"
+			cl_log(LOG_INFO, "Writing type [%s] message to FIFO"
 			,	type);
 		}
 
@@ -2479,17 +2468,18 @@ send_cluster_msg(struct ha_msg* msg)
 		 */
 		if (	(smsg = msg2string(msg)) == NULL
 		||	(ffd = open(FIFONAME, O_WRONLY|O_NDELAY)) < 0
-		||	write(ffd, smsg, msg->stringlen-1) != msg->stringlen-1){
+		||	write(ffd, smsg, msg->stringlen-1)
+		!=	msg->stringlen-1){
 			cl_perror("Cannot write message to " FIFONAME
 			" [%d vs %d]", getpid(), processes[0]);
 			ha_log_message(msg);
 			rc = HA_FAIL;
 			
 		}
-		return_to_dropped_privs();
 		if (smsg) {
 			if (DEBUGDETAILS) {
-				ha_log(LOG_INFO, "FIFO message [type %s] written"
+				cl_log(LOG_INFO
+				,	"FIFO message [type %s] written"
 				, type);
 			}
 			ha_free(smsg);
@@ -2497,9 +2487,12 @@ send_cluster_msg(struct ha_msg* msg)
 		close(ffd);
 		/* Dispose of the original message */
 		ha_msg_del(msg);
+		if (needprivs) {
+			return_to_dropped_privs();
+		}
 	}
 
-	return(rc);
+	return rc;
 }
 
 
@@ -2515,18 +2508,18 @@ send_local_status()
 
 
 	if (DEBUGDETAILS){
-		ha_log(LOG_DEBUG, "PID %d: Sending local status"
+		cl_log(LOG_DEBUG, "PID %d: Sending local status"
 		" curnode = %lx status: %s"
 		,	(int) getpid(), (unsigned long)curnode
 		,	curnode->status);
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
-		ha_log(LOG_ERR, "Cannot send local status.");
-		return(HA_FAIL);
+		cl_log(LOG_ERR, "Cannot send local status.");
+		return HA_FAIL;
 	}
 	if (ha_msg_add(m, F_TYPE, T_STATUS) != HA_OK
 	||	ha_msg_add(m, F_STATUS, curnode->status) != HA_OK) {
-		ha_log(LOG_ERR, "send_local_status: "
+		cl_log(LOG_ERR, "send_local_status: "
 		"Cannot create local status msg");
 		rc = HA_FAIL;
 		ha_msg_del(m);
@@ -2534,7 +2527,7 @@ send_local_status()
 		rc = send_cluster_msg(m);
 	}
 
-	return(rc);
+	return rc;
 }
 
 gboolean
@@ -2572,19 +2565,19 @@ change_link_status(struct node_info *hip, struct link *lnk
 	struct ha_msg *	lmsg;
 
 	if ((lmsg = ha_msg_new(8)) == NULL) {
-		ha_log(LOG_ERR, "no memory to mark link dead");
+		cl_log(LOG_ERR, "no memory to mark link dead");
 		return;
 	}
 
 	strncpy(lnk->status, newstat, sizeof(lnk->status));
-	ha_log(LOG_INFO, "Link %s:%s %s.", hip->nodename
+	cl_log(LOG_INFO, "Link %s:%s %s.", hip->nodename
 	,	lnk->name, lnk->status);
 
 	if (	ha_msg_add(lmsg, F_TYPE, T_IFSTATUS) != HA_OK
 	||	ha_msg_add(lmsg, F_NODE, hip->nodename) != HA_OK
 	||	ha_msg_add(lmsg, F_IFNAME, lnk->name) != HA_OK
 	||	ha_msg_add(lmsg, F_STATUS, lnk->status) != HA_OK) {
-		ha_log(LOG_ERR, "no memory to change link status");
+		cl_log(LOG_ERR, "no memory to change link status");
 		ha_msg_del(lmsg);
 		return;
 	}
@@ -2597,12 +2590,12 @@ change_link_status(struct node_info *hip, struct link *lnk
 static void
 mark_node_dead(struct node_info *hip)
 {
-	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
+	cl_log(LOG_WARNING, "node %s: is dead", hip->nodename);
 
 	hip->anypacketsyet = 1;
 	if (hip == curnode) {
 		/* Uh, oh... we're dead! */
-		ha_log(LOG_ERR, "No local heartbeat. Forcing restart.");
+		cl_log(LOG_ERR, "No local heartbeat. Forcing restart.");
 
 		if (!shutdown_in_progress) {
 			cause_shutdown_restart();
@@ -2650,7 +2643,9 @@ heartbeat_monitor(struct ha_msg * msg, int msgtype, const char * iface)
 }
 
 
-/*  usage statement */
+/*
+ * Print our usage statement.
+ */
 static void
 usage(void)
 {
@@ -2684,7 +2679,6 @@ usage(void)
 }
 
 
-extern int	optind;
 int
 main(int argc, char * argv[], char **envp)
 {
@@ -2774,7 +2768,7 @@ main(int argc, char * argv[], char **envp)
 	hbmedia_types = ha_malloc(sizeof(struct hbmedia_types **));
 
 	if (hbmedia_types == NULL) {
-		ha_log(LOG_ERR, "Allocation of hbmedia_types failed.");
+		cl_log(LOG_ERR, "Allocation of hbmedia_types failed.");
 		cleanexit(generic_error);
 	}
 
@@ -2792,7 +2786,7 @@ main(int argc, char * argv[], char **envp)
 	init_procinfo();
 
 	if (module_init() != HA_OK) {
-		ha_log(LOG_ERR, "Heartbeat not started: module init error.");
+		cl_log(LOG_ERR, "Heartbeat not started: module init error.");
 		cleanexit(generic_error);
 	}
 
@@ -2800,7 +2794,6 @@ main(int argc, char * argv[], char **envp)
 	 *	We've been asked to shut down the currently running heartbeat
 	 *	process
 	 */
-
 	if (killrunninghb) {
 		int	err;
 
@@ -2851,7 +2844,6 @@ main(int argc, char * argv[], char **envp)
 	/*
 	 *	We think we just performed an "exec" of ourselves to restart.
 	 */
-
 	if (WeAreRestarting) {
 
 		if (running_hb_pid < 0) {
@@ -2861,7 +2853,8 @@ main(int argc, char * argv[], char **envp)
 		}
 		if (running_hb_pid != getpid()) {
 			fprintf(stderr
-			,	"ERROR: Heartbeat already running [pid %ld].\n"
+			,	"ERROR: Heartbeat already running"
+			" [pid %ld].\n"
 			,	running_hb_pid);
 			cleanexit(LSB_EXIT_GENERIC);
 		}
@@ -2872,7 +2865,7 @@ main(int argc, char * argv[], char **envp)
 		 * have changed nice_failback options in the config file
 		 */
 		if (CurrentStatus) {
-			ha_log(LOG_INFO, "restart: i_hold_resources = %s"
+			cl_log(LOG_INFO, "restart: i_hold_resources = %s"
 			,	decode_resources(procinfo->i_hold_resources));
 		}
 
@@ -2882,28 +2875,35 @@ main(int argc, char * argv[], char **envp)
 			if (CurrentStatus == NULL) {
 				/* From !nice_failback to nice_failback */
 				procinfo->i_hold_resources = HB_LOCAL_RSC;
-				hb_send_resources_held(decode_resources(HB_LOCAL_RSC)
+				hb_send_resources_held
+				(	decode_resources(HB_LOCAL_RSC)
 				,	1, NULL);
-				ha_log(LOG_INFO, "restart: assuming HB_LOCAL_RSC");
+				cl_log(LOG_INFO
+				,	"restart: assuming HB_LOCAL_RSC");
 			}else{
-				/* From nice_failback to nice_failback */
-				/* Cool. Nothing special to do. */;
+				/*
+				 * From nice_failback to nice_failback.
+				 * Cool. Nothing special to do.
+				 */
 			}
 		}else{
 			/* nice_failback is currently OFF */
 
 			if (CurrentStatus == NULL) {
-				/* From !nice_failback to !nice_failback */
-				/* Cool. Nothing special to do. */ ;
+				/*
+				 * From !nice_failback to !nice_failback.
+				 * Cool. Nothing special to do.
+				 */
 			}else{
 				/* From nice_failback to not nice_failback */
-				if ((procinfo->i_hold_resources & HB_LOCAL_RSC)) {
+				if ((procinfo->i_hold_resources
+				&		HB_LOCAL_RSC)) {
 					/* We expect to have those */
-					ha_log(LOG_INFO, "restart: acquiring"
+					cl_log(LOG_INFO, "restart: acquiring"
 					" local resources.");
 					req_our_resources(0);
 				}else{
-					ha_log(LOG_INFO, "restart: "
+					cl_log(LOG_INFO, "restart: "
 					" local resources already acquired.");
 				}
 			}
@@ -2911,8 +2911,9 @@ main(int argc, char * argv[], char **envp)
 	}
 
 	/*
-	 *	We've been asked to restart currently running heartbeat process
-	 *	(or at least get it to reread it's configuration files)
+	 *	We've been asked to restart currently running heartbeat
+	 *	process (or at least get it to reread it's configuration
+	 *	files)
 	 */
 
 	if (RestartRequested) {
@@ -2923,19 +2924,20 @@ main(int argc, char * argv[], char **envp)
 		errno = 0;
 		if (init_config(CONFIG_NAME)
 		&&	parse_ha_resources(RESOURCE_CFG)){
-			ha_log(LOG_INFO
+			cl_log(LOG_INFO
 			,	"Signalling heartbeat pid %ld to reread"
 			" config files", running_hb_pid);
 
 			if (CL_KILL(running_hb_pid, SIGHUP) >= 0) {
 				cleanexit(0);
 			}
-			ha_perror("Unable to send SIGHUP to pid %ld"
+			cl_perror("Unable to send SIGHUP to pid %ld"
 			,	running_hb_pid);
 		}else{
 			int err = errno;
-			ha_log(LOG_INFO
-			,	"Config errors: Heartbeat pid %ld NOT restarted"
+			cl_log(LOG_INFO
+			,	"Config errors: Heartbeat pid %ld"
+			" NOT restarted"
 			,	running_hb_pid);
 			cleanexit((err == EPERM || err == EACCES)
 			?	LSB_EXIT_EPERM
@@ -2948,7 +2950,7 @@ StartHeartbeat:
 
 	if (init_config(CONFIG_NAME) && parse_ha_resources(RESOURCE_CFG)) {
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG
+			cl_log(LOG_DEBUG
 			,	"HA configuration OK.  Heartbeat starting.");
 		}
 		if (verbose) {
@@ -2972,14 +2974,16 @@ StartHeartbeat:
 		}
 	}else{
 		int err = errno;
-		ha_log(LOG_ERR, "Configuration error, heartbeat not started.");
+		cl_log(LOG_ERR
+		,	"Configuration error, heartbeat not started.");
+
 		cleanexit((err == EPERM || err == EACCES)
 		?	LSB_EXIT_EPERM
 		:	LSB_EXIT_NOTCONFIGED);
 	}
 
 	/*NOTREACHED*/
-	return(generic_error);
+	return generic_error;
 }
 
 void
@@ -2989,12 +2993,12 @@ cleanexit(rc)
 	hb_close_watchdog();
 	if (localdie) {
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "Calling localdie() function");
+			cl_log(LOG_DEBUG, "Calling localdie() function");
 		}
 		(*localdie)();
 	}
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Exiting from pid %d [rc=%d]"
+		cl_log(LOG_DEBUG, "Exiting from pid %d [rc=%d]"
 		,	(int) getpid(), rc);
 	}
 	if (config && config->log_facility >= 0) {
@@ -3010,7 +3014,7 @@ hb_emergency_shutdown(void)
 	cl_make_normaltime();
 	return_to_orig_privs();
 	CL_IGNORE_SIG(SIGTERM);
-	ha_log(LOG_ERR, "Emergency Shutdown: "
+	cl_log(LOG_ERR, "Emergency Shutdown: "
 			"Attempting to kill everything ourselves");
 	CL_KILL(-getpgrp(), SIGTERM);
 	hb_kill_rsc_mgmt_children(SIGKILL);
@@ -3032,13 +3036,13 @@ get_running_hb_pid()
 		hb_pid_in_file = pid;
 		if (CL_KILL((pid_t)pid, 0) >= 0 || errno != ESRCH) {
 			fclose(lockfd);
-			return(pid);
+			return pid;
 		}
 	}
 	if (lockfd != NULL) {
 		fclose(lockfd);
 	}
-	return(-1L);
+	return -1L;
 }
 
 
@@ -3055,7 +3059,7 @@ make_daemon(void)
 	/* See if heartbeat is already running... */
 
 	if ((pid=get_running_hb_pid()) > 0 && pid != getpid()) {
-		ha_log(LOG_INFO, "%s: already running [pid %ld]."
+		cl_log(LOG_INFO, "%s: already running [pid %ld]."
 		,	cmdname, pid);
 		exit(LSB_EXIT_OK);
 	}
@@ -3116,14 +3120,14 @@ hb_init_watchdog(void)
 		watchdogfd = open(watchdogdev, O_WRONLY);
 		if (watchdogfd >= 0) {
 			if (fcntl(watchdogfd, F_SETFD, FD_CLOEXEC)) {
-				ha_perror("Error setting the "
+				cl_perror("Error setting the "
 				"close-on-exec flag for watchdog");
 			}
-			ha_log(LOG_NOTICE, "Using watchdog device: %s"
+			cl_log(LOG_NOTICE, "Using watchdog device: %s"
 			,	watchdogdev);
 			hb_tickle_watchdog();
 		}else{
-			ha_log(LOG_ERR, "Cannot open watchdog device: %s"
+			cl_log(LOG_ERR, "Cannot open watchdog device: %s"
 			,	watchdogdev);
 		}
 	}
@@ -3134,7 +3138,7 @@ hb_tickle_watchdog(void)
 {
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "", 1) != 1) {
-			ha_perror("Watchdog write failure: closing %s!\n"
+			cl_perror("Watchdog write failure: closing %s!\n"
 			,	watchdogdev);
 			hb_close_watchdog();
 			watchdogfd=-1;
@@ -3147,8 +3151,8 @@ hb_close_watchdog(void)
 {
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "V", 1) != 1) {
-			ha_perror(
-			"Watchdog write magic character failure: closing %s!\n"
+			cl_perror(
+			"Watchdog write magic character failure: closing %s!"
 			,	watchdogdev);
 		}
 		close(watchdogfd);
@@ -3159,7 +3163,7 @@ hb_close_watchdog(void)
 void
 ha_assert(const char * assertion, int line, const char * file)
 {
-	ha_log(LOG_ERR, "Assertion \"%s\" failed on line %d in file \"%s\""
+	cl_log(LOG_ERR, "Assertion \"%s\" failed on line %d in file \"%s\""
 	,	assertion, line, file);
 	cleanexit(1);
 }
@@ -3177,24 +3181,25 @@ should_ring_copy_msg(struct ha_msg *m)
 	/* Get originator and time to live field values */
 	if ((from = ha_msg_value(m, F_ORIG)) == NULL
 	||	(ttl = ha_msg_value(m, F_TTL)) == NULL) {
-			ha_log(LOG_ERR, "bad packet in should_copy_ring_pkt");
-			return(0);
+			cl_log(LOG_ERR
+			,	"bad packet in should_copy_ring_pkt");
+			return 0;
 	}
 	/* Is this message from us? */
 	if (strcmp(from, us) == 0 || ttl == NULL || atoi(ttl) <= 0) {
 		/* Avoid infinite loops... Ignore this message */
-		return(0);
+		return 0;
 	}
 
 	/* Must be OK */
-	return(1);
+	return 1;
 }
 
 /*
  *	From here to the end is protocol code.  It implements our reliable
  *	multicast protocol.
  *
- *	The implementation of this protocol is in the master_control_process().
+ *	This protocol is called from master_control_process().
  */
 
 
@@ -3229,35 +3234,35 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	int			is_status = 0;
 
 	/* Some packet types shouldn't have sequence numbers */
-	if (type != NULL && strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1)
-	==	0) {
+	if (type != NULL
+	&&	strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1) ==	0) {
 		/* Is this a sequence number rexmit NAK? */
 		if (strcasecmp(type, T_NAKREXMIT) == 0) {
 			const char *	cnseq = ha_msg_value(msg, F_FIRSTSEQ);
 			seqno_t		nseq;
 			if (cnseq  == NULL || sscanf(cnseq, "%lx", &nseq) != 1
 			||	nseq <= 0) {
-				ha_log(LOG_ERR
+				cl_log(LOG_ERR
 				, "should_drop_message: bad nak seq number");
-				return(DROPIT);
+				return DROPIT;
 			}
 
-			ha_log(LOG_ERR , "%s: node %s seq %ld"
+			cl_log(LOG_ERR , "%s: node %s seq %ld"
 			,	"Irretrievably lost packet"
 			,	thisnode->nodename, nseq);
 			is_lost_packet(thisnode, nseq);
-			return(DROPIT);
+			return DROPIT;
 		}
-		return(KEEPIT);
+		return KEEPIT;
 	}
 	if (strcasecmp(type, T_STATUS) == 0) {
 		is_status = 1;
 	}
 
 	if (cseq  == NULL || sscanf(cseq, "%lx", &seq) != 1 ||	seq <= 0) {
-		ha_log(LOG_ERR, "should_drop_message: bad sequence number");
+		cl_log(LOG_ERR, "should_drop_message: bad sequence number");
 		ha_log_message(msg);
-		return(DROPIT);
+		return DROPIT;
 	}
 
 	/* Extract the heartbeat generation number */
@@ -3273,10 +3278,10 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 
 	/* Does this looks like a replay attack... */
 	if (gen < t->generation) {
-		ha_log(LOG_DEBUG
+		cl_log(LOG_DEBUG
 		,	"should_drop_message: attempted replay attack"
 		" [%s]? [curgen = %ld]", thisnode->nodename, t->generation);
-		return(DROPIT);
+		return DROPIT;
 
 	}else if (is_status) {
 		/* Look for apparent restarts/healed partitions */
@@ -3291,13 +3296,13 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 				/* They're now alive, but were dead. */
 				/* No restart occured. UhOh. */
 
-				ha_log(LOG_WARNING
+				cl_log(LOG_WARNING
 				,	"Cluster node %s"
 				" returning after partition."
 				,	thisnode->nodename);
-				ha_log(LOG_WARNING
+				cl_log(LOG_WARNING
 				,	"Deadtime value may be too small.");
-				ha_log(LOG_INFO
+				cl_log(LOG_INFO
 				,	"See documentation for information"
 				" on tuning deadtime.");
 
@@ -3311,7 +3316,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		}else if (gen > t->generation) {
 			isrestart = 1;
 			if (t->generation > 0) {
-				ha_log(LOG_INFO, "Heartbeat restart on node %s"
+				cl_log(LOG_INFO, "Heartbeat restart on node %s"
 				,	thisnode->nodename);
 			}
 			thisnode->rmt_lastupdate = 0L;
@@ -3326,25 +3331,25 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	if (t->last_seq == NOSEQUENCE || seq == (t->last_seq+1)) {
 		t->last_seq = seq;
 		t->last_iface = iface;
-		return(IsToUs ? KEEPIT : DROPIT);
+		return (IsToUs ? KEEPIT : DROPIT);
 	}else if (seq == t->last_seq) {
 		/* Same as last-seen packet -- very common case */
 		if (DEBUGPKT) {
-			ha_log(LOG_DEBUG
+			cl_log(LOG_DEBUG
 			,	"should_drop_message: Duplicate packet(1)");
 		}
-		return(DUPLICATE);
+		return DUPLICATE;
 	}
-
-	/* Not in sequence... Hmmm... */
-
-	/* Is it newer than the last packet we got? */
-
+	/*
+	 * Not in sequence... Hmmm...
+	 *
+	 * Is it newer than the last packet we got?
+	 */
 	if (seq > t->last_seq) {
 		seqno_t	k;
 		seqno_t	nlost;
 		nlost = ((seqno_t)(seq - (t->last_seq+1)));
-		ha_log(LOG_WARNING, "%lu lost packet(s) for [%s] [%lu:%lu]"
+		cl_log(LOG_WARNING, "%lu lost packet(s) for [%s] [%lu:%lu]"
 		,	nlost, thisnode->nodename, t->last_seq, seq);
 
 		if (nlost > SEQGAP) {
@@ -3353,8 +3358,8 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 			t->nmissing = 0;
 			t->last_seq = seq;
 			t->last_iface = iface;
-			ha_log(LOG_ERR, "lost a lot of packets!");
-			return(IsToUs ? KEEPIT : DROPIT);
+			cl_log(LOG_ERR, "lost a lot of packets!");
+			return (IsToUs ? KEEPIT : DROPIT);
 		}else{
 			request_msg_rexmit(thisnode, t->last_seq+1L, seq-1L);
 		}
@@ -3387,7 +3392,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		}
 		t->last_seq = seq;
 		t->last_iface = iface;
-		return(IsToUs ? KEEPIT : DROPIT);
+		return (IsToUs ? KEEPIT : DROPIT);
 	}
 	/*
 	 * This packet appears to be older than the last one we got.
@@ -3397,7 +3402,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	 * Is it a (recorded) missing packet?
 	 */
 	if (is_lost_packet(thisnode, seq)) {
-		return(IsToUs ? KEEPIT : DROPIT);
+		return (IsToUs ? KEEPIT : DROPIT);
 	}
 
 	if (ishealedpartition || isrestart) {
@@ -3406,8 +3411,8 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		if ((sts = ha_msg_value(msg, F_TIME)) == NULL
 		||	sscanf(sts, TIME_X, &newts) != 1 || newts == 0L) {
 			/* Toss it.  No valid timestamp */
-			ha_log(LOG_ERR, "should_drop_message: bad timestamp");
-			return(DROPIT);
+			cl_log(LOG_ERR, "should_drop_message: bad timestamp");
+			return DROPIT;
 		}
 
 		thisnode->rmt_lastupdate = newts;
@@ -3415,14 +3420,14 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		t->last_seq = seq;
 		t->last_rexmit_req = zero_longclock;
 		t->last_iface = iface;
-		return(IsToUs ? KEEPIT : DROPIT);
+		return (IsToUs ? KEEPIT : DROPIT);
 	}
-	/* This is a duplicate packet (or a really old one we lost track of) */
+	/* This is a DUP packet (or a really old one we lost track of) */
 	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "should_drop_message: Duplicate packet");
+		cl_log(LOG_DEBUG, "should_drop_message: Duplicate packet");
 		ha_log_message(msg);
 	}
-	return(DROPIT);
+	return DROPIT;
 
 }
 
@@ -3451,17 +3456,17 @@ process_outbound_packet(struct msg_xmit_hist*	msghist
 	int		IsToUs;
 
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, "got msg in process_outbound_packet");
+		cl_log(LOG_DEBUG, "got msg in process_outbound_packet");
 	}
 	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
-		ha_log(LOG_ERR, "process_outbound_packet: no type in msg.");
+		cl_log(LOG_ERR, "process_outbound_packet: no type in msg.");
 		ha_msg_del(msg); msg = NULL;
 		return HA_FAIL;
 	}
 	if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
 		if (sscanf(cseq, "%lx", &seqno) != 1
 		||	seqno <= 0) {
-			ha_log(LOG_ERR, "process_outbound_packet: "
+			cl_log(LOG_ERR, "process_outbound_packet: "
 			"bad sequence number");
 			smsg = NULL;
 			ha_msg_del(msg);
@@ -3527,7 +3532,7 @@ is_lost_packet(struct node_info * thisnode, seqno_t seq)
 				t->nmissing --;
 			}
 			if (t->nmissing == 0) {
-				ha_log(LOG_INFO, "No pkts missing from %s!"
+				cl_log(LOG_INFO, "No pkts missing from %s!"
 				,	thisnode->nodename);
 			}
 			return 1;
@@ -3544,7 +3549,7 @@ request_msg_rexmit(struct node_info *node, seqno_t lowseq
 	char		low[16];
 	char		high[16];
 	if ((hmsg = ha_msg_new(6)) == NULL) {
-		ha_log(LOG_ERR, "no memory for " T_REXMIT);
+		cl_log(LOG_ERR, "no memory for " T_REXMIT);
 	}
 
 	sprintf(low, "%lu", lowseq);
@@ -3558,13 +3563,13 @@ request_msg_rexmit(struct node_info *node, seqno_t lowseq
 	&&	ha_msg_add(hmsg, F_LASTSEQ, high) == HA_OK) {
 		/* Send a re-transmit request */
 		if (send_cluster_msg(hmsg) != HA_OK) {
-			ha_log(LOG_ERR, "cannot send " T_REXMIT
+			cl_log(LOG_ERR, "cannot send " T_REXMIT
 			" request to %s", node->nodename);
 		}
 		node->track.last_rexmit_req = time_longclock();
 	}else{
 		ha_msg_del(hmsg);
-		ha_log(LOG_ERR, "no memory for " T_REXMIT);
+		cl_log(LOG_ERR, "no memory for " T_REXMIT);
 	}
 }
 
@@ -3585,7 +3590,9 @@ check_rexmit_reqs(void)
 		if (t->nmissing <= 0 ) {
 			continue;
 		}
-		/* We rarely reach this code, so avoid the extra system call*/
+		/*
+		 * We rarely reach this code, so avoid an extra system call
+		 */
 		if (!gottimeyet) {
 			longclock_t	rexmitms = msto_longclock(REXMIT_MS);
 			longclock_t	now = time_longclock();
@@ -3631,7 +3638,6 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 	}
 }
 
-void audit_xmit_hist(void);
 void
 audit_xmit_hist(void)
 {
@@ -3711,6 +3717,8 @@ audit_xmit_hist(void)
 		}
 	}
 }
+
+
 /* Add a packet to a channel's transmit history */
 static void
 add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
@@ -3770,7 +3778,7 @@ process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 	||	(clseq = ha_msg_value(msg, F_LASTSEQ)) == NULL
 	||	(fseq=atoi(cfseq)) <= 0 || (lseq=atoi(clseq)) <= 0
 	||	fseq > lseq) {
-		ha_log(LOG_ERR, "Invalid rexmit seqnos");
+		cl_log(LOG_ERR, "Invalid rexmit seqnos");
 		ha_log_message(msg);
 	}
 
@@ -3792,7 +3800,7 @@ process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 			 *
 			 * Otherwise it's a bug ;-)
 			 */
-			ha_log(LOG_WARNING
+			cl_log(LOG_WARNING
 			,	"Rexmit of seq %lu requested. %lu is max."
 			,	thisseq, hist->hiseq);
 			continue;
@@ -3837,22 +3845,23 @@ process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 			firstslot = msgslot -1;
 			foundit=1;
 			if (ANYDEBUG) {
-				ha_log(LOG_INFO, "Retransmitting pkt %lu"
+				cl_log(LOG_INFO, "Retransmitting pkt %lu"
 				,	thisseq);
 			}
 			smsg = msg2string(hist->msgq[msgslot]);
 
 			if (DEBUGPKT) {
 				ha_log_message(hist->msgq[msgslot]);
-				ha_log(LOG_INFO
+				cl_log(LOG_INFO
 				,	"Rexmit STRING conversion: [%s]"
 				,	smsg);
 	 		}
 
-			/* If it didn't convert, throw original message away */
+			/* If it didn't convert, throw original msg away */
 			if (smsg != NULL) {
 				hist->lastrexmit[msgslot] = now;
-				send_to_all_media(smsg, hist->msgq[msgslot]->stringlen);
+				send_to_all_media(smsg
+				,	hist->msgq[msgslot]->stringlen);
 			}
 
 		}
@@ -3862,6 +3871,8 @@ process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 NextReXmit:/* Loop again */;
 	}
 }
+
+
 static void
 nak_rexmit(seqno_t seqno, const char * reason)
 {
@@ -3869,17 +3880,17 @@ nak_rexmit(seqno_t seqno, const char * reason)
 	char	sseqno[32];
 
 	sprintf(sseqno, "%lx", seqno);
-	ha_log(LOG_ERR, "Cannot rexmit pkt %lu: %s", seqno, reason);
+	cl_log(LOG_ERR, "Cannot rexmit pkt %lu: %s", seqno, reason);
 
 	if ((msg = ha_msg_new(6)) == NULL) {
-		ha_log(LOG_ERR, "no memory for " T_NAKREXMIT);
+		cl_log(LOG_ERR, "no memory for " T_NAKREXMIT);
 		return;
 	}
 
 	if (ha_msg_add(msg, F_TYPE, T_NAKREXMIT) != HA_OK
 	||	ha_msg_add(msg, F_FIRSTSEQ, sseqno) != HA_OK
 	||	ha_msg_add(msg, F_COMMENT, reason) != HA_OK) {
-		ha_log(LOG_ERR, "cannot create " T_NAKREXMIT " msg.");
+		cl_log(LOG_ERR, "cannot create " T_NAKREXMIT " msg.");
 		ha_msg_del(msg); msg=NULL;
 		return;
 	}
@@ -3899,7 +3910,7 @@ ParseTestOpts()
 
 	if ((fp = fopen(openpath, "r")) == NULL) {
 		if (TestOpts) {
-			ha_log(LOG_INFO, "Test Code Now disabled.");
+			cl_log(LOG_INFO, "Test Code Now disabled.");
 			something_changed=1;
 		}
 		TestOpts = NULL;
@@ -3912,30 +3923,33 @@ ParseTestOpts()
 	p.send_loss_prob = 0;
 	p.rcv_loss_prob = 0;
 
-	ha_log(LOG_INFO, "WARNING: Enabling Test Code");
+	cl_log(LOG_INFO, "WARNING: Enabling Test Code");
 
 	while((fscanf(fp, "%[a-zA-Z_]=%s\n", name, value) == 2)) {
 		if (strcmp(name, "rcvloss") == 0) {
 			p.rcv_loss_prob = atof(value);
 			p.enable_rcv_pkt_loss = 1;
-			ha_log(LOG_INFO, "Receive loss probability = %.3f"
+			cl_log(LOG_INFO, "Receive loss probability = %.3f"
 			,	p.rcv_loss_prob);
 		}else if (strcmp(name, "xmitloss") == 0) {
 			p.send_loss_prob = atof(value);
 			p.enable_send_pkt_loss = 1;
-			ha_log(LOG_INFO, "Xmit loss probability = %.3f"
+			cl_log(LOG_INFO, "Xmit loss probability = %.3f"
 			,	p.send_loss_prob);
 		}else{
-			ha_log(LOG_INFO, "Cannot recognize test param [%s]"
+			cl_log(LOG_INFO, "Cannot recognize test param [%s]"
 			,	name);
 		}
 	}
-	ha_log(LOG_INFO, "WARNING: Above Options Now Enabled.");
+	cl_log(LOG_INFO, "WARNING: Above Options Now Enabled.");
 	return something_changed;
 }
 
 #ifndef HB_VERS_FILE
-	/* This file needs to be persistent across reboots, but isn't really a log */
+/*
+ * This file needs to be persistent across reboots, but isn't
+ * really a log
+ */
 #	define HB_VERS_FILE VAR_LIB_D "/hb_generation"
 #endif
 
@@ -3964,7 +3978,7 @@ IncrGeneration(seqno_t * generation)
 
 	if ((fd = open(HB_VERS_FILE, O_RDONLY)) < 0
 	||	read(fd, buf, sizeof(buf)) < 1) {
-		ha_log(LOG_WARNING, "No Previous generation - starting at 1");
+		cl_log(LOG_WARNING, "No Previous generation - starting at 1");
 		snprintf(buf, sizeof(buf), "%*d", GENLEN, 0);
 		flags = O_CREAT;
 	}
@@ -3989,11 +4003,11 @@ IncrGeneration(seqno_t * generation)
 	 */
 
 	if (fsync(fd) < 0) {
-		ha_perror("fsync failure on " HB_VERS_FILE);
+		cl_perror("fsync failure on " HB_VERS_FILE);
 		return HA_FAIL;
 	}
 	if (close(fd) < 0) {
-		ha_perror("close failure on " HB_VERS_FILE);
+		cl_perror("close failure on " HB_VERS_FILE);
 		return HA_FAIL;
 	}
 	/*
@@ -4015,11 +4029,13 @@ GetTimeBasedGeneration(seqno_t * generation)
 }
 
 
-
-
-
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.256  2003/04/30 22:28:09  alan
+ * Changed heartbeat.c to use cl_log instead of ha_log.
+ * Fixed up various formatting things.
+ * Changed heartbeat to use the per-node timeout timer.
+ *
  * Revision 1.255  2003/04/23 01:32:27  horms
  * Fixed indentation
  *
@@ -4732,7 +4748,7 @@ GetTimeBasedGeneration(seqno_t * generation)
  * Also, fixed lots of space/tab nits in various places in heartbeat.
  *
  * Revision 1.150  2001/10/22 04:02:29  alan
- * Put in a patch to check the arguments to ha_log calls...
+ * Put in a patch to check the arguments to cl_log calls...
  *
  * Revision 1.149  2001/10/13 22:27:15  alan
  * Removed a superfluous signal_all(SIGTERM)
