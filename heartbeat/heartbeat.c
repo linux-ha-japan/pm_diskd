@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.132 2001/09/07 05:48:30 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.133 2001/09/18 14:19:45 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -278,10 +278,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.132 2001/09/07 05:48
 
 #define OPTARGS		"dkMrRsvC:"
 
-/* #define	IGNORESIG(s)	((void)signal((s), SIG_IGN)) */
-#define	IGNORESIG(s)	\
-        ha_log(LOG_DEBUG, "ignoring signal %d", s); \
-        (void)signal((s), SIG_IGN);
+#define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
 
 /*
  *	Note that the _RSC defines below are bit fields!
@@ -346,6 +343,16 @@ const char *ha_log_priority[8] = {
 	"debug"
 };
 
+#define REAPER_SIG                      0x0001
+#define GIVEUP_RESOURCES_AND_TERM_SIG   0x0002
+#define TERM_SIG                        0x0004
+#define PARENT_DEBUG_USR1_SIG           0x0008
+#define PARENT_DEBUG_USR2_SIG           0x0010
+#define REREAD_CONFIG_SIG               0x0020
+#define DING_SIG                        0x0040
+#define FALSE_ALARM_SIG                 0x0080
+
+int pending_handlers = 0;
 
 struct sys_config *	config = NULL;
 struct node_info *	curnode = NULL;
@@ -356,12 +363,26 @@ volatile struct process_info *	curproc = NULL;
 int	setline(int fd);
 void	cleanexit(int rc);
 void    reaper_sig(int sig);
-void    giveup_resources_and_signal_all_sig(int sig);
-void    signal_all_sig(int sig);
+void    reaper_action(void);
+void    giveup_resources_and_term_sig(int sig);
+void    giveup_resources_and_term_action(void);
+void    term_sig(int sig);
+void    term_action(void);
 void	debug_sig(int sig);
+void	debug_action(void);
 void	signal_all(int sig);
-void	parent_debug_sig(int sig);
+void	signal_action(void);
+void	parent_debug_usr1_sig(int sig);
+void	parent_debug_usr1_action(void);
+void	parent_debug_usr2_sig(int sig);
+void	parent_debug_usr2_action(void);
 void	reread_config_sig(int sig);
+void	reread_config_action(void);
+void	ding_sig(int sig);
+void	ding_action(void);
+void	false_alarm_sig(int sig);
+void	false_alarm_action(void);
+void    process_pending_handlers(void);
 void	restart_heartbeat(int quickrestart);
 int	parse_config(const char * cfgfile);
 int	parse_ha_resources(const char * cfgfile);
@@ -378,8 +399,6 @@ void	init_procinfo(void);
 int	initialize_heartbeat(void);
 void	init_status_alarm(void);
 void	ha_versioninfo(void);
-void	ding(int sig);
-void	AlarmUhOh(int sig);
 void	dump_proc_stats(volatile struct process_info * proc);
 void	dump_all_proc_stats(void);
 void	check_for_timeouts(void);
@@ -974,6 +993,8 @@ read_child(struct hb_media* mp)
 		struct	ha_msg*	m = mp->vf->read(mp);
 		char *		sm;
 
+                process_pending_handlers();
+
 		if (m == NULL) {
 			continue;
 		}
@@ -1022,6 +1043,9 @@ write_child(struct hb_media* mp)
 
 	for (;;) {
 		struct ha_msg * msgp = if_msgfromstream(ourfp, NULL);
+
+                process_pending_handlers();
+
 		if (msgp == NULL) {
 			continue;
 		}
@@ -1044,9 +1068,9 @@ control_process(FILE * fp)
 	init_xmit_hist (&msghist);
 
 	/* Catch and propagate debugging level signals... */
-	signal(SIGUSR1, parent_debug_sig);
-	signal(SIGUSR2, parent_debug_sig);
-	signal(SIGTERM, giveup_resources_and_signal_all_sig);
+	signal(SIGUSR1, parent_debug_usr1_sig);
+	signal(SIGUSR2, parent_debug_usr2_sig);
+	signal(SIGTERM, giveup_resources_and_term_sig);
 	siginterrupt(SIGALRM, 1);
 
         set_proc_title("%s: control process", cmdname);
@@ -1060,6 +1084,8 @@ control_process(FILE * fp)
 		unsigned long	seqno = -1;
 		const  char *	to;
 		int		IsToUs;
+
+                process_pending_handlers();
 
 		if (msg == NULL) {
 			continue;
@@ -1228,6 +1254,8 @@ master_status_process(void)
 		fd_set		exset;
 		int		ndesc;
 		int		selret;
+
+                process_pending_handlers();
 
 		if (send_status_now) {
 			send_status_now = 0;
@@ -1883,7 +1911,7 @@ void
 init_status_alarm(void)
 {
 	siginterrupt(SIGALRM, 1);
-	signal(SIGALRM, ding);
+	signal(SIGALRM, ding_sig);
 	alarm(1);
 }
 
@@ -2007,28 +2035,46 @@ debug_sig(int sig)
 void
 reaper_sig(int sig)
 {
+        signal(sig, reaper_sig);
+        pending_handlers|=REAPER_SIG;
+}
+
+void
+reaper_action(void)
+{
         int status;
 
-        signal(sig, reaper_sig);
         while(wait3(&status, WNOHANG, 0)>0) { 
                 ;
         }
 }
 
 void
-giveup_resources_and_signal_all_sig(int sig) 
+giveup_resources_and_term_sig(int sig) 
 {
-	ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
-        signal(sig, giveup_resources_and_signal_all_sig);
-        giveup_resources(sig);
-        signal_all(sig);
+        signal(sig, giveup_resources_and_term_sig);
+        pending_handlers|=GIVEUP_RESOURCES_AND_TERM_SIG;
 }
 
 void
-signal_all_sig(int sig)
+giveup_resources_and_term_action(void) 
 {
-        signal(sig, signal_all_sig);
-        signal_all(sig);
+	ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
+        giveup_resources(SIGTERM);
+        signal_all(SIGTERM);
+}
+
+void
+term_sig(int sig)
+{
+        signal(sig, term_sig);
+        pending_handlers|=TERM_SIG;
+}
+
+void
+term_action(void)
+{
+        signal_all(SIGTERM);
 }
 
 void
@@ -2068,6 +2114,7 @@ dump_proc_stats(volatile struct process_info * proc)
 	ha_log(LOG_INFO, "RealMalloc stats: %lu total malloc bytes."
 	" pid [%d/%s]", proc->mallocbytes, proc->pid, ct);
 }
+
 void
 dump_all_proc_stats()
 {
@@ -2078,9 +2125,8 @@ dump_all_proc_stats()
 	}
 }
 
-
-void
-parent_debug_sig(int sig)
+static void
+__parent_debug_action(int sig)
 {
 	int	olddebug = debug;
 
@@ -2090,7 +2136,32 @@ parent_debug_sig(int sig)
 	if (debug == 1 && olddebug == 0) {
 		ha_versioninfo();
 	}
+}
 
+void
+parent_debug_usr1_sig(int sig)
+{
+        signal(sig, parent_debug_usr1_sig);
+	pending_handlers|=PARENT_DEBUG_USR1_SIG;
+}
+
+void
+parent_debug_usr1_action(void)
+{
+        __parent_debug_action(SIGUSR1);
+}
+
+void
+parent_debug_usr2_sig(int sig)
+{
+        signal(sig, parent_debug_usr2_sig);
+	pending_handlers|=PARENT_DEBUG_USR2_SIG;
+}
+
+void
+parent_debug_usr2_action(void)
+{
+        __parent_debug_action(SIGUSR2);
 }
 
 void
@@ -2118,7 +2189,6 @@ restart_heartbeat(int quickrestart)
 	 *	re-exec ourselves with the -R option
 	 */
 	ha_log(LOG_INFO, "Restarting heartbeat.");
-
 
 	getrlimit(RLIMIT_NOFILE, &oflimits);
 
@@ -2182,13 +2252,19 @@ restart_heartbeat(int quickrestart)
 	ha_log(LOG_ERR, "Shutting down...");
 	kill(curpid, SIGTERM);
 }
+
 void
 reread_config_sig(int sig)
 {
+        signal(sig, reread_config_sig);
+        pending_handlers|=REREAD_CONFIG_SIG;
+}
+
+void
+reread_config_action(void)
+{
 	int	j;
 	int	signal_children = 0;
-
-	signal(sig, reread_config_sig);
 
 	/* If we're the control process, tell our children */
 	if (curproc->type == PROC_CONTROL) {
@@ -2232,7 +2308,7 @@ reread_config_sig(int sig)
 	if (signal_children) {
 		for (j=0; j < procinfo->nprocs; ++j) {
 			if (procinfo->info+j != curproc) {
-				kill(procinfo->info[j].pid, sig);
+				kill(procinfo->info[j].pid, SIGHUP);
 			}
 		}
 	}
@@ -2242,11 +2318,17 @@ reread_config_sig(int sig)
 
 /* Ding!  Activated once per second in the status process */
 void
-ding(int sig)
+ding_sig(int sig)
+{
+        signal(sig, ding_sig);
+        pending_handlers|=DING_SIG;
+}
+        
+void
+ding_action(void)
 {
 	static int	dingtime = 1;
 	TIME_T		now = time(NULL);
-	signal(SIGALRM, ding);
 
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Ding!");
@@ -2268,12 +2350,50 @@ ding(int sig)
 }
 
 void
-AlarmUhOh(int sig)
+false_alarm_sig(int sig)
 {
-	signal(SIGALRM, AlarmUhOh);
+	signal(sig, false_alarm_sig);
+        pending_handlers|=FALSE_ALARM_SIG;
+}
+
+void
+false_alarm_action(void)
+{
 	if (ANYDEBUG) {
 		ha_log(LOG_ERR, "Unexpected alarm in process %d", getpid());
 	}
+}
+
+
+void
+process_pending_handlers(void)
+{
+        if(pending_handlers&REAPER_SIG) {
+                reaper_action();
+        }
+        if(pending_handlers&GIVEUP_RESOURCES_AND_TERM_SIG) {
+                giveup_resources_and_term_action();
+        }
+        if(pending_handlers&TERM_SIG) {
+                term_action();
+        }
+        if(pending_handlers&PARENT_DEBUG_USR1_SIG) {
+                parent_debug_usr1_action();
+        }
+        if(pending_handlers&PARENT_DEBUG_USR2_SIG) {
+                parent_debug_usr2_action();
+        }
+        if(pending_handlers&REREAD_CONFIG_SIG) {
+                reread_config_action();
+        }
+        if(pending_handlers&DING_SIG) {
+                ding_action();
+        }
+        if(pending_handlers&FALSE_ALARM_SIG) {
+                false_alarm_action();
+        }
+
+        pending_handlers=0;
 }
 
 /* See if any nodes or links have timed out */
@@ -2726,6 +2846,7 @@ healed_cluster_partition(struct node_info *t)
 	/* And, it really should work every time... :-) */
 	procinfo->restart_after_shutdown = 1;
 	giveup_resources(0);
+        signal_all(SIGTERM);
 }
 
 struct fieldname_map {
@@ -2912,8 +3033,6 @@ giveup_resources(int dummy)
 	}
 	pclose(rkeys);
 	ha_log(LOG_INFO, "All HA resources relinquished.");
-
-        exit(0);
 
         if ((m=ha_msg_new(0)) == NULL) {
                 ha_log(LOG_ERR, "Cannot send final shutdown msg");
@@ -3247,8 +3366,6 @@ signal_all(int sig)
 	int us = getpid();
 	int j;
 
-        ha_log(LOG_DEBUG, "pid %d: got signal %d", us, sig);
-
 	if (sig == SIGTERM) {
 		IGNORESIG(SIGTERM);
 		ha_log(LOG_DEBUG, "pid %d: ignoring SIGTERM", us);
@@ -3278,6 +3395,8 @@ signal_all(int sig)
 				if (procinfo->restart_after_shutdown) {
 					sleep(config->deadtime_interval+1);
 					restart_heartbeat(0);
+                                        return;
+                                        /* Not Reached */
 				}
 			}
 			cleanexit(1);
@@ -3311,7 +3430,7 @@ make_daemon(void)
 {
 	long		pid;
 	FILE *		lockfd;
-	sigset_t	sighup;
+        sigset_t        sigset;
 
 
 
@@ -3355,12 +3474,15 @@ make_daemon(void)
 		}
 	}
 
-	sigemptyset(&sighup);
-	sigaddset(&sighup, SIGHUP);
-	if (sigprocmask(SIG_UNBLOCK, &sighup, NULL) < 0) {
-		fprintf(stderr, "%s: could not unblock SIGHUP signal\n"
-		,	cmdname);
-	}
+        sigemptyset(&sigset);
+        sigaddset(&sigset, SIGHUP);
+        sigaddset(&sigset, SIGTERM);
+        if (sigprocmask(SIG_UNBLOCK, &sigset, NULL) < 0) {
+        fprintf(stderr,
+                "%s: could not unblock SIGHUP and SIGTERM signals\n"
+                ,       cmdname);
+        }
+
 
 #ifdef	SIGTTOU
 	IGNORESIG(SIGTTOU);
@@ -3381,8 +3503,8 @@ make_daemon(void)
 #endif
 	(void)signal(SIGUSR1, debug_sig);
 	(void)signal(SIGUSR2, debug_sig);
-	(void)signal(SIGHUP, reread_config_sig);
-	(void)signal(SIGALRM, AlarmUhOh);
+	(void)signal(SIGHUP,  reread_config_sig);
+	(void)signal(SIGALRM, false_alarm_sig);
 
 	(void)signal(SIGTERM, signal_all);
 	siginterrupt(SIGTERM, 1);
@@ -4055,6 +4177,16 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.133  2001/09/18 14:19:45  horms
+ * Signal handlers set flags and actions are executed accordingly
+ * as part of event loops. This avoids problems with executing some
+ * system calls within signal handlers. In paricular calling exec() from
+ * within a signal may result in process with unexpected signal masks.
+ *
+ * Unset the signal mask for SIGTERM upon intialisation. This is harmless
+ * and a good safety measure in case the calling process has masked
+ * this signal.
+ *
  * Revision 1.132  2001/09/07 05:48:30  horms
  * Changed recently added _handler funciotns to _sig to match previously defined signal handlers. Horms
  *
