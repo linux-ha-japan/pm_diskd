@@ -65,18 +65,6 @@ logfacility	local0
 #	a minute, then our machine will reboot.
 #
 #watchdog /dev/watchdog
-#
-#       Nice_failback sets the behavior when performing a failback:
-#
-#       - if it's on, when the primary node starts or comes back from any
-#         failure and the cluster is already active, i.e. the secondary
-#         server performed a failover, the primary stays quiet, acting as a
-#         secondary.  This way some operations like syncing disks can be
-#         easily done.
-#       - if it's off (default), the primary node will always be the primary,
-#         whenever it's powered on.
-#
-nice_failback off
 #	Tell what machines are in the cluster
 #	node	nodename ...	-- must match uname -n
 #node	ken3
