@@ -32,7 +32,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <libintl.h>
-#include "stonith.h"
+#include <stonith/stonith.h>
 #include "vacmclient_api.h"
 
 /*structs*/

@@ -1,5 +1,5 @@
 #
-# heartbeat lib/plugin directory: Linux-HA code
+# InterfaceMgr: Interface manager plugins for Linux-HA
 #
 # Copyright (C) 2001 Alan Robertson
 #
@@ -17,8 +17,23 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
-
 MAINTAINERCLEANFILES    = Makefile.in
 
-## Subdirectories...
-SUBDIRS			= InterfaceMgr HBauth HBcomm
+INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
+			-I$(top_builddir)/linux-ha -I$(top_srcdir)/linux-ha  \
+			-I$(top_builddir)/libltdl -I$(top_srcdir)/libltdl  \
+			-I$(top_builddir)/lib/upmls -I$(top_srcdir)/lib/upmls
+
+CFLAGS			= @CFLAGS@
+
+## libraries
+
+halibdir		= $(libdir)/@HEARTBEATPKG@
+plugindir		= $(halibdir)/plugins/HBcomm
+plugin_LTLIBRARIES	= bcast.la mcast.la
+
+bcast_la_SOURCES	= bcast.c
+bcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
+
+mcast_la_SOURCES	= mcast.c
+mcast_la_LDFLAGS	= -export-dynamic -module -avoid-version

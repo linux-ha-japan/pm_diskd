@@ -44,7 +44,7 @@
 #	include <sched.h>
 #endif
 
-#include "expect.h"
+#include <stonith/expect.h>
 
 #ifndef EOS
 #	define	EOS '\0'

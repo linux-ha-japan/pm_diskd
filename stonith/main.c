@@ -23,7 +23,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <syslog.h>
-#include "stonith.h"
+#include <stonith/stonith.h>
 
 #define	OPTIONS	"F:p:t:sSlLvh"
 

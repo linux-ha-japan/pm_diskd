@@ -32,7 +32,7 @@ CFLAGS			= @CFLAGS@ -DST_TEXTDOMAIN='"@STONITHPKG@"' \
 -DLOCALEDIR='"@LOCALE@"'
 
 ## include files
-pkginclude_HEADERS	= expect.h stonith.h
+#pkginclude_HEADERS	= ../include/stonith/expect.h ../include/stonith/stonith.h
 
 ## binaries
 sbin_PROGRAMS		= stonith meatclient

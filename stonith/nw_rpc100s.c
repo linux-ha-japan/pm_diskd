@@ -39,8 +39,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "expect.h"
-#include "stonith.h"
+#include <stonith/expect.h>
+#include <stonith/stonith.h>
 
 #define	DEVICE	"NW RPC100S Power Switch"
 

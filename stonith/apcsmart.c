@@ -36,8 +36,8 @@
 #include <sys/stat.h>
 #include <sys/file.h>
 
-#include "stonith.h"
-#include "expect.h"
+#include <stonith/stonith.h>
+#include <stonith/expect.h>
 
 /*
  * APCSmart (tested with 2 old 900XLI)

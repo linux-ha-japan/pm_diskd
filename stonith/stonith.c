@@ -32,7 +32,7 @@
 #include <sys/param.h>
 #include <dlfcn.h>
 #include <dirent.h>
-#include <stonith.h>
+#include <stonith/stonith.h>
 
 #define MAX_FUNC_NAME 20
 

@@ -29,8 +29,8 @@
 #include <libintl.h>
 #include <sys/wait.h>
 
-#include "expect.h"
-#include "stonith.h"
+#include <stonith/expect.h>
+#include <stonith/stonith.h>
 
 #define	DEVICE	"BayTech power switch"
 

@@ -36,8 +36,8 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 
-#include "stonith.h"
-#include "expect.h"
+#include <stonith/stonith.h>
+#include <stonith/expect.h>
 
 #define	DEVICE	"Meatware STONITH device"
 #define WHITESPACE	" \t\n\r\f"
