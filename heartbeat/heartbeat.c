@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.172 2002/04/09 21:53:26 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.173 2002/04/10 07:41:14 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -407,12 +407,15 @@ void	init_status_alarm(void);
 void	ha_versioninfo(void);
 static	const char * core_proc_name(enum process_type t);
 
-static	void CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
+static	void CoreProcessRegistered(ProcTrack* p);
+static	void CoreProcessDied(ProcTrack* p, int status, int signo
+,	int exitcode, int waslogged);
 static	const char * CoreProcessName(ProcTrack* p);
 static	void AnonProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
 static	const char * AnonProcessName(ProcTrack* p);
 static	void StonithProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
 static	const char * StonithProcessName(ProcTrack* p);
+static	void ManagedChildRegistered(ProcTrack* p);
 static	void ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
 static	const char * ManagedChildName(ProcTrack* p);
 void	KillTrackedProcess(ProcTrack* p, void * data);
@@ -503,36 +506,38 @@ static enum rsc_state	resourcestate = R_INIT;
 
 static ProcTrack_ops CoreProcessTrackOps = {
 	CoreProcessDied,
+	CoreProcessRegistered,
 	CoreProcessName
 };
 int CoreProcessCount = 0;
 
 static ProcTrack_ops AnonProcessTrackOps = {
 	AnonProcessDied,
+	NULL,
 	AnonProcessName
 };
 
 static ProcTrack_ops StonithProcessTrackOps = {
 	StonithProcessDied,
+	NULL,
 	StonithProcessName
 };
 
 static ProcTrack_ops ManagedChildTrackOps = {
 	ManagedChildDied,
+	ManagedChildRegistered,
 	ManagedChildName
 };
 int	managed_child_count;
 
+/*
+ * A helper to allow us to pass things into the anonproc
+ * environment without any warnings about passing const strings
+ * being passed into a plain old (non-const) gpointer.
+ */
 struct const_string {
 	const char * str;
 };
-
-#define	ADDPROC(p)						\
-	{if ((p) > 0 && (p) != -1){				\
-	processes[procinfo->nprocs] = (p); 			\
-	procinfo->info[procinfo->nprocs].pstat = FORKED;	\
-	procinfo->info[procinfo->nprocs].pid = (p);		\
-	procinfo->nprocs++;	};}
 
 #define	ANONPROC(p, s)						\
 	 {							\
@@ -903,15 +908,15 @@ initialize_heartbeat()
 		}
 	}
 
+	CoreProcessCount = 0;
 	procinfo->nprocs = 0;
 	ourproc = procinfo->nprocs;
-	ADDPROC(getpid());
 	curproc = &procinfo->info[ourproc];
 	curproc->type = PROC_CONTROL;
-	curproc->pstat = RUNNING;
-	++CoreProcessCount;
+
 	NewTrackedProc(getpid(), 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 	,	&CoreProcessTrackOps);
+	curproc->pstat = RUNNING;
 
 
 	/* Now the fun begins... */
@@ -946,11 +951,10 @@ initialize_heartbeat()
 					ha_perror("write process exiting");
 					cleanexit(1);
 		}
-		ADDPROC(pid);
-		ourproc = procinfo->nprocs;
-		++CoreProcessCount;
 		NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 		,	&CoreProcessTrackOps);
+
+		ourproc = procinfo->nprocs;
 
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "write process pid: %d\n", pid);
@@ -975,9 +979,6 @@ initialize_heartbeat()
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "read child process pid: %d\n", pid);
 		}
-		ADDPROC(pid);
-		ourproc = procinfo->nprocs;
-		++CoreProcessCount;
 		NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 		,	&CoreProcessTrackOps);
 	}
@@ -1002,8 +1003,7 @@ initialize_heartbeat()
 				cleanexit(1);
 	}
 	master_status_pid = pid;
-	ADDPROC(master_status_pid);
-	++CoreProcessCount;
+
 	NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 	,	&CoreProcessTrackOps);
 
@@ -1016,12 +1016,12 @@ initialize_heartbeat()
 		ha_perror("FIFO open failed.");
 	}
 	(void)open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
-	make_realtime();
 	control_process(fifo);
+
+	/*NOTREACHED*/
 	ha_log(LOG_ERR, "control_process exiting");
 	cleanexit(1);
-	/*NOTREACHED*/
-	return(HA_OK);
+	return(HA_FAIL);
 }
 
 /*
@@ -1032,7 +1032,6 @@ initialize_heartbeat()
 void
 make_realtime()
 {
-
 
 #ifdef SCHED_RR
 #	define HB_SCHED_POLICY	SCHED_RR
@@ -1208,6 +1207,7 @@ control_process(FILE * fp)
 	siginterrupt(SIGQUIT, 1);
 
 	set_proc_title("%s: control process", cmdname);
+	make_realtime();
 
 	for(;;) {
 		struct ha_msg *	msg = controlfifo2msg(fp);
@@ -1337,7 +1337,7 @@ send_to_all_media(char * smsg, int len)
 
 
 /*
- *	What are our abstract input sources?
+ *	What are our abstract event sources?
  *
  *	Queued signals to be handled ("polled" high priority)
  *	Sending a heartbeat message (timeout-based) (high priority)
@@ -1359,11 +1359,14 @@ send_to_all_media(char * smsg, int len)
 /*
  * Combined polled/timed events...
  */
-static gboolean polled_input_prepare(gpointer source_data, GTimeVal* current_time
+static gboolean polled_input_prepare(gpointer source_data
+,	GTimeVal* current_time
 ,	gint* timeout, gpointer user_data);
-static gboolean polled_input_check(gpointer source_data, GTimeVal* current_time
+static gboolean polled_input_check(gpointer source_data
+,	GTimeVal* current_time
 ,	gpointer user_data);
-static gboolean polled_input_dispatch(gpointer source_data, GTimeVal* current_time
+static gboolean polled_input_dispatch(gpointer source_data
+,	GTimeVal* current_time
 ,	gpointer user_data);
 static void polled_input_destroy(gpointer user_data);
 
@@ -2317,7 +2320,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 			const char *	f_stable;
 
-			/* f_stable is NULL when message from takeover script */
+			/* f_stable is NULL when msg from takeover script */
 			if ((f_stable = ha_msg_value(msg, F_ISSTABLE)) != NULL){
 				if (strcmp(f_stable, "1") == 0) {
 					if (!other_is_stable) {
@@ -2336,7 +2339,8 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 				}
 			}
 
-			other_holds_resources=UPD_RSC(other_holds_resources,n);
+			other_holds_resources
+			=	UPD_RSC(other_holds_resources,n);
 
 			if (resourcestate != R_STABLE && other_is_stable) {
 				ha_log(LOG_INFO
@@ -2344,11 +2348,12 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 				);
 				req_our_resources(0);
 				newrstate = R_STABLE;
-				send_resources_held(rsc_msg[procinfo->i_hold_resources]
+				send_resources_held
+				(	rsc_msg[procinfo->i_hold_resources]
 				,	1, NULL);
 			}
 		}else{
-			const char *	comment = ha_msg_value(msg, F_COMMENT);
+			const char * comment = ha_msg_value(msg, F_COMMENT);
 
 			/*
 			 * This T_RESOURCES message is from us.  It might be
@@ -2365,14 +2370,17 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			 * 	[ whatever *that* means ]
 			 */
 				/* Probably unnecessary */
-			procinfo->i_hold_resources = UPD_RSC(procinfo->i_hold_resources, n);
+			procinfo->i_hold_resources
+			=	UPD_RSC(procinfo->i_hold_resources, n);
 
 			if (comment) {
 				if (strcmp(comment, "mach_down") == 0) {
 					ha_log(LOG_INFO
 					,	"mach_down takeover complete.");
 					takeover_in_progress = 0;
-					/* Probably unnecessary */
+					/* FYI: This also got noted earlier */
+					procinfo->i_hold_resources
+					|=	FOREIGN_RSC;
 					other_is_stable = 1;
 					if (ANYDEBUG) {
 						ha_log(LOG_DEBUG
@@ -2404,7 +2412,8 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		newrstate = R_STABLE;
 		req_our_resources(0);
 		ha_log(LOG_INFO,"local resource transition completed.");
-		send_resources_held(rsc_msg[procinfo->i_hold_resources], 1, NULL);
+		send_resources_held(rsc_msg[procinfo->i_hold_resources]
+		,	1, NULL);
 	}
 
 	if (resourcestate != newrstate) {
@@ -2449,7 +2458,8 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	 *	If things are stable, look for orphaned resources...
 	 */
 
-	if (newrstate == R_STABLE && other_is_stable) {
+	if (newrstate == R_STABLE && other_is_stable
+	&&	!shutdown_in_progress) {
 		/*
 		 *	Does someone own local resources?
 		 */
@@ -2702,6 +2712,21 @@ reaper_action(void)
 	}/*endwhile*/
 }
 
+/* Log things about registered core processes */
+static void
+CoreProcessRegistered(ProcTrack* p)
+{
+	++CoreProcessCount;
+
+	if (p->pid > 0) {
+		processes[procinfo->nprocs] = p->pid;
+		procinfo->info[procinfo->nprocs].pstat = FORKED;
+		procinfo->info[procinfo->nprocs].pid = p->pid;
+		procinfo->nprocs++;
+	}
+
+}
+
 /* Handle the death of a core heartbeat process */
 static void
 CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged)
@@ -2710,7 +2735,8 @@ CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged
 
 	if (shutdown_in_progress) {
 		p->privatedata = NULL;
-		ha_log(LOG_INFO,"Core process %d died. %d remaining", p->pid, CoreProcessCount);
+		ha_log(LOG_INFO,"Core process %d died. %d remaining"
+		,	p->pid, CoreProcessCount);
 
 		if (CoreProcessCount <= 1) {
 			FinalCPShutdown();
@@ -2758,9 +2784,19 @@ FinalCPShutdown(void)
 	cleanexit(0);
 }
 
+static void
+ManagedChildRegistered(ProcTrack* p)
+{
+	struct client_child*	managedchild = p->privatedata;
+
+	managed_child_count++;
+	managedchild->pid = p->pid;
+}
+
 /* Handle the death of one of our managed child processes */
 static void
-ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged)
+ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode
+,	int waslogged)
 {
 	struct client_child*	managedchild = p->privatedata;
 
@@ -2919,7 +2955,6 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		default:	/* Parent */
 				NewTrackedProc(pid, 1, PT_LOGVERBOSE
 				,	centry, &ManagedChildTrackOps);
-				managed_child_count ++;
 				return;
 
 		case 0:		/* Child */
@@ -3526,12 +3561,20 @@ send_cluster_msg(struct ha_msg* msg)
 		}
 
 		length=strlen(smsg);
-		if ((wrc = write(ffd, smsg, length)) != length) {
+		/*
+		 * The single retry we allow won't often make
+		 * the problem go away, but it's possible, and
+		 * *really* don't want to shut down
+		 */
+		if ((wrc = write(ffd, smsg, length)) != length
+		&&	(wrc >= 0 || errno != EINTR
+		||	(wrc = write(ffd, smsg, length)) != length)) {
 			ha_perror("cannot write message to FIFO! [rc=%d]"
 			,	wrc);
 			rc = HA_FAIL;
 			close(ffd);
 			ffd = -1;
+                        force_shutdown();
 		}
 		if (DEBUGPKTCONT) {
 			ha_log(LOG_DEBUG, "%d bytes written to %s by %d"
@@ -3777,6 +3820,7 @@ mark_node_dead(struct node_info *hip)
 	takeover_from_node(hip->nodename);
 }
 
+/* We take all resources over from a given node */
 void
 takeover_from_node(const char * nodename)
 {
@@ -3804,13 +3848,20 @@ takeover_from_node(const char * nodename)
 		return;
 	}
 
+	/* Sending this message triggers the "mach_down" script */
+
 	heartbeat_monitor(hmsg, KEEPIT, "<internal>");
 	notify_world(hmsg, hip->status);
 
 	/*
-	 * We delay until the STONITH completes successfully.
+	 * STONITH has already successfully completed...
 	 */
 	if (nice_failback) {
+
+		/* mach_down is out there acquiring foreign resources */
+		/* So, make a note of it... */
+		procinfo->i_hold_resources |= FOREIGN_RSC;
+
 		other_holds_resources = NO_RSC;
 		other_is_stable = 1;	/* Not going anywhere */
 		takeover_in_progress = 1;
@@ -3824,10 +3875,11 @@ takeover_from_node(const char * nodename)
 		 * when they do due to receiving an interim
 		 * T_RESOURCE message from us.
 		 */
-		procinfo->i_hold_resources |= FOREIGN_RSC;
 		/* case 1 - part 1 */
 		/* part 2 is done by the mach_down script... */
 		req_our_resources(0);
+		/* req_our_resources turns on the LOCAL_RSC bit */
+
 	}
 	hip->anypacketsyet = 1;
 	ha_msg_del(hmsg);
@@ -3984,14 +4036,16 @@ req_our_resources(int getthemanyway)
 			if (going_standby == NOT) {
 				/* Someone already owns our resources */
 				ha_log(LOG_INFO
-				,   "Resource acquisition completed. (none)");
+				,   "Local Resource acquisition completed"
+				". (none)");
 				return;
 			}
 		}
 
 		/*
-		 * We MUST do this now, or the other side might think they can
-		 * can have our resources, due to an interim T_RESOURCE message
+		 * We MUST do this now, or the other side might think they
+		 * can have our resources, due to an interim T_RESOURCE
+		 * message
 		 */
 		procinfo->i_hold_resources |= LOCAL_RSC;
 	}
@@ -4202,7 +4256,8 @@ giveup_resources(void)
 	resourcestate = R_SHUTDOWN; /* or we'll get a whiny little comment
 				out of the resource management code */
 	if (nice_failback) {
-		send_resources_held(rsc_msg[procinfo->i_hold_resources], 0, "shutdown");
+		send_resources_held(rsc_msg[procinfo->i_hold_resources]
+		,	0, "shutdown");
 	}
 	shutdown_in_progress =1;
 	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)", getpid());
@@ -4605,6 +4660,7 @@ cleanexit(rc)
 void
 force_shutdown(void)
 {
+	ha_log(LOG_ERR, "Beginning forced shutdown.");
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "sending SIGTERM to Control Process: %d"
 		,	processes[0]);
@@ -5681,6 +5737,15 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.173  2002/04/10 07:41:14  alan
+ * Enhanced the process tracking code, and used the enhancements ;-)
+ * Made a number of minor fixes to make the tests come out better.
+ * Put in a retry for writing to one of our FIFOs to allow for
+ * an interrupted system call...
+ * If a timeout came just as we started our system call, then
+ * this could help.  Since it didn't go with a dead process, or
+ * other symptoms this could be helpful.
+ *
  * Revision 1.172  2002/04/09 21:53:26  alan
  * A large number of minor cleanups related to exit, cleanup, and process
  * management.  It all looks reasonably good.

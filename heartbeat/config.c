@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.62 2002/04/09 06:37:26 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.63 2002/04/10 07:41:14 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -64,6 +64,7 @@ extern volatile struct process_info *	curproc;
 extern char *				watchdogdev;
 extern int				nummedia;
 extern int                              nice_failback;
+extern int				DoManageResources;
 extern clock_t				hb_warn_ticks;
 extern PILPluginUniv*			PluginLoadingSystem;
 extern GHashTable*			CommFunctions;
@@ -104,6 +105,7 @@ init_config(const char * cfgfile)
 {
 	struct utsname	u;
 	int	errcount = 0;
+	int	j;
 
 	/* This may be dumb.  I'll decide later */
 	(void)_heartbeat_c_Id;	/* Make warning go away */
@@ -233,6 +235,9 @@ init_config(const char * cfgfile)
 		if (nice_failback) {
 			ha_log(LOG_INFO, "nice_failback is in effect.");
 		}
+	}
+	for (j=0; j < config->nodecount; ++j) {
+		config->nodes[j].has_resources = DoManageResources;
 	}
 	
 	return(errcount ? HA_FAIL : HA_OK);
@@ -1330,6 +1335,15 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.63  2002/04/10 07:41:14  alan
+ * Enhanced the process tracking code, and used the enhancements ;-)
+ * Made a number of minor fixes to make the tests come out better.
+ * Put in a retry for writing to one of our FIFOs to allow for
+ * an interrupted system call...
+ * If a timeout came just as we started our system call, then
+ * this could help.  Since it didn't go with a dead process, or
+ * other symptoms this could be helpful.
+ *
  * Revision 1.62  2002/04/09 06:37:26  alan
  * Fixed the STONITH code so it works again ;-)
  *
