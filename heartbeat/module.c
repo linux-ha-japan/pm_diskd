@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.18 2001/06/05 16:43:44 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.19 2001/06/06 17:50:46 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -656,6 +656,7 @@ typedef struct mlModuleSet_s		MLModuleSet;
 
 struct mlModule_s {
 	const char*	module_name;
+	void*		user_data;
 	/* Other stuff goes here ... */
 };
 /*
@@ -665,10 +666,10 @@ struct mlModule_s {
 struct mlModuleOps_s {
 	const char*	(*moduleversion) (void);
 	const char*	(*modulename)	 (void);
-	void		(*getdebuglevel) (void);
+	int		(*getdebuglevel) (void);
 
 	void		(*setdebuglevel) (int);
-	void		(*close) (void);
+	void		(*close) (MLModule*);
 };
 
 /*
@@ -760,7 +761,7 @@ struct mlModEnv_s {
  * "PluginHandler" named "foo".  This plugin then handles the registration of
  * all plugins of type foo.
  *
- * To bootstrap, we load a plugin of type "PluginHandler" named "PluginHander"
+ * To bootstrap, we load a plugin of type "PluginHandler" named "PluginHandler"
  * during the initialization of the module system.
  *
  * PluginHandlers will be autoloaded if certain conditions are met...
@@ -772,21 +773,248 @@ struct mlModEnv_s {
  */
 typedef struct MLPluginHandlerOps_s	MLPluginHandlerOps;
 typedef struct MLPluginHandlerImports_s	MLPluginHandlerImports;
+typedef struct MLPluginHandlerEnv_s	MLPluginHandlerEnv;
+typedef struct MLPluginHandler_s	MLPluginHandler;
 
-/* Interfaces exported by a PluginHander plugin */
+/* Interfaces exported by a PluginHandler plugin */
 struct MLPluginHandlerOps_s{
 	/* RegisterPlugin - Returns unique id info for plugin or NULL on failure */
- 	void*	(*RegisterPlugin)(const char * pluginname, void * epiinfo);
-	ML_rc	(*UnRegisterPlugin)(void*ipiinfo);	/* Unregister the given plugin */
-				/* ipiinfo was returned from RegisterPlugin... */
-	int	(*IsKnown)(const char*);	/* True if the given plugin is known */
+ 	MLPluginHandler* (*RegisterPlugin)(MLPluginHandlerEnv* env
+		,	const char * pluginname, void * epiinfo);
+	ML_rc	(*UnRegisterPlugin)(MLPluginHandler*ipiinfo);	/* Unregister plugin */
+				/* And destroy MLPluginHandler object */
+	int	(*IsKnown)(MLPluginHandlerEnv*	env
+		,	const char*);	/* True if the given plugin is known */
+	MLPluginHandlerEnv*	(*NewPluginEnv)(void);
+	void			(*DelPluginEnv)(MLPluginHandlerEnv*);
 };
 
-/* Interfaces imported by a PluginHander plugin */
+/* Interfaces imported by a PluginHandler plugin */
 struct MLPluginHandlerImports_s { 
-	int (*RefCount)(void * epiinfo);	/* Returns current reference count */
-	int (*ModRefCount)(void*epiinfo,int plusminus);	/* Incr/Decr reference count */
-	void (*UnloadIfPossible)(void *epiinfo); /* Unload module associated with
-						  * this plugin -- if possible */
+		/* Return current reference count */
+	int (*RefCount)(void * epiinfo);
+		/* Incr/Decr reference count */
+	int (*ModRefCount)(MLPluginHandler*epiinfo,int plusminus);
+		/* Unload module associated with this plugin -- if possible */
+	void (*UnloadIfPossible)(MLPluginHandler *epiinfo);
 };
+/*
+ *	MLPluginHandler.c starts here I think ;-)
+ *
+ */
+
+#define NEW(type)	((type *)ml_pmalloc(sizeof(type)))
+#define DELETE(obj)	{ml_pfree(obj); (obj) = NULL;}
+
+struct MLPluginHandler_s {
+	MLPluginHandlerEnv*	pluginenv;
+	char *			pluginname;
+	void*			exportfuns;
+};
+
+static MLPluginHandler* MLPluginHandler_new(MLPluginHandlerEnv*	pluginenv
+	,	const char*	pluginname
+	,	void *		exports);
+
+static void MLPluginHandler_del(MLPluginHandler*	pluginenv);
+
+struct MLPluginHandlerEnv_s {
+	GHashTable*	plugins;
+};
+
+static void*	(*ml_pmalloc)(size_t) = malloc;
+static void	(*ml_pfree)(void *) = free;
+static void	(*ml_log)(int priority, const char * fmt, ...) = NULL;
+static MLModuleImports*	imp;
+static int	debuglevel = 0;
+
+static const char * ml_module_version(void);
+static const char * ml_module_name(void);
+ML_rc ml_module_init(MLModuleImports* imports);
+static int ml_GetDebugLevel(void);
+static void ml_SetDebugLevel (int level);
+static void ml_close (MLModule*);
+
+static MLModuleOps ModExports =
+{	ml_module_version
+,	ml_module_name
+,	ml_GetDebugLevel
+,	ml_SetDebugLevel
+,	ml_close
+};
+
+static MLPluginHandler*		pipi_register_plugin(MLPluginHandlerEnv* env
+				,	const char * pluginname, void * epiinfo);
+static ML_rc			pipi_unregister_plugin(MLPluginHandler* plugin);
+static int			pipi_isknown(MLPluginHandlerEnv* env, const char *);
+
+static MLPluginHandlerEnv*	pipi_new_pluginenv(void);
+static void			pipi_del_pluginenv(MLPluginHandlerEnv*);
+static void pipi_del_while_walk(gpointer key, gpointer value, gpointer user_data);
+
+static MLPluginHandlerOps  PiExports =
+{		pipi_register_plugin
+	,	pipi_unregister_plugin
+	,	pipi_isknown
+	,	pipi_new_pluginenv
+	,	pipi_del_pluginenv
+};
+
+static MLModule modinfo ={
+	"PluginPlugin"
+};
+	/* Other stuff goes here ... */
+
+
+static void * ML_our_pluginid	= NULL;
+static MLPluginHandlerImports*	pipimports;
+
+ML_rc
+ml_module_init(MLModuleImports* imports)
+{
+	void *		piimports;
+
+	imp	= imports;
+	ml_pmalloc = imp->pmalloc;
+	ml_pfree = imp->pfree;
+	ml_log = imp->log;
+
+	if (imp->register_module(&modinfo, &ModExports) == 0) {
+		return(0);
+	}
+	if (imp->register_plugin(&modinfo, "Plugin", "PluginPlugin"
+		,	&PiExports
+		,	&ML_our_pluginid, &piimports) == 0) {
+
+		imp->unregister_module(&modinfo);
+		return(0);
+	}
+	modinfo.user_data = ML_our_pluginid; 	/* THIS IS PROBABLY WRONG! */
+						/* Need to read this again after sleep */
+	pipimports = piimports;
+	return(1);
+}
+
+
+
+static const char *
+ml_module_version(void)
+{
+	return("1.0");
+}
+static const char *
+ml_module_name(void)
+{
+	return("PluginPlugin");
+}
+
+static int
+ml_GetDebugLevel(void)
+{
+	return(debuglevel);
+}
+
+static void ml_SetDebugLevel (int level)
+{
+	debuglevel = level;
+}
+static void ml_close (MLModule* module)
+{
+	/* Need to find all the plugins associated with this Module... */
+	/* Probably need "real" support for this */
+}
+
+
+static MLPluginHandler*
+pipi_register_plugin(MLPluginHandlerEnv* env
+	,	const char * pluginname, void * epiinfo)
+{
+	MLPluginHandler* ret;
+
+	ret = MLPluginHandler_new(env, pluginname, epiinfo);
+	return ret;
+}
+
+static ML_rc
+pipi_unregister_plugin(MLPluginHandler* plugin)
+{
+	MLPluginHandlerEnv*	env = plugin->pluginenv;
+	g_hash_table_remove(env->plugins, plugin->pluginname);
+	MLPluginHandler_del(plugin);
+	return 0;
+}
+
+static int
+pipi_isknown(MLPluginHandlerEnv* env, const char * pluginname)
+{
+	return 0;
+}
+
+/* Create new PluginEnvironment */
+static MLPluginHandlerEnv*
+pipi_new_pluginenv(void)
+{
+	MLPluginHandlerEnv*	ret;
+
+	ret = NEW(MLPluginHandlerEnv);
+
+	if (!ret) {
+		return ret;
+	}
+	ret->plugins = g_hash_table_new(g_str_hash, g_str_equal);
+	if (!ret->plugins) {
+		DELETE(ret);
+		ret = NULL;
+	}
+	return(ret);
+}
+
+/* Throw away PluginEnvironment object */
+static void
+pipi_del_pluginenv(MLPluginHandlerEnv* env)
+{
+	GHashTable*	t = env->plugins;
+	g_hash_table_foreach(t, &pipi_del_while_walk, NULL);
+}
+static void
+pipi_del_while_walk(gpointer	key, gpointer value, gpointer user_data)
+{
+	MLPluginHandler_del((MLPluginHandler*)value);
+}
+
+static MLPluginHandler*
+MLPluginHandler_new(MLPluginHandlerEnv*	pluginenv
+	,	const char*	pluginname
+	,	void *		exports)
+{
+	MLPluginHandler*	ret = NULL;
+	MLPluginHandler*	look = NULL;
+
+
+	if ((look = g_hash_table_lookup(pluginenv->plugins, pluginname)) != NULL) {
+		MLPluginHandler_del(look);
+	}
+	ret = NEW(MLPluginHandler);
+
+	if (ret) {
+		ret->pluginenv = pluginenv;
+		ret->exportfuns = exports;
+		ret->pluginname = g_strdup(pluginname);
+		g_hash_table_insert(pluginenv->plugins, ret->pluginname, ret);
+	}
+	return ret;
+}
+
+static void
+MLPluginHandler_del(MLPluginHandler*	plugin)
+{
+	if (plugin != NULL) {
+		if (plugin->pluginname != NULL) {
+			DELETE(plugin->pluginname);
+		}
+		memset(plugin, 0, sizeof(*plugin));
+		DELETE(plugin);
+	}
+}
+
 #endif /* NEWMODULECODE */
