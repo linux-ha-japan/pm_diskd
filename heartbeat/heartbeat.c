@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.128 2001/09/06 16:14:35 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.129 2001/09/07 00:07:14 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2159,6 +2159,7 @@ void
 reread_config_sig(int sig)
 {
 	int	j;
+	int	signal_children = 0;
 
 	signal(sig, reread_config_sig);
 
@@ -2178,11 +2179,7 @@ reread_config_sig(int sig)
 		}else if (buf.st_mtime != config->auth_time) {
 			config->rereadauth = 1;
 			ha_log(LOG_INFO, "Rereading authentication file.");
-			for (j=0; j < procinfo->nprocs; ++j) {
-				if (procinfo->info+j != curproc) {
-					kill(procinfo->info[j].pid, sig);
-				}
-			}
+			signal_children = 1;
 		}else{
 			ha_log(LOG_INFO, "Configuration unchanged.");
 		}
@@ -2202,7 +2199,16 @@ reread_config_sig(int sig)
 	
 	}
 
-	ParseTestOpts();
+	if (ParseTestOpts() && curproc->type == PROC_CONTROL) {
+		signal_children = 1;
+	}
+	if (signal_children) {
+		for (j=0; j < procinfo->nprocs; ++j) {
+			if (procinfo->info+j != curproc) {
+				kill(procinfo->info[j].pid, sig);
+			}
+		}
+	}
 }
 
 #define	ONEDAY	(24*60*60)
@@ -3882,7 +3888,7 @@ nak_rexmit(unsigned long seqno, const char * reason)
 }
 
 
-void
+int
 ParseTestOpts()
 {
 	const char *	openpath = HA_D "/OnlyForTesting";
@@ -3890,15 +3896,18 @@ ParseTestOpts()
 	static struct TestParms p;
 	char	name[64];
 	char	value[64];
+	int	something_changed = 0;
 
 	if ((fp = fopen(openpath, "r")) == NULL) {
 		if (TestOpts) {
 			ha_log(LOG_INFO, "Test Code Now disabled.");
+			something_changed=1;
 		}
 		TestOpts = NULL;
-		return;
+		return something_changed;
 	}
 	TestOpts = &p;
+	something_changed=1;
 
 	memset(&p, 0, sizeof(p));
 	p.send_loss_prob = 0;
@@ -3923,6 +3932,7 @@ ParseTestOpts()
 		}
 	}
 	ha_log(LOG_INFO, "WARNING: Above Options Now Enabled.");
+	return something_changed;
 }
 
 #ifndef HB_VERS_FILE
@@ -4009,6 +4019,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.129  2001/09/07 00:07:14  alan
+ * Fixed the code for dealing with the test packet dropping facility.
+ * It has been broken since I changed the startup order.
+ *
  * Revision 1.128  2001/09/06 16:14:35  horms
  * Added code to set proctitle for heartbeat processes. Working on why heartbeat doesn't restart itself properly. I'd send the latter as a patch to the list but it is rather intertwined in the former
  *

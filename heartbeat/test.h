@@ -37,6 +37,6 @@ struct TestParms *	TestOpts;
 #define RandThresh(p) (rand() <= (int)((((float)RAND_MAX) * (p)) + 0.5))
 
 #define TestRand(field)	(TestOpts && RandThresh(TestOpts->field))
-void ParseTestOpts(void);
+int ParseTestOpts(void);
 
 #endif /* __TEST_H */

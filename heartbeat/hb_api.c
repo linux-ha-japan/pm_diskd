@@ -1355,7 +1355,6 @@ compute_msp_fdset(fd_set* set, int fd1, int fd2)
 	int	newmin = MAXFD + 1;
 	int	pmax = (fd1 > fd2 ? fd1 : fd2);
 
-	
 	FD_ZERO(set);
 	FD_SET(fd1, set);
 	FD_SET(fd2, set);
