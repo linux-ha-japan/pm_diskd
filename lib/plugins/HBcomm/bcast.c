@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.12 2002/04/09 12:45:36 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.13 2002/04/13 22:35:08 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -359,7 +359,7 @@ bcast_read(struct hb_media* mp)
 	if (DEBUGPKTCONT) {
 		LOG(PIL_DEBUG, buf);
 	}
-	return(string2msg(buf));
+	return(string2msg(buf, sizeof(buf)));
 }
 
 /*
@@ -761,6 +761,11 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.13  2002/04/13 22:35:08  alan
+ * Changed ha_msg_add_nv to take an end pointer to make it safer.
+ * Added a length parameter to string2msg so it would be safer.
+ * Changed the various networking plugins to use the new string2msg().
+ *
  * Revision 1.12  2002/04/09 12:45:36  alan
  * Put in changes to the bcast, mcast and serial code such that
  * interrupted system calls in reads are ignored.

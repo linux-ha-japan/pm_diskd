@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.2 2001/09/07 16:18:17 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.3 2002/04/13 22:35:08 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -307,6 +307,8 @@ ping_read(struct hb_media* mp)
 		char		cbuf[MAXLINE+ICMP_HDR_SZ];
 		struct ip	ip;
 	}buf;
+	const char *		bufmax = ((char *)&buf)+sizeof(buf);
+	char *			msgstart;
 	int			addr_len = sizeof(struct sockaddr);
    	struct sockaddr_in	their_addr; /* connector's addr information */
 	struct ip *		ip;
@@ -351,7 +353,8 @@ ping_read(struct hb_media* mp)
 		LOG(PIL_DEBUG, "%s", &icp->icmp_data[0]);
 	
 	}
-	return(string2msg(&icp->icmp_data[0]));
+	msgstart = &icp->icmp_data[0];
+	return string2msg(msgstart, bufmax - msgstart);
 }
 
 /*

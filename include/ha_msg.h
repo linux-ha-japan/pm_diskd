@@ -20,7 +20,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.3 2002/04/07 13:54:06 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.4 2002/04/13 22:35:08 alan Exp $";
 #include <stdio.h>
 
 struct ha_msg {
@@ -68,11 +68,14 @@ struct ha_msg {
 	/* Message types */
 #define	T_STATUS	"status"	/* Status (heartbeat) */
 #define	T_IFSTATUS	"ifstat"	/* Interface status */
-#define T_APIREQ	"hbapi-req"	/* Heartbeat API request */
-#define T_APIRESP	"hbapi-resp"	/* Heartbeat API response */
 #define	T_ASKRESOURCES	"ask_resources"	/* Let other node ask my resources */
+#define T_ASKRELEASE	"ip-request"		/* Please give up these resources... */
+#define T_ACKRELEASE	"ip-request-resp"	/* Resources given up... */
 #define	T_STONITH	"stonith"	/* Stonith return code */
 #define T_SHUTDONE	"shutdone"	/* External Shutdown complete */
+
+#define T_APIREQ	"hbapi-req"	/* Heartbeat API request */
+#define T_APIRESP	"hbapi-resp"	/* Heartbeat API response */
 #define T_APICLISTAT	"hbapi-clstat"	/* Client status notification" */
 
 #define	NOSEQ_PREFIX	"NS_"		/* PREFIX: Give no sequence number    */
@@ -107,7 +110,7 @@ int		ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 		,	const char * value, int vallen);
 
 /* Add name=value string to a message */
-int		ha_msg_add_nv(struct ha_msg* msg, const char * nvline);
+int		ha_msg_add_nv(struct ha_msg* msg, const char * nvline, const char * bufmax);
 
 /* Return value associated with particular name */
 const char *	ha_msg_value(const struct ha_msg * msg, const char * name);
@@ -125,7 +128,7 @@ int		msg2stream(struct ha_msg* m, FILE * f);
 char *     msg2if_string(const struct ha_msg *m, const char * iface);
 
 /* Converts a string gotten via UDP into a message */
-struct ha_msg *	string2msg(const char * s);
+struct ha_msg *	string2msg(const char * s, size_t length);
 
 /* Converts a message into a string for sending out UDP interface */
 char *		msg2string(const struct ha_msg *m);

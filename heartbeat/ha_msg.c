@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.23 2002/04/11 05:57:44 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.24 2002/04/13 22:35:08 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -29,6 +29,8 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.23 2002/04/11 05:57:44 ala
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_proc.h>
+#include <unistd.h>
+#include <signal.h>
 
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
@@ -171,7 +173,7 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 
 /* Add a "name=value" line to the name, value pairs in a message */
 int
-ha_msg_add_nv(struct ha_msg* msg, const char * nvline)
+ha_msg_add_nv(struct ha_msg* msg, const char * nvline, const char * bufmax)
 {
 	int		namelen;
 	const char *	valp;
@@ -189,7 +191,9 @@ ha_msg_add_nv(struct ha_msg* msg, const char * nvline)
 		return(HA_FAIL);
 	}
 	valp = nvline + namelen +1; /* Point just *past* the '=' */
+	if (valp >= bufmax)		return HA_FAIL;
 	vallen = strcspn(valp, CRNL);
+	if ((valp + vallen) >= bufmax)	return HA_FAIL;
 
 	/* Call ha_msg_nadd to actually add the name/value pair */
 	return(ha_msg_nadd(msg, nvline, namelen, valp, vallen));
@@ -247,6 +251,7 @@ struct ha_msg *
 msgfromstream(FILE * f)
 {
 	char		buf[MAXLINE];
+	const char *	bufmax = buf + sizeof(buf);
 	char *		getsret;
 	struct ha_msg*	ret;
 
@@ -271,7 +276,7 @@ msgfromstream(FILE * f)
 	&&	strcmp(buf, MSG_END) != 0) {
 
 		/* Add the "name=value" string on this line to the message */
-		if (ha_msg_add_nv(ret, buf) != HA_OK) {
+		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
 			ha_error("NV failure (msgfromsteam):");
 			ha_error(buf);
 			ha_msg_del(ret);
@@ -306,12 +311,13 @@ msg2stream(struct ha_msg* m, FILE * f)
 
 /* Converts a string (perhaps gotten via UDP) into a message */
 struct ha_msg *
-string2msg(const char * s)
+string2msg(const char * s, size_t length)
 {
 	struct ha_msg*	ret;
-	const char *	sp = s;
 	int		startlen;
 	int		endlen;
+	const char *	sp = s;
+	const char *	smax = s + length;
 
 	if ((ret = ha_msg_new(0)) == NULL) {
 		return(NULL);
@@ -319,8 +325,9 @@ string2msg(const char * s)
 
 	startlen = sizeof(MSG_START)-1;
 	if (strncmp(sp, MSG_START, startlen) != 0) {
-		ha_log(LOG_ERR, "string2msg: no MSG_START");
-		ha_log(LOG_ERR, "Bad message is: [%s]", sp);
+		/* This can happen if the sender gets killed */
+		/* at just the wrong time... */
+		ha_log(LOG_WARNING, "string2msg: no MSG_START");
 		return(NULL);
 	}else{
 		sp += startlen;
@@ -332,20 +339,23 @@ string2msg(const char * s)
 
 	while (*sp != EOS && strncmp(sp, MSG_END, endlen) != 0) {
 
+		if (sp >= smax)		return(NULL);
 		/* Skip over initial CR/NL things */
 		sp += strspn(sp, CRNL);
+		if (sp >= smax)		return(NULL);
 
 		/* End of message marker? */
 		if (strncmp(sp, MSG_END, endlen) == 0) {
 			break;
 		}
 		/* Add the "name=value" string on this line to the message */
-		if (ha_msg_add_nv(ret, sp) != HA_OK) {
+		if (ha_msg_add_nv(ret, sp, smax) != HA_OK) {
 			ha_error("NV failure (string2msg):");
 			ha_error(s);
 			ha_msg_del(ret);
 			return(NULL);
 		}
+		if (sp >= smax)		return(NULL);
 		sp += strcspn(sp, CRNL);
 	}
 	return(ret);
@@ -422,6 +432,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.24  2002/04/13 22:35:08  alan
+ * Changed ha_msg_add_nv to take an end pointer to make it safer.
+ * Added a length parameter to string2msg so it would be safer.
+ * Changed the various networking plugins to use the new string2msg().
+ *
  * Revision 1.23  2002/04/11 05:57:44  alan
  * Made some of the debugging output clearer.
  *

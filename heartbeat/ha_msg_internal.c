@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.17 2002/04/07 13:54:06 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.18 2002/04/13 22:35:08 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -39,8 +39,10 @@ struct ha_msg *
 if_msgfromstream(FILE * f, char *iface)
 {
 	char		buf[MAXLINE];
+	const char *	bufmax = buf + sizeof(buf);
 	char *		getsret;
 	struct ha_msg*	ret;
+	
 
 	(void)_ha_msg_c_Id;
 	(void)_heartbeat_h_Id;
@@ -92,7 +94,7 @@ if_msgfromstream(FILE * f, char *iface)
 	&&	strcmp(buf, MSG_END) != 0) {
 
 		/* Add the "name=value" string on this line to the message */
-		if (ha_msg_add_nv(ret, buf) != HA_OK) {
+		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
 			ha_error("NV failure (if_msgfromsteam):");
 			ha_log(LOG_INFO, "%s", buf);
 			ha_msg_del(ret);
@@ -198,6 +200,7 @@ struct ha_msg *
 controlfifo2msg(FILE * f)
 {
 	char		buf[MAXLINE];
+	const char *	bufmax = buf + sizeof(buf);
 	char *		getsret;
 	const char*	type;
 	struct ha_msg*	ret;
@@ -219,7 +222,7 @@ controlfifo2msg(FILE * f)
 	&&	strcmp(buf, MSG_END) != 0) {
 
 		/* Add the "name=value" string on this line to the message */
-		if (ha_msg_add_nv(ret, buf) != HA_OK) {
+		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
 			ha_error("NV failure (controlfifo2msg):");
 			ha_log(LOG_INFO, "%s", buf);
 			ha_msg_del(ret);
@@ -495,6 +498,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.18  2002/04/13 22:35:08  alan
+ * Changed ha_msg_add_nv to take an end pointer to make it safer.
+ * Added a length parameter to string2msg so it would be safer.
+ * Changed the various networking plugins to use the new string2msg().
+ *
  * Revision 1.17  2002/04/07 13:54:06  alan
  * This is a pretty big set of changes ( > 1200 lines in plain diff)
  *

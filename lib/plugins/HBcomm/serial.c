@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.16 2002/04/09 21:53:27 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.17 2002/04/13 22:35:08 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -470,6 +470,7 @@ static struct ha_msg *
 serial_read (struct hb_media*mp)
 {
 	char buf[MAXLINE];
+	const char *		bufmax = buf + sizeof(buf);
 	struct hb_media*	sp;
 	struct serial_private*	thissp;
 	struct ha_msg*		ret;
@@ -506,7 +507,7 @@ serial_read (struct hb_media*mp)
 	&&	strncmp(buf, MSG_END, endlen) != 0) {
 
 		/* Add the "name=value" string on this line to the message */
-		if (ha_msg_add_nv(ret, buf) != HA_OK) {
+		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
 			ha_msg_del(ret);
 			return(NULL);
 		}
@@ -627,6 +628,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.17  2002/04/13 22:35:08  alan
+ * Changed ha_msg_add_nv to take an end pointer to make it safer.
+ * Added a length parameter to string2msg so it would be safer.
+ * Changed the various networking plugins to use the new string2msg().
+ *
  * Revision 1.16  2002/04/09 21:53:27  alan
  * A large number of minor cleanups related to exit, cleanup, and process
  * management.  It all looks reasonably good.

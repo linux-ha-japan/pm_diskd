@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.4 2002/04/09 12:45:36 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.5 2002/04/13 22:35:08 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -429,7 +429,7 @@ mcast_read(struct hb_media* hbm)
 	if (Debug >= PKTCONTTRACE) {
 		LOG(PIL_DEBUG, buf);
 	}
-	return(string2msg(buf));
+	return(string2msg(buf, sizeof(buf)));
 }
 
 /*
@@ -813,6 +813,11 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.5  2002/04/13 22:35:08  alan
+ * Changed ha_msg_add_nv to take an end pointer to make it safer.
+ * Added a length parameter to string2msg so it would be safer.
+ * Changed the various networking plugins to use the new string2msg().
+ *
  * Revision 1.4  2002/04/09 12:45:36  alan
  * Put in changes to the bcast, mcast and serial code such that
  * interrupted system calls in reads are ignored.
