@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.28 1999/11/09 07:34:54 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.29 1999/11/11 04:58:04 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -381,6 +381,7 @@ ha_perror(const char * fmt, ...)
 {
 	const char *	err;
 	char	errornumber[16];
+	extern int	sys_nerr;
 
 	va_list ap;
 	char buf[MAXLINE];
@@ -415,7 +416,6 @@ initialize_heartbeat()
  *
  *	Everything is forked from the parent process.  That's easier to
  *	monitor, and easier to shut down.
- *		(when we get around to doing those things :-))
  */
 
 	int		j;
@@ -1403,9 +1403,11 @@ req_our_resources()
 {
 	FILE *	rkeys;
 	char	cmd[MAXLINE];
+	char	getcmd[MAXLINE];
 	char	buf[MAXLINE];
 	int	finalrc = HA_OK;
 	int	rc;
+	int	rsc_count = 0;
 
 	
 	ha_log(LOG_INFO, "Requesting our resources.");
@@ -1430,17 +1432,29 @@ req_our_resources()
 			}
 			break;
 		}
+		++rsc_count;
 
 		if (buf[strlen(buf)-1] == '\n') {
 			buf[strlen(buf)-1] = EOS;
 		}
-		sprintf(cmd, HALIB "/req_resource %s &", buf);
-		if ((rc=system(cmd)) != 0) {
-			ha_log(LOG_ERR, "%s returned %d", cmd, rc);
+		sprintf(getcmd, HALIB "/req_resource %s &", buf);
+		if ((rc=system(getcmd)) != 0) {
+			ha_perror("%s returned %d", getcmd, rc);
 			finalrc=HA_FAIL;
 		}
 	}
-	pclose(rkeys);
+	rc=pclose(rkeys);
+	if (rc < 0 && errno != ECHILD) {
+		ha_perror("pclose(%s) returned %d", cmd, rc);
+	}else if (rc > 0) {
+		ha_log(LOG_ERR, "[%s] exited with 0x%x", cmd, rc);
+	}
+	if (rsc_count == 0) {
+		ha_log(LOG_INFO, "No local resources [%s]", cmd);
+	}else if (ANYDEBUG) {
+		ha_log(LOG_INFO, "%d local resources from [%s]"
+		,	rsc_count, cmd);
+	}
 	return(finalrc);
 }
 
@@ -2150,6 +2164,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.29  1999/11/11 04:58:04  alan
+ * Fixed a problem in the Makefile which caused resources to not be
+ * taken over when we start up.
+ * Added RTSCTS to the serial port.
+ * Added lots of error checking to the resource takeover code.
+ *
  * Revision 1.28  1999/11/09 07:34:54  alan
  * *Correctly* fixed the problem Thomas Hepper reported.
  *

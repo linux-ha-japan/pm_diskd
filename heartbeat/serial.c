@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.7 1999/11/07 20:57:21 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.8 1999/11/11 04:58:04 alan Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -286,7 +286,7 @@ ttysetup(int fd)
 
 	ti.c_oflag &= ~(OPOST);
 	ti.c_cflag &= ~(CBAUD|CSIZE|PARENB);
-	ti.c_cflag |=  (serial_baud|CS8|CREAD|CLOCAL);
+	ti.c_cflag |=  (serial_baud|CS8|CREAD|CLOCAL|CRTSCTS);
 
 	ti.c_lflag &= ~(ICANON|ECHO|ISIG);
 #if !defined(IRIX) && !defined(__FreeBSD__)
@@ -488,6 +488,12 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.8  1999/11/11 04:58:04  alan
+ * Fixed a problem in the Makefile which caused resources to not be
+ * taken over when we start up.
+ * Added RTSCTS to the serial port.
+ * Added lots of error checking to the resource takeover code.
+ *
  * Revision 1.7  1999/11/07 20:57:21  alan
  * Put in Matt Soffen's latest FreeBSD patch...
  *
