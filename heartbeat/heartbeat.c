@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.108 2001/05/21 15:29:50 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.109 2001/05/22 13:25:02 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -439,15 +439,22 @@ void
 init_procinfo()
 {
 	int	ipcid;
-	char *	shm;
+	struct pstat_shm *	shm;
+
 	(void)_heartbeat_c_Id;
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
+
 	if ((ipcid = shmget(IPC_PRIVATE, sizeof(*procinfo), 0666)) < 0) {
 		ha_perror("Cannot shmget for process status");
 		return;
 	}
-	if (((long)(shm = shmat(ipcid, NULL, 0))) == -1) {
+
+	/*
+	 * Casting this address into a long stinks, but there's no other
+	 * way because of the way the API is designed.
+	 */
+	if (((long)(shm = shmat(ipcid, NULL, 0))) == -1L) {
 		ha_perror("Cannot shmat for process status");
 		shm = NULL;
 		return;
@@ -3980,6 +3987,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.109  2001/05/22 13:25:02  alan
+ * Put in David Lee's portability fix for attaching shared memory segs
+ * without getting alignment warnings...
+ *
  * Revision 1.108  2001/05/21 15:29:50  alan
  * Moved David Lee's LOG_PRI (syslog) patch from heartbeat.c to heartbeat.h
  *
