@@ -148,9 +148,9 @@ logfacility	local0
 #	auto_failback "on" and "off" are backwards compatible with the old
 #		"nice_failback on" setting.
 #
-#	See the documentation for information on how to convert
+#	See the FAQ for information on how to convert
 #		from "legacy" to "on" without a flash cut.
-#		(i.e., with a "rolling upgrade" process)
+#		(i.e., using a "rolling upgrade" process)
 #
 #	The default value for auto_failback is "legacy", which
 #	will issue a warning at startup.  So, make sure you put
