@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.15 1999/11/11 06:02:43 alan Exp $
+#	$Id: heartbeat.sh,v 1.16 2000/04/03 08:26:29 horms Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -8,7 +8,7 @@
 #
 #		it should run under SuSE and Debian also...
 #
-# chkconfig: 2345 24 40
+# chkconfig: 2345 34 40
 # description: Startup script high-availability services.
 # processname: heartbeat
 # pidfile: /var/run/heartbeat.pid
@@ -141,7 +141,7 @@ init_proc_ha() {
 
 start_heartbeat() {
   if
-    daemon $HA_BIN/heartbeat # -d
+    daemon $HA_BIN/heartbeat # -d >& /dev/null
   then
     : OK
   else
@@ -155,6 +155,7 @@ start_heartbeat() {
 #
 
 StartHA() {
+   echo -n "Starting High-Availability services: "
   if
     [ $USE_MODULES = 1 ]
   then
@@ -177,7 +178,13 @@ StartHA() {
     : OK
   else
     RC=$?
-    echo "Heartbeat did not start [rc=$RC]"
+    if
+      [ -x $RHFUNCS ]
+    then
+      echo_failure
+    else
+      echo "Heartbeat did not start [rc=$RC]"
+    fi
     return $RC
   fi
 }
@@ -186,13 +193,23 @@ StartHA() {
 #	Ask heartbeat to stop.  It will give up it's resources...
 #
 StopHA() {
+  echo -n "Stopping High-Availability services: "
 
   MGR=$HA_BIN/ResourceManager
-  echo "$SUBSYS: shutdown in progress."
+  if
+    [ ! -x $RHFUNCS ]
+  then
+    echo "$SUBSYS: shutdown in progress."
+  fi
 
   if
-    $HA_BIN/heartbeat -k	# Kill it
+    $HA_BIN/heartbeat -k &> /dev/null	# Kill it
   then
+    if
+      [ -x $RHFUNCS ]
+    then
+      echo_success
+    fi
     return 0
   fi
 
@@ -233,7 +250,6 @@ RC=0
 
 case "$1" in
   start)
-	echo -n "Starting High-Availability services: "
 	StartHA
 	RC=$?
 	echo
@@ -241,7 +257,6 @@ case "$1" in
 	;;
 
   stop)
-	echo -n "Stopping High-Availability services: "
 	StopHA
 	RC=$?
 	echo
@@ -255,7 +270,9 @@ case "$1" in
 
   restart|reload)
 	StopHA
+	echo
 	StartHA
+	echo
 	RC=$?
 	;;
 
@@ -268,6 +285,16 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.16  2000/04/03 08:26:29  horms
+#  Tidied up the output from heartbeat.sh (/etc/rc.d/init.d/heartbeat)
+#  on Redhat 6.2
+#
+#  Loging to syslog if a facility is specified in ha.cf is instead of
+#  rather than as well as file logging as per instructions in ha.cf
+#
+#  Fixed a small bug in shellfunctions that caused logs to syslog
+#  to be garbled.
+#
 #  Revision 1.15  1999/11/11 06:02:43  alan
 #  Minor change to make heartbeat default enabled on startup.
 #

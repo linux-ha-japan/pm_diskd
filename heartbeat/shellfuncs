@@ -22,19 +22,15 @@ ha_log() {
 	if
 	  [ -n "$HA_LOGFACILITY" ]
         then
-	  : logging throug syslog
+	  : logging through syslog
 	  # loglevel is unknown, use 'notice' for now
-	  logger -t $LOGTAG -p ${HA_LOGFACILITY}.notice "${*}"
-        fi
-	if
+	  logger -t $HA_LOGTAG -p ${HA_LOGFACILITY}.notice "${*}"
+	elif
 	  [ -n "$HA_LOGFILE" ]
 	then
 	  : appending to $HA_LOGFILE
 	  echo "$HA_LOGTAG: "`hadate`"${*}" >> $HA_LOGFILE
-	fi
-	if
-	  [ ! -n "$HA_LOGFACILITY"  -a ! -n "$HA_LOGFILE" ]
-	then
+	else
 	  echo `hadate`"${*}" >&2
 	fi
 }
@@ -43,19 +39,15 @@ ha_debug() {
 	if
 	  [ -n "$HA_LOGFACILITY" ]
 	then
-	  : logging throug syslog
-	  logger -t $LOGTAG -p ${HA_LOGFACILITY}.debug "${*}"
-	fi
-	if
+	  : logging through syslog
+	  logger -t $HA_LOGTAG -p ${HA_LOGFACILITY}.debug "${*}"
+	elif
 	  [ -n "$HA_DEBUGLOG" ]
 	then
 	  : appending to $HA_DEBUGLOG
 	  echo "$HA_LOGTAG: "`hadate`"${*}" >> $HA_DEBUGLOG
-	fi
-	if
-	  [ ! -n "$HA_LOGFACILITY"  -a ! -n "$HA_DEBUGLOG" ]
-	then
-	  echo `hadate`"${*}" >&2
+	else
+	  echo `hadate`"${*}" .$HA_LOGFACILITY. >&2
 	fi
 }
 

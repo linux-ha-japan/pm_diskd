@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.28 2000/01/26 15:20:59 alan Exp $
+#	$Id: Specfile,v 1.29 2000/04/03 08:26:29 horms Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -27,9 +27,8 @@ It implements the following kinds of heartbeats:
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      and Guenther Thomsen <thomsen@cs.tu-berlin.de>
 
-+ Version 0.4.7 BETA SERIES...
++ Version 0.4.7
   + Put in lots of code to make lost packet retransmission happen
-	(seems to work reasonably well so far...)
   + Stopped trying to use the /proc/ha interface
   + Finished the error recovery in the heartbeat protocol (and got it to work)
   + Added test code for the heartbeat protocol

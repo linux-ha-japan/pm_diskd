@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.4 1999/12/25 08:44:17 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.5 2000/04/03 08:26:29 horms Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -134,15 +134,22 @@ init_config(const char * cfgfile)
 		,	config->deadtime_interval, config->heartbeat_interval);
 		++errcount;
 	}
-	if (config->log_facility < 0 && *(config->logfile) == 0) {
+	if (*(config->logfile) == 0 && config->log_facility > 0) {
 		strcpy(config->logfile, DEFAULTLOG);
 		if (!parse_only) {
 			ha_log(LOG_INFO
-			,	"Neither logfile nor logfacility found.");
+			,	"Neither logfile nor"
+				"logfacility found.");
 			ha_log(LOG_INFO, "Defaulting to " DEFAULTLOG);
 		}
 	}
-	if (*(config->dbgfile) == 0) {
+	if (config->log_facility > 0) {
+		/* 
+		 * Set to DEVNULL in case a stray script outputs errors
+		 */
+		strcpy(config->dbgfile, DEVNULL);
+	}
+	else if (*(config->dbgfile) == 0) {
 		strcpy(config->dbgfile, DEFAULTDEBUG);
 	}
 	if (!RestartRequested && errcount == 0 && !parse_only) {
@@ -778,6 +785,7 @@ struct _syslog_code facilitynames[] =
 	{ "local7", LOG_LOCAL7 },
 	{ NULL, -1 }
 };
+
 /* set syslog facility config variable */
 int
 set_facility(const char * value)

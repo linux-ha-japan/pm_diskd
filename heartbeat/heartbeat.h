@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.16 1999/12/25 08:44:17 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.17 2000/04/03 08:26:29 horms Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -69,8 +69,10 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.16 1999/12/25 08:44:
 #	endif
 #endif
 
+/* #define HA_DEBUG */
 #define	DEFAULTLOG	VAR_LOG_D "/ha-log"
 #define	DEFAULTDEBUG	VAR_LOG_D "/ha-debug"
+#define	DEVNULL 	"/dev/null"
 
 #define	HA_OKEXIT	0
 #define	HA_FAILEXIT	1

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.38 1999/12/25 19:00:48 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.39 2000/04/03 08:26:29 horms Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -354,6 +354,11 @@ ha_log(int priority, const char * fmt, ...)
 	vsnprintf(buf, MAXLINE, fmt, ap);
 	va_end(ap);
 
+	if (config && config->log_facility >= 0) {
+		syslog(priority, "%s", buf);
+		return;
+	}
+
 	if (config) {
 		fn = (priority == LOG_DEBUG ? config->dbgfile : config->logfile);
 	}
@@ -374,9 +379,6 @@ ha_log(int priority, const char * fmt, ...)
 		if (fp != stderr) {
 			fclose(fp);
 		}
-	}
-	if (config && config->log_facility >= 0) {
-		syslog(priority, "%s", buf);
 	}
 }
 
@@ -1440,7 +1442,7 @@ void init_monitor()
 	}
 
 	if ((monfd = open(MONFILE, O_WRONLY)) < 0) {
-		ha_perror("Cannot open " MONFILE);
+		ha_error("Cannot open " MONFILE);
 		lasttry = now;
 		return;
 	}
@@ -2500,6 +2502,16 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.39  2000/04/03 08:26:29  horms
+ * Tidied up the output from heartbeat.sh (/etc/rc.d/init.d/heartbeat)
+ * on Redhat 6.2
+ *
+ * Loging to syslog if a facility is specified in ha.cf is instead of
+ * rather than as well as file logging as per instructions in ha.cf
+ *
+ * Fixed a small bug in shellfunctions that caused logs to syslog
+ * to be garbled.
+ *
  * Revision 1.38  1999/12/25 19:00:48  alan
  * I now send local status unconditionally every time the clock jumps backwards.
  *
