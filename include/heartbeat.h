@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 2001/08/10 17:22:19 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.2 2001/10/01 20:34:14 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -80,6 +80,12 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 2001/08/10 17:22:1
 
 #define	HA_FAIL		0
 #define	HA_OK		1
+
+/* Reasons for calling mark_node_dead */
+enum deadreason {
+	HBTIMEOUT,	/* Can't communicate -  timeout */
+	HBSHUTDOWN,	/* Node was gracefully shut down */
+};
 
 #ifndef HA_D
 #	define	HA_D		"/etc/ha.d"
