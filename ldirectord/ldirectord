@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.26 2001/02/07 12:33:32 jacob Exp $
+# $Id: ldirectord,v 1.27 2001/03/28 02:07:48 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -1085,7 +1085,12 @@ sub check_https
 	use Net::SSLeay;
 	$Net::SSLeay::trace = 0;
 	$uri = $$v{request};
-	my ($page, $result, %headers) = Net::SSLeay::get_https($$r{server}, $$r{port}, $uri);
+	my ($page, $result, %headers);
+	{
+		local $SIG{__WARN__}; 
+		($page, $result, %headers)  = &Net::SSLeay::get_https($$r{server}, $$r{port}, $uri);
+	}
+
 	my $recstr = $$r{receive};
 	if ($result =~ /ERROR/) {
 		service_set($v, $r, "down");
