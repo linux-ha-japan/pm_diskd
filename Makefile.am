@@ -29,7 +29,7 @@ EXTRA_DIST              = bootstrap rc.config.heartbeat \
 
 RPMREL			= @RPMREL@
 RPM			= @RPM@
-RPMFLAGS		= -ta
+RPMFLAGS		= -ta --nodeps
 TARFILE			= $(distdir).tar.gz
 #
 #       Debian wants things to start with DESTDIR,
@@ -68,19 +68,21 @@ SUBDIRS                 = libltdl doc debian replace include lib \
 
 DIST_SUBDIRS                 = libltdl doc debian replace include lib \
                         telecom ldirectord heartbeat \
-                        cts linux-ha membership contrib config snmp_subagent 
+                        cts linux-ha membership contrib config
 
 # Pass these to configure when running "make distcheck"
 DISTCHECK_CONFIGURE_FLAGS = --with-initdir=prefix
 
 rpm:		dist
-		$(RPM) $(RPMFLAGS) $(TARFILE) </dev/null;
+		$(RPM) --nodeps $(RPMFLAGS) $(TARFILE) </dev/null;
 
 clean:	am_config_clean
 am_config_clean:
 		rm -fr $(PACKAGE)-*.tar.gz
 
-handy: rpm handy-copy
+drpm:		dist
+		$(RPM) --nodeps $(RPMFLAGS) $(TARFILE) </dev/null;
+handy: drpm handy-copy
 
 handy-copy:
 	cd doc; $(MAKE) ChangeLog
