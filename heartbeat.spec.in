@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.13 2001/12/17 11:20:58 lars Exp $
+#	$Id: heartbeat.spec.in,v 1.14 2002/01/17 15:31:12 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -495,7 +495,11 @@ install -m 644 rc.config.heartbeat $TEMPL
 ###########################################################
 %clean
 ###########################################################
-rm -rf $RPM_BUILD_ROOT
+if
+  [ -z "${RPM_BUILD_ROOT}"  -a "${RPM_BUILD_ROOT}" != "/" ]
+then
+  rm -rf $RPM_BUILD_ROOT
+fi
 rm -rf $RPM_BUILD_DIR/@HEARTBEATPKG@-@VERSION@
 
 ###########################################################
