@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.130 2001/09/07 01:09:06 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.131 2001/09/07 05:46:39 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -355,9 +355,9 @@ volatile struct process_info *	curproc = NULL;
 
 int	setline(int fd);
 void	cleanexit(int rc);
-void    reaper_handler(int sig);
-void    giveup_resources_and_signal_all_handler(int sig);
-void    signal_all_handler(int sig);
+void    reaper_sig(int sig);
+void    giveup_resources_and_signal_all_sig(int sig);
+void    signal_all_sig(int sig);
 void	debug_sig(int sig);
 void	signal_all(int sig);
 void	parent_debug_sig(int sig);
@@ -2005,29 +2005,29 @@ debug_sig(int sig)
  */
 
 void
-reaper_handler(int sig)
+reaper_sig(int sig)
 {
         int status;
 
-        signal(sig, reaper_handler);
+        signal(sig, reaper_sig);
         while(wait3(&status, WNOHANG, 0)>0) { 
                 ;
         }
 }
 
 void
-giveup_resources_and_signal_all_handler(int sig) 
+giveup_resources_and_signal_all_sig(int sig) 
 {
 	ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
-        signal(sig, giveup_resources_and_signal_all_handler);
+        signal(sig, giveup_resources_and_signal_all_sig);
         giveup_resources(sig);
         signal_all(sig);
 }
 
 void
-signal_all_handler(int sig)
+signal_all_sig(int sig)
 {
-        signal(sig, signal_all_handler);
+        signal(sig, signal_all_sig);
         signal_all(sig);
 }
 
@@ -3370,7 +3370,7 @@ make_daemon(void)
 #endif
 
         /* Reap child processes to avoid zombies */
-        signal(SIGCHLD, reaper_handler);
+        signal(SIGCHLD, reaper_sig);
 
 
 #ifdef	SIGQUIT
@@ -4055,6 +4055,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.131  2001/09/07 05:46:39  horms
+ * Changed recently added _handler funciotns to _sig to match previously defined signal handlers. Horms
+ *
  * Revision 1.130  2001/09/07 01:09:06  alan
  * Put in code to make the glib error messages get redirected to whereever
  * the other ha_log messages go...
