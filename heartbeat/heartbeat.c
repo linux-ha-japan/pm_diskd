@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.194 2002/07/30 01:30:13 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.195 2002/08/02 22:47:49 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -719,6 +719,12 @@ ha_error(const char *	msg)
 }
 
 
+/*
+ * FIXME realtime:
+ * This function can cost us realtime.
+ * Syslog might block, write might block and open might block.
+ * we really ought to do this in a separate process.
+ */
 /* HA-logging function */
 void
 ha_log(int priority, const char * fmt, ...)
@@ -3800,7 +3806,7 @@ send_cluster_msg(struct ha_msg* msg)
 	{
 	/*
 	 * Opening the FIFO for each message is a dumb idea.  It's slow,
-	 * it's hell on real time behavior (it accesses the filesystem for
+	 * it's hell on realtime behavior (it accesses the filesystem for
 	 * the FIFO pathname for every message), and it doesn't work
 	 * reliably on FreeBSD.  An eminently bad idea.
 	 * That's why we don't do it (any more) ;-)
@@ -5655,7 +5661,17 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			continue;
 		}
 		if (thisseq > hist->hiseq) {
-			nak_rexmit(thisseq, "seqno too high");
+			/*
+			 * Hopefully we just restarted and things are
+			 * momentarily a little out of sync...
+			 * Since the rexmit request doesn't send out our
+			 * generation number, we're just guessing
+			 * ... nak_rexmit(thisseq, "seqno too high"); ...
+			 *
+			 * Otherwise it's a bug ;-)
+			 */
+			ha_log(LOG_WARNING, "Rexmit of seq %lu requested. %d is max."
+			,	thisseq, hist->hiseq);
 			continue;
 		}
 
@@ -6065,6 +6081,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.195  2002/08/02 22:47:49  alan
+ * Fixed a minor and obscure protocol bug.
+ * When we got a rexmit packet just as we start up, it might be from
+ * our previous incarnation, and we can't rexmit it, because we don't have that
+ * packet.  Before we NAKed it, now we just ignore it, because they'll
+ * see that we restarted very soon...
+ *
  * Revision 1.194  2002/07/30 01:30:13  alan
  * The process tracking code had incorrect/invalid
  * logging levels specified for process tracking.  Depending
