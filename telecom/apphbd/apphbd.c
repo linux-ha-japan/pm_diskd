@@ -97,7 +97,7 @@ const char *	cmdname = "apphbd";
 #define		DBGMIN		1
 #define		DBGDETAIL	2
 int		debug = 0;
-int		usenormalpoll=FALSE;
+int		usenormalpoll=TRUE;
 
 
 
@@ -279,6 +279,12 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 	ret->rcmsg.msg_private = NULL;
 	ret->rc.rc = 0;
 
+	if (debug >= DBGMIN) {
+		cl_log(LOG_DEBUG, "apphb_client_new: channel: 0x%x"
+		" pid=%d"
+		,	GPOINTER_TO_UINT(ch)
+		,	ch->farside_pid);
+	}
 	/* FIXME?? Should last arg be NULL?? */
 	ret->source = G_main_add_IPC_Channel(G_PRIORITY_DEFAULT
 	,	ch, FALSE, apphb_dispatch, (gpointer)ret
@@ -372,7 +378,7 @@ apphb_client_remove(gpointer Client)
 	cl_log(LOG_INFO, "apphb_client_remove: client: %ld\n"
 	,	(long)client->pid);
 	if (debug >= DBGMIN) {
-		cl_log(LOG_DEBUG, "apphb_client_remove: client: %ld\n"
+		cl_log(LOG_DEBUG, "apphb_client_remove: client pid: %ld\n"
 		,	(long)client->pid);
 	}
 	if (client->timerid) {
@@ -431,7 +437,7 @@ apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
 		apphb_notify(client, APPHB_HBAGAIN);
 		client->missinghb = FALSE;
 	}
-		
+
 	if (client->timerid) {
 		g_source_remove(client->timerid);
 		client->timerid = 0;
@@ -528,6 +534,12 @@ apphb_process_msg(apphb_client_t* client, void* Msg,  int length)
 
 	/* Which command are we processing? */
 
+	if (debug >= DBGDETAIL) {
+		cl_log(LOG_DEBUG, "apphb_process_msg: client: 0x%x"
+		" type=%s"
+		,	GPOINTER_TO_UINT(client)
+		,	msg->msgtype);
+	}
 	for (j=0; j < DIMOF(hbcmds); ++j) {
 		if (strcmp(msg->msgtype, hbcmds[j].msg) == 0) {
 			sendrc = hbcmds[j].senderrno;
@@ -542,6 +554,12 @@ apphb_process_msg(apphb_client_t* client, void* Msg,  int length)
 		}
 	}
 	if (sendrc) {
+		if (debug >= DBGMIN) {
+			cl_log(LOG_DEBUG, "apphb_process_msg: client: 0x%x"
+			" type=%s, rc=%d"
+			,	GPOINTER_TO_UINT(client)
+			,	msg->msgtype, rc);
+		}
 		apphb_putrc(client, rc);
 	}
 }
@@ -553,6 +571,13 @@ static gboolean
 apphb_new_dispatch(IPC_Channel* src, gpointer user)
 {
 
+	if (debug >= DBGMIN) {
+		cl_log(LOG_DEBUG, "apphb_new_dispatch: IPC_channel: 0x%x"
+		" pid=%d"
+		,	GPOINTER_TO_UINT(src)
+		,	src->farside_pid);
+	}
+
 	if (src != NULL) {
 		/* This sets up comm channel w/client
 		 * Ignoring the result value is OK, because
@@ -561,6 +586,7 @@ apphb_new_dispatch(IPC_Channel* src, gpointer user)
 		(void)apphb_client_new(src);
 	}else{
 		cl_perror("accept_connection failed!");
+		sleep(1);
 	}
 	return TRUE;
 }
@@ -568,7 +594,7 @@ apphb_new_dispatch(IPC_Channel* src, gpointer user)
 /*
  * This function is called whenever a heartbeat event occurs.
  * It could be replaced by a function which called the appropriate
- * set of plugins to distribute the notification along to whomever
+ * set of plugins to distribute the notification along to whoever
  * is interested in whatever way is desired.
  */
 static void
@@ -668,6 +694,10 @@ main(int argc, char ** argv)
 			debug += 1;
 			break;
 		}
+	}
+	if (debug) {
+		cl_log_set_logfile("/var/log/apphbd.log");
+		cl_log_set_debugfile("/var/log/apphbd.log");
 	}
 
 	return init_start(watchdogdev);
