@@ -3,6 +3,20 @@
  *
  *	Copyright (c) 2000 Alan Robertson <alanr@unix.sh>
  *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
  */
 
 #include <stdio.h>
@@ -12,6 +26,7 @@
 #include <string.h>
 #include <errno.h>
 #include <syslog.h>
+#include <libintl.h>
 #include <sys/wait.h>
 
 #include "expect.h"
@@ -352,7 +367,7 @@ RPCReset(struct BayTech* bt, int unitnum, const char * rebootid)
 		default: 
 			return(errno == ETIME ? S_RESETFAIL : S_OOPS);
 	}
-	syslog(LOG_ERR, "Host %s being rebooted.", rebootid);
+	syslog(LOG_INFO, "Host %s being rebooted.", rebootid);
 
 	/* Expect "ower applied to outlet" */
 	if (RPCLookFor(bt, PowerApplied, 30) < 0) {
@@ -361,7 +376,7 @@ RPCReset(struct BayTech* bt, int unitnum, const char * rebootid)
 
 	/* All Right!  Power is back on.  Life is Good! */
 
-	syslog(LOG_ERR, "Power restored to host %s.", rebootid);
+	syslog(LOG_INFO, "Power restored to host %s.", rebootid);
 
 	/* Expect: "RPC-x>" */
 	EXPECT(RPC,5);
@@ -834,30 +849,41 @@ static const char *
 RPC_getinfo(Stonith * s, int reqtype)
 {
 	struct BayTech* bt;
+	char *		ret;
 
 	if (!ISBAYTECH(s)) {
 		syslog(LOG_ERR, "RPC_idinfo: invalid argument");
 		return NULL;
 	}
+	/*
+	 *	We look in the ST_TEXTDOMAIN catalog for our messages
+	 */
 	bt = (struct BayTech *)s->pinfo;
 
 	switch (reqtype) {
 		case ST_DEVICEID:
-			return bt->idinfo;
+			ret = bt->idinfo;
+			break;
 
 		case ST_CONF_INFO_SYNTAX:
-			return
-			"IP-address login password\n"
-			"The IP-address and login are white-space delimited.";
+			ret = dgettext(ST_TEXTDOMAIN
+			,	"IP-address login password\n"
+			"The IP-address and login are white-space delimited.");
+			break;
 
 		case ST_CONF_FILE_SYNTAX:
-			return
-			"IP-address login password\n"
-			"The IP-address and login are white-space delimited. "
-			"All three items must be on one line. "
-			"Blank lines and lines beginning with # are ignored";
+			ret = dgettext(ST_TEXTDOMAIN
+			,	"IP-address login password\n"
+			"The IP-address and login are white-space delimited.  "
+			"All three items must be on one line.  "
+			"Blank lines and lines beginning with # are ignored");
+			break;
+
+		default:
+			ret = NULL;
+			break;
 	}
-	return NULL;
+	return ret;
 }
 
 /*

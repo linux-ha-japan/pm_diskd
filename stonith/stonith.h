@@ -17,6 +17,29 @@
  */
 
 /*
+ *
+ * Copyright (c) 2000 Alan Robertson <alanr@unix.sh>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
+
+#ifndef __STONITH_H
+#	define __STONITH_H
+
+/*
  *	Return codes from "Stonith" member functions.
  */
 
@@ -54,11 +77,12 @@ struct stonith_ops {
 #define	ST_CONF_INFO_SYNTAX	2	/* Config string (info) syntax help */
 #define	ST_DEVICEID		3	/* Device Identification */
 
+	/* Getinfo() calls return text in the current locale */
 	const char* (*getinfo)		(Stonith*, int infotype);
 
 	/*
 	 * Must call set_config_info or set_config_file before calling any of
-	 * these.
+	 * the member functions below...
 	 */
 
 	int (*status)			(Stonith *s);
@@ -67,7 +91,7 @@ struct stonith_ops {
  */
 #define	ST_GENERIC_RESET	1	/* Reset the machine any way you can */
 
-	int (*reset_req)		(Stonith * s, int op, const char * node);
+	int (*reset_req)		(Stonith * s, int op, const char* node);
 
 
 	char** (*hostlist)		(Stonith* s);
@@ -113,8 +137,9 @@ extern const char **	stonith_types(void);	/* NULL-terminated list */
  * At this point, you can ask the device which machines it knows how to reset
  * using the hostlist() member function.
  *
- * I am a concerned that the ST_CONF_FILE_SYNTAX and ST_CONF_INFO_SYNTAX
- * info calls may not be the right interface in the multi-language world
- * that Linux is very much a part of.
+ * When implementors of Stonith types put the return values of their
+ * getinfo() calls inside the dgettext(ST_TEXTDOMAIN) macro, we should be
+ * able to satisfy international customers as well.
  *
  */
+#endif /*__STONITH_H*/
