@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.48 2000/06/17 12:09:10 alan Exp $
+#	$Id: Specfile,v 1.49 2000/06/21 05:01:57 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -289,6 +289,12 @@ Install_PPP_hack() {
   file2hack=/etc/ppp/ip-up.local
   echo "NOTE: Modifying $file2hack"
   if
+    [ ! -x /bin/ed ]
+  then
+    echo "Hey!  Gotta have /bin/ed!"
+    exit 1
+  fi
+  if
     [ ! -f $file2hack ]
   then
     echo '#!/bin/bash' > $file2hack
@@ -301,7 +307,7 @@ g/ $MARKER\$/d
 \$a
 #	The following lines added for Linux-HA support		# $MARKER
 DEVFILE=\`echo \$DEVICE | sed -e 's!^/dev/!!' -e 's!/!.!g'\`	# $MARKER
-OUTFILE=/etc/ha.d/ppp.d/\$DEVFILE				# $MARKER
+OUTFILE=/var/run/ppp.d/\$DEVFILE				# $MARKER
 (			# $MARKER
 echo "\$IPREMOTE"	# $MARKER
 echo "\$IFNAME"		# $MARKER
