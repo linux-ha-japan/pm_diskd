@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.26 2000/08/30 22:10:20 alan Exp $
+#	$Id: Makefile,v 1.27 2000/08/31 05:23:36 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -22,6 +22,7 @@ LOGROTATED=$(BUILD_ROOT)/etc/logrotate.d
 
 HA=$(BUILD_ROOT)/etc/ha.d
 HALIB=$(BUILD_ROOT)/usr/lib/$(PKG)
+GENLIB=$(BUILD_ROOT)/usr/lib/
 HARCD=$(HA)/rc.d
 VARRUN=$(BUILD_ROOT)/var/run
 FIFO=$(VARRUN)/heartbeat-fifo
@@ -96,11 +97,15 @@ FINDIF	  =	findif
 F_OBJLIST =	findif.o
 F_HDRS	  =	
 
+CLIENTOBJS = ha_msg.o lock.o client_lib.o
+CLIENTLIB = libhbclient.a
+CLIENTSO =  libhbclient.so
 
+LIBS = $(CLIENTLIB) $(CLIENTSO)
 
 LIBCMDS = $(HEARTBEAT) $(SENDARP) $(FINDIF) $(LDIRECTORD) api_test
 
-PRODUCTS = $(LIBCMDS)
+PRODUCTS = $(LIBCMDS) $(LIBS)
 
 LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 
@@ -116,8 +121,14 @@ all: $(PRODUCTS)
 $(HEARTBEAT): $(H_OBJLIST) $(H_HDRS) $(LIBS) $(HBLIBS)
 	$(CC) $(LDFLAGS) $(H_OBJLIST) $(LIBS) $(HBLIBS) -o $(HEARTBEAT)
 
-api_test: api_test.o ha_msg.o lock.o
-	$(CC) $(LDFLAGS) api_test.o ha_msg.o lock.o -o api_test
+$(CLIENTLIB): $(CLIENTOBJS)
+	ar rc $(CLIENTLIB) $(CLIENTOBJS)
+
+$(CLIENTSO): $(CLIENTLIB)
+	ld -shared -o $(CLIENTSO) --whole-archive $(CLIENTLIB)
+
+api_test: api_test.o $(CLIENTLIB)
+	$(CC) $(LDFLAGS) api_test.o $(CLIENTLIB) -o api_test
 
 $(H_OBJLIST) : $(H_HDRS)
 
@@ -143,9 +154,13 @@ install_bin: all
 	[ -d $(LOGROTATED) ] && \
 		$(INSTALL) -cm 644 heartbeat.logrotate $(LOGROTATESCRIPT)
 
+install_lib: all
+	if [ ! -d  $(GENLIB) ]; then mkdir -p $(GENLIB); fi
+	$(INSTALL) -cm 755 $(LIBS) $(GENLIB)
+
 clean:	
 	rm -f *.o *.swp .*.swp core make.out
-	rm -f $(LIBCMDS)
+	rm -f $(PRODUCTS)
 
 pristene: clean
 
