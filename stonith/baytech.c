@@ -136,6 +136,7 @@ static struct Etoken Rebooting[] =	{ {"ebooting selected outlet", 0, 0}
 
 static struct BayTechModelInfo ModelInfo [] = {
 		{"RPC-5", 18, Temp},	/* This first model will be the default */
+		{"RPC-3", 10, Break},	
 		{"RPC-3A", 10, Break},
 		{NULL, 0, NULL},
 };
@@ -267,6 +268,18 @@ RPCLogin(struct BayTech * bt)
 	snprintf(IDbuf, sizeof(IDbuf), "BayTech %s", idptr);
 	REPLSTR(bt->idinfo, IDbuf);
 
+	bt->modelinfo = &ModelInfo[0];
+
+	for (j=0; ModelInfo[j].type != NULL; ++j) {
+		/*
+		 * TIMXXX - 
+		 * Look at device ID as this really describes the model.
+		 */
+		if (strcasecmp(ModelInfo[j].type, idptr) == 0) {
+			bt->modelinfo = &ModelInfo[j];
+			break;
+		}
+	}
 
 	/* Look for the unit id info */
 	EXPECT(UnitId, 10);
@@ -274,15 +287,6 @@ RPCLogin(struct BayTech * bt)
 	delim = IDbuf + strcspn(IDbuf, WHITESPACE);
 	*delim = EOS;
 	REPLSTR(bt->unitid, IDbuf);
-	bt->modelinfo = &ModelInfo[0];
-
-	for (j=1; ModelInfo[j].type != NULL; ++j) {
-		if (strcasecmp(ModelInfo[j].type, IDbuf) == 0) {
-			bt->modelinfo = &ModelInfo[j];
-			break;
-		}
-	}
-
 
 	/* Expect "username>" */
 	EXPECT(login, 2);
@@ -516,6 +520,7 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 	int	ret = -1;
 	char	format[32];
 
+
 	snprintf(format, sizeof(format), "%%7d       %%%dc"
 	,	bt->modelinfo->socklen);
 
@@ -548,8 +553,7 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 	do {
 		NameMapping[0] = EOS;
 		SNARF(NameMapping, 5);
-		if (sscanf(NameMapping
-		,	format, &sockno, sockname) == 2) {
+		if (sscanf(NameMapping, format, &sockno, sockname) == 2) {
 
 			char *	last = sockname+bt->modelinfo->socklen;
 			*last = EOS;
@@ -614,7 +618,7 @@ st_hostlist(Stonith  *s)
 {
 	char		NameMapping[128];
 	char*		NameList[64];
-	int		numnames = 0;
+	unsigned int	numnames = 0;
 	char **		ret = NULL;
 	struct BayTech*	bt;
 	char		format[32];
@@ -671,8 +675,7 @@ st_hostlist(Stonith  *s)
 		char	sockname[64];
 		NameMapping[0] = EOS;
 		NULLSNARF(NameMapping, 5);
-		if (sscanf(NameMapping
-		,	format, &sockno, sockname) == 2) {
+		if (sscanf(NameMapping, format, &sockno, sockname) == 2) {
 
 			char *	last = sockname+bt->modelinfo->socklen;
 			char *	nm;
