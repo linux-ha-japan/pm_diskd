@@ -727,7 +727,9 @@ api_process_registration(struct ha_msg * msg)
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
-	ha_log(LOG_INFO, "Signing client %d on to API", client->pid);
+	ha_log(LOG_INFO, "Signing on API client %d (%s)"
+	,	client->pid
+	,	(client->iscasual? "'casual'" : client->client_id));
 	api_send_client_msg(client, resp);
 	ha_msg_del(resp); resp=NULL;
 }

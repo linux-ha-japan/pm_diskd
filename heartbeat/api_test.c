@@ -31,6 +31,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <stdarg.h>
+#include <syslog.h>
 #include <heartbeat.h>
 #include <hb_api_core.h>
 #include <hb_api.h>
@@ -81,6 +82,7 @@ main(int argc, char ** argv)
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
 
+	openlog("ping-test", LOG_PERROR|LOG_PID, LOG_LOCAL7);
 	hb = ll_cluster_new("heartbeat");
 	fprintf(stderr, "PID=%ld\n", (long)getpid());
 	fprintf(stderr, "Signing in with heartbeat\n");
@@ -180,9 +182,12 @@ main(int argc, char ** argv)
 		if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
 			orig = "?";
 		}
-		fprintf(stderr, "Got message %d of type [%s] from [%s]\n"
+		syslog(LOG_NOTICE, "Got message %d of type [%s] from [%s]\n"
 		,	msgcount, type, orig);
+#if 0
 		ha_log_message(reply);
+		syslog(LOG_NOTICE, "%s", hb->llc_ops->errmsg(hb));
+#endif
 		if (strcmp(type, "ping") ==0) {
 			struct ha_msg*	pingreply = ha_msg_new(4);
 			int	count;
@@ -192,7 +197,8 @@ main(int argc, char ** argv)
 			for (count=0; count < 10; ++count) {
 				if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
 				==	HA_OK) {
-					fprintf(stderr, "Sent ping reply(%d) to [%s]\n"
+					fprintf(stderr
+					,	"Sent ping reply(%d) to [%s]\n"
 					,	count, orig);
 				}else{
 					fprintf(stderr, "PING %d FAIL to [%s]\n"
@@ -205,8 +211,8 @@ main(int argc, char ** argv)
 	}
 
 	if (!quitnow) {
-		perror("read_hb_msg returned NULL");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		syslog(LOG_ERR, "read_hb_msg returned NULL");
+		syslog(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 	}
 	if (hb->llc_ops->signoff(hb) != HA_OK) {
 		fprintf(stderr, "Cannot sign off from heartbeat.\n");

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.163 2002/02/12 15:22:29 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.164 2002/02/12 18:13:39 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1424,9 +1424,11 @@ master_status_process(void)
 
 		/* Do we have input on the API registration FIFO? */
 		if (selret > 0 && FD_ISSET(regfd, &inpset)) {
-			ha_log(LOG_DEBUG
-			,	"Processing register message from regfd %d.\n"
-			,	regfd);
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"Processing register message from"
+				" regfd %d.\n", regfd);
+			}
 			process_registermsg(regfifo);
 			FD_CLR(regfd, &inpset);
 			--selret;
@@ -4996,6 +4998,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.164  2002/02/12 18:13:39  alan
+ * Did 3 things:
+ * 	Changed the API test program to use syslog for some messages.
+ * 	Changed the API code to be a little less verbose
+ * 	Removed the ns_st file from the rc.d directory (since it does
+ * 		nothing and is no longer needed)
+ *
  * Revision 1.163  2002/02/12 15:22:29  alan
  * Put in code to filter out rc script execution on every possible message,
  * so that only those scripts that actually exist will we attempt to execute.
