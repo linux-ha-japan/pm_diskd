@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.135 2001/10/01 20:24:36 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.136 2001/10/01 22:00:54 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -411,7 +411,7 @@ void	process_resources(struct ha_msg* msg, struct node_info * thisnode);
 void	request_msg_rexmit(struct node_info *, unsigned long lowseq
 ,		unsigned long hiseq);
 void	check_rexmit_reqs(void);
-void	mark_node_dead(struct node_info* hip);
+void	mark_node_dead(struct node_info* hip, enum deadreason reason);
 void	change_link_status(struct node_info* hip, struct link *lnk
 ,		const char * new);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
@@ -566,7 +566,7 @@ lookup_iface(struct node_info * hip, const char *iface)
 	struct link *lnk;
 	int j = 0;
 	while((lnk = &hip->links[j]) && lnk->name) {
-		if(strcmp(lnk->name, iface) == 0) {
+		if (strcmp(lnk->name, iface) == 0) {
 			return lnk;
 		}
 	j++;
@@ -941,7 +941,7 @@ make_realtime()
 		sp.sched_priority = HB_STATIC_PRIO;
 		if (sched_setscheduler(0, HB_SCHED_POLICY, &sp) < 0) {
 			ha_log(LOG_ERR, "unable to set scheduler parameters.");
-		}else if(ANYDEBUG) {
+		}else if (ANYDEBUG) {
 			ha_log(LOG_INFO
 			,	"scheduler priority set to %d", HB_STATIC_PRIO);
 		}
@@ -966,7 +966,7 @@ make_normaltime()
 	sp.sched_priority = 0;
 	if (sched_setscheduler(0, SCHED_OTHER, &sp) < 0) {
 		ha_log(LOG_ERR, "unable to (re)set scheduler parameters.");
-	}else if(ANYDEBUG) {
+	}else if (ANYDEBUG) {
 		ha_log(LOG_INFO
 		,	"scheduler priority set to %d", 0);
 	}
@@ -1350,7 +1350,7 @@ process_clustermsg(FILE * f)
 	char			iface[MAXIFACELEN];
 	struct	link *		lnk;
 
-	TIME_T			msgtime;
+	TIME_T			msgtime = 0;
 	TIME_T			now = time(NULL);
 	const char *		from;
 	const char *		ts;
@@ -1358,6 +1358,9 @@ process_clustermsg(FILE * f)
 	int			action;
 	clock_t			messagetime;
 	struct tms		proforma_tms;
+	const char *		cseq;
+	unsigned long		seqno = 0;
+	
 
 
 	if ((msg = if_msgfromstream(f, iface)) == NULL) {
@@ -1370,10 +1373,17 @@ process_clustermsg(FILE * f)
 	type = ha_msg_value(msg, F_TYPE);
 	from = ha_msg_value(msg, F_ORIG);
 	ts = ha_msg_value(msg, F_TIME);
+	cseq = ha_msg_value(msg, F_SEQ);
 
-	if (from == NULL || ts == NULL || type == NULL) {
+	if (from == NULL || ts == NULL || type == NULL || cseq == NULL) {
 		ha_log(LOG_ERR
-		,	"process_status_message: missing from/ts/type");
+		,	"process_status_message: missing from/ts/type/seqno");
+		goto psm_done;
+	}
+	sscanf(cseq, "%lx", &seqno);
+	sscanf(ts, TIME_X, &msgtime);
+
+	if (ts == 0 || msgtime == 0) {
 		goto psm_done;
 	}
 
@@ -1385,7 +1395,7 @@ process_clustermsg(FILE * f)
 			ha_log_message(msg);
 		}
 		goto psm_done;
-	}else if(ANYDEBUG) {
+	}else if (ANYDEBUG) {
 		ha_log(LOG_DEBUG
 		,       "process_status_message: node [%s] auth  ok"
 		,	from);
@@ -1464,12 +1474,28 @@ process_clustermsg(FILE * f)
 		process_resources(msg, thisnode);
 	}
 
-	if (strcasecmp(type, T_SHUTDONE) == 0 && thisnode == curnode) {
-		if (ANYDEBUG) {
-			ha_log(LOG_ERR, "Received T_SHUTDONE from ourselves.");
+	/* Did we get a "shutdown complete" message? */
+	if (strcasecmp(type, T_SHUTDONE) == 0) {
+		if (thisnode == curnode) {
+			if (ANYDEBUG) {
+				ha_log(LOG_ERR
+				,	"Received T_SHUTDONE from ourselves.");
+		    	}
+	    		heartbeat_monitor(msg, action, iface);
+    			signal_all(SIGTERM);
+		}else{
+			/* Keep stale packets from changing status */
+			thisnode->rmt_lastupdate = msgtime;
+			thisnode->local_lastupdate = messagetime;
+			thisnode->status_seqno = seqno;
+            		if (ANYDEBUG) {
+		    		ha_log(LOG_ERR
+				,	"Received T_SHUTDONE from '%s':"
+				" now marked dead."
+				,	thisnode->nodename);
+		    	}
+            		mark_node_dead(thisnode, HBSHUTDOWN);
 		}
-		heartbeat_monitor(msg, action, iface);
-		signal_all(SIGTERM);
 	}
 
 	if (strcasecmp(type, T_STARTING) == 0
@@ -1483,22 +1509,13 @@ process_clustermsg(FILE * f)
 	||	strcasecmp(type, T_NS_STATUS) == 0) {
 		clock_t		heartbeat_interval;
 		const char *	status;
-		const char *	cseq;
-		unsigned long	seqno = 0;
 
-		sscanf(ts, TIME_X, &msgtime);
 		status = ha_msg_value(msg, F_STATUS);
 		if (status == NULL)  {
 			ha_log(LOG_ERR, "process_status_message: "
 			"status update without "
 			F_STATUS " field");
 			goto psm_done;
-		}
-		if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
-			if (sscanf(cseq, "%lx", &seqno) != 1
-			||	seqno <= 0) {
-				goto psm_done;
-			}
 		}
 
 		/* Do we already have a newer status? */
@@ -2369,28 +2386,28 @@ false_alarm_action(void)
 void
 process_pending_handlers(void)
 {
-        if(pending_handlers&REAPER_SIG) {
+        if (pending_handlers&REAPER_SIG) {
                 reaper_action();
         }
-        if(pending_handlers&GIVEUP_RESOURCES_AND_TERM_SIG) {
+        if (pending_handlers&GIVEUP_RESOURCES_AND_TERM_SIG) {
                 giveup_resources_and_term_action();
         }
-        if(pending_handlers&TERM_SIG) {
+        if (pending_handlers&TERM_SIG) {
                 term_action();
         }
-        if(pending_handlers&PARENT_DEBUG_USR1_SIG) {
+        if (pending_handlers&PARENT_DEBUG_USR1_SIG) {
                 parent_debug_usr1_action();
         }
-        if(pending_handlers&PARENT_DEBUG_USR2_SIG) {
+        if (pending_handlers&PARENT_DEBUG_USR2_SIG) {
                 parent_debug_usr2_action();
         }
-        if(pending_handlers&REREAD_CONFIG_SIG) {
+        if (pending_handlers&REREAD_CONFIG_SIG) {
                 reread_config_action();
         }
-        if(pending_handlers&DING_SIG) {
+        if (pending_handlers&DING_SIG) {
                 ding_action();
         }
-        if(pending_handlers&FALSE_ALARM_SIG) {
+        if (pending_handlers&FALSE_ALARM_SIG) {
                 false_alarm_action();
         }
 
@@ -2443,8 +2460,9 @@ check_for_timeouts(void)
 		||	strcmp(hip->status, DEADSTATUS) == 0 ) {
 			continue;
 		}
-		mark_node_dead(hip);
+		mark_node_dead(hip, HBTIMEOUT);
 	}
+
 	/* Check all links status of all nodes */
 
 	for (j=0; j < config->nodecount; ++j) {
@@ -2452,7 +2470,7 @@ check_for_timeouts(void)
 		int i = 0;
 		hip = &config->nodes[j];
 
-		if(hip == curnode) continue;
+		if (hip == curnode) continue;
 
 		while((lnk = &hip->links[i]) && lnk->name) {
 			if (lnk->lastupdate > now) {
@@ -2710,7 +2728,7 @@ change_link_status(struct node_info *hip, struct link *lnk, const char * newstat
 
 /* Mark the given node dead */
 void
-mark_node_dead(struct node_info *hip)
+mark_node_dead(struct node_info *hip, enum deadreason reason)
 {
 	struct ha_msg *	hmsg;
 	char		timestamp[16];
@@ -2727,7 +2745,9 @@ mark_node_dead(struct node_info *hip)
 	||	ha_msg_add(hmsg, F_TIME, timestamp) == HA_FAIL
 	||	ha_msg_add(hmsg, F_ORIG, hip->nodename) == HA_FAIL
 	||	ha_msg_add(hmsg, F_STATUS, "dead") == HA_FAIL
-	||	ha_msg_add(hmsg, F_COMMENT, "timeout") == HA_FAIL) {
+	||	ha_msg_add(hmsg, F_COMMENT
+	,		reason == HBTIMEOUT ? "timeout" : "shutdown")
+	==	HA_FAIL) {
 		ha_log(LOG_ERR, "no memory to mark node dead");
 		ha_msg_del(hmsg);
 		return;
@@ -2737,6 +2757,7 @@ mark_node_dead(struct node_info *hip)
 	heartbeat_monitor(hmsg, KEEPIT, "<internal>");
 	notify_world(hmsg, hip->status);
 	strncpy(hip->status, DEADSTATUS, sizeof(hip->status));
+
 	if (hip == curnode) {
 		/* We may die too soon for this to actually be received */
 		/* But, we tried ;-) */
@@ -2745,15 +2766,26 @@ mark_node_dead(struct node_info *hip)
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
 	}else{
-
-		/* We have to Zap them before we take the resources */
-		/* This often takes a few seconds. */
-		if (config->stonith) {
-			Initiate_Reset(config->stonith, hip->nodename);
-			/* They send us a message when the reset completes*/
-		}
-		/* Perhaps we should delay until we get
+        	if (reason == HBSHUTDOWN) {
+			int	i;
+			/* Mark all links of 'hip' as DEAD */
+			for( i = 0; i < hip->nlinks; i++) {
+				change_link_status(hip, &hip->links[i]
+				,	DEADSTATUS);
+			}
+        	}else{
+    			/* We have to Zap them before we take the resources */
+	    		/* This often takes a few seconds. */
+    			if (config->stonith) {
+	    			Initiate_Reset(config->stonith, hip->nodename);
+		    		/* Child sends message when reset completes*/
+			}
+        	}
+        
+		/*
+		 * We ought to delay until we get
 		 * the Stonith completion message...
+		 * (assuming config->stonith!= NULL  and reason != HBSHUTDOWN)
 		 */
 		if (nice_failback) {
 			other_holds_resources = NO_RSC;
@@ -3047,7 +3079,8 @@ giveup_resources(int dummy)
                 ha_log(LOG_ERR, "Cannot send final shutdown msg");
                 exit(1);
         }
-        if ((ha_msg_add(m, F_TYPE, T_SHUTDONE) == HA_FAIL)) {
+        if ((ha_msg_add(m, F_TYPE, T_SHUTDONE) == HA_FAIL
+        ||	ha_msg_add(m, F_STATUS, DEADSTATUS) == HA_FAIL)) {
                 ha_log(LOG_ERR, "giveup_resources: Cannot create local msg");
         }else{
 		if (ANYDEBUG) {
@@ -3174,7 +3207,7 @@ main(int argc, char * argv[], char * envp[])
 
 	hbmedia_types = ha_malloc(sizeof(struct hbmedia_types **));
 
-	if(hbmedia_types == NULL) {
+	if (hbmedia_types == NULL) {
 		ha_log(LOG_ERR, "Allocation of hbmedia_types failed.");
 		cleanexit(1);
 	}
@@ -3187,7 +3220,7 @@ main(int argc, char * argv[], char * envp[])
 
 	init_procinfo();
 
-	if(module_init() == HA_FAIL) { 
+	if (module_init() == HA_FAIL) { 
 		ha_log(LOG_ERR, "Heartbeat not started: error reading modules.");
 		return(HA_FAIL);
 	}
@@ -3363,7 +3396,7 @@ cleanexit(rc)
 		ha_log(LOG_DEBUG, "Exiting from pid %d [%d]"
 		,	getpid(), rc);
 	}
-	if(config && config->log_facility >= 0) {
+	if (config && config->log_facility >= 0) {
 		closelog();
 	}
 	exit(rc);
@@ -3675,12 +3708,17 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		return(DROPIT);
 
 	}else if (is_status) {
+		/* Look for apparent restarts/healed partitions */
 		if (gen == t->generation && gen > 0) {
 			/* Is this a message from a node that was dead? */
 			if (strcmp(thisnode->status, DEADSTATUS) == 0) {
+				/* Is this stale data? */
+				if (seq <= thisnode->status_seqno) {
+					return DROPIT;
+				}
 
 				/* They're now alive, but were dead. */
-				/* No restart occured. */
+				/* No restart occured. UhOh. */
 
 				healed_cluster_partition(thisnode);
 				ishealedpartition=1;
@@ -3689,6 +3727,9 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 			isrestart = 1;
 			ha_log(LOG_INFO, "Heartbeat restart on node %s"
 			,	thisnode->nodename);
+			thisnode->rmt_lastupdate = 0L;
+			thisnode->local_lastupdate = 0L;
+			thisnode->status_seqno = 0L;
 		}
 		t->generation = gen;
 	}
@@ -4186,6 +4227,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.136  2001/10/01 22:00:54  alan
+ * Improved Andreas Piesk's patch for no-stonith after shutdown.
+ * Probably fixed a bug about not detecting status changes after a restart.
+ * Fixed a few coding standards kind of things.
+ *
  * Revision 1.135  2001/10/01 20:24:36  alan
  * Changed the code to not open the FIFO for every message we send to the cluster.
  * This should improve our worst-case (and average) latency.
