@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.217 2002/10/07 17:57:40 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.218 2002/10/07 19:43:39 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3099,6 +3099,7 @@ void
 term_action(void)
 {
 	IGNORESIG(SIGTERM);
+	return_to_orig_privs();
 	make_normaltime();
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Process %d processing SIGTERM", (int) getpid());
@@ -4823,9 +4824,12 @@ force_shutdown(void)
 void
 emergency_shutdown(void)
 {
+	return_to_orig_privs();
 	make_normaltime();
 	IGNORESIG(SIGTERM);
-	ha_log(LOG_ERR, "Emergency Shutdown: Attempting to kill everything ourselves.\n");
+	ha_log(LOG_ERR
+	,	"Emergency Shutdown"
+	": Attempting to kill everything ourselves.\n");
 	kill(-getpgrp(), SIGTERM);
 	sleep(2);
 	kill(-getpgrp(), SIGKILL);
@@ -5966,6 +5970,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.218  2002/10/07 19:43:39  alan
+ * Put in a change which should allow us to work correctly on FreeBSD
+ * with its weird "you can't change your scheduler unless you're root" behavior
+ * (even if you're requesting normal privileges).
+ *
  * Revision 1.217  2002/10/07 17:57:40  alan
  * Changed the privilege dropping code a bit.
  *
