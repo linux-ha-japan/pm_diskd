@@ -592,7 +592,7 @@ int st_reset(Stonith * s, int request, const char *host)
 #endif
 		   return (S_ACCESS);
 	        }
-	        if (outlet == 0) {
+	        if (num_outlets == 0) {
 		   // save the inital value of the first port
 		   reboot_duration = *state;
 	        } else if (reboot_duration != *state) {
