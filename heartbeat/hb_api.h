@@ -20,7 +20,9 @@
 
 /*
  * Currently the client-side heartbeat API needs to write in the /var/lock
- * directory.  This has implications for the euid, egid that we run as.
+ * directory for non-casual (named) clients.  This has implications for the
+ * euid, egid that we run as.
+ *
  * Expect to set make your binaries setgid to uucp, or allow the uid
  * they run as to join the group uucp (or whatever your local system
  * has it set up as).
