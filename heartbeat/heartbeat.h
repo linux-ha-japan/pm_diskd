@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.48 2001/05/17 15:33:11 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.49 2001/05/17 23:30:06 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -157,7 +157,11 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.48 2001/05/17 15:33:
 #define	MALLOCT(t)	((t *)(ha_malloc(sizeof(t))))
 
 /* You may need to change this for your compiler */
-#define	ASSERT(X)	{if(!(X)) ha_assert(__STRING(X), __LINE__, __FILE__);}
+#ifdef HAVE_STRINGIZE
+#	define	ASSERT(X)	{if(!(X)) ha_assert(#X, __LINE__, __FILE__);}
+#else
+#	define	ASSERT(X)	{if(!(X)) ha_assert("X", __LINE__, __FILE__);}
+#endif
 
 
 
