@@ -1,14 +1,14 @@
-#	$Id: heartbeat.spec.in,v 1.5 2001/08/15 02:46:37 alan Exp $
-Summary: @PACKAGE@ - heartbeat subsystem for High-Availability Linux
-Name:	@PACKAGE@
+#	$Id: heartbeat.spec.in,v 1.6 2001/09/22 08:19:28 alan Exp $
+Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
+Name:	@HEARTBEATPKG@
 Version:	@VERSION@
 Release:	1
 Copyright: GPL
 URL: http://linux-ha.org/
 Group: Utilities
-Packager: Alan Robertson <alanr@henge.com>
-Source: http://linux-ha.org/download/@PACKAGE@-@VERSION@.tar.gz
-Buildroot: /var/tmp/@PACKAGE@-root
+Packager: Alan Robertson <alanr@unix.sh>
+Source: http://linux-ha.org/download/@HEARTBEATPKG@-@VERSION@.tar.gz
+Buildroot: /var/tmp/@HEARTBEATPKG@-root
 BuildPreReq: lynx
 Requires: sysklogd
 
@@ -24,7 +24,7 @@ Summary: Provides an interface to Shoot The Other Node In The Head
 Group: Utilities
 
 %description
-@PACKAGE@ is a basic heartbeat subsystem for Linux-HA.
+@HEARTBEATPKG@ is a basic heartbeat subsystem for Linux-HA.
 It will run scripts at initialization, and when machines go up or down.
 This version will also perform IP address takeover using gratuitous ARPs.
 It works correctly for a 2-node configuration, and is extensible to larger
@@ -344,8 +344,16 @@ machine. It's simple and reliable, albeit admittedly brutal.
 ###########################################################
 %build
 ###########################################################
+#
+#	I think we should make the RPM configured the same way as things
+#	were configured in the first place.  So, I think it should propagate
+#	whatever flags were on the command line down to here...
+#
+#	(on the other hand, I could be wrong ;-))
+#
 #CFLAGS="${RPM_OPT_FLAGS}" \
-  ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var
+#  ./configure --prefix=@prefix@ --sysconfdir=@sysconfdir@ --localstatedir=@localstatedir@
+./configure @ac_configure_args@
 make
 
 ###########################################################
@@ -358,11 +366,11 @@ then
 fi
 make DESTDIR=$RPM_BUILD_ROOT install-strip
 (
-  cd $RPM_BUILD_ROOT/etc/ha.d/resource.d
-  ln -s /usr/sbin/ldirectord ldirectord
+  cd $RPM_BUILD_ROOT@sysconfdir@/ha.d/resource.d
+  ln -s @sbindir@/ldirectord ldirectord
 )
 
-TEMPL=$RPM_BUILD_ROOT/var/adm/fillup-templates
+TEMPL=$RPM_BUILD_ROOT@localstatedir@/adm/fillup-templates
 if
   [ ! -d $TEMPL ]
 then
@@ -374,25 +382,25 @@ install -m 644 rc.config.heartbeat $TEMPL
 %files
 ###########################################################
 %defattr(-,root,root)
-%dir /etc/ha.d
-/etc/ha.d/harc
-/etc/ha.d/shellfuncs
-/etc/ha.d/rc.d
-/etc/ha.d/README.config
-/etc/ha.d/conf
-/usr/lib/heartbeat
-/usr/lib/libhbclient.*
-/usr/lib/libpils.*
-/etc/ha.d/resource.d/
-/etc/init.d/heartbeat
-/etc/logrotate.d/heartbeat
-/var/adm/fillup-templates/rc.config.heartbeat
-%dir /var/lib/@PACKAGE@
-%attr (600, root, root)       /var/lib/@PACKAGE@/fifo
-%attr (750, root, @APIGROUP@) /var/lib/@PACKAGE@/api
-%attr (620, root, @APIGROUP@) /var/lib/@PACKAGE@/register
-%attr (1770, root, @APIGROUP@) /var/lib/@PACKAGE@/casual
-/usr/man/man8/heartbeat.8*
+%dir @sysconfdir@/ha.d
+@sysconfdir@/ha.d/harc
+@sysconfdir@/ha.d/shellfuncs
+@sysconfdir@/ha.d/rc.d
+@sysconfdir@/ha.d/README.config
+@sysconfdir@/ha.d/conf
+@libdir@/heartbeat
+@libdir@/libhbclient.*
+@libdir@/libpils.*
+@sysconfdir@/ha.d/resource.d/
+@sysconfdir@/init.d/heartbeat
+@sysconfdir@/logrotate.d/heartbeat
+@localstatedir@/adm/fillup-templates/rc.config.heartbeat
+%dir @localstatedir@/lib/@HEARTBEATPKG@
+%attr (600, root, root)       @localstatedir@/lib/@HEARTBEATPKG@/fifo
+%attr (750, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api
+%attr (620, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/register
+%attr (1770, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/casual
+%doc @mandir@/man8/heartbeat.8*
 %doc doc/AUTHORS 
 %doc doc/COPYING 
 %doc doc/ChangeLog 
@@ -405,8 +413,6 @@ install -m 644 rc.config.heartbeat $TEMPL
 %doc doc/README 
 %doc doc/Requirements.txt
 %doc doc/Requirements.html 
-%doc doc/faqntips.txt
-%doc doc/faqntips.html 
 %doc doc/rsync.txt
 %doc doc/rsync.html 
 %doc doc/authkeys 
@@ -421,11 +427,11 @@ install -m 644 rc.config.heartbeat $TEMPL
 %files ldirectord
 ###########################################################
 %defattr(-,root,root)
-/usr/sbin/ldirectord
-/etc/logrotate.d/ldirectord
-/etc/init.d/ldirectord
-/etc/ha.d/resource.d/ldirectord
-/usr/man/man8/ldirectord.8*
+@sbindir@/ldirectord
+@sysconfdir@/logrotate.d/ldirectord
+@sysconfdir@/init.d/ldirectord
+@sysconfdir@/ha.d/resource.d/ldirectord
+@mandir@/man8/ldirectord.8*
 %doc ldirectord/ldirectord.cf
 
 ###########################################################
@@ -433,18 +439,18 @@ install -m 644 rc.config.heartbeat $TEMPL
 %files stonith
 ###########################################################
 %defattr(-,root,root)
-/usr/include/stonith.h
-/usr/lib/libstonith.*
-/usr/lib/stonith/*.so*
-/usr/sbin/stonith
-/usr/sbin/meatclient
+@includedir@/stonith.h
+@libdir@/libstonith.*
+@libdir@/stonith/*.so*
+@sbindir@/stonith
+@sbindir@/meatclient
 
 
 ###########################################################
 %clean
 ###########################################################
 rm -rf $RPM_BUILD_ROOT
-rm -rf $RPM_BUILD_DIR/@PACKAGE@-@VERSION@
+rm -rf $RPM_BUILD_DIR/@HEARTBEATPKG@-@VERSION@
 
 ###########################################################
 %pre
@@ -483,7 +489,7 @@ then
     ln -s rc.d/init.d etc/init.d
   else
     # I give up!
-    echo "Warning: making directory /etc/init.d"
+    echo "Warning: making directory @sysconfdir@/init.d"
     mkdir -p etc/init.d
   fi
 fi
@@ -506,7 +512,7 @@ then
     ln -s rc.d/init.d etc/init.d
   else
     # I give up!
-    echo "Warning: making directory /etc/init.d"
+    echo "Warning: making directory @sysconfdir@/init.d"
     mkdir -p etc/init.d
   fi
 fi
@@ -531,7 +537,7 @@ then
     : fillup returned OK
   else
     echo "ERROR: $FILLUP failed. This should not happen. Please compare"
-    echo "/etc/rc.config and /var/adm/fillup-templates/rc.config.heartbeat"
+    echo "@sysconfdir@/rc.config and @localstatedir@/adm/fillup-templates/rc.config.heartbeat"
     echo "and update by hand."
   fi
 elif
