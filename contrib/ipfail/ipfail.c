@@ -222,13 +222,6 @@ set_callbacks(ll_cluster_t *hb)
 		exit(3);
 	}
 
-	if (hb->llc_ops->set_msg_callback(hb, "wake_up", 
-					  got_wake_up, hb) != HA_OK) {
-		cl_log(LOG_ERR, "Cannot set msg callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(4);
-	}
-
 	if (hb->llc_ops->set_msg_callback(hb, "you_are_dead", 
 					  i_am_dead, hb) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot set i_am_dead callback");
@@ -529,37 +522,6 @@ i_am_dead(const struct ha_msg *msg, void *private)
 
 	cl_log(LOG_DEBUG, "Got you_are_dead.");
 	giveup(private);
-}
-
-void
-wake_up(ll_cluster_t *hb)
-{
-	/* wake_up: Takes the heartbeat cluster as input; returns nothing.
-	 * Used for initial syncing of cluster names.  Sending this message 
-	 * forces the other side to see your node name.
-	 */
-
-	struct ha_msg *msg;
-
-	msg = ha_msg_new(1);
-	ha_msg_add(msg, F_TYPE, "wake_up");
-	hb->llc_ops->sendnodemsg(hb, msg, other_node);
-	ha_msg_del(msg);
-}
-
-void
-got_wake_up(const struct ha_msg *msg, void *private)
-{
-	/* got_wake_up: When we see a wake_up message, we can 
-	 * record the other node's name.
-	 */
-
-	const char *orig;
-
-	if ((orig = ha_msg_value(msg, F_ORIG)) != NULL) {
-		strcpy(other_node, orig);
-		cl_log(LOG_DEBUG, "[They are %s]", other_node);
-	}	
 }
 
 void
