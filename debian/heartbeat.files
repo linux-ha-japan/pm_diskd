@@ -22,7 +22,6 @@ usr/lib/heartbeat/req_resource
 usr/lib/heartbeat/ResourceManager
 usr/lib/heartbeat/modules/comm/ping.so
 usr/lib/heartbeat/modules/comm/serial.so
-usr/lib/heartbeat/modules/comm/ppp-udp.so
 usr/lib/heartbeat/modules/comm/udp.so
 usr/lib/heartbeat/modules/auth/md5.so
 usr/lib/heartbeat/modules/auth/sha1.so

@@ -24,10 +24,14 @@ set -e
 
 case "$1" in
     configure)
-	if [ -z "`grep '^haclient' /etc/group |awk -F':' '{print $1}'`" ]
+	if grep -q '^haclient:' /etc/group
 	then
-		/usr/sbin/groupadd -g 70 haclient
+		adduser --system --group --no-create-home \
+			--gecos "Heartbeat System Account" \
+			--disabled-password haclient > /dev/null
 	fi
+	chgrp haclient /var/lib/heartbeat/casual \
+	  /var/lib/heartbeat/register
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

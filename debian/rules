@@ -33,7 +33,10 @@ install: build
 	dh_testroot
 	dh_clean -k
 	dh_installdirs
-	$(MAKE) install BUILD_ROOT=`pwd`/debian/tmp DOCDIR=`pwd`/debian/tmp/usr/share/doc/heartbeat APIGID=70 MANDIR=`pwd`/debian/tmp/usr/share/man MAKE=make
+	$(MAKE) install-non-root \
+	  BUILD_ROOT=`pwd`/debian/tmp \
+	  DOCDIR=`pwd`/debian/tmp/usr/share/doc/heartbeat \
+	  MANDIR=`pwd`/debian/tmp/usr/share/man MAKE=make
 	find `pwd`/debian/tmp/usr/share/man -type f | xargs gzip -v
 	install -c -m 755 heartbeat/heartbeat.sh `pwd`/debian/init
 	-mkdir -p `pwd`/debian/tmp/usr/share/doc/heartbeat-ldirectord/
