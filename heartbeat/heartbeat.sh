@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.7 1999/10/04 03:12:39 alanr Exp $
+#	$Id: heartbeat.sh,v 1.8 1999/10/05 04:35:26 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -23,7 +23,6 @@ CONFIG=$HA_DIR/ha.cf
 
 RHFUNCS=/etc/rc.d/init.d/functions
 PROC_HA=$HA_BIN/ha.o
-PROC_HA_SRC=$HA_DOCDIR/proc_ha.c
 SUBSYS=heartbeat
 #
 #	Places to find killproc or killall in...
@@ -33,7 +32,7 @@ INSMOD=/sbin/insmod
 US=`uname -n`
 
 # Set this to a 1 if you want to automatically load kernel modules
-USE_MODULES=0
+USE_MODULES=1
 
 #
 #	Source in Red Hat's function library.
@@ -117,34 +116,21 @@ init_watchdog() {
 #
 #	Install /proc/ha module, if it's not already installed
 #
-#	We try compiling it from source if our .o laying
-#	around won't install correctly.  It's kinda lame, but it's
-#	almost certainly better than nothing...
-#
-#	Of course, this won't work if you don't have a C compiler,
-#	or you don't have headers that match your kernel, or other
-#	things.  But, we only try it if for some reason we can't
-#	install the object we have laying around, so it should be
-#	harmless at worst.
-#
-#	This is a nasty problem.  This is the best we can do for now.
-#	Sorry.
-#
 #
 
 init_proc_ha() {
   if
     [ ! -d /proc/ha ]
   then
-    if
-      $INSMOD $PROC_HA
-    then
-     : $PROC_HA Module loaded OK
-    else
-     :  OOPS!  Maybe a kernel version problem?
-      cc -Wall -fomit-frame-pointer -c $PROC_HA_SRC -o $PROC_HA
-      $INSMOD $PROC_HA
-    fi
+    for module in $PROC_HA
+    do
+      if
+        $INSMOD $module
+      then
+        : $PROC_HA Module loaded OK
+        return 0
+      fi
+    done
   fi
 }
 
@@ -205,6 +191,12 @@ StopHA() {
 
   MGR=$HA_BIN/ResourceManager
   echo "$SUBSYS: shutdown in progress."
+
+  if
+    $HA_BIN/heartbeat -k	# Kill it
+  then
+    return 0
+  fi
 
   KILLPROC=""
 
@@ -278,6 +270,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.8  1999/10/05 04:35:26  alanr
+#  Changed it to use the new heartbeat -k option to shut donw heartbeat.
+#
 #  Revision 1.7  1999/10/04 03:12:39  alanr
 #  Shutdown code now runs from heartbeat.
 #  Logging should be in pretty good shape now, too.

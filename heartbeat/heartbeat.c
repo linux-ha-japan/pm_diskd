@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.11 1999/10/05 04:09:45 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.12 1999/10/05 04:35:10 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -158,7 +158,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.11 1999/10/05 04:09:
 #include <heartbeat.h>
 #include <ha_msg.h>
 
-#define OPTARGS		"vdr"
+#define OPTARGS		"vdrk"
 
 
 int		verbose = 0;
@@ -168,6 +168,7 @@ const char **	Argv = NULL;
 int		Argc = -1;
 int		debug = 0;
 int		isarestart = 0;
+int		killrunninghb = 0;
 int		childpid = -1;
 char *		watchdogdev = NULL;
 int		watchdogfd = -1;
@@ -265,7 +266,7 @@ void	check_node_timeouts(void);
 void	mark_node_dead(struct node_info* hip);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
 struct node_info *	lookup_node(const char *);
-pid_t	get_current_running_pid(void);
+pid_t	get_running_hb_pid(void);
 void	make_daemon(void);
 void	heartbeat_monitor(struct ha_msg * msg);
 void	init_monitor(void);
@@ -2091,6 +2092,9 @@ main(int argc, const char ** argv)
 			case 'r':
 				++isarestart;
 				break;
+			case 'k':
+				++killrunninghb;
+				break;
 
 			default:
 				++argerrs;
@@ -2122,12 +2126,32 @@ main(int argc, const char ** argv)
 	}
 
 	/*
+	 *	We've been asked to shut down the currently running heartbeat process
+	 */
+
+	if (killrunninghb) {
+		pid_t	running_hb_pid = get_running_hb_pid();
+
+		if (running_hb_pid < 0) {
+			fprintf(stderr, "ERROR: Heartbeat not currently running.\n");
+			cleanexit(1);
+		}
+			
+		if (kill(running_hb_pid, SIGTERM) >= 0) {
+			cleanexit(0);
+		}
+		fprintf(stderr, "ERROR: Could not kill pid %d", running_hb_pid);
+		perror(" ");
+		cleanexit(1);
+	}
+
+	/*
 	 *	We've been asked to restart the currently running heartbeat process
 	 *	(or at least get it to reread it's configuration files)
 	 */
 
 	if (isarestart) {
-		pid_t	running_hb_pid = get_current_running_pid();
+		pid_t	running_hb_pid = get_running_hb_pid();
 
 		if (running_hb_pid < 0) {
 			fprintf(stderr, "ERROR: Heartbeat not currently running.\n");
@@ -2224,7 +2248,7 @@ signal_all(int sig)
 
 
 pid_t
-get_current_running_pid()
+get_running_hb_pid()
 {
 	pid_t	pid;
 	FILE *	lockfd;
@@ -2250,7 +2274,7 @@ make_daemon(void)
 
 	/* See if we're already running... */
 
-	if ((pid=get_current_running_pid()) > 0) {
+	if ((pid=get_running_hb_pid()) > 0) {
 		ha_log(LOG_ERR, "%s: already running [pid %d].\n"
 		,	cmdname, pid);
 		fprintf(stderr, "%s: already running [pid %d].\n"
@@ -2596,6 +2620,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.12  1999/10/05 04:35:10  alanr
+ * Changed it to use the new heartbeat -k option to shut donw heartbeat.
+ *
  * Revision 1.11  1999/10/05 04:09:45  alanr
  * Fixed a problem reported by Thomas Hepper where heartbeat won't start if a regular
  * file by the same name as the FIFO exists.  Now I just remove it...
