@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.25 2000/01/26 15:21:53 alan Exp $
+#	$Id: Makefile,v 1.26 2000/01/26 18:14:56 jacob Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -34,6 +34,7 @@ HAPPP=$(VARRUN)/ppp.d
 DOCDIR=$(BRROOTDIR)/usr/doc/heartbeat
 INITSCRIPT=$(BRROOTDIR)/$(INITD)/$(PKG)
 RESOURCEDIR=$(BRROOTDIR)/etc/ha.d/resource.d
+CONFDIR=$(BRROOTDIR)/etc/ha.d/conf
 SPECSRC=Specfile
 
 # Can't include the Build Root as a part of the compilation process
@@ -75,6 +76,7 @@ bin_dirs:
 	[ -d $(HARCD) ]	  || mkdir -p $(HARCD)
 	[ -d $(HAPPP) ]   || mkdir -p $(HAPPP)
 	[ -d $(RESOURCEDIR) ] || mkdir -p $(RESOURCEDIR)
+	[ -d $(CONFDIR) ] || mkdir -p $(CONFDIR)
 #	For some reason Red Hat added this, but didn't define HAMOD (?)
 #        [ -d $(HAMOD) ] || mkdir -p $(HAMOD)
 

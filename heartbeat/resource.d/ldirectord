@@ -1,7 +1,10 @@
 #!/usr/bin/perl
 # Linux Director Daemon
-# $Id: ldirectord,v 1.1 1999/12/18 03:55:08 alan Exp $
-# Jacob Rief <jacob.rief@tis.at>
+# $Id: ldirectord,v 1.2 2000/01/26 18:14:56 jacob Exp $
+# © 2000, Jacob Rief <jacob.rief@tis.at>
+# with help from: Horms <horms@vergenet.net>
+# This is GPL software. You should own a few hundred copies
+# of the GPL by now. if not, get one at http://www.fsf.org
 
 =head1 NAME
 
@@ -12,7 +15,7 @@ Daemon to monitor remote services and control Linux Virtual Server
 
 =head1 SYNOPSIS
 
-B<ldirectord> I<configuration> [B<-d>] B<start>|B<stop>|B<restart>|B<reload>|B<status>
+B<ldirectord> I<configuration> [B<-d>] [B<-h>] B<start>|B<stop>|B<restart>|B<reload>|B<status>
 
 
 =head1 DESCRIPTION
@@ -20,7 +23,7 @@ B<ldirectord> I<configuration> [B<-d>] B<start>|B<stop>|B<restart>|B<reload>|B<s
 B<ldirectord> is a daemon to monitor and administer real servers in a cluster of 
 load balanced virtual servers. B<ldirectord> typically is started from heartbeat 
 but can also be run from the command line. On startup B<ldirectord> reads the file
-B</etc/ha.d/>I<configuration>B<.cf>. After parsing the file, entries for virtual servers
+B</etc/ha.d/conf/>I<configuration>. After parsing the file, entries for virtual servers
 are created on the LVS. Now at regular intervals the specified real servers are monitored
 and if they are considered alive, added to a list for each virtual server. If a real
 server fails, it is removed from that list. Only one instance of B<ldirectord> can be
@@ -36,9 +39,11 @@ to start ldirectord from heartbeat.
 =head1 OPTIONS
 
 I<configuration>
-This is the name for the configuration as specified in the file B</etc/ha.d/>I<configuration>B<.cf> 
+This is the name for the configuration as specified in the file B</etc/ha.d/conf/>I<configuration> 
 
 B<-d> Don't start as daemon. Useful for debugging. 
+
+B<-h> Help. Print user manual of ldirectord. 
 
 B<start> the daemon for the specified configuration.
 
@@ -55,7 +60,9 @@ the running daemon.
 B<status> of the running daemon for the specified configuration.
 
 
-=head1 SYNTAX for the configuration file
+=head1 SYNTAX 
+
+=head2 Description how to write configuration files
 
 B<virtual = >I<x.y.z.w:p>
 
@@ -70,6 +77,24 @@ defines the number of second until a real server is declared dead
 B<checkinterval = >I<n>
 
 Defines the number of second between server checks.
+
+B<autoreload = >[B<yes>|B<no>]
+
+Defines if <ldirectord> should contineously check the configuration
+file for modification. If this is set to 'yes' and the configuration
+file changed on disk, the configuration is automatically reloaded.
+
+B<callback = ">I</path/to/callback>B<">
+
+If this directive is defined, B<ldirectord> automatically calls
+the executable I</path/to/callback> after the configuration
+file has changed on disk. This is useful to update the configuration
+file through B<scp> on the other heartbeated host. The first argument
+to the callback is the name of the configuration.
+
+This directive might also be used to restart B<ldirectord> automatically
+after the configuration file changed on disk. However, if B<autoreload>
+is set to yes, the configuration is reloaded anyway.
 
 B<fallback = >I<x.y.z.w:p>
 
@@ -117,7 +142,7 @@ Protocol to be used.
 
 =head1 FILES
 
-B</etc/ha.d/>I<configuration>B<.cf>
+B</etc/ha.d/conf/>I<configuration>
 B</var/log/ldirectord.log>
 B</var/run/ldirectord.>I<configuration>B<.pid>
 
@@ -138,18 +163,31 @@ $CHECKINTERVALL = 10;
 $IPVSADM="/usr/sbin/ipvsadm";
 $LDIRLOG="/var/log/ldirectord.log";
 $RUNPID="/var/run/ldirectord";
+$AUTOCHECK="no";
+$CALLBACK;
 @VIRTUAL;
+@OLDVIRTUAL;
+$checksum;
+$initializing;
 
 use Getopt::Std;
 use LWP::UserAgent;
 use Net::SSLeay;
-getopts("d");
+getopts("dh");
 
 # main code
-init();
-ld_setup();
-ld_start();
-ld_main();
+if ($opt_h) {
+	system "/usr/bin/perldoc /etc/ha.d/resource.d/ldirectord";
+} else {
+	$initializing = 1;
+	init();
+	ld_setup();
+	ld_start();
+	$initializing = 0;
+	ld_main();
+}
+system("/bin/rm -f $RUNPID.$CONFIG.pid");
+exit 0;
 
 
 # functions
@@ -161,7 +199,7 @@ sub init
 
 	if ( !defined $ARGV[0] || !defined $ARGV[1] || ($ARGV[1] ne "start" && $ARGV[1] ne "stop"
 	     && $ARGV[1] ne "status" && $ARGV[1] ne "restart" && $ARGV[1] ne "reload") ) {
-	 	init_error("Usage ldirectord configfile \{start|stop|restart|reload|status\}");
+	 	init_error("Usage ldirectord configfile \{start|stop|restart|reload|status\}\nType ldirectord -h for more information");
 	} else {
 		$CONFIG = $ARGV[0];
 		$CMD = $ARGV[1];
@@ -169,8 +207,16 @@ sub init
 		if (open(FILE, "<$RUNPID.$CONFIG.pid")) {
 			$_ = <FILE>;
 			chomp;
-			$oldpid = $_;
+			my $tmppid = $oldpid = $_;
 			close(FILE);
+			# Check to make sure this isn't a stale pid file
+			if (open(FILE, "</proc/$tmppid/cmdline")) {
+				$_ = <FILE>;
+				if(/ldirectord/) {
+					$oldpid = $tmppid;
+				}
+				close(FILE);
+			}
 		}
 		if (defined $oldpid) {
 			# Kill old daemon
@@ -200,6 +246,7 @@ sub init
 			}
 		}
 		read_config();
+		undef @OLDVIRTUAL;
 	}
 
 	# Run as daemon
@@ -215,7 +262,7 @@ sub init
 		}
 	}
 	open(LOGFILE, ">>$LDIRLOG");
-	my $now = localtime() . "|$CONFIG";
+	my $now = localtime()."|$CONFIG";
 	print LOGFILE "[$now] Starting Linux Director Daemon\n";
 	close(LOGFILE);
 }
@@ -239,29 +286,40 @@ sub init_error
 sub ld_term
 {
 	ld_stop();
-	system("/bin/rm -f $RUNPID.$CONFIG.pid");
 	open(LOGFILE, ">>$LDIRLOG");
-	my $now = localtime() . "|$CONFIG";
+	my $now = localtime()."|$CONFIG";
 	print LOGFILE "[$now] Linux Director Daemon terminated\n";
 	close(LOGFILE);
+	&system_wrapper("/bin/rm -f $RUNPID.$CONFIG.pid");
 	exit 0;
 }
 
 
 sub ld_hup
 {
-	my $now = localtime() . "|$CONFIG";
-	print LOGFILE "[$now] Restarting Linux Director\n";
-	read_config();
-	ld_setup();
-	ld_start();
+	open(LOGFILE, ">>$LDIRLOG");
+	my $now = localtime()."|$CONFIG";
+	print LOGFILE "[$now] Reloading Linux Director Daemon config\n";
+	close(LOGFILE);
+	@OLDVIRTUAL = @VIRTUAL;
+	eval {
+		read_config();
+		ld_setup();
+		ld_start();
+	};
+	if ($@) {
+		@VIRTUAL = @OLDVIRTUAL;
+	}
+	undef @OLDVIRTUAL;
 }
 
 
 sub read_config
 {
 	undef @VIRTUAL;
-	open(CFGFILE, "</etc/ha.d/$CONFIG.cf") || config_error(0, "can not open file /etc/ha.d/$CONFIG.cf");
+	undef $CALLBACK;
+	undef $checksum;
+	open(CFGFILE, "</etc/ha.d/conf/$CONFIG") || config_error(0, "can not open file /etc/ha.d/conf/$CONFIG");
 	my $line = 0;
 	while(<CFGFILE>) {
 		$line++;
@@ -348,6 +406,12 @@ sub read_config
 			($tmp =~ /(\d+\.\d+\.\d+\.\d+:\d+)/ || $tmp =~ /(\d+\.\d+\.\d+\.\d+)/) && $1
 			    or config_error($line, "invalid address for fallback server");
 			$FALLBACK = $1;
+		} elsif ($_ =~ /^autoreload\s*=\s*(.*)/) {
+			($1 eq "yes" || $1 eq "no")
+			    or config_error($line, "autoreload must be 'yes' or 'no'");
+			$AUTOCHECK = $1;
+		} elsif ($_ =~ /^callback\s*=\s*\"(.*)\"/) {
+			$CALLBACK = $1;
 		} else {
 			config_error($line, "Unknown command $_");
 		}
@@ -359,28 +423,32 @@ sub read_config
 sub config_error
 {
 	my ($line, $msg) = @_;
-	if (defined $opt_d) {
+	if (defined $opt_d || $initializing==1) {
+		if ($line>0) {
+			print STDERR "Error reading file conf/$CONFIG at line $line: $msg\n";
+		} else {
+			print STDERR "Error: $msg\n";
+		}
+	} else {
 		open(LOGFILE, ">>$LDIRLOG");
 		if ($line>0) {
-			print LOGFILE "Error reading file $CONFIG at line $line: $msg\n";
+			print LOGFILE "Error reading file conf/$CONFIG at line $line: $msg\n";
 		} else {
 			print LOGFILE "Error: $msg\n";
 		}
 		close(LOGFILE);
-	} else {
-		if ($line>0) {
-			print STDERR "Error reading file $CONFIG at line $line: $msg\n";
-		} else {
-			print STDERR "Error: $msg\n";
-		}
 	}
-	exit 1;
+	if ($initializing) {
+		&system_wrapper("/bin/rm -f $RUNPID.$CONFIG.pid");
+		exit 2;
+	} else {
+		die;
+	}
 }
 
 
 sub ld_setup
 {
-	open(LOGFILE, ">>$LDIRLOG");
 	foreach $v (@VIRTUAL) {
 		if ($$v{protocol} eq "tcp") {
 			$$v{proto} = "-t";
@@ -390,8 +458,6 @@ sub ld_setup
 		$$v{flags} = "$$v{proto} $$v{server} ";
 		$$v{flags} .= "-s $$v{scheduler} " if defined ($$v{scheduler});
 		$$v{flags} .= "-p $$v{persistent} " if defined ($$v{persistent});
-		my $now = localtime() . "|$CONFIG";
-		print LOGFILE "[$now] Adding virtual server: $$v{server}\n";
 		my $real = $$v{real};
 		foreach $r (@$real) {
 			if ($$r{forward} eq "masq") {
@@ -412,7 +478,6 @@ sub ld_setup
 		}
 		$$v{status} = -1;
 	}
-	close(LOGFILE);
 }
 
 
@@ -423,14 +488,16 @@ sub ld_start
 	open(IPVS, "$IPVSADM -L -n |");
 	$_ = <IPVS>; $_ = <IPVS>; $_ = <IPVS>;
 	my %oldsrv;
+	my $real_service;
 	while (<IPVS>) {
-		my %oldreal;
 		if ($_ =~ /(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+)\s+(\w+)\s+persistent\s+(\d+)/) {
 			my $prot = lc $1;
-			$oldsrv{"$2 $prot"} = {"real"=>\%oldreal, "scheduler"=>$3, "persistent"=>$4};
+			$real_service = "$2 " . lc $1;
+			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$3, "persistent"=>$4};
 		} elsif ($_ =~ /(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+)\s+(\w+)/) {
 			my $prot = lc $1;
-			$oldsrv{"$2 $prot"} = {"real"=>\%oldreal, "scheduler"=>$3};
+			$real_service = "$2 " . lc $1;
+			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$3};
 		} else {
 			next;
 		}
@@ -444,50 +511,62 @@ sub ld_start
 			} elsif ($2 eq "Masq") {
 				$fwd = "masq";
 			}
-			$oldreal{"$1"} = {"forward"=>$fwd, "weight"=>$3};
+			$oldsrv{"$real_service"}->{"real"}->{"$1"} = {"forward"=>$fwd, "weight"=>$3};
 		}
 		redo;
 	}
 	close(IPVS);
 
 	# modify service, if changed 
+	my $now = localtime()."|$CONFIG";
 	foreach $nv (@VIRTUAL) {
 		my $nreal = $$nv{real};
 		$$nv{status} = 0;
 		if (exists($oldsrv{"$$nv{server} $$nv{protocol}"})) {
 			# service exists, modify it
-			system("$IPVSADM -E $$nv{flags}");
+			&system_wrapper("$IPVSADM -E $$nv{flags}");
+			print LOGFILE "[$now] Changing virtual server: $$nv{server}\n";
 			my $ov = $oldsrv{"$$nv{server} $$nv{protocol}"};
 			my $or = $$ov{real};
 			foreach $nr (@$nreal) {
 				if (exists($$or{"$$nr{server}"})) {
-					system("$IPVSADM -e $$nv{proto} $$nv{server} -R $$nr{server} $$nr{forw} $$nr{wght}");
+					&system_wrapper("$IPVSADM -e $$nv{proto} $$nv{server} -R $$nr{server} $$nr{forw} $$nr{wght}");
 					$$nr{status} = 1;
 					$$nv{status}++;
-					my $now = localtime() . "|$CONFIG";
 					print LOGFILE "[$now] Changing real server: $$nr{server} ($$nv{status}*$$nv{server})\n";
 					delete($$or{"$$nr{server}"});
 				} else {
 					$$nr{status} = 0;
 				}		
 			}
-			# remove remaining entries
+			# remove remaining entries for real servers
 			foreach $k (keys %$or) {
-				system("$IPVSADM -d $$nv{proto} $$nv{server} -R $k");
+				&system_wrapper("$IPVSADM -d $$nv{proto} $$nv{server} -R $k");
+				print LOGFILE "[$now] Removing real server: $$nr{server} ($$nv{status}*$$nv{server})\n";
 			}
+			delete $oldsrv{"$$nv{server} $$nv{protocol}"};
 		} else {
 			# no such service, create a new one
-			system("$IPVSADM -A $$nv{flags}");
+			&system_wrapper("$IPVSADM -A $$nv{flags}");
 			foreach $nr (@$nreal) {
 				$$nr{status} = 0;
 			}
+			print LOGFILE "[$now] Adding virtual server: $$nv{server}\n";
 		}
 
 		if (defined $FALLBACK && $$nv{status}==0) {
 			# turn on fallback service
-			system("$IPVSADM -a $$nv{proto} $$nv{server} -R $FALLBACK");
-			my $now = localtime() . "|$CONFIG";
+			&system_wrapper("$IPVSADM -a $$nv{proto} $$nv{server} -R $FALLBACK");
 			print LOGFILE "[$now] Starting fallback server for: $$nv{server}\n";
+		}
+	}
+
+	# remove remaining entries for virtual servers
+	foreach $nv (@OLDVIRTUAL) {
+		if (exists($oldsrv{"$$nv{server} $$nv{protocol}"})) {
+			# service still exists, remove it
+			&system_wrapper("$IPVSADM -D $$nv{proto} $$nv{server}");
+			print LOGFILE "[$now] Removing virtual server: $$nv{server}\n";
 		}
 	}
 	close(LOGFILE);
@@ -497,18 +576,18 @@ sub ld_start
 sub ld_stop
 {
 	open(LOGFILE, ">>$LDIRLOG");
+	my $now = localtime()."|$CONFIG";
 	foreach $v (@VIRTUAL) {
 		my $real = $$v{real};
-		my $now = localtime() . "|$CONFIG";
 		foreach $r (@$real) {
 			if ($$r{status}>0) {
-				system("$IPVSADM -d $$v{proto} $$v{server} -R $$r{server}");
+				&system_wrapper("$IPVSADM -d $$v{proto} $$v{server} -R $$r{server}");
 				$$r{status} = 0;
 				$$v{status}--;
 				print LOGFILE "[$now] Removing real server: $$r{server} ($$v{status}*$$v{server})\n";
 			}
 		}
-		system("$IPVSADM -D $$v{proto} $$v{server}");
+		&system_wrapper("$IPVSADM -D $$v{proto} $$v{server}");
 		print LOGFILE "[$now] Removing virtual server: $$v{server}\n";
 	}
 	close(LOGFILE);
@@ -526,6 +605,7 @@ sub ld_main
 				check_server($v, $r);
 			}
 		}
+		check_cfgfile();
 		close(LOGFILE);
 		sleep $CHECKINTERVALL;
 	}
@@ -555,7 +635,7 @@ sub check_server
 		$$r{server} =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/;
 		my ($page, $result, %headers) = &Net::SSLeay::get_https($1, $2, $uri);
 		my $receive_string = $$v{receive};
-		if ($page =~ /$receive_string/) {
+		if (!($receive_string =~ /.+/) || $page =~ /$receive_string/) {
 			service_up($v, $r);
 		} else {
 			service_down($v, $r);
@@ -568,21 +648,15 @@ sub service_up
 {
 	my ($v, $r) = @_;
 	if ($$r{status}==0) {
-		system("$IPVSADM -a $$v{proto} $$v{server} -R $$r{server} $$r{forw} $$r{wght}");
+		&system_wrapper("$IPVSADM -a $$v{proto} $$v{server} -R $$r{server} $$r{forw} $$r{wght}");
 		$$r{status} = 1;
 		$$v{status}++;
-		my $now = localtime() . "|$CONFIG";
+		my $now = localtime()."|$CONFIG";
 		print LOGFILE "[$now] Adding real server: $$r{server} ($$v{status}*$$v{server})\n";
 		if ($$v{status}==1 && defined $FALLBACK) {
 			# turn off fallback service
-			system("$IPVSADM -d $$v{proto} $$v{server} -R $FALLBACK");
+			&system_wrapper("$IPVSADM -d $$v{proto} $$v{server} -R $FALLBACK");
 			print LOGFILE "[$now] Turning off fallback server for: $$v{server}\n";
-		}
-
-	 	# workarround because ipvs does not clear persistent connections
-		if ($$v{status}==2 && defined $$v{persistent}) {
-			# workarround restore persistence
-			system("$IPVSADM -E $$v{flags}");
 		}
 	}
 }
@@ -592,24 +666,70 @@ sub service_down
 {
 	my ($v, $r) = @_;
 	if ($$r{status}==1) {
-		system("$IPVSADM -d $$v{proto} $$v{server} -R $$r{server}");
+		&system_wrapper("$IPVSADM -d $$v{proto} $$v{server} -R $$r{server}");
 		$$r{status} = 0;
 		$$v{status}--;
-		my $now = localtime() . "|$CONFIG";
+		my $now = localtime()."|$CONFIG";
 		print LOGFILE "[$now] Removing real server: $$r{server} ($$v{status}*$$v{server})\n";
 		if ($$v{status}==0 && defined $FALLBACK) {
 			# turn on fallback service
-			system("$IPVSADM -a $$v{proto} $$v{server} -R $FALLBACK");
+			&system_wrapper("$IPVSADM -a $$v{proto} $$v{server} -R $FALLBACK");
 			print LOGFILE "[$now] Starting fallback server for: $$v{server}\n";
-		}
-
-	 	# workarround because ipvs does not clear persistent connections
-		if ($$v{status}==1 && defined $$v{persistent}) {
-			my $args = "$$v{proto} $$v{server}";
-			$args .= " -s $$v{scheduler}" if (defined $$v{scheduler});
-			system("$IPVSADM -E $args");
 		}
 	}
 }
 
+
+sub check_cfgfile
+{
+	return unless ($AUTOCHECK eq "yes" || defined $CALLBACK);
+	my $filename = shift;
+	my $chs = 0;
+	my $lctr = 0;
+	open(CFGFILE, "</etc/ha.d/conf/$CONFIG") || config_error(0, "can not open file /etc/ha.d/conf/$CONFIG");
+	while (<CFGFILE>) {
+		$lctr++;
+		$chs += (4*($lctr%3)+3)*unpack("%32C*", $_);
+	}
+	close(CFGFILE);
+	if (defined $checksum && $chs!=$checksum) {
+		my $now = localtime()."|$CONFIG";
+		print LOGFILE "[$now] Configuration file has changed on disk\n";
+		if ($AUTOCHECK eq "yes") {
+			print LOGFILE "[$now] Rereading Linux Director Daemon config\n";
+			@OLDVIRTUAL = @VIRTUAL;
+			eval {
+				read_config();
+				ld_setup();
+				ld_start();
+			};
+			if ($@) {
+				@VIRTUAL = @OLDVIRTUAL;
+			}
+			undef @OLDVIRTUAL;
+		}
+		if (-x $CALLBACK) {
+			my $rc = system("$CALLBACK $CONFIG");
+			print LOGFILE "[$now] Callback: $CALLBACK returned code: $rc\n";
+		}
+	}
+	$checksum = $chs;
+}
+
+
+# system_wrapper
+# Wrapper arround system command to log errors
+# pre: LIST: arguments to pass to system()
+# post: system is called and if it returns non-zero a failure message is logged
+# return: none
+#
+# Added by Horms <horms@vergenet.net>, 11th January 2000
+
+sub system_wrapper
+{
+	my (@args)=(@_);
+
+	my $now = localtime() . "|$CONFIG";
+	system(@_) == 0 or print LOGFILE  "[$now] system(@args) failed\n"
+}
 

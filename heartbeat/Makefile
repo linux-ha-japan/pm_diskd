@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.10 1999/11/11 04:58:04 alan Exp $
+#	$Id: Makefile,v 1.11 2000/01/26 18:14:56 jacob Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -26,6 +26,7 @@ FIFO=$(VARRUN)/heartbeat-fifo
 HAPPP=$(VARRUN)/ppp.d
 INITSCRIPT=$(BRROOTDIR)/$(INITD)/$(PKG)
 RESOURCEDIR=$(BRROOTDIR)/etc/ha.d/resource.d
+CONFDIR=$(BRROOTDIR)/etc/ha.d/conf
 
 # Can't include the Build Root as a part of the compilation process
 B_HA=$(DESTDIR)/etc/ha.d
@@ -81,7 +82,7 @@ PRODUCTS = $(LIBCMDS)
 
 LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 
-RESOURCECMDS= resource.d/IPaddr
+RESOURCECMDS= resource.d/IPaddr resource.d/ldirectord
 
 RCCMDS = rc.d/ip-request rc.d/ip-request-resp rc.d/status
 ROOTFILES = harc shellfuncs
