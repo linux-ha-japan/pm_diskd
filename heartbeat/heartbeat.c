@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.150 2001/10/22 04:02:29 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.151 2001/10/22 05:22:53 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -9,12 +9,12 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.150 2001/10/22 04:02
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -160,7 +160,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.150 2001/10/22 04:02
  *		unnecessary collisions.
  *
  *		Martin Lichtin suggests:
- *          	Could you skew the heartbeats, based on the interface IP#?
+ *		Could you skew the heartbeats, based on the interface IP#?
  *		Probably want to use select(2) to wake up more precisely.
  *
  *		AlanR replied:
@@ -300,7 +300,7 @@ enum standby going_standby = NOT;
 TIME_T  standby_running = 0L;
 
 const char *		rsc_msg[] =	{NO_RESOURCES, LOCAL_RESOURCES,
-        				 FOREIGN_RESOURCES, ALL_RESOURCES};
+					FOREIGN_RESOURCES, ALL_RESOURCES};
 int		verbose = 0;
 
 static char hbname []= "heartbeat";
@@ -347,14 +347,13 @@ const char *ha_log_priority[8] = {
 	"debug"
 };
 
-#define REAPER_SIG                      0x0001
-#define GIVEUP_RESOURCES_AND_TERM_SIG   0x0002
-#define TERM_SIG                        0x0004
-#define PARENT_DEBUG_USR1_SIG           0x0008
-#define PARENT_DEBUG_USR2_SIG           0x0010
-#define REREAD_CONFIG_SIG               0x0020
-#define DING_SIG                        0x0040
-#define FALSE_ALARM_SIG                 0x0080
+#define REAPER_SIG			0x0001UL
+#define TERM_SIG			0x0002UL
+#define PARENT_DEBUG_USR1_SIG		0x0004UL
+#define PARENT_DEBUG_USR2_SIG		0x0008UL
+#define REREAD_CONFIG_SIG		0x0010UL
+#define DING_SIG			0x0020UL
+#define FALSE_ALARM_SIG			0x0040UL
 
 unsigned volatile long pending_handlers = 0;
 
@@ -368,8 +367,6 @@ int	setline(int fd);
 void	cleanexit(int rc);
 void    reaper_sig(int sig);
 void    reaper_action(void);
-void    giveup_resources_and_term_sig(int sig);
-void    giveup_resources_and_term_action(void);
 void    term_sig(int sig);
 void    term_action(void);
 void	debug_sig(int sig);
@@ -455,6 +452,7 @@ void master_status_process(void);		/* The real biggie */
 #endif
 
 pid_t	processes[MAXPROCS];
+pid_t	master_status_pid;
 int	send_status_now = 1;	/* Send initial status immediately */
 int	dump_stats_now = 0;
 int	parse_only = 0;
@@ -646,16 +644,16 @@ ha_log(int priority, const char * fmt, ...)
 
 	if (config) {
 		if (priority == LOG_DEBUG) {
-                        if (config->use_dbgfile) {
-                                fn = config->dbgfile;
-                        }else{
-                                return;
-                        }
-                }else{
-                        if (config->use_logfile) {
-                                fn = config->logfile;
-                        }
-                }
+			if (config->use_dbgfile) {
+				fn = config->dbgfile;
+			}else{
+				return;
+			}
+		}else{
+			if (config->use_logfile) {
+				fn = config->logfile;
+			}
+		}
 	}
 
 	if (!config  || fn != NULL || config->log_facility < 0) {
@@ -829,7 +827,7 @@ initialize_heartbeat()
 	ADDPROC(getpid());
 	curproc = &procinfo->info[ourproc];
 	curproc->type = PROC_CONTROL;
-	curproc->pstat = RUNNING; 
+	curproc->pstat = RUNNING;
 
 
 	/* Now the fun begins... */
@@ -911,7 +909,8 @@ initialize_heartbeat()
 				ha_perror("master status process exiting");
 				cleanexit(1);
 	}
-	ADDPROC(pid);
+	master_status_pid = pid;
+	ADDPROC(master_status_pid);
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "master status process pid: %d\n", pid);
 	}
@@ -999,16 +998,16 @@ read_child(struct hb_media* mp)
 	int	msglen;
 	int	rc;
 	int	statusfd = status_pipe[P_WRITEFD];
-        FILE *  statusfp = fdopen(statusfd, "w");
+	FILE *  statusfp = fdopen(statusfd, "w");
 
 	curproc->pstat = RUNNING;
-        set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
+	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
 
 	for (;;) {
 		struct	ha_msg*	m = mp->vf->read(mp);
 		char *		sm;
 
-                process_pending_handlers();
+		process_pending_handlers();
 
 		if (m == NULL) {
 			continue;
@@ -1037,7 +1036,7 @@ read_child(struct hb_media* mp)
 					,	"to status pipe");
 				}
 			}
-                        fflush(statusfp);
+			fflush(statusfp);
 			ha_free(sm);
 		}
 		ha_msg_del(m);
@@ -1054,12 +1053,12 @@ write_child(struct hb_media* mp)
 
 	siginterrupt(SIGALRM, 1);
 	curproc->pstat = RUNNING;
-        set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
+	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
 
 	for (;;) {
 		struct ha_msg * msgp = if_msgfromstream(ourfp, NULL);
 
-                process_pending_handlers();
+		process_pending_handlers();
 
 		if (msgp == NULL) {
 			continue;
@@ -1085,10 +1084,14 @@ control_process(FILE * fp)
 	/* Catch and propagate debugging level signals... */
 	signal(SIGUSR1, parent_debug_usr1_sig);
 	signal(SIGUSR2, parent_debug_usr2_sig);
-	signal(SIGTERM, giveup_resources_and_term_sig);
+	signal(SIGINT, signal_all); /* From Master Status Process */
 	siginterrupt(SIGALRM, 1);
+	siginterrupt(SIGTERM, 1);
+	siginterrupt(SIGUSR1, 1);
+	siginterrupt(SIGUSR2, 1);
+	siginterrupt(SIGINT, 1);
 
-        set_proc_title("%s: control process", cmdname);
+	set_proc_title("%s: control process", cmdname);
 
 	for(;;) {
 		struct ha_msg *	msg = controlfifo2msg(fp);
@@ -1100,7 +1103,7 @@ control_process(FILE * fp)
 		const  char *	to;
 		int		IsToUs;
 
-                process_pending_handlers();
+		process_pending_handlers();
 
 		if (msg == NULL) {
 			ha_log(LOG_DEBUG, "got NULL msg in control_process");
@@ -1214,7 +1217,7 @@ master_status_process(void)
 	init_status_alarm();
 	init_watchdog();
 	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
-        set_proc_title("%s: master status process", cmdname);
+	set_proc_title("%s: master status process", cmdname);
 
 	/* We open it this way to keep the open from hanging... */
 	if ((f = fdopen(status_pipe[P_READFD], "r")) == NULL) {
@@ -1277,12 +1280,12 @@ master_status_process(void)
 
 	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
 		TIME_T		now = time(NULL);
-		fd_set		inpset; 
+		fd_set		inpset;
 		fd_set		exset;
 		int		ndesc;
 		int		selret;
 
-                process_pending_handlers();
+		process_pending_handlers();
 
 		/* Check for clock jumps */
 		if (now < lastnow) {
@@ -1527,23 +1530,33 @@ process_clustermsg(FILE * f)
 	if (strcasecmp(type, T_SHUTDONE) == 0) {
 		if (thisnode == curnode) {
 			if (ANYDEBUG) {
-				ha_log(LOG_ERR
+				ha_log(LOG_DEBUG
 				,	"Received T_SHUTDONE from ourselves.");
 		    	}
+			if (procinfo->restart_after_shutdown) {
+				ha_log(LOG_INFO, "Resource shutdown completed"
+				".  Restart triggered.");
+			}
 	    		heartbeat_monitor(msg, action, iface);
-    			signal_all(SIGTERM);
+			/* Tell init process we're going away */
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG, "Sending SIGINT to pid %d"
+				,       processes[0]);
+			}
+			kill(processes[0], SIGINT);
+			cleanexit(0);
 		}else{
 			/* Keep stale packets from changing status */
 			thisnode->rmt_lastupdate = msgtime;
 			thisnode->local_lastupdate = messagetime;
 			thisnode->status_seqno = seqno;
-            		if (ANYDEBUG) {
+	    		if (ANYDEBUG) {
 		    		ha_log(LOG_ERR
 				,	"Received T_SHUTDONE from '%s':"
 				" now marked dead."
 				,	thisnode->nodename);
 		    	}
-            		mark_node_dead(thisnode, HBSHUTDOWN);
+	    		mark_node_dead(thisnode, HBSHUTDOWN);
 		}
 	}
 
@@ -1683,20 +1696,20 @@ process_registermsg(FILE *regfifo)
  * About the nice_failback resource takeover model:
  *
  * There are two principles that seem to guarantee safety:
- * 
+ *
  *      1) Take all unclaimed resources if the other side is stable.
- *              [Once you do this, you are also stable].
+ *	      [Once you do this, you are also stable].
  *
  *      2) Take only unclaimed local resources when a timer elapses
  *		without things becoming stable by (1) above.
- *              [Once this occurs, you're stable].
+ *	      [Once this occurs, you're stable].
  *
  * Stable means that we have taken the resources we think we ought to, and
  * won't take any more without another transition ocurring.
- * 
+ *
  * The other side is stable whenever it says it is (in its RESOURCE
  * message), or if it is dead.
- * 
+ *
  * The nice thing about the stable bit in the resources message is that it
  * enables you to tell if the other side is still messing around, or if
  * they think they're done messing around.  If they're done, then it's safe
@@ -2116,46 +2129,32 @@ debug_sig(int sig)
 void
 reaper_sig(int sig)
 {
-        signal(sig, reaper_sig);
-        pending_handlers|=REAPER_SIG;
+	signal(sig, reaper_sig);
+	pending_handlers|=REAPER_SIG;
 }
 
 void
 reaper_action(void)
 {
-        int status;
+	int status;
 
-        while(wait3(&status, WNOHANG, 0)>0) { 
-                ;
-        }
+	while(wait3(&status, WNOHANG, 0)>0) {
+		;
+	}
 }
 
-void
-giveup_resources_and_term_sig(int sig) 
-{
-        signal(sig, giveup_resources_and_term_sig);
-        pending_handlers|=GIVEUP_RESOURCES_AND_TERM_SIG;
-}
-
-void
-giveup_resources_and_term_action(void) 
-{
-	ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
-        giveup_resources(SIGTERM);
-        signal_all(SIGTERM);
-}
 
 void
 term_sig(int sig)
 {
-        signal(sig, term_sig);
-        pending_handlers|=TERM_SIG;
+	signal(sig, term_sig);
+	pending_handlers|=TERM_SIG;
 }
 
 void
 term_action(void)
 {
-        signal_all(SIGTERM);
+	signal_all(SIGTERM);
 }
 
 void
@@ -2222,27 +2221,27 @@ __parent_debug_action(int sig)
 void
 parent_debug_usr1_sig(int sig)
 {
-        signal(sig, parent_debug_usr1_sig);
+	signal(sig, parent_debug_usr1_sig);
 	pending_handlers|=PARENT_DEBUG_USR1_SIG;
 }
 
 void
 parent_debug_usr1_action(void)
 {
-        __parent_debug_action(SIGUSR1);
+	__parent_debug_action(SIGUSR1);
 }
 
 void
 parent_debug_usr2_sig(int sig)
 {
-        signal(sig, parent_debug_usr2_sig);
+	signal(sig, parent_debug_usr2_sig);
 	pending_handlers|=PARENT_DEBUG_USR2_SIG;
 }
 
 void
 parent_debug_usr2_action(void)
 {
-        __parent_debug_action(SIGUSR2);
+	__parent_debug_action(SIGUSR2);
 }
 
 void
@@ -2337,8 +2336,8 @@ restart_heartbeat(int quickrestart)
 void
 reread_config_sig(int sig)
 {
-        signal(sig, reread_config_sig);
-        pending_handlers|=REREAD_CONFIG_SIG;
+	signal(sig, reread_config_sig);
+	pending_handlers|=REREAD_CONFIG_SIG;
 }
 
 void
@@ -2367,7 +2366,7 @@ reread_config_action(void)
 		}else{
 			ha_log(LOG_INFO, "Configuration unchanged.");
 		}
-	}else{ 
+	}else{
 
 		/*
 		 * We are not the control process, and we received a SIGHUP
@@ -2405,10 +2404,10 @@ reread_config_action(void)
 void
 ding_sig(int sig)
 {
-        signal(sig, ding_sig);
-        pending_handlers|=DING_SIG;
+	signal(sig, ding_sig);
+	pending_handlers|=DING_SIG;
 }
-        
+
 void
 ding_action(void)
 {
@@ -2445,7 +2444,7 @@ void
 false_alarm_sig(int sig)
 {
 	signal(sig, false_alarm_sig);
-        pending_handlers|=FALSE_ALARM_SIG;
+	pending_handlers|=FALSE_ALARM_SIG;
 }
 
 void
@@ -2465,13 +2464,10 @@ process_pending_handlers(void)
 
 	while (pending_handlers) {
 		unsigned long	save_handlers = pending_handlers;
-        	pending_handlers=0;
+		pending_handlers=0;
 
 		if (save_handlers&REAPER_SIG) {
 			reaper_action();
-		}
-		if (save_handlers&GIVEUP_RESOURCES_AND_TERM_SIG) {
-			giveup_resources_and_term_action();
 		}
 		if (save_handlers&TERM_SIG) {
 			term_action();
@@ -2642,12 +2638,12 @@ send_cluster_msg(struct ha_msg* msg)
 	 * reliably on FreeBSD.  An eminently bad idea.
 	 * That's why we don't do it (any more) ;-)
 	 */
-	        static int	ffd = -1;
+		static int	ffd = -1;
 		int		length;
 		int		wrc;
 
 		if (ffd < 0) {
-	        	ffd = open(FIFONAME, O_WRONLY);
+			ffd = open(FIFONAME, O_WRONLY);
 			if (ffd < 0) {
 				ha_free(smsg);
 				return(HA_FAIL);
@@ -2682,7 +2678,7 @@ send_cluster_msg(struct ha_msg* msg)
 
 
 /* Translates the resources_held string into an integer */
-int 
+int
 encode_resources(const char *p)
 {
 	int i;
@@ -2702,33 +2698,33 @@ encode_resources(const char *p)
 int
 send_resources_held(const char *str, int stable)
 {
-        struct ha_msg * m;
-        int             rc;
-        char            timestamp[16];
+	struct ha_msg * m;
+	int		rc;
+	char		timestamp[16];
 
 	if (!nice_failback) {
 		return HA_OK;
 	}
-        sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
+	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (ANYDEBUG) {
-        	ha_log(LOG_DEBUG, "Sending hold resources msg: %s", str);
+		ha_log(LOG_DEBUG, "Sending hold resources msg: %s", str);
 	}
-        if ((m=ha_msg_new(0)) == NULL) {
-                ha_log(LOG_ERR, "Cannot send local starting msg");
-                return(HA_FAIL);
-        }
-        if ((ha_msg_add(m, F_TYPE, T_RESOURCES) != HA_OK)
-        ||  (ha_msg_add(m, F_RESOURCES, str) != HA_OK)
-        ||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) != HA_OK)) {
-                ha_log(LOG_ERR, "send_resources_held: Cannot create local msg");
-                rc = HA_FAIL;
-        }else{
-                rc = send_cluster_msg(m);
-        }
+	if ((m=ha_msg_new(0)) == NULL) {
+		ha_log(LOG_ERR, "Cannot send local starting msg");
+		return(HA_FAIL);
+	}
+	if ((ha_msg_add(m, F_TYPE, T_RESOURCES) != HA_OK)
+	||  (ha_msg_add(m, F_RESOURCES, str) != HA_OK)
+	||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) != HA_OK)) {
+		ha_log(LOG_ERR, "send_resources_held: Cannot create local msg");
+		rc = HA_FAIL;
+	}else{
+		rc = send_cluster_msg(m);
+	}
 
-        ha_msg_del(m);
-        return(rc);
+	ha_msg_del(m);
+	return(rc);
 }
 
 
@@ -2737,32 +2733,32 @@ int
 send_standby_msg(enum standby state)
 {
 	const char * standby_msg[] = { "not", "me", "other", "done"};
-        struct ha_msg * m;
-        int             rc;
-        char            timestamp[16];
+	struct ha_msg * m;
+	int		rc;
+	char		timestamp[16];
 
-        sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
+	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (ANYDEBUG) {
-        	ha_log(LOG_DEBUG, "Sending standby [%s] msg"
+		ha_log(LOG_DEBUG, "Sending standby [%s] msg"
 		,			standby_msg[state]);
 	}
-        if ((m=ha_msg_new(0)) == NULL) {
-                ha_log(LOG_ERR, "Cannot send standby [%s] msg"
+	if ((m=ha_msg_new(0)) == NULL) {
+		ha_log(LOG_ERR, "Cannot send standby [%s] msg"
 		,			standby_msg[state]);
-                return(HA_FAIL);
-        }
-        if ((ha_msg_add(m, F_TYPE, T_ASKRESOURCES) != HA_OK)
-        ||  (ha_msg_add(m, F_COMMENT, standby_msg[state]) != HA_OK)) {
-                ha_log(LOG_ERR, "send_standby_msg: "
-                "Cannot create standby reply msg");
-                rc = HA_FAIL;
-        }else{
-                rc = send_cluster_msg(m);
-        }
+		return(HA_FAIL);
+	}
+	if ((ha_msg_add(m, F_TYPE, T_ASKRESOURCES) != HA_OK)
+	||  (ha_msg_add(m, F_COMMENT, standby_msg[state]) != HA_OK)) {
+		ha_log(LOG_ERR, "send_standby_msg: "
+		"Cannot create standby reply msg");
+		rc = HA_FAIL;
+	}else{
+		rc = send_cluster_msg(m);
+	}
 
-        ha_msg_del(m);
-        return(rc);
+	ha_msg_del(m);
+	return(rc);
 }
 
 
@@ -2770,29 +2766,29 @@ send_standby_msg(enum standby state)
 int
 send_local_starting(void)
 {
-        struct ha_msg * m;
-        int             rc;
-        char            timestamp[16];
+	struct ha_msg * m;
+	int		rc;
+	char	    timestamp[16];
 
-        sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
+	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (ANYDEBUG) {
-        	ha_log(LOG_DEBUG, "Sending local starting msg");
+		ha_log(LOG_DEBUG, "Sending local starting msg");
 	}
-        if ((m=ha_msg_new(0)) == NULL) {
-                ha_log(LOG_ERR, "Cannot send local starting msg");
-                return(HA_FAIL);
-        }
-        if ((ha_msg_add(m, F_TYPE, T_STARTING) != HA_OK)) {
-                ha_log(LOG_ERR, "send_local_starting: "
-                "Cannot create local starting msg");
-                rc = HA_FAIL;
-        }else{
-                rc = send_cluster_msg(m);
-        }
+	if ((m=ha_msg_new(0)) == NULL) {
+		ha_log(LOG_ERR, "Cannot send local starting msg");
+		return(HA_FAIL);
+	}
+	if ((ha_msg_add(m, F_TYPE, T_STARTING) != HA_OK)) {
+		ha_log(LOG_ERR, "send_local_starting: "
+		"Cannot create local starting msg");
+		rc = HA_FAIL;
+	}else{
+		rc = send_cluster_msg(m);
+	}
 
-        ha_msg_del(m);
-        return(rc);
+	ha_msg_del(m);
+	return(rc);
 }
 
 
@@ -2895,24 +2891,24 @@ mark_node_dead(struct node_info *hip, enum deadreason reason)
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
 	}else{
-        	if (reason == HBSHUTDOWN) {
+		if (reason == HBSHUTDOWN) {
 			int	i;
 			/* Mark all links of 'hip' as DEAD */
 			for( i = 0; i < hip->nlinks; i++) {
 				change_link_status(hip, &hip->links[i]
 				,	DEADSTATUS);
 			}
-        	}else{
+		}else{
 			/* We shouldn't do these if it's a 'ping' node */
 			standby_running = 0L;
-    			/* We have to Zap them before we take the resources */
-	    		/* This often takes a few seconds. */
-    			if (config->stonith) {
-	    			Initiate_Reset(config->stonith, hip->nodename);
-		    		/* Child sends message when reset completes*/
+			/* We have to Zap them before we take the resources */
+			/* This often takes a few seconds. */
+			if (config->stonith) {
+			Initiate_Reset(config->stonith, hip->nodename);
+				/* Child sends message when reset completes*/
 			}
-        	}
-        
+		}
+
 		/*
 		 * We ought to delay until we get
 		 * the Stonith completion message...
@@ -3072,7 +3068,7 @@ req_our_resources(int getthemanyway)
 			if (going_standby == NOT) {
 				/* Someone already owns our resources */
 				ha_log(LOG_INFO
-				,     "Resource acquisition completed. (none)");
+				,   "Resource acquisition completed. (none)");
 				return;
 			}
 		}
@@ -3248,6 +3244,11 @@ giveup_resources(int dummy)
 	pid_t		pid;
 	struct ha_msg *	m;
 
+	i_hold_resources = NO_RSC;
+	if (nice_failback) {
+		send_resources_held(rsc_msg[i_hold_resources], 0);
+	}
+	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)", getpid());
 	/* We need to fork so we can make child procs not real time */
 
 	switch((pid=fork())) {
@@ -3293,21 +3294,21 @@ giveup_resources(int dummy)
 	pclose(rkeys);
 	ha_log(LOG_INFO, "All HA resources relinquished.");
 
-        if ((m=ha_msg_new(0)) == NULL) {
-                ha_log(LOG_ERR, "Cannot send final shutdown msg");
-                exit(1);
-        }
-        if ((ha_msg_add(m, F_TYPE, T_SHUTDONE) != HA_OK
-        ||	ha_msg_add(m, F_STATUS, DEADSTATUS) != HA_OK)) {
-                ha_log(LOG_ERR, "giveup_resources: Cannot create local msg");
-        }else{
+	if ((m=ha_msg_new(0)) == NULL) {
+		ha_log(LOG_ERR, "Cannot send final shutdown msg");
+		exit(1);
+	}
+	if ((ha_msg_add(m, F_TYPE, T_SHUTDONE) != HA_OK
+	||	ha_msg_add(m, F_STATUS, DEADSTATUS) != HA_OK)) {
+		ha_log(LOG_ERR, "giveup_resources: Cannot create local msg");
+	}else{
 		if (ANYDEBUG) {
-			ha_log(LOG_ERR, "Sending T_SHUTDONE.");
+			ha_log(LOG_DEBUG, "Sending T_SHUTDONE.");
 		}
-                rc = send_cluster_msg(m);
-        }
+		rc = send_cluster_msg(m);
+	}
 
-        ha_msg_del(m);
+	ha_msg_del(m);
 	exit(0);
 }
 
@@ -3366,7 +3367,7 @@ main(int argc, char * argv[], char * envp[])
 
 	,	ha_glib_msg_handler, NULL);
 
-        tmp_cmdname=strdup(argv[0]);
+	tmp_cmdname=strdup(argv[0]);
 	if ((cmdname = strrchr(tmp_cmdname, '/')) != NULL) {
 		++cmdname;
 	}else{
@@ -3416,12 +3417,12 @@ main(int argc, char * argv[], char * envp[])
 	if (optind > argc) {
 		++argerrs;
 	}
-	if (argerrs || (CurrentStatus && !WeAreRestarting)) { 
+	if (argerrs || (CurrentStatus && !WeAreRestarting)) {
 		usage();
 	}
 
-        init_set_proc_title(argc, argv, envp);
-        set_proc_title("%s", cmdname);
+	init_set_proc_title(argc, argv, envp);
+	set_proc_title("%s", cmdname);
 
 	hbmedia_types = ha_malloc(sizeof(struct hbmedia_types **));
 
@@ -3438,7 +3439,7 @@ main(int argc, char * argv[], char * envp[])
 
 	init_procinfo();
 
-	if (module_init() != HA_OK) { 
+	if (module_init() != HA_OK) {
 		ha_log(LOG_ERR, "Heartbeat not started: error reading modules.");
 		return(HA_FAIL);
 	}
@@ -3460,13 +3461,13 @@ main(int argc, char * argv[], char * envp[])
 			/* Wait for the running heartbeat to die */
 			alarm(0);
 			do {
-                                sleep(1);
-                                continue;
+				sleep(1);
+				continue;
 			}while (kill((pid_t)running_hb_pid, 0) >= 0);
 			cleanexit(0);
 		}
-		fprintf(stderr, "ERROR: Could not kill pid %ld", 
-                        running_hb_pid);
+		fprintf(stderr, "ERROR: Could not kill pid %ld",
+			running_hb_pid);
 		perror(" ");
 		cleanexit(1);
 	}
@@ -3631,12 +3632,28 @@ signal_all(int sig)
 		ha_log(LOG_DEBUG, "pid %d: ignoring SIGTERM", us);
 		make_normaltime();
 	}
+
+	/* We're going to wait for the master status process to shut down */
+	if (curproc && curproc->type == PROC_CONTROL) {
+		if (sig == SIGTERM) {
+			if (kill(SIGTERM, master_status_pid) >= 0) {
+				/* Tell master status proc to shut down */
+				/* He'll send us a SIGINT when done */
+				/* Meanwhile, we'll just go on... */
+				return;
+			}
+		}else if (sig == SIGINT) {
+			/* All Resources are now released.  Shut down. */
+			sig = SIGTERM;
+		}
+	}
+
 	for (j=0; j < procinfo->nprocs; ++j) {
-		if (processes[j] != us) {
+		if (processes[j] != us && processes[j] != 0) {
 			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG,
-				       "%d: Signalling process %d [%d]"
-				       ,	us, processes[j], sig);
+				ha_log(LOG_DEBUG
+				,	"%d: Signalling process %d [%d]"
+				,	us, processes[j], sig);
 			}
 			kill(processes[j], sig);
 		}
@@ -3655,8 +3672,8 @@ signal_all(int sig)
 				if (procinfo->restart_after_shutdown) {
 					sleep(config->deadtime_interval+1);
 					restart_heartbeat(0);
-                                        /* Not Reached */
-                                        return;
+					/* Not Reached */
+					return;
 				}
 			}
 			cleanexit(1);
@@ -3690,7 +3707,7 @@ make_daemon(void)
 {
 	long		pid;
 	FILE *		lockfd;
-        sigset_t        oursigset;
+	sigset_t	oursigset;
 
 
 
@@ -3734,14 +3751,15 @@ make_daemon(void)
 		}
 	}
 
-        sigemptyset(&oursigset);
-        sigaddset(&oursigset, SIGHUP);
-        sigaddset(&oursigset, SIGTERM);
-        if (sigprocmask(SIG_UNBLOCK, &oursigset, NULL) < 0) {
-        	fprintf(stderr
-                ,	"%s: could not unblock SIGHUP and SIGTERM signals\n"
-                ,       cmdname);
-        }
+	sigemptyset(&oursigset);
+	sigaddset(&oursigset, SIGHUP);
+	sigaddset(&oursigset, SIGTERM);
+	sigaddset(&oursigset, SIGINT);
+	if (sigprocmask(SIG_UNBLOCK, &oursigset, NULL) < 0) {
+		fprintf(stderr
+		,	"%s: could not unblock SIGHUP/SIGTERM/SIGINT signals\n"
+		,	cmdname);
+	}
 
 
 #ifdef	SIGTTOU
@@ -3751,8 +3769,8 @@ make_daemon(void)
 	IGNORESIG(SIGTTIN);
 #endif
 
-        /* Reap child processes to avoid zombies */
-        signal(SIGCHLD, reaper_sig);
+	/* Reap child processes to avoid zombies */
+	signal(SIGCHLD, reaper_sig);
 
 
 #ifdef	SIGQUIT
@@ -3788,7 +3806,7 @@ init_watchdog(void)
 				"close-on-exec flag for watchdog");
 			}
 			ha_log(LOG_NOTICE, "Using watchdog device: %s"
-			       , watchdogdev);
+			,	watchdogdev);
 			tickle_watchdog();
 		}else{
 			ha_log(LOG_ERR, "Cannot open watchdog device: %s"
@@ -3960,8 +3978,8 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	}else if (seq == t->last_seq) {
 		/* Same as last-seen packet -- very common case */
 		if (DEBUGPKT) {
-			ha_log(LOG_DEBUG,
-			       "should_drop_message: Duplicate packet(1)");
+			ha_log(LOG_DEBUG
+			,	"should_drop_message: Duplicate packet(1)");
 		}
 		return(DUPLICATE);
 	}
@@ -4088,7 +4106,7 @@ is_lost_packet(struct node_info * thisnode, unsigned long seq)
 			return 1;
 		}
 	}
-        return 0;
+	return 0;
 }
 
 void
@@ -4420,8 +4438,8 @@ IncrGeneration(unsigned long * generation)
 		return HA_FAIL;
 	}
 	
-	/* 
-	 * Some UNIXes don't implement O_SYNC. 
+	/*
+	 * Some UNIXes don't implement O_SYNC.
 	 * So we do an fsync here for good measure.  It can't hurt ;-)
 	 */
 
@@ -4610,6 +4628,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.151  2001/10/22 05:22:53  alan
+ * Fixed the split-brain (cluster partition) problem.
+ * Also, fixed lots of space/tab nits in various places in heartbeat.
+ *
  * Revision 1.150  2001/10/22 04:02:29  alan
  * Put in a patch to check the arguments to ha_log calls...
  *
@@ -5140,7 +5162,7 @@ setenv(const char *name, const char * value, int why)
  *
  * Revision 1.40  2000/04/05 13:40:28  lclaudio
  *   + Added the nice_failback feature. If the cluster is running when
- *         the primary starts it acts as a secondary.
+ *	 the primary starts it acts as a secondary.
  *
  * Revision 1.39  2000/04/03 08:26:29  horms
  *
