@@ -21,29 +21,105 @@ A million repetitions of "a"
 #include <portability.h>
 #include <stdio.h>
 #include <string.h>
-#include <heartbeat.h>
-#include <hb_sha1.h>
+#include <HBauth.h>
 
-#define MODULE sha1
-#include <hb_module.h>
+#define PIL_PLUGINTYPE		HB_AUTH_TYPE
+#define PIL_PLUGINTYPE_S	"HBauth"
+#define PIL_PLUGIN		sha1
+#define PIL_PLUGIN_S		"sha1"
+#include <pils/plugin.h>
 
-extern unsigned char result[MAXLINE];
+
+#define UWORD32 unsigned long
+
+#define SHA_DIGESTSIZE  20
+#define SHA_BLOCKSIZE   64
+
+typedef struct SHA1Context_st{
+	    UWORD32 state[5];
+	    UWORD32 count[2];
+	    unsigned char buffer[64];
+} SHA1_CTX;
 
 void SHA1Transform(unsigned long state[5], const unsigned char buffer[64]);
 void SHA1Init(SHA1_CTX* context);
 void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len);
 void SHA1Final(unsigned char digest[20], SHA1_CTX* context);
 
-const unsigned char * EXPORT(hb_auth_calc) (const struct auth_info *info, 
-					    const char * text);
-int EXPORT(hb_auth_atype) (char **buffer);
-int EXPORT(hb_auth_nkey) (void);
+static int sha1_auth_calc (const struct HBauth_info *info
+,			    const char * text, char * result, int resultlen);
 
-int
-EXPORT(hb_auth_nkey) (void) 
+static int sha1_auth_needskey(void);
+
+static struct HBAuthOps sha1Ops =
+{	sha1_auth_calc
+,	sha1_auth_needskey
+};
+
+/*
+ * sha1close is called as part of shutting down the sha1 HBauth plugin.
+ * If there was any global data allocated, or file descriptors opened, etc.
+ * which is associated with the plugin, and not a single interface
+ * in particular, here's our chance to clean it up.
+ */
+
+static void sha1closepi(PILPlugin*pi)
+{
+}
+
+
+/*
+ * sha1closeintf called as part of shutting down the sha1 HBauth interface.
+ * If there was any global data allocated, or file descriptors opened, etc.
+ * which is associated with the sha1 implementation, here's our chance
+ * to clean it up.
+ */
+static PIL_rc sha1closeintf(PILInterface* pi, void* pd)
+{
+	return PIL_OK;
+}
+PIL_PLUGIN_BOILERPLATE("1.0", Debug, sha1closepi);
+static const PILPluginImports*  PluginImports;
+static PILPlugin*               OurPlugin;
+static PILInterface*		OurInterface;
+static void*			OurImports;
+static void*			interfprivate;
+
+/*
+ *
+ * Our plugin initialization and registration function
+ * It gets called when the plugin gets loaded.
+ */
+PIL_rc
+PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
+
+PIL_rc
+PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
+{
+	/* Force the compiler to do a little type checking */
+	(void)(PILPluginInitFun)PIL_PLUGIN_INIT;
+
+	PluginImports = imports;
+	OurPlugin = us;
+
+	/* Register ourself as a plugin */
+	imports->register_plugin(us, &OurPIExports);  
+
+	/*  Register our interfaces */
+ 	return imports->register_interface(us, PIL_PLUGINTYPE_S,  PIL_PLUGIN_S
+	,	&sha1Ops
+	,	sha1closeintf		/*close */
+	,	&OurInterface
+	,	&OurImports
+	,	interfprivate); 
+}
+
+static int
+sha1_auth_needskey(void) 
 { 
 	return 1;
 }
+
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
@@ -191,8 +267,9 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX* context)
 }
 
 
-const unsigned char *
-EXPORT(hb_auth_calc) (const struct auth_info *info, const char * text)
+static int
+sha1_auth_calc (const struct HBauth_info *info
+,	    const char * text, char * result, int resultlen)
 {
 	SHA1_CTX ictx, octx ;
 	unsigned char   isha[SHA_DIGESTSIZE]; 
@@ -202,10 +279,11 @@ EXPORT(hb_auth_calc) (const struct auth_info *info, const char * text)
 	int	i, text_len, key_len;
 	unsigned char * key;
 
-	(void) _heartbeat_h_Id;
-	(void) _ha_msg_h_Id;
-	key = ha_malloc(sizeof(char)*(strlen(info->key)+1));
-	strcpy(key, info->key);
+	if (resultlen <= SHA_DIGESTSIZE) {
+		return FALSE;
+	}
+
+	key = g_strdup(info->key);
 
 	text_len = strlen(text);
 	key_len = strlen(key);
@@ -250,7 +328,7 @@ EXPORT(hb_auth_calc) (const struct auth_info *info, const char * text)
 		sprintf(tk, "%02x", osha[i]);
 		strcat(result, tk);
 	}
-	ha_free(key);
+	g_free(key);
 
-	return(result);
+	return TRUE;
 }

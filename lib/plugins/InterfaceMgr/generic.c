@@ -372,10 +372,19 @@ CloseGenInterfaceManager(PILInterface*intf, void* info)
 	void*	key;
 	void*	data;
 
+	if (GenDebugFlag) {
+		GenPIImports->log(PIL_WARN
+		,	"In CloseGenInterFaceManager on %s/%s"
+		,	intf->interfacetype->typename, intf->interfacename);
+	}
+
+
 	if (g_hash_table_lookup_extended(MasterTable
-	,	intf->interfacetype->typename, &key, &data)) {
+	,	intf->interfacename, &key, &data)) {
+		PILGenericIfMgmtRqst*	ifinfo = data;
+		g_hash_table_destroy(*(ifinfo->ifmap));
+		*(ifinfo->ifmap) = NULL;
 		g_hash_table_remove(MasterTable, key);
-		g_hash_table_destroy((GHashTable*)data);
 		g_free(key);
 	}else{
 		g_assert_not_reached();
