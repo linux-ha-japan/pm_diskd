@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.2 1999/09/30 18:34:27 alanr Exp $";
 /* send_arp.c
 
 This program sends out one ARP packet with source/target IP and Ethernet
@@ -21,12 +21,20 @@ volobuev@t1.chem.umn.edu
 #include <string.h>
 #include <errno.h>
 #include <netdb.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #if 0
 #	include <linux/in.h>
 #endif
+#include <netinet/in.h>
+#include <netinet/if_ether.h>
 #include <arpa/inet.h>
-#include <linux/if_ether.h>
+
+#ifdef linux
+#	define	NEWSOCKET()	socket(AF_INET, SOCK_PACKET, htons(ETH_P_RARP))
+#else
+#	define	NEWSOCKET()	socket(SOL_SOCKET, SOCK_RAW, ETHERTYPE_REVARP)
+#endif
 
 #define ETH_HW_ADDR_LEN 6
 #define IP_ADDR_LEN 4
@@ -69,7 +77,7 @@ int sock;
 (void)_send_arp_c;
 if(argc != 6)die(usage);
 
-sock=socket(AF_INET,SOCK_PACKET,htons(ETH_P_RARP));
+sock=NEWSOCKET();
 if(sock<0){
         perror("socket");
         exit(1);
@@ -148,8 +156,11 @@ for(i=0;i<ETH_HW_ADDR_LEN;i++){
 
 /*
  * $Log: send_arp.c,v $
- * Revision 1.1  1999/09/23 15:31:24  alanr
- * Initial revision
+ * Revision 1.2  1999/09/30 18:34:27  alanr
+ * Matt Soffen's FreeBSD changes
+ *
+ * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+ * High-Availability Linux
  *
  * Revision 1.4  1999/09/08 03:46:27  alanr
  * Changed things so they work when rearranged to match the FHS :-)

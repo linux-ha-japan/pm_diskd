@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.2 1999/09/29 03:50:43 alanr Exp $
+#	$Id: Makefile,v 1.3 1999/09/30 18:34:26 alanr Exp $
 #
 #	Makefile for making High-Availability Linux documents
 #
@@ -59,8 +59,8 @@ Requirements: Requirements.html
 
 
 install: all $(DOCFILES)
-	$(INSTALL) -m 644 $(DOCFILES) $(DOCDIR)
-	$(INSTALL) -m 644 ../proc-ha/proc_ha.c $(DOCDIR)
+	$(INSTALL) -cm 644 $(DOCFILES) $(DOCDIR)
+	$(INSTALL) -cm 644 ../proc-ha/proc_ha.c $(DOCDIR)
 
 rh-install: install
 

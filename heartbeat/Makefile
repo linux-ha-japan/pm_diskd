@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.2 1999/09/26 14:00:59 alanr Exp $
+#	$Id: Makefile,v 1.3 1999/09/30 18:34:27 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -102,12 +102,12 @@ install: install_bin
 rh-install: install
 
 install_bin: all
-	[ -p $(FIFO) ] || mkfifo -m 0600 $(FIFO)
-	$(INSTALL) -m 755 $(LIBCMDS) $(LIBSCRIPTS) $(HALIB)
-	$(INSTALL) -m 755 $(RCCMDS) $(HARCD)
-	$(INSTALL) -m 755 $(RESOURCECMDS) $(RESOURCEDIR)
-	$(INSTALL) -m 755 $(ROOTFILES) $(HA)
-	$(INSTALL) -m 755 heartbeat.sh $(INITSCRIPT)
+	[ -p $(FIFO) ] || mkfifo $(FIFO) || chmod 0600 $(FIFO)
+	$(INSTALL) -cm 755 $(LIBCMDS) $(LIBSCRIPTS) $(HALIB)
+	$(INSTALL) -cm 755 $(RCCMDS) $(HARCD)
+	$(INSTALL) -cm 755 $(RESOURCECMDS) $(RESOURCEDIR)
+	$(INSTALL) -cm 755 $(ROOTFILES) $(HA)
+	$(INSTALL) -cm 755 heartbeat.sh $(INITSCRIPT)
 
 rh-install_bin: install_bin
 

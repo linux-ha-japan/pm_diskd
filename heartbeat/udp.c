@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.3 1999/09/30 16:04:22 alanr Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.4 1999/09/30 18:34:27 alanr Exp $";
 /*
    About 150 lines of the code in this file borrowed 1999 from Tom Vogt's
 	"Heart" program, and significantly mangled by
@@ -344,7 +344,6 @@ HB_make_receive_sock(struct hb_media * mp) {
 	,	sizeof(struct sockaddr)) < 0) {
 #if !defined(SO_BINDTODEVICE)
 		if (errno == EADDRINUSE) {
-			char msg[MAXLINE];
 			/* This happens with multiple udp or ppp interfaces */
 			ha_log(LOG_NOTICE
 			,	"Someone already listening on port %d [%s]"
@@ -450,7 +449,11 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.4  1999/09/30 18:34:27  alanr
+ * Matt Soffen's FreeBSD changes
+ *
  * Revision 1.3  1999/09/30 16:04:22  alanr
+ *
  * Minor comment change.
  *
  * Revision 1.2  1999/09/26 14:01:21  alanr

@@ -1,5 +1,5 @@
 #
-# $Id: Makefile,v 1.1 1999/09/23 15:31:24 alanr Exp $
+# $Id: Makefile,v 1.2 1999/09/30 18:34:27 alanr Exp $
 #
 # Makefile for the Linux-HA /proc interface
 #
@@ -49,7 +49,7 @@ ha.o: $(SRC)
 	$(CC) $(CFLAGS) -c $(SRC) -o $@
 
 install: all
-	$(INSTALL) -m 644 $(OBJLIST) $(OBJDIR)
+	$(INSTALL) -cm 644 $(OBJLIST) $(OBJDIR)
 
 install_bin: install
 #
@@ -73,7 +73,7 @@ ha-boot.o: $(SRC)
 	$(CC) $(CFLAGS) $(BOOTFLAGS) -c $(SRC) -o $@
 
 rh-install: $(RH_OBJLIST)
-	$(INSTALL) -m 644 $(RH_OBJLIST) $(OBJDIR)
+	$(INSTALL) -cm 644 $(RH_OBJLIST) $(OBJDIR)
 
 rh-install_bin: rh-install
 clean:
@@ -83,8 +83,11 @@ pristene: clean
 
 #####################################################
 # $Log: Makefile,v $
-# Revision 1.1  1999/09/23 15:31:24  alanr
-# Initial revision
+# Revision 1.2  1999/09/30 18:34:27  alanr
+# Matt Soffen's FreeBSD changes
+#
+# Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+# High-Availability Linux
 #
 # Revision 1.4  1999/09/23 14:32:59  alanr
 # This version is for new directory structure, plus the ability to do both red hat and non-red-hat installs out of the same makefile...

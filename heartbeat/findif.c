@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.2 1999/09/30 18:34:27 alanr Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -31,10 +31,12 @@ static const char _findif_c [] = "$Id: findif.c,v 1.1 1999/09/23 15:31:24 alanr 
  *
  */
 #include <stdio.h>
-#include <values.h>
+#include <limits.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 
 #define	PROCROUTE	"/proc/net/route"
@@ -62,8 +64,8 @@ main(int argc, char ** argv) {
 	long	netmask = BAD_NETMASK;
 	char	best_if[MAXSTR];
 	char *	if_specified = NULL;
-	int	best_metric = MAXINT;
-	unsigned long	best_netmask = MAXINT;
+	int	best_metric = INT_MAX;
+	unsigned long	best_netmask = INT_MAX;
 
 	(void)_findif_c;
 	cmdname=argv[0];
@@ -171,7 +173,7 @@ main(int argc, char ** argv) {
 			}
 		}
 		fclose(routefd);
-		if (best_metric == MAXINT) {
+		if (best_metric == INT_MAX) {
 			fprintf(stderr, "No route to %s\n", address);
 			return(1);
 		}
@@ -242,8 +244,11 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
- * Revision 1.1  1999/09/23 15:31:24  alanr
- * Initial revision
+ * Revision 1.2  1999/09/30 18:34:27  alanr
+ * Matt Soffen's FreeBSD changes
+ *
+ * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+ * High-Availability Linux
  *
  * Revision 1.5  1999/09/22 16:49:03  alanr
  * Put in the ability to explicitly specify the interface on the command line argument.
