@@ -1,3 +1,5 @@
+#include <portability.h>
+
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
@@ -6,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <lock.h>
+#include <heartbeat.h>
 
 #ifndef TTY_LOCK_D
 #	define TTY_LOCK_D	"/var/lock"
@@ -60,6 +63,8 @@
 int
 ttylock(const char *serial_device)
 {
+	(void)_ha_msg_h_Id;
+	(void)_heartbeat_h_Id;
 	return(DoLock("LCK..", serial_device+DEVLEN));
 }
 
