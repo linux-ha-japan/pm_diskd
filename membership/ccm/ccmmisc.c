@@ -20,10 +20,10 @@
  *
  */
 #include <stdlib.h>
-#include <ccm.h>
-#ifdef HAVE_MALLOC_H
-#       include <malloc.h>
+#ifdef HAVE_MALLINFO
+#include malloc.h
 #endif
+#include <ccm.h>
 
 //
 // Convert a given string to a bitmap.
