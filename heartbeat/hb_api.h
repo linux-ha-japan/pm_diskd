@@ -22,6 +22,10 @@ typedef struct ll_cluster {
 }ll_cluster_t;
 
 struct llc_ops {
+	int		(*signon) (ll_cluster_t*, const char * service);
+	int		(*signoff) (ll_cluster_t*);
+	int		(*delete) (ll_cluster_t*);
+	
 /*
  *************************************************************************
  * Status Update Callbacks
