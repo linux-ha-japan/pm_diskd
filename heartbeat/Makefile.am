@@ -86,7 +86,7 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 heartbeat_CFLAGS	= $(CFLAGS)
 
 send_arp_SOURCES	= send_arp.c
-send_arp_CFLAGS		= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES) -I$(includedir)
+send_arp_CFLAGS		= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
 send_arp_LDADD	 	= -L$(libdir) @LIBNETLIBS@
 
 send_arp.o: $(send_arp_SOURCES)
@@ -94,7 +94,7 @@ send_arp.o: $(send_arp_SOURCES)
 		-o $$old_pwd/$@  $(send_arp_CFLAGS) )
 
 get_hw_addr_SOURCES	= get_hw_addr.c
-get_hw_addr_CFLAGS	 	= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES) -I$(includedir)
+get_hw_addr_CFLAGS	 	= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
 get_hw_addr_LDADD	 	= -L$(libdir) @LIBNETLIBS@
 
 get_hw_addr.o: $(get_hw_addr_SOURCES)
