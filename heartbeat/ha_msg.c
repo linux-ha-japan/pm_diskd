@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.4 1999/09/29 03:22:05 alanr Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.5 1999/10/03 03:13:43 alanr Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -285,7 +285,8 @@ string2msg(const char * s)
 
 	startlen = sizeof(MSG_START)-1;
 	if (strncmp(sp, MSG_START, startlen) != 0) {
-		ha_error("string2msg: no MSG_START");
+		ha_log(LOG_ERR, "string2msg: no MSG_START");
+		ha_log(LOG_ERR, "Bad message is: [%s]", sp);
 		return(NULL);
 	}else{
 		sp += startlen;
@@ -619,6 +620,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.5  1999/10/03 03:13:43  alanr
+ * Moved resource acquisition to 'heartbeat', also no longer attempt to make the FIFO, it's now done in heartbeat.  It should now be possible to start it up more readily...
+ *
  * Revision 1.4  1999/09/29 03:22:05  alanr
  * Added the ability to reread auth config file on SIGHUP
  *

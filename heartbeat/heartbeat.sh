@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.4 1999/10/02 17:48:08 alanr Exp $
+#	$Id: heartbeat.sh,v 1.5 1999/10/03 03:14:04 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -147,20 +147,6 @@ init_proc_ha() {
   fi
 }
 
-#
-#	Make our heartbeat FIFO.  No FIFO, no heartbeat.
-#
-
-init_fifo() {
-  if
-    [ ! -p $HA_FIFO ]
-  then
-    rm -f $HA_FIFO
-    mkfifo $HA_FIFO
-    chmod 644 $HA_FIFO
-  fi
-}
-
 
 #
 #	Start the heartbeat daemon...
@@ -176,17 +162,6 @@ start_heartbeat() {
   fi
 }
 
-#
-#	Get what we deserve
-#
-
-get_resources() {
-  for groupkey in `$HA_BIN/ResourceManager listkeys $US`
-  do
-    ha_log "Requesting resource group $groupkey"
-    $HA_BIN/req_resource $groupkey &
-  done
-}
 
 #
 #	Start Linux-HA
@@ -209,16 +184,11 @@ StartHA() {
   then
     mv $HA_DIR/ipresources $HA_DIR/haresources
   fi
-  #  Create the FIFO, if we need to...
-  init_fifo
   #	Start heartbeat daemon
   if
     start_heartbeat
   then
     #	Wait for things to settle a bit
-    sleep 10
-    #	Acquire the resources we need
-    get_resources
     ha_log "INFO: $SUBSYS initialization complete."
   else
     RC=$?
@@ -328,6 +298,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.5  1999/10/03 03:14:04  alanr
+#  Moved resource acquisition to 'heartbeat', also no longer attempt to make the FIFO, it's now done in heartbeat.  It should now be possible to start it up more readily...
+#
 #  Revision 1.4  1999/10/02 17:48:08  alanr
 #  Put back call to init_fifo.  Thanks to Thomas Hepper
 #

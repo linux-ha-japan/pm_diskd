@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.7 1999/10/02 18:12:08 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.8 1999/10/03 03:13:47 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -158,7 +158,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.7 1999/10/02 18:12:0
 #include <heartbeat.h>
 #include <ha_msg.h>
 
-#define OPTARGS		"vd"
+#define OPTARGS		"vdr"
 
 
 int		verbose = 0;
@@ -167,9 +167,11 @@ const char *	cmdname = "heartbeat";
 const char **	Argv = NULL;
 int		Argc = -1;
 int		debug = 0;
+int		isarestart = 0;
 int		childpid = -1;
 char *		watchdogdev = NULL;
 int		watchdogfd = -1;
+time_t		starttime = 0L;
 void		(*localdie)(void);
 
 
@@ -270,6 +272,7 @@ int	should_drop_message(struct node_info* node, const struct ha_msg* msg);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
 void	init_xmit_hist (struct msg_xmit_hist * hist);
+int	req_our_resources(void);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -296,7 +299,6 @@ init_config(const char * cfgfile)
 {
 	struct utsname	u;
 	int	errcount = 0;
-	char	msg[MAXLINE];
 
 	/* This may be dumb.  I'll decide later */
 	(void)_heartbeat_c_Id;	/* Make warning go away */
@@ -317,11 +319,11 @@ init_config(const char * cfgfile)
 	curnode = NULL;
 
 	if (!parse_config(cfgfile)) {
-		ha_error("Heartbeat not started: configuration error.");
+		ha_log(LOG_ERR, "Heartbeat not started: configuration error.");
 		return(HA_FAIL);
 	}
 	if (parse_authfile() != HA_OK) {
-		ha_error("Authentication configuration error.");
+		ha_log(LOG_ERR, "Authentication configuration error.");
 		return(HA_FAIL);
 	}
 	if (config->log_facility >= 0) {
@@ -329,36 +331,38 @@ init_config(const char * cfgfile)
 	}
 
 	if (nummedia < 1) {
-		ha_error("No heartbeat ports defined");
+		ha_log(LOG_ERR, "No heartbeat ports defined");
 		++errcount;
 	}
+#if !defined(MITJA)
 	/* We should probably complain if there aren't at least two... */
 	if (config->nodecount < 1) {
-		ha_error("no nodes defined");
+		ha_log(LOG_ERR, "no nodes defined");
 		++errcount;
 	}
 	if (config->authmethod == NULL) {
-		ha_error("No authentication specified.");
+		ha_log(LOG_ERR, "No authentication specified.");
 		++errcount;
 	}
+#endif
 	if ((curnode = lookup_node(u.nodename)) == NULL) {
-		sprintf(msg, "Current node [%s] not in configuration"
-		,	u.nodename);
 #if defined(MITJA)
 		ha_log(msg);
-		add_node(from);
+		add_node(u.nodename);
 		curnode = lookup_node(u.nodename);
+		ha_log(LOG_NOTICE, "Current node [%s] added to configuration"
+		,	u.nodename);
 #else
-		ha_error(msg);
+		ha_log(LOG_ERR, "Current node [%s] not in configuration!"
+		,	u.nodename);
 		++errcount;
 #endif
 	}
 	setenv(CURHOSTENV, u.nodename, 1);
 	if (config->deadtime_interval <= 2 * config->heartbeat_interval) {
-		sprintf(msg
+		ha_log(LOG_ERR
 		,	"Dead time [%d] is too small compared to keeplive [%d]"
 		,	config->deadtime_interval, config->heartbeat_interval);
-		ha_error(msg);
 		++errcount;
 	}
 	if (config->log_facility < 0 && *(config->logfile) == 0) {
@@ -454,13 +458,11 @@ parse_config(const char * cfgfile)
 	int		dirlength;
 	char		option[MAXLINE];
 	int		optionlength;
-	char		msg[MAXLINE];
 	int		errcount = 0;
 	struct stat	sbuf;
 
 	if ((f = fopen(cfgfile, "r")) == NULL) {
-		sprintf(msg, "Cannot open config file [%s]", cfgfile);
-		ha_error(msg);
+		ha_log(LOG_ERR, "Cannot open config file [%s]", cfgfile);
 		return(HA_FAIL);
 	}
 
@@ -600,14 +602,12 @@ int
 parse_ha_resources(const char * cfgfile)
 {
 	char		buf[MAXLINE];
-	char		msg[MAXLINE];
 	struct stat	sbuf;
 	int		rc = HA_OK;
 	FILE *		f;
 
 	if ((f = fopen(cfgfile, "r")) == NULL) {
-		sprintf(msg, "Cannot open config file [%s]", cfgfile);
-		ha_error(msg);
+		ha_log(LOG_ERR, "Cannot open config file [%s]", cfgfile);
 		return(HA_FAIL);
 	}
 
@@ -632,9 +632,8 @@ parse_ha_resources(const char * cfgfile)
 		strncpy(token, bp, endp - bp);
 		token[endp-bp] = EOS;
 		if (lookup_node(token) == NULL) {
-			sprintf(msg, "Bad nodename in %s [%s]", cfgfile
+			ha_log(LOG_ERR, "Bad nodename in %s [%s]", cfgfile
 			,	token);
-			ha_error(msg);
 			rc = HA_FAIL;
 		}
 	}
@@ -669,7 +668,6 @@ int
 add_option(const char *	option, const char * value)
 {
 	int	j;
-	char	msg[MAXLINE];
 
 	for (j=0; j < DIMOF(Directives); ++j) {
 		if (strcmp(option, Directives[j].name) == 0) {
@@ -682,9 +680,8 @@ add_option(const char *	option, const char * value)
 			struct hb_media* mp = hbmedia_types[j]->new(value);
 			sysmedia[nummedia] = mp;
 			if (mp == NULL) {
-				sprintf(msg, "Illegal %s [%s] in config file"
+				ha_log(LOG_ERR, "Illegal %s [%s] in config file"
 				,	hbmedia_types[j]->description, value);
-				ha_error(msg);
 				return(HA_FAIL);
 			}else{
 				++nummedia;
@@ -973,12 +970,9 @@ set_udpport(const char * value)
 	/* Make sure this port isn't reserved for something else */
 	if ((service=getservbyport(htons(port), "udp")) != NULL) {
 		if (strcmp(service->s_name, HA_SERVICENAME) != 0) {
-			char msg[MAXLINE];
-			sprintf(msg
+			ha_log(LOG_ERR
 			,	"%s: udp port %s reserved for service \"%s\"."
 			,	cmdname, value, service->s_name);
-			fprintf(stderr, "%s\n", msg);
-			ha_error(msg);
 			return(HA_FAIL);
 		}
 	}
@@ -1137,6 +1131,7 @@ initialize_heartbeat()
 	int		ourproc = 0;
 
 	localdie = NULL;
+	starttime = time(NULL);
 
 	if (stat(FIFONAME, &buf) < 0) {
 		ha_log(LOG_ERR, "Creating FIFO %s.", FIFONAME);
@@ -1155,7 +1150,7 @@ initialize_heartbeat()
 	}
 
 	if (pipe(status_pipe) < 0) {
-		ha_error("cannot create status pipe");
+		ha_perror("cannot create status pipe");
 		return(HA_FAIL);
 	}
 
@@ -1165,7 +1160,7 @@ initialize_heartbeat()
 		struct hb_media* smj = sysmedia[j];
 
 		if (pipe(smj->wpipe) < 0) {
-			ha_error("cannot create hb channel pipe");
+			ha_perror("cannot create hb channel pipe");
 			return(HA_FAIL);
 		}
 		if (ANYDEBUG) {
@@ -1204,7 +1199,7 @@ initialize_heartbeat()
 	ourproc = procinfo->nprocs;
 	procinfo->nprocs++;
 	switch ((pid=fork())) {
-		case -1:	ha_error("Can't fork master status process!");
+		case -1:	ha_perror("Can't fork master status process!");
 				return(HA_FAIL);
 				break;
 
@@ -1213,7 +1208,7 @@ initialize_heartbeat()
 				curproc->type = PROC_MST_STATUS;
 				curproc->pid = getpid();
 				master_status_process();
-				ha_error("master status process exiting");
+				ha_perror("master status process exiting");
 				cleanexit(1);
 	}
 	ADDPROC(pid);
@@ -1228,7 +1223,7 @@ initialize_heartbeat()
 		procinfo->nprocs++;
 
 		switch ((pid=fork())) {
-			case -1:	ha_error("Can't fork write process");
+			case -1:	ha_perror("Can't fork write process");
 					return(HA_FAIL);
 					break;
 
@@ -1237,7 +1232,7 @@ initialize_heartbeat()
 					curproc->type = PROC_HBWRITE;
 					curproc->pid = getpid();
 					write_child(mp);
-					ha_error("write process exiting");
+					ha_perror("write process exiting");
 					cleanexit(1);
 		}
 		ADDPROC(pid);
@@ -1248,7 +1243,7 @@ initialize_heartbeat()
 		procinfo->nprocs++;
 
 		switch ((pid=fork())) {
-			case -1:	ha_error("Can't fork read process");
+			case -1:	ha_perror("Can't fork read process");
 					return(HA_FAIL);
 					break;
 
@@ -1257,7 +1252,7 @@ initialize_heartbeat()
 					curproc->type = PROC_HBREAD;
 					curproc->pid = getpid();
 					read_child(mp);
-					ha_error("read child process exiting");
+					ha_perror("read child process exiting");
 					cleanexit(1);
 		}
 		ADDPROC(pid);
@@ -1266,13 +1261,14 @@ initialize_heartbeat()
 		}
 	}
 
+
 	fifo = fopen(FIFONAME, "r");
 	if (fifo == NULL) {
-		ha_error("FIFO open failed.");
+		ha_perror("FIFO open failed.");
 	}
 	(void)open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
 	control_process(fifo);
-	ha_error("control_process exiting");
+	ha_log(LOG_ERR, "control_process exiting");
 	cleanexit(1);
 	/*NOTREACHED*/
 	return(HA_OK);
@@ -1361,11 +1357,11 @@ control_process(FILE * fp)
 		int		j;
 		int		len;
 		const char *	cseq;
-		unsigned long	seqno;
+		unsigned long	seqno = -1;
 
 		if (msg == NULL || (cseq = ha_msg_value(msg, F_SEQ)) == NULL
 		||	sscanf(cseq, "%lx", &seqno) != 1 ||	seqno <= 0) {
-			ha_error("control_process: bad sequence number");
+			ha_log(LOG_ERR, "control_process: bad sequence number");
 			continue;
 		}
 		/* Convert it to a string and log original message for re-xmit */
@@ -1398,6 +1394,7 @@ master_status_process(void)
 	struct node_info *	thisnode;
 	FILE *			f = fdopen(status_pipe[P_READFD], "r");
 	struct ha_msg *	msg = NULL;
+	int		resources_requested_yet = 0;
 
 
 	init_status_alarm();
@@ -1407,6 +1404,7 @@ master_status_process(void)
 
 	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
 		time_t	msgtime;
+		time_t	now;
 		const char *	from;
 		const char *	ts;
 		const char *	type;
@@ -1415,9 +1413,10 @@ master_status_process(void)
 		msg = msgfromstream(f);
 
 		if (msg == NULL) {
-			ha_error("NULL message in master_status_process");
+			ha_log(LOG_ERR, "NULL msg in master_status_process");
 			continue;
 		}
+		now = time(NULL);
 
 		/* Extract message type, originator, timestamp, cksum and auth*/
 		type = ha_msg_value(msg, F_TYPE);
@@ -1425,7 +1424,7 @@ master_status_process(void)
 		ts = ha_msg_value(msg, F_TIME);
 
 		if (from == NULL || ts == NULL || type == NULL) {
-			ha_error("master_status_process: missing from/ts/type");
+			ha_log(LOG_ERR, "master_status_process: missing from/ts/type");
 			continue;
 		}
 
@@ -1459,6 +1458,21 @@ master_status_process(void)
 			continue;
 #endif
 		}
+		/*
+		 * Request our resources after a (PPP-induced) delay.
+		 * If we have PPP as our only link this delay might have
+		 * to be 7 or 8 seconds.  Otherwise the needed delay is
+		 * small.  We go ahead if we have any pkt from elsewhere, or
+		 * or 10 seconds have elapsed.  If we have a packet that came
+		 * in from somewhere else, then cluster comm is working...
+		 *
+		 */
+	
+		if (!resources_requested_yet
+		&&	(thisnode != curnode || (now-starttime) > RQSTDELAY)) {
+				resources_requested_yet=1;
+				req_our_resources();
+		}
 
 		/* Is this message a duplicate, or destined for someone else? */
 		if (should_drop_message(thisnode, msg)) {
@@ -1473,7 +1487,7 @@ master_status_process(void)
 			sscanf(ts, "%lx", &msgtime);
 			status = ha_msg_value(msg, F_STATUS);
 			if (status == NULL)  {
-				ha_error("master_status_process: "
+				ha_log(LOG_ERR, "master_status_process: "
 				"status update without "
 				F_STATUS " field");
 				continue;
@@ -1508,7 +1522,9 @@ master_status_process(void)
 		}
 	}
 }
-void check_auth_change(struct sys_config *conf)
+
+void
+check_auth_change(struct sys_config *conf)
 {
 	if (conf->rereadauth) {
 		if (parse_authfile() != HA_OK) {
@@ -1580,7 +1596,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 
 	switch ((pid=fork())) {
 
-		case -1:	ha_error("Can't fork to notify world!");
+		case -1:	ha_perror("Can't fork to notify world!");
 				break;
 
 
@@ -1738,12 +1754,12 @@ send_cluster_msg(struct ha_msg* msg)
 	const char *	type;
 
 	if (msg == NULL || (type = ha_msg_value(msg, F_TYPE)) == NULL) {
-		ha_error("Invalid message in send_cluster_msg");
+		ha_perror("Invalid message in send_cluster_msg");
 		return(HA_FAIL);
 	}
 
 	if ((smsg = msg2string(msg)) == NULL) {
-		ha_error("out of memory in send_cluster_msg");
+		ha_log(LOG_ERR, "out of memory in send_cluster_msg");
 		return(HA_FAIL);
 	}
 
@@ -1777,12 +1793,13 @@ send_local_status(void)
 		ha_log(LOG_DEBUG, "Sending local status");
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
-		ha_error("Cannot send local status");
+		ha_log(LOG_ERR, "Cannot send local status");
 		return(HA_FAIL);
 	}
 	if (ha_msg_add(m, F_TYPE, T_STATUS) == HA_FAIL
 	||	ha_msg_add(m, F_STATUS, curnode->status) == HA_FAIL) {
-		ha_error("send_local_status: Cannot create local status msg");
+		ha_log(LOG_ERR, "send_local_status: "
+		"Cannot create local status msg");
 		rc = HA_FAIL;
 	}else{
 		rc = send_cluster_msg(m);
@@ -1800,7 +1817,7 @@ mark_node_dead(struct node_info *hip)
 	char		timestamp[16];
 
 	if ((hmsg = ha_msg_new(6)) == NULL) {
-		ha_error("no memory to mark node dead");
+		ha_log(LOG_ERR, "no memory to mark node dead");
 		return;
 	}
 
@@ -1812,7 +1829,7 @@ mark_node_dead(struct node_info *hip)
 	||	ha_msg_add(hmsg, F_ORIG, hip->nodename) == HA_FAIL
 	||	ha_msg_add(hmsg, F_STATUS, "dead") == HA_FAIL
 	||	ha_msg_add(hmsg, F_COMMENT, "timeout") == HA_FAIL) {
-		ha_error("no memory to mark node dead");
+		ha_log(LOG_ERR, "no memory to mark node dead");
 		ha_msg_del(hmsg);
 		return;
 	}
@@ -1909,7 +1926,7 @@ heartbeat_monitor(struct ha_msg * msg)
 		namelen = strlen(name);
 		vallen = strlen(value);
 		if (outptr + (namelen+vallen+2) >= last) {
-			ha_error("monitor message too long");
+			ha_log(LOG_ERR, "monitor message too long");
 			return;
 		}
 		strcat(outptr, name);
@@ -1930,6 +1947,39 @@ heartbeat_monitor(struct ha_msg * msg)
 		close(monfd);
 		monfd = -1;
 	}
+}
+
+int
+req_our_resources()
+{
+	FILE *	rkeys;
+	char	cmd[MAXLINE];
+	char	buf[MAXLINE];
+	int	finalrc = HA_OK;
+	int	rc;
+
+	
+	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
+ha_log(LOG_INFO, "Running %s", cmd);
+
+	if ((rkeys = popen(cmd, "r")) == NULL) {
+		ha_log(LOG_ERR, "Cannot run command %s", cmd);
+		return(HA_FAIL);
+	}
+
+	while (fgets(buf, MAXLINE, rkeys) != NULL) {
+		if (buf[strlen(buf)-1] == '\n') {
+			buf[strlen(buf)-1] = EOS;
+		}
+		sprintf(cmd, HALIB "/req_resource %s &", buf);
+ha_log(LOG_INFO, "Running %s", cmd);
+		if ((rc=system(cmd)) != 0) {
+			ha_log(LOG_ERR, "%s returned %d", cmd, rc);
+			finalrc=HA_FAIL;
+		}
+	}
+	pclose(rkeys);
+	return(finalrc);
 }
 
 /*  usage statement */
@@ -1985,6 +2035,10 @@ main(int argc, const char ** argv)
 				++debug;
 				break;
 
+			case 'r':
+				++isarestart;
+				break;
+
 			default:
 				++argerrs;
 				break;
@@ -2025,6 +2079,11 @@ main(int argc, const char ** argv)
 		make_daemon();
 		setenv(LOGFENV, config->logfile, 1);
 		setenv(DEBUGFENV, config->dbgfile, 1);
+		if (config->log_facility >= 0) {
+			char	facility[40];
+			sprintf(facility, "%d", config->log_facility);
+			setenv(LOGFACILITY, facility, 1);
+		}
 		initialize_heartbeat();
 	}else{
 		ha_log(LOG_ERR, "Configuration error, heartbeat not started.");
@@ -2117,25 +2176,25 @@ make_daemon(void)
 	}
 
 #ifdef	SIGTTOU
-	(void)signal(SIGTTOU, SIG_IGN);
+	IGNORESIG(SIGTTOU);
 #endif
 #ifdef	SIGTTIN
-	(void)signal(SIGTTIN, SIG_IGN);
+	IGNORESIG(SIGTTIN);
 #endif
 
 	/* Maybe we shouldn't do this on Linux */
 #ifdef	SIGCHLD
-	(void)signal(SIGCHLD, SIG_IGN);
+	IGNORESIG(SIGCHLD);
 #endif
 
 #ifdef	SIGHUP
-	(void)signal(SIGHUP, SIG_IGN);
+	IGNORESIG(SIGHUP);
 #endif
 #ifdef	SIGQUIT
-	(void)signal(SIGQUIT, SIG_IGN);
+	IGNORESIG(SIGQUIT);
 #endif
 #ifdef	SIGSTP
-	(void)signal(SIGSTP, SIG_IGN);
+	IGNORESIG(SIGSTP);
 #endif
 	(void)signal(SIGUSR1, debug_sig);
 	(void)signal(SIGUSR2, debug_sig);
@@ -2172,12 +2231,10 @@ tickle_watchdog(void)
 {
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "", 1) != 1) {
-			char msg[128];
 			close(watchdogfd);
 			watchdogfd=-1;
-			sprintf(msg, "Watchdog write failure: closing %s!\n"
+			ha_perror("Watchdog write failure: closing %s!\n"
 			,	watchdogdev);
-			ha_perror(msg);
 		}
 	}
 }
@@ -2203,7 +2260,7 @@ should_ring_copy_msg(struct ha_msg *m)
 	/* Get originator and time to live field values */
 	if ((from = ha_msg_value(m, F_ORIG)) == NULL
 	||	(ttl = ha_msg_value(m, F_TTL)) == NULL) {
-			ha_error("bad packet in should_copy_ring_pkt");
+			ha_log(LOG_ERR, "bad packet in should_copy_ring_pkt");
 	}
 	/* Is this message from us? */
 	if (strcmp(from, us) == 0 || atoi(ttl) <= 0) {
@@ -2247,11 +2304,10 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	unsigned long		seq;
 	int			IsToUs;
 	int			j;
-	char			msgbuf[MAXLINE];
 
 
 	if (cseq  == NULL || sscanf(cseq, "%lx", &seq) != 1 ||	seq <= 0) {
-		ha_error("should_drop_message: bad sequence number");
+		ha_log(LOG_ERR, "should_drop_message: bad sequence number");
 		dump_msg(msg);
 		return(DROPIT);
 	}
@@ -2285,16 +2341,15 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 		unsigned long	k;
 		unsigned long	nlost;
 		nlost = ((unsigned long)(seq - (t->last_seq+1)));
-		sprintf(msgbuf, "%lu lost packet(s) for [%s] [%lu:%lu]"
+		ha_log(LOG_ERR, "%lu lost packet(s) for [%s] [%lu:%lu]"
 		,	nlost, thisnode->nodename, t->last_seq, seq);
-		ha_error(msgbuf);
 
 		if (nlost > SEQGAP) {
 			/* Something bad happened.  Start over */
 			/* This keeps the loop below from going a long time */
 			t->nmissing = 0;
 			t->last_seq = seq;
-			ha_error("lost a lot of packets!");
+			ha_log(LOG_ERR, "lost a lot of packets!");
 			return(IsToUs ? KEEPIT : DROPIT);
 		}
 		/* Try and Record each of the missing sequence numbers */
@@ -2362,7 +2417,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 		if ((sts = ha_msg_value(msg, F_TIME)) == NULL
 		||	sscanf(sts, "%lx", &newts) != 1 || newts == 0L) {
 			/* Toss it.  No valid timestamp */
-			ha_error("should_drop_message: bad timestamp");
+			ha_log(LOG_ERR, "should_drop_message: bad timestamp");
 			return(DROPIT);
 		}
 		/* Is the timestamp newer, and the sequence number smaller? */
@@ -2439,6 +2494,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.8  1999/10/03 03:13:47  alanr
+ * Moved resource acquisition to 'heartbeat', also no longer attempt to make the FIFO, it's now done in heartbeat.  It should now be possible to start it up more readily...
+ *
  * Revision 1.7  1999/10/02 18:12:08  alanr
  * Create fifo in heartbeat.c and change ha_perror() to  a var args thing...
  *

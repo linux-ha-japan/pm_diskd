@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.6 1999/10/02 18:12:09 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.7 1999/10/03 03:14:01 alanr Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -46,6 +46,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.6 1999/10/02 18:12:0
 #define	MAXPROCS	((MAXNODE*2)+2)
 
 #define	FIFOMODE	0600
+#define	RQSTDELAY	10
 
 #define	HA_FAIL		0
 #define	HA_OK		1

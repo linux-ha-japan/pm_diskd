@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.3 1999/09/30 18:34:27 alanr Exp $
+#	$Id: Makefile,v 1.4 1999/10/03 03:13:41 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -53,6 +53,7 @@ CFLAGS=-g 				\
 	-Werror				\
 	-I.				\
 	-DHA_D='"$(B_HA)"'		\
+	-DHALIB='"$(HALIB)"'		\
 	-DVAR_RUN_D='"$(B_VARRUN)"'	\
 	-DFIFONAME='"$(B_FIFO)"'	\
 	-DPPP_D='"$(B_HAPPP)"'
