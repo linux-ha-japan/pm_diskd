@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.8 2002/10/23 08:42:22 horms Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.9 2002/11/20 11:01:33 lars Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -117,12 +117,8 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.8 2002/10/23 08:42:22 hor
 #if defined(SO_BINDTODEVICE)
 #	include <net/if.h>
 #endif
-<<<<<<< ppp-udp.c
-#include <heartbeat.h>
-=======
 #include <heartbeat.h>
 #include <clplumbing/cl_signal.h>
->>>>>>> 1.6
 
 #define	EOS	'\0'
 
@@ -1217,6 +1213,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.9  2002/11/20 11:01:33  lars
+ * Fixed a CVS merge artifact. (Bad horms! ;-)
+ *
  * Revision 1.8  2002/10/23 08:42:22  horms
  * Added CL_PID_EXISTS conveince macro
  *
