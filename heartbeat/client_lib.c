@@ -351,6 +351,11 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
+	/*
+	 * Although we opened it for r/w as explained above, there's no need
+	 * to tell stdio that, because we're only going to read it.
+	 * So, we do an open(2), then an fdopen of the fd gotten from open().
+	 */
 	if ((pi->ReplyFIFO = fdopen(fd, "r")) == NULL) {
 		ha_log(LOG_ERR, "hb_api_signon: Can't fdopen reply fifo %s"
 		,	pi->ReplyFIFOName);
@@ -358,8 +363,12 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		return HA_FAIL;
 	}
 
-	/* Probably not necessary */
+#if 0
+	/* Probably a bad idea ;-) */
 	setvbuf(pi->ReplyFIFO, ReplyFdBuf, _IOLBF, sizeof(ReplyFdBuf));
+#else
+	setvbuf(pi->ReplyFIFO, NULL, _IONBF, 0);
+#endif
 
 
 	/* Open up the registration FIFO */
@@ -391,7 +400,10 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		rc = HA_OK;
 		pi->SignedOn = 1;
 
-		/* Now heartbeat has opened our request FIFO open */
+		/*
+		 * Heartbeat has now opened our request FIFO (for reading)
+		 * So it's now safe for us to open our end of it for writing.
+		 */
 		if ((pi->RequestFIFO = fopen(pi->ReqFIFOName, "w")) == NULL) {
 			ha_log(LOG_ERR, "hb_api_signon: Can't open req fifo %s"
 			,	pi->ReqFIFOName);
