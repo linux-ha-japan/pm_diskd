@@ -38,7 +38,7 @@ static char** MLModTypeListModules(MLModuleType* mtype, int* modcount);
 
 void	DelMLModuleUniv(MLModuleUniv*);
 /*
- *	These DelA* functions primarily called from has_table_foreach, but
+ *	These DelA* functions primarily called from hash_table_foreach, but
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  *
@@ -64,7 +64,7 @@ static MLModuleType* NewMLModuleType
 );
 static void	DelMLModuleType(MLModuleType*);
 /*
- *	These DelA* functions primarily called from has_table_foreach, but
+ *	These DelA* functions primarily called from hash_table_foreach, but
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  */
@@ -91,7 +91,7 @@ static int MLModmodrefcount(MLModuleType* mltype, const char * modulename
 static MLPluginUniv*	NewMLPluginUniv(MLModuleUniv*);
 static void		DelMLPluginUniv(MLPluginUniv*);
 /*
- *	These DelA* functions primarily called from has_table_foreach, but
+ *	These DelA* functions primarily called from hash_table_foreach, but
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  */
@@ -104,11 +104,11 @@ static void		DelAMLPluginType
 static MLPluginType*	NewMLPluginType
 (	MLPluginUniv*
 ,	const char * typename
-,	const void* pieports, void* user_data
+,	void* pieports, void* user_data
 );
 static void		DelMLPluginType(MLPluginType*);
 /*
- *	These DelA* functions primarily called from has_table_foreach, but
+ *	These DelA* functions primarily called from hash_table_foreach, but
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  */
@@ -121,7 +121,7 @@ static void		DelAMLPlugin
 static MLPlugin*	NewMLPlugin
 (	MLPluginType*	plugintype
 ,	const char*	pluginname
-,	const void *	exports
+,	void *		exports
 ,	void*		ud_plugin
 );
 static void		DelMLPlugin(MLPlugin*);
@@ -150,10 +150,10 @@ MLRegisterAPlugin
 (	MLModule*	modinfo
 ,	const char *	plugintype	/* Type of plugin	*/
 ,	const char *	pluginname	/* Name of plugin	*/
-,	const void*	Ops		/* Info (functions) exported
+,	void*	Ops		/* Info (functions) exported
 					   by this plugin	*/
 ,	void**		pluginid	/* Plugin id 	(OP)	*/
-,	const void**	Imports		/* Functions imported by
+,	void**	Imports		/* Functions imported by
 					 this plugin	(OP)	*/
 ,	void*		ud_plugin	/* plugin user data */
 );
@@ -171,14 +171,9 @@ static MLModuleImports MLModuleImportSet =
 ,	MLLog			/* Logging function */
 };
 
-static MLPlugin*	pipi_register_plugin(MLPluginType* env
-				,	const char * pluginname
-				,	const void * exports
-				,	void * ud_plugin
-				,	const void** imports);
-static ML_rc		pipi_unregister_plugin(MLPlugin* plugin);
-static ML_rc		pipi_close_plugin(MLPlugin* plugin
-				,	MLPlugin* pi2);
+static ML_rc	pipi_register_plugin(MLPlugin* newpi
+		,		void** imports);
+static ML_rc	pipi_unregister_plugin(MLPlugin* plugin);
 
 #if 0
 static MLPluginType*	pipi_new_plugintype(MLPluginUniv*);
@@ -192,10 +187,9 @@ static void		pipi_del_while_walk(gpointer key, gpointer value
  *	(The PluginPlugin plugin)
  */
 
-static const MLPluginOps  PiExports =
+static MLPluginOps  PiExports =
 {	pipi_register_plugin
 ,	pipi_unregister_plugin
-,	pipi_close_plugin
 };
 
 static int PiRefCount(MLPlugin * pih);
@@ -203,7 +197,7 @@ static int PiModRefCount(MLPlugin*epiinfo,int plusminus);
 static void PiUnloadIfPossible(MLPlugin *epiinfo);
 
 
-static const MLPluginImports PIHandlerImports = {
+static MLPluginImports PIHandlerImports = {
 	PiRefCount,
 	PiModRefCount,
 	PiUnloadIfPossible,
@@ -296,7 +290,7 @@ DelMLModuleType(MLModuleType*mtype)
 	g_free(mtype);	mtype=NULL;
 }
 /*
- *	These DelA* functions primarily called from has_table_foreach, 
+ *	These DelA* functions primarily called from hash_table_foreach, 
  *	so they have gpointer arguments.  This *not necessarily* clause
  *	is why they do the g_hash_table_lookup_extended call instead of
  *	just deleting the key.  When called from outside, the key *
@@ -363,7 +357,7 @@ DelMLModuleUniv(MLModuleUniv* moduniv)
 }
 
 /*
- *	These DelA* functions primarily called from has_table_foreach, 
+ *	These DelA* functions primarily called from hash_table_foreach, 
  *	so they have gpointer arguments.  This *not necessarily* clause
  *	is why they do the g_hash_table_lookup_extended call instead of
  *	just deleting the key.  When called from outside, the key *
@@ -410,7 +404,7 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	MLModuleType*	modtype;
 	MLPlugin*	piinfo;
 	MLPluginType*	pitype;
-	const void*	dontcare;
+	void*		dontcare;
 	MLModule*	pipi_module;
 	ML_rc		rc;
 
@@ -453,8 +447,8 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	 */
 
 	/* The first argument is the MLPluginType* */
-	piinfo = pipi_register_plugin(pitype, PLUGIN_PLUGIN, &PiExports
-	,	NULL, &dontcare);
+	piinfo = NewMLPlugin(pitype, PLUGIN_PLUGIN, &PiExports, NULL);
+	pipi_register_plugin(piinfo, &dontcare);
 
 	/* FIXME (unfinished module) (?) */
 	return(ML_OK);
@@ -514,7 +508,7 @@ ml_close (MLModule* module)
 static MLPlugin*
 NewMLPlugin(MLPluginType*	plugintype
 	,	const char*	pluginname
-	,	const void *	exports
+	,	void *		exports
 	,	void*		ud_plugin)
 {
 	MLPlugin*	ret = NULL;
@@ -551,7 +545,7 @@ DelMLPlugin(MLPlugin* pi)
 
 static MLPluginType*
 NewMLPluginType(MLPluginUniv*univ, const char * typename
-,	const void* pieports, void* user_data)
+,	void* pieports, void* user_data)
 {
 	MLPluginType*	pipi_types;
 	MLPlugin*	pipi_ref;
@@ -588,7 +582,7 @@ DelMLPluginType(MLPluginType*pit)
 }
 
 /*
- *	These DelA* functions primarily called from has_table_foreach, 
+ *	These DelA* functions primarily called from hash_table_foreach, 
  *	so they have gpointer arguments.  This *not necessarily* clause
  *	is why they do the g_hash_table_lookup_extended call instead of
  *	just deleting the key.  When called from outside, the key *
@@ -622,7 +616,7 @@ DelAMLPlugin
 }
 
 /*
- * close_a_plugin:	(forcibly) close (shutdown) a plugin if possible
+ * close_a_plugin:	Close (unregister) a plugin if possible
  *
  * Although this code deals with plugins, strangely enough its
  * part of the module code...
@@ -666,38 +660,25 @@ close_a_plugin
 	/* Find the exported functions from that PIPI */
 	exports =  pipi_ref->exports;
 
-	g_assert(exports != NULL && exports->CloseOurPI != NULL);
+	g_assert(exports != NULL && exports->UnRegisterPlugin != NULL);
 
 	/* Now, ask that function to shut us down properly and close us up */
-	exports->CloseOurPI(pipi_ref, plugin);
+	exports->UnRegisterPlugin(plugin);
 }
 
 
 /* Register a Plugin Plugin (Plugin manager) */
-static MLPlugin*
-pipi_register_plugin(MLPluginType* pitype
-	,	const char * pluginname, const void * exports
-	,	void *		user_data
-	,	const void**	imports)
+static ML_rc
+pipi_register_plugin(MLPlugin* pi
+,		void**	imports)
 {
-	MLPlugin* ret;
-
 	if (DEBUGMODULE) {
 		MLLog(ML_DEBUG
 		, 	"Registering Plugin manager for type '%s'"
-		,	pluginname);
+		,	pi->pluginname);
 	}
-	if (g_hash_table_lookup(pitype->plugins, pluginname) != NULL) {
-		if (DEBUGMODULE) {
-			MLLog(ML_DEBUG, "duplicate plugin %s", pluginname);
-		}
-
-		return NULL;
-	}
-	ret = NewMLPlugin(pitype, pluginname, exports, user_data);
-	g_hash_table_insert(pitype->plugins, g_strdup(pluginname), ret);
 	*imports = &PIHandlerImports;
-	return ret;
+	return ML_OK;
 }
 
 /* Unconditionally unregister a plugin manager (Plugin Plugin) */
@@ -718,16 +699,6 @@ pipi_unregister_plugin(MLPlugin* plugin)
 	return ML_OK;
 }
 
-/* I'm a little confused: FIXME (ALR) */
-
-/* Close / UnRegister a Plugin Plugin of type Plugin */
-static ML_rc
-pipi_close_plugin(MLPlugin* basepi, MLPlugin*plugin)
-{
-	/* Basepi and plugin ought to be the same for us... */
-	g_assert(basepi == plugin);
-	return pipi_unregister_plugin(basepi);
-}
 
 #if 0
 static MLPluginType*
@@ -1008,10 +979,10 @@ static ML_rc
 MLRegisterAPlugin(MLModule* modinfo
 ,	const char *	plugintype	/* Type of plugin	*/
 ,	const char *	pluginname	/* Name of plugin	*/
-,	const void*	Ops		/* Info (functions) exported
+,	void*		Ops		/* Info (functions) exported
 					   by this plugin	*/
 ,	void**		pluginid	/* Plugin id 	(OP)	*/
-,	const void**	Imports		/* Functions imported by
+,	void**	Imports		/* Functions imported by
 					 this plugin	(OP)	*/
 ,	void*		ud_plugin	/* Optional user_data */
 )
@@ -1026,6 +997,7 @@ MLRegisterAPlugin(MLModule* modinfo
 	MLPlugin*	pipiinfo;	/* Plugin info for "plugintype" */
 	const MLPluginOps* piops;	/* Ops vector for PluginPlugin */
 					/* of type "plugintype" */
+	ML_rc		rc;
 
 	if (	 modinfo == NULL
 	||	(modtype = modinfo->moduletype)	== NULL
@@ -1078,14 +1050,15 @@ MLRegisterAPlugin(MLModule* modinfo
 
 	/* Now we have all the information anyone could possibly want ;-) */
 
-	/* Call the registration function for our plugin type */
-	piinfo = piops->RegisterPlugin(pitype, pluginname, Ops
-	,	ud_plugin
-	,	Imports);
+	piinfo = NewMLPlugin(pitype, pluginname, Ops, ud_plugin);
+	g_hash_table_insert(pitype->plugins, g_strdup(pluginname), piinfo);
 	*pluginid = piinfo;
 
+	/* Call the registration function for our plugin type */
+	rc = piops->RegisterPlugin(piinfo, Imports);
+
 	/* FIXME! need to increment the ref count for the plugin manager */
-	return (piinfo == NULL ? ML_OOPS : ML_OK);
+	return rc;
 }
 
 static MLPluginUniv*
@@ -1118,7 +1091,7 @@ DelMLPluginUniv(MLPluginUniv* piuniv)
 }
 
 /*
- *	These DelA* functions primarily called from has_table_foreach, 
+ *	These DelA* functions primarily called from hash_table_foreach, 
  *	so they have gpointer arguments.  This *not necessarily* clause
  *	is why they do the g_hash_table_lookup_extended call instead of
  *	just deleting the key.  When called from outside, the key *

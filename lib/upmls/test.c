@@ -36,11 +36,11 @@ static MLPluginOps		OurPiOps = {
 	/* FIXME -- put some in here !! */
 };
 
-ML_rc ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports, void*);
+ML_rc ML_MODULE_INIT(MLModule*us, MLModuleImports* imports, void*);
 
 
 ML_rc
-ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports, void *user_ptr)
+ML_MODULE_INIT(MLModule*us, MLModuleImports* imports, void *user_ptr)
 {
 	ML_rc		ret;
 	/*
@@ -68,7 +68,7 @@ ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports, void *user_ptr)
 	,	MODNAME
 	,	&OurPiOps
 	,	(void **)&OurPi
-	,	(const void**)&OurPiImports
+	,	(void**)&OurPiImports
 	,	NULL);
 	imports->log(ML_DEBUG, "Returning %d", ret);
 
