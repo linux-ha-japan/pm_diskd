@@ -46,6 +46,20 @@ logfacility	local0
 #
 #initdead 120
 #
+#
+#	nice_failback:  determines whether a resource will
+#	fail back to its "primary" node, or remain on whatever
+#	node is serving it until that node fails.
+#
+#	The default is "off", which means that it WILL fail
+#	back to the node which is declared as primary in haresources
+#
+#	"on" means that resources only move to new nodes when
+#	the nodes they are served on die.  This is deemed as a
+#	"nice" behavior (unless you want to do active-active).
+#
+#nice_failback on
+#
 #	hopfudge maximum hop count minus number of nodes in config
 #hopfudge 1
 #	
