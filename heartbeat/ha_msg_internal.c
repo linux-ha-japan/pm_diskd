@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.15 2002/03/15 14:26:36 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.16 2002/03/27 02:10:22 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -282,18 +282,16 @@ add_msg_auth(struct ha_msg * m)
 		const char *	from;
 		const char *	ts;
 		const char *	type;
-		const char *	cseq;
 
 		/* Extract message type, originator, timestamp, auth */
 		type = ha_msg_value(m, F_TYPE);
 		from = ha_msg_value(m, F_ORIG);
 		ts = ha_msg_value(m, F_TIME);
-		cseq = ha_msg_value(m, F_SEQ);
 
-		if (from == NULL || ts == NULL || type == NULL || cseq == NULL) {
+		if (from == NULL || ts == NULL || type == NULL) {
 			ha_log(LOG_ERR
 			,	"add_msg_auth: %s:  from %s"
-			,	"missing from/ts/type/seqno"
+			,	"missing from/ts/type"
 			,	(from? from : "<?>"));
 			ha_log_message(m);
 		}
@@ -488,6 +486,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.16  2002/03/27 02:10:22  alan
+ * Finished (hopefully) the last bug fix.  Now it won't complain
+ * if it authenticates a packet without a sequence number.  This was kinda
+ * dumb anyway.  I know packets go out w/o seq numbers...
+ *
  * Revision 1.15  2002/03/15 14:26:36  alan
  * Added code to help debug the current missing to/from/ts/,etc. problem...
  *
