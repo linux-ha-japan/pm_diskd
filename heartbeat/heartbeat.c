@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.49 2000/05/17 13:01:49 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.50 2000/05/27 07:43:06 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1200,6 +1200,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 		case 0:	{	/* Child */
 				int	j;
 				make_normaltime();
+				signal(SIGCHLD, SIG_DFL);
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
 					sprintf(ename, "HA_%s", msg->names[j]);
@@ -1755,10 +1756,11 @@ req_our_resources()
 		default:	return;
 
 		case 0:		/* Child */
-				make_normaltime();
 				break;
 	}
 
+	make_normaltime();
+	signal(SIGCHLD, SIG_DFL);
 	ha_log(LOG_INFO, "Requesting our resources.");
 	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
 
@@ -1828,10 +1830,11 @@ giveup_resources()
 				return;
 
 		case 0:		/* Child */
-				make_normaltime();
 				break;
 	}
 	
+	make_normaltime();
+	signal(SIGCHLD, SIG_DFL);
 	ha_log(LOG_INFO, "Giving up all HA resources.");
 	/*
 	 *	We could do this ourselves fairly easily...
@@ -1896,10 +1899,11 @@ main(int argc, const char ** argv)
 	extern int	optind;
 	pid_t	running_hb_pid = get_running_hb_pid();
 
-	cmdname = argv[0];
-	if ((cmdname = strrchr(cmdname, '/')) != NULL) {
+	if ((cmdname = strrchr(argv[0], '/')) != NULL) {
 		++cmdname;
 		argv[0] = cmdname;
+	}else{
+		cmdname = argv[0];
 	}
 
 	Argc = argc;
@@ -2759,6 +2763,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.50  2000/05/27 07:43:06  alan
+ * Added code to set signal(SIGCHLD, SIG_DFL) in 3 places.  Fix due to lclaudio and Fabio Olive Leite
+ *
  * Revision 1.49  2000/05/17 13:01:49  alan
  * Changed argv[0] and cmdname to be shorter.
  * Changed ha parsing function to close ha.cf.
