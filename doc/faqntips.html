@@ -68,8 +68,18 @@ automatically. &nbsp;How can I require human confirmation before failing
 over?</a></li>
   <li><a href="#STONITH">What is STONITH? &nbsp;And why might I need it?</a><br>
  </li>
+  <li><a href="#config_stonith">How do I figure out what STONITH devices
+	are available, and how to configure them?</a><br>
+ </li>
    <li><a href="#self_fence">I want to use a shared disk, but I don't want
-to use STONITH. &nbsp;Any recommendations?</a><br>
+	to use STONITH. &nbsp;Any recommendations?</a><br>
+   </li>
+   <li><a href="#why_auto_failback">What is this auto_failback parameter?
+	What happened to the old nice_failback parameter?</a>
+   </li>
+   <li><a href="#auto_failback_upgrade">I am upgrading from a version of
+	Linux-HA which supported nice_failback to one that supports
+	auto_failback.</a>  How to I avoid a flash cut in this upgrade?
    </li>
    <li> <a href="#last_hope">If nothing helps, what should I do ?</a></li>
   <li><a href="#patches">I want to submit a patch, how do I do that?</a><br>
@@ -342,6 +352,14 @@ network segment and not propagate through routers), multicast loopback disabled
 	Linux-HA mailing list.
    </li><br>
 
+   <li><a name="config_stonith">To get the list of supported STONITH
+	devices</a>, issue this command:
+	<br><tt>stonith -L</tt><br>
+	To get all the gory details on exactly what these STONITH device
+	names mean, and how to configure them, issue this command:
+	<br><tt>stonith -h</tt><br>
+	</li>
+
    <li><a name="self_fence">This is not something which heartbeat supports
 	directly, however, there are a few kinds of resources which
 	are "self-fencing".&nbsp;</a>
@@ -353,6 +371,67 @@ network segment and not propagate through routers), multicast loopback disabled
 	Vortex RAID controllers - but do your homework!!! &nbsp;
 	When in doubt check with the mailing list.
    </li><br>
+
+   <li><a name="why_auto_failback">The <b>auto_failback</b> parameter
+	is a replacement for the old <b>nice_failback</b> parameter.</a>
+	The old value <b>nice_failback on</b> is replaced by
+		<b>auto_failback off</b>.
+	The old value <b>nice_failback off</b> is logically replaced by
+		the new <b>auto_failback on</b> parameter.
+		Unlike the old <b>nice_failback off</b> behavior,
+		the new <b>auto_failback on</b> allows the use
+		of the ipfail and hb_standby facilities.
+	<p>During upgrades from nice_failback to auto_failback, it is
+		sometimes necessary to set <b>auto_failback</b> to
+		<b>legacy</b>, as described in the
+   		<a href="#auto_failback_upgrade">upgrade procedure</a>
+		below.</p>
+   </li>
+
+
+   <li><a name="auto_failback_upgrade">
+	To upgrade from a pre-auto_failback version of heartbeat to one
+	which supports auto_failback, the following procedures are
+	recommended to avoid a flash cut on the whole
+	cluster.</a>
+	<ol>
+	<li>Stop heartbeat on one node in the cluster.</li>
+	<li>upgrade this node.  If the other node has
+		<b>nice_failback on</b> in ha.cf then set
+		<b>auto_failback off</b> in the new ha.cf file.
+		If the other node in the cluster has
+		<b>nice_failback off</b> then set
+		<b>auto_failback legacy</b> in the new ha.cf file.
+	<li>Start the new version of heartbeat on this node.</li>
+	<li>Stop heartbeat on the other node in the cluster.</li>
+	<li>upgrade this second node in the cluster with the new
+		version of heartbeat.  Set auto_failback
+		the same as it was set in the previous step.
+		</li>
+	<li>Start heartbeat on this second node in the cluster.</li>
+	<li>If you set <b>auto_failback</b> to <b>on</b> or
+		<b>off</b>, then you are done.  Congratulations!
+		</li>
+	<li>If you set <b>auto_failback legacy</b> in your ha.c file,
+		then continue as described below...
+		</li>
+	<li>Schedule a time to shut down the entire
+		cluster for a few seconds.
+		</li>
+	<li>At the scheduled time, stop both nodes in the cluster,
+		and then change the value of <b>auto_failback</b>
+		to <b>on</b> in the ha.cf file on both sides.
+		</li>
+	<li>Restart both nodes on the cluster at about the same
+		time.
+		</li>
+	<li>Congratulations, you're done!
+		You can now use ipfail, and can also
+		use the <i>hb_standby</i> command
+		to cause manual resource moves.
+		</li>
+	</ol>
+	</li>
 
    <li> <a name="last_hope">Please be sure that you read all documentation</a>
 	and searched mail list archives. If you still can't find a
