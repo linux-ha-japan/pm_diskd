@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.8 2000/04/12 23:03:49 marcelo Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.9 2000/05/09 00:38:44 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -43,7 +43,6 @@ extern volatile struct pstat_shm *	procinfo;
 extern volatile struct process_info *	curproc;
 extern char *				watchdogdev;
 extern int				nummedia;
-extern int                              nice_failback;
 
 int	islegaldirective(const char *directive);
 int     parse_config(const char * cfgfile, char *nodename);
@@ -189,7 +188,6 @@ init_config(const char * cfgfile)
 #define	KEY_FACILITY	"logfacility"
 #define	KEY_LOGFILE	"logfile"
 #define	KEY_DBGFILE	"debugfile"
-#define KEY_FAILBACK    "nice_failback"
 
 int add_node(const char *);
 int set_hopfudge(const char *);
@@ -201,7 +199,6 @@ int set_udpport(const char *);
 int set_facility(const char *);
 int set_logfile(const char *);
 int set_dbgfile(const char *);
-int set_nice_failback(const char *);
 
 extern const struct hb_media_fns	ip_media_fns;
 extern const struct hb_media_fns	serial_media_fns;
@@ -231,7 +228,6 @@ struct directive {
 ,	{KEY_FACILITY,  set_facility}
 ,	{KEY_LOGFILE,   set_logfile}
 ,	{KEY_DBGFILE,   set_dbgfile}
-,       {KEY_FAILBACK,  set_nice_failback}
 };
 
 
@@ -861,15 +857,3 @@ set_logfile(const char * value)
 	return(HA_OK);
 }
 
-/* sets nice_failback behavior on/off */
-int
-set_nice_failback(const char * value)
-{
-        if(!strcasecmp(value, "on")) {
-                nice_failback = 1;
-        } else {
-                nice_failback = 0;
-        }
-
-        return(HA_OK);
-}

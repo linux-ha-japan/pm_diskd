@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.45 2000/05/03 01:48:28 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.46 2000/05/09 00:38:44 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -180,9 +180,7 @@ int		RestartRequested = 0;
 int		WeAreRestarting = 0;
 int             cluster_already_active = 0;
 int             we_are_primary = 0;
-int             send_starting_now = 1;
 int             nice_failback = 0;
-int		starting = 1;
 int		killrunninghb = 0;
 int		rpt_hb_status = 0;
 int		childpid = -1;
@@ -875,7 +873,6 @@ master_status_process(void)
 	struct ha_msg *		msg = NULL;
 	int			resources_requested_yet = 0;
 	time_t			lastnow = 0L;
-	int 			received_starting = 0;
 	char	iface[MAXIFACELEN];
 	struct	link *lnk;
 
@@ -895,13 +892,6 @@ master_status_process(void)
 			send_status_now = 0;
 			send_local_status();
 		}
-
-		if ((send_starting_now && nice_failback) && starting) {
-			send_starting_now = 0;
-			ha_log(LOG_DEBUG, "Sending starting msg");
-			send_local_starting();
-		}
-
 		if (dump_stats_now) {
 			dump_stats_now = 0;
 			dump_all_proc_stats();
@@ -980,25 +970,6 @@ master_status_process(void)
 			}
 		}
 
-
-
-		/* If we're starting and a "starting" message came from another
-		 *  node, the primary may take its role. Else act as secondary 
-		 *  (of course, if nice_failback is on)
-		*/
-		
-		if (!strcasecmp(type,NOSEQ_PREFIX T_STARTING) 
-		&& thisnode != curnode && (starting && nice_failback)) {
-                        nice_failback = 0;
-			cluster_already_active = 0;
-			received_starting = 1;
-			starting = 0;
-			ha_log(LOG_DEBUG,"Received starting msg from %s"
-					,from);
-			send_local_starting();
-			continue;
-		}
-				
 		/*
 		 * Request our resources after a (PPP-induced) delay.
 		 * If we have PPP as our only link this delay might have
@@ -1008,22 +979,11 @@ master_status_process(void)
 		 * in from somewhere else, then cluster comm is working...
 		 *
 		 */
-
-                if (!WeAreRestarting && !resources_requested_yet
-		&&	(thisnode != curnode && (now-starttime) > RQSTDELAY)) {
-			if (nice_failback && !received_starting) {
-				ha_log(LOG_DEBUG,
-					"The cluster is already active");
-				cluster_already_active = 1;
-			} else {
-				if (nice_failback && received_starting) {
-					ha_log(LOG_DEBUG,
-						"Everybody is starting now");
-				}
-			}
-			resources_requested_yet=1;
-			starting = 0;
-			req_our_resources();
+	
+		if (!WeAreRestarting && !resources_requested_yet
+		&&	(thisnode != curnode || (now-starttime) > RQSTDELAY)) {
+				resources_requested_yet=1;
+				req_our_resources();
 		}
 
 		if (!strcasecmp(type,NOSEQ_PREFIX T_STARTING)) {
@@ -1038,9 +998,10 @@ master_status_process(void)
 			const char *	status;
 			const char *	cseq;
 			long		seqno;
+
 			case DUPLICATE:
 
-			if(!lnk) continue;
+			if (!lnk) continue;
 
 			sscanf(ts, "%lx", &msgtime);
 			status = ha_msg_value(msg, F_STATUS);
@@ -1071,8 +1032,9 @@ master_status_process(void)
 				, thisnode->nodename, lnk->name, status);
 				strcpy(lnk->status, status);
 			}
-		continue;
-		case DROPIT:
+			continue;
+
+			case DROPIT:
 			/* Ignore it */
  			continue;
 		} 
@@ -1102,7 +1064,7 @@ master_status_process(void)
 			}
 
 			/* Do we already have a newer status? */
-			if (msgtime < thisnode->rmt_lastupdate 
+			if (msgtime < thisnode->rmt_lastupdate
 			&&	seqno < thisnode->status_seqno) {
 				continue;
 			}
@@ -1111,7 +1073,7 @@ master_status_process(void)
 
 			thisnode->rmt_lastupdate = msgtime;
 
-			if(lnk) {
+			if (lnk) {
 				thisnode->local_lastupdate = lnk->lastupdate = times(NULL);
 			}else{
 				thisnode->local_lastupdate = times(NULL);
@@ -1481,7 +1443,7 @@ check_node_timeouts(void)
 	clock_t	now = times(NULL);
 	struct node_info *	hip;
 	clock_t dead_ticks = (CLK_TCK * config->deadtime_interval);
-	clock_t TooOld = now - dead_ticks;
+	clock_t	TooOld = now - dead_ticks;
 	int	j;
 
 	/* We need to be careful to handle clock_t wrapround carefully */
@@ -1576,37 +1538,6 @@ send_cluster_msg(struct ha_msg* msg)
 	return(HA_OK);
 }
 
-/* Send the starting msg out to the cluster */
-int
-send_local_starting(void)
-{
-        struct ha_msg * m;
-        int             rc;
-        char            timestamp[16];
-
-        sprintf(timestamp, "%lx", time(NULL));
-
-        /* if (debug){ */
-                ha_log(LOG_DEBUG, "Sending local starting msg");
-        /* } */
-        if ((m=ha_msg_new(0)) == NULL) {
-                ha_log(LOG_ERR, "Cannot send local starting msg");
-                return(HA_FAIL);
-        }
-        if ((ha_msg_add(m, F_TYPE, NOSEQ_PREFIX T_STARTING) == HA_FAIL) 
-        &&  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
-        &&  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)) {
-                ha_log(LOG_ERR, "send_local_starting: "
-                "Cannot create local starting msg");
-                rc = HA_FAIL;
-        }else{
-                rc = send_cluster_msg(m);
-        }
-
-        ha_msg_del(m);
-        return(rc);
-}
-
 /* Send our local status out to the cluster */
 int
 send_local_status(void)
@@ -1671,29 +1602,13 @@ mark_node_dead(struct node_info *hip)
 	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
 
 	heartbeat_monitor(hmsg);
-	
-	if (starting && nice_failback && hip != curnode) {
-		ha_log(LOG_DEBUG, "I'm alone... ");
-		/* This is one of the  place to put the
-		 * SIT_AND_CRY stuff */
-		nice_failback = 0;
-		req_our_resources();
-	}
-			
 	notify_world(hmsg, hip->status);
 	strcpy(hip->status, "dead");
 	if (hip == curnode) {
 		/* Uh, oh... we're dead! */
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
-	} else {
-                if (we_are_primary && nice_failback) {
-                        ha_log(LOG_DEBUG,"%s",  "We are primary again!");
-                        we_are_primary = 0;
-                        req_our_resources();
-                }
-        }
-
+	}
 	ha_msg_del(hmsg);
 }
 
@@ -1735,7 +1650,7 @@ void init_monitor()
 	}
 
 	if ((monfd = open(MONFILE, O_WRONLY)) < 0) {
-		ha_error("Cannot open " MONFILE);
+		ha_perror("Cannot open " MONFILE);
 		lasttry = now;
 		return;
 	}
@@ -1862,25 +1777,12 @@ req_our_resources()
 		if (buf[strlen(buf)-1] == '\n') {
 			buf[strlen(buf)-1] = EOS;
 		}
-
-                /* If the cluster is already active, act as standby. */
-                if (cluster_already_active && nice_failback) {
-                        ha_log(LOG_DEBUG,
-                        "Acting as standby for resource %s",buf);
-                } else {
-			sprintf(getcmd, HALIB "/req_resource %s &", buf);
-			if ((rc=system(getcmd)) != 0) {
-				ha_perror("%s returned %d", getcmd, rc);
-				finalrc=HA_FAIL;
-			}
+		sprintf(getcmd, HALIB "/req_resource %s &", buf);
+		if ((rc=system(getcmd)) != 0) {
+			ha_perror("%s returned %d", getcmd, rc);
+			finalrc=HA_FAIL;
 		}
 	}
-
-        if (rsc_count && nice_failback) {
-                cluster_already_active = 0;
-                we_are_primary = 1;
-        }
-
 	rc=pclose(rkeys);
 	if (rc < 0 && errno != ECHILD) {
 		ha_perror("pclose(%s) returned %d", cmd, rc);
@@ -1985,6 +1887,7 @@ main(int argc, const char ** argv)
 	extern int	optind;
 	pid_t	running_hb_pid = get_running_hb_pid();
 
+	cmdname = argv[0];
 	Argc = argc;
 	Argv = argv;
 
@@ -2842,6 +2745,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.46  2000/05/09 00:38:44  alan
+ * Removed most of the nice_failback code.
+ *
  * Revision 1.45  2000/05/03 01:48:28  alan
  * Added code to make non-heartbeat child processes not run as realtime procs.
  * Also fixed the message about creating FIFO to not be an error, just info.
