@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.5 1999/10/04 03:23:14 alanr Exp $
+#	$Id: Specfile,v 1.6 1999/10/04 13:50:55 alanr Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -46,6 +46,7 @@ It implements the following kinds of heartbeats:
   + Changed resource relinquishment on heartbeat shutdown to occur in heartbeat,
 	instead of in the stop script.  This means you don't *really* have to
 	use the start/stop script if you don't want to.
+  + Fixed a bug where the FIFO doesn't get created.
 
 * Thu Sep 16 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>
