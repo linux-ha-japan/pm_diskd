@@ -178,7 +178,7 @@ class LogWatcher:
             if newsize < self.size:
                 # Somebody truncated the log!
                 if self.debug: print "Log truncated!"
-                self.setwatch(frombeginning=1, timeout=timeout)
+                self.setwatch(frombeginning=1)
                 continue
             if newsize > self.file.tell():
                 line=self.file.readline()
