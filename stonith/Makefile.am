@@ -50,9 +50,36 @@ libstonith_la_LDFLAGS	= -version-info 0:0:0
 
 ## modules
 
+#
+#	The VACM and APC SNMP plugins require some more unusual libraries
+#	so we make them optional...
+#
+
+#
+#	We need "vacmclient_api.h" and -lvacmclient to make the VACM
+#	plugin work.
+#
+if USE_VACM
+vacm_LIB = vacm.la
+else
+vacm_LIB = 
+endif
+
+#
+#	We need <ucd-snmp/asn1.h>, <ucd-snmp/snmp_api.h>, <ucd-snmp/snmp.h>
+#	<ucd-snmp/snmp_client.h>, <ucd-snmp/mib.h>, -lsnmp and -lcrypto
+#	for the apcmastersnmp plugin to work
+#
+
+if USE_UCD_SNMP
+apcmastersnmp_LIB = apcmastersnmp.la
+else
+apcmastersnmp_LIB = 
+endif
+
 stonithlib_LTLIBRARIES	=	\
 	apcmaster.la		\
-	apcmastersnmp.la		\
+	$(apcmastersnmp_LIB)	\
 	apcsmart.la		\
 	baytech.la		\
 	meatware.la		\
@@ -60,6 +87,7 @@ stonithlib_LTLIBRARIES	=	\
 	nw_rpc100s.la		\
 	rps10.la		\
 	ssh.la			\
+	$(vacm_LIB)		\
 	wti_nps.la
 
 
@@ -89,6 +117,9 @@ rps10_la_LDFLAGS	= -no-undefined -module -avoid-version
 
 ssh_la_SOURCES		= ssh.c expect.c 
 ssh_la_LDFLAGS		= -no-undefined -module -avoid-version
+
+vacm_la_SOURCES		= vacm.c expect.c 
+vacm_la_LDFLAGS		= -no-undefined -module -avoid-version -lvacmclient
 
 wti_nps_la_SOURCES	= meatware.c expect.c 
 wti_nps_la_LDFLAGS	= -no-undefined -module -avoid-version
