@@ -24,7 +24,7 @@ make distcheck can be problematic. The following should allow
 this to run successfully, noting that gmake is often available
 as make:
 
-gmake DESTDIR="$PWD/heartbeat-1.0.2/=inst" distcheck
+gmake DESTDIR="$PWD/heartbeat-@VERSION@/=inst" distcheck
 
 For more information on the project, see the web site at linux-ha.org.
 Information on joining mailing lists can be found at

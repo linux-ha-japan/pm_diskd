@@ -25,7 +25,7 @@
 ##                        $(auxdir)/sys_siglist.m4
 EXTRA_DIST              = bootstrap rc.config.heartbeat \
 				heartbeat.spec.in heartbeat.spec	\
-				ConfigureMe autoconf-2.53.diff
+				ConfigureMe autoconf-2.53.diff README
 
 RPMREL			= @RPMREL@
 RPM			= @RPM@
