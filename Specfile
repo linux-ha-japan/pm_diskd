@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.37 2000/04/27 12:50:20 alan Exp $
+#	$Id: Specfile,v 1.38 2000/04/27 13:24:34 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -51,6 +51,7 @@ It implements the following kinds of heartbeats:
     files should we crash in the future.  Thanks to Holger Kiehl for diagnosing
     the problem.
   + Changed the default port number to our official IANA port number (694)
+  + Fixed the serial locking code so that it unlocks when it shuts down.
 
 * Sat Dec 25 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,

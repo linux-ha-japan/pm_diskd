@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.12 2000/04/11 22:12:22 horms Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.13 2000/04/27 13:24:34 alan Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -202,7 +202,7 @@ ttylock(const char *serial_device)
 			if (sscanf(buf, "%d", &pid) < 1) {
 				/* lockfile screwed up -> rm it and go on */
 			} else {
-				if (kill(pid, 0)==-1 && errno != ESRCH) {
+				if (kill(pid, 0) < 0 && errno != ESRCH) {
 					/* tty is locked by existing (not
 					 * necessarily running) process
 					 * -> give up */
@@ -253,7 +253,8 @@ ttylock(const char *serial_device)
  * do we need to check, if its (still) ours? No, IMHO, if someone else
  * locked our line, it's his fault  -tho
  * returns 0 on success
- * <0 if some failure occured */ 
+ * <0 if some failure occured
+ */ 
 STATIC
 int ttyunlock(const char *serial_device)
 {
@@ -521,6 +522,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.13  2000/04/27 13:24:34  alan
+ * Added comments about lock file fix. Minor corresponding code changes.
+ *
  * Revision 1.12  2000/04/11 22:12:22  horms
  * Now cleans locks on serial devices from dead processes succesfully
  *
