@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.7 2000/04/08 21:33:35 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.8 2000/04/12 23:03:49 marcelo Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -46,7 +46,7 @@ extern int				nummedia;
 extern int                              nice_failback;
 
 int	islegaldirective(const char *directive);
-int     parse_config(const char * cfgfile);
+int     parse_config(const char * cfgfile, char *nodename);
 int	parse_ha_resources(const char * cfgfile);
 void	dump_config(void);
 int	add_option(const char *	option, const char * value);
@@ -91,7 +91,7 @@ init_config(const char * cfgfile)
 	uname(&u);
 	curnode = NULL;
 
-        if (!parse_config(cfgfile)) {
+	if (!parse_config(cfgfile, u.nodename)) {
 		ha_log(LOG_ERR, "Heartbeat not started: configuration error.");
 		return(HA_FAIL);
 	}
@@ -107,6 +107,7 @@ init_config(const char * cfgfile)
 		ha_log(LOG_ERR, "No heartbeat ports defined");
 		++errcount;
 	}
+	
 #if !defined(MITJA)
 	/* We should probably complain if there aren't at least two... */
 	if (config->nodecount < 1) {
@@ -188,7 +189,7 @@ init_config(const char * cfgfile)
 #define	KEY_FACILITY	"logfacility"
 #define	KEY_LOGFILE	"logfile"
 #define	KEY_DBGFILE	"debugfile"
-#define KEY_FAILBACK    "nice_failback" 
+#define KEY_FAILBACK    "nice_failback"
 
 int add_node(const char *);
 int set_hopfudge(const char *);
@@ -238,7 +239,7 @@ struct directive {
  *	Parse the configuration file and stash away the data
  */
 int
-parse_config(const char * cfgfile)
+parse_config(const char * cfgfile, char *nodename)
 {
 	FILE	*	f;
 	char		buf[MAXLINE];
@@ -248,6 +249,9 @@ parse_config(const char * cfgfile)
 	char		option[MAXLINE];
 	int		optionlength;
 	int		errcount = 0;
+	int		j;
+	int		i;
+	clock_t		cticks;
 	struct stat	sbuf;
 
 	if ((f = fopen(cfgfile, "r")) == NULL) {
@@ -262,7 +266,6 @@ parse_config(const char * cfgfile)
 
 	while (fgets(buf, MAXLINE, f) != NULL) {
 		char *  bp = buf; 
-        	int	j;
 
 		/* Skip over white space */
 		bp += strspn(bp, WHITESPACE);
@@ -319,6 +322,24 @@ parse_config(const char * cfgfile)
 			bp += strspn(bp, DELIMS);
 		}
 	}
+
+	cticks = times(NULL);
+
+	for (j=0; j < nummedia; j++) {
+		for (i=0; i < config->nodecount; ++i) {
+			struct link *lnk = &config->nodes[i].links[j];
+			lnk->name = sysmedia[j]->name;
+			lnk->lastupdate = cticks;
+		}
+	}
+
+	j++;
+
+	for (i=0; i < config->nodecount; ++i) {
+		struct link *lnk = &config->nodes[i].links[j];
+		lnk->name = NULL;
+	}
+
 	fclose(f);
 	return(errcount ? HA_FAIL : HA_OK);
 }

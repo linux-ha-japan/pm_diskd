@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.41 2000/04/08 21:33:35 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.42 2000/04/12 23:03:49 marcelo Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -160,6 +160,9 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.41 2000/04/08 21:33:
 
 #define OPTARGS		"dkrRsv"
 
+#define	KEEPIT	0
+#define	DROPIT	1 
+#define DUPLICATE	2
 
 int		verbose = 0;
 
@@ -237,13 +240,15 @@ void	check_node_timeouts(void);
 void	request_msg_rexmit(struct node_info *, unsigned long lowseq, unsigned long hiseq);
 void	check_rexmit_reqs(void);
 void	mark_node_dead(struct node_info* hip);
+void	mark_link_dead(struct node_info* hip, struct link *lnk);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
 pid_t	get_running_hb_pid(void);
 void	make_daemon(void);
 void	heartbeat_monitor(struct ha_msg * msg);
 void	send_to_all_media(char * smsg, int len);
 void	init_monitor(void);
-int	should_drop_message(struct node_info* node, const struct ha_msg* msg);
+int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
+				const char *iface);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
 void	init_xmit_hist (struct msg_xmit_hist * hist);
@@ -306,7 +311,20 @@ init_procinfo()
 	}
 }
 
-
+/* Look up the interface in the node struct, returning the link info structure */
+struct link *
+lookup_iface(struct node_info * hip, const char *iface)
+{
+	struct link *lnk;
+	int j = 0;
+	while((lnk = &hip->links[j]) && lnk->name) {
+		if(strcmp(lnk->name, iface) == 0) {
+			return lnk;
+		}
+	j++;
+	}
+	return NULL;
+}
 
 /* Look up the node in the configuration, returning the node info structure */
 struct node_info *
@@ -610,7 +628,7 @@ read_child(struct hb_media* mp)
 			continue;
 		}
 
-                sm = msg2string(m);
+		sm = msg2if_string(m, mp->name);
 		if (sm != NULL) {
 			msglen = strlen(sm);
 			if (DEBUGPKT) {
@@ -648,7 +666,7 @@ write_child(struct hb_media* mp)
 
 	siginterrupt(SIGALRM, 1);
 	for (;;) {
-		struct ha_msg * msgp = msgfromstream(ourfp);
+		struct ha_msg * msgp = if_msgfromstream(ourfp, NULL);
 		if (msgp == NULL) {
 			continue;
 		}
@@ -784,6 +802,8 @@ master_status_process(void)
 	int			resources_requested_yet = 0;
 	time_t			lastnow = 0L;
 	int 			received_starting = 0;
+	char	iface[MAXIFACELEN];
+	struct	link *lnk;
 
 	init_status_alarm();
 	init_watchdog();
@@ -802,7 +822,7 @@ master_status_process(void)
 			send_local_status();
 		}
 
-                if ((send_starting_now && nice_failback) && starting) {
+		if ((send_starting_now && nice_failback) && starting) {
 			send_starting_now = 0;
 			ha_log(LOG_DEBUG, "Sending starting msg");
 			send_local_starting();
@@ -827,7 +847,9 @@ master_status_process(void)
 		}
 		lastnow = now;
 
-		msg = msgfromstream(f);
+		bzero(iface, MAXIFACELEN);
+
+		msg = if_msgfromstream(f, iface);
 
 		/* This may be caused by SIGALRM */
 		if (msg == NULL) {
@@ -930,15 +952,59 @@ master_status_process(void)
 			req_our_resources();
 		}
 
-                if (!strcasecmp(type,NOSEQ_PREFIX T_STARTING)) {
+		if (!strcasecmp(type,NOSEQ_PREFIX T_STARTING)) {
 			continue;
 		}
 
-                /* Is this message a duplicate, or destined for someone else? */
-                if (should_drop_message(thisnode, msg)) {
-                        continue;
-                }
+		lnk = lookup_iface(thisnode, iface);
 
+		/* Is this message a duplicate, or destined for someone else? */
+
+		switch (should_drop_message(thisnode, msg, iface)) {
+			const char *	status;
+			const char *	cseq;
+			long		seqno;
+			case DUPLICATE:
+
+			if(!lnk) continue;
+
+			sscanf(ts, "%lx", &msgtime);
+			status = ha_msg_value(msg, F_STATUS);
+			if (status == NULL)  {
+				ha_log(LOG_ERR, "master_status_process (duplicate): "
+				"status update without "
+				F_STATUS " field");
+				continue;
+			}
+			if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
+				if (sscanf(cseq, "%lx", &seqno) != 1
+				||	seqno <= 0) {
+					continue;
+				}
+			}
+
+			/* Do we already have a newer status? */
+			if (msgtime < lnk->rmt_lastupdate) { 
+				continue;
+			}
+
+			lnk->rmt_lastupdate = msgtime;
+
+			thisnode->local_lastupdate = lnk->lastupdate = times(NULL);
+
+			if (strcasecmp(lnk->status, status) != 0) {
+				ha_log(LOG_INFO, "node %s -- link %s: status %s"
+				, thisnode->nodename, lnk->name, status);
+				strcpy(lnk->status, status);
+			}
+		continue;
+		case DROPIT:
+			/* Ignore it */
+ 			continue;
+		} 
+
+		thisnode->track.last_iface = iface;
+ 
 		/* Is this a status update message? */
 		if (strcasecmp(type, T_STATUS) == 0) {
 			const char *	status;
@@ -961,8 +1027,8 @@ master_status_process(void)
 				}
 			}
 
-                        /* Do we already have a newer status? */
-                        if (msgtime < thisnode->rmt_lastupdate 
+			/* Do we already have a newer status? */
+			if (msgtime < thisnode->rmt_lastupdate 
 			&&	seqno < thisnode->status_seqno) {
 				continue;
 			}
@@ -970,10 +1036,16 @@ master_status_process(void)
 			heartbeat_monitor(msg);
 
 			thisnode->rmt_lastupdate = msgtime;
-                        thisnode->local_lastupdate = times(NULL);
+
+			if(lnk) {
+				thisnode->local_lastupdate = lnk->lastupdate = times(NULL);
+			}else{
+				thisnode->local_lastupdate = times(NULL);
+			}
+
 			thisnode->status_seqno = seqno;
 
-			/* Is the status the same? */
+			/* Is the node status the same? */
 			if (strcasecmp(thisnode->status, status) != 0) {
 				ha_log(LOG_INFO
 				,	"node %s: status %s"
@@ -981,6 +1053,15 @@ master_status_process(void)
 				,	status);
 				notify_world(msg, thisnode->status);
 				strcpy(thisnode->status, status);
+			}
+
+			/* Is the link status the same? */
+			if(lnk) {
+				if (strcasecmp(lnk->status, status) != 0) {
+					ha_log(LOG_INFO, "node %s -- link %s: status %s"
+					, thisnode->nodename, lnk->name, status);
+					strcpy(lnk->status, status);
+				}
 			}
 
 			/* Did we get a status update on ourselves? */
@@ -1349,9 +1430,30 @@ check_node_timeouts(void)
 		}
 		mark_node_dead(hip);
 	}
+	/* Check all links status of all nodes */
 
+	for (j=0; j < config->nodecount; ++j) {
+		struct link *lnk;
+		int i = 0;
+		hip = &config->nodes[j];
+
+		if(hip == curnode) continue;
+
+		while((lnk = &hip->links[i]) && lnk->name) {
+			if (lnk->lastupdate > now) {
+					lnk->lastupdate = 0L;
+			}
+			if (lnk->lastupdate >= TooOld
+			||  strcmp(lnk->status, DEADSTATUS) == 0 ) {
+				i++;
+				continue;
+			}
+			mark_link_dead(hip, lnk);
+			i++;
+		}
+	}
 }
-
+	
 /* Set our local status to the given value, and send it out*/
 int
 set_local_status(const char * newstatus)
@@ -1456,6 +1558,15 @@ send_local_status(void)
 
 	ha_msg_del(m);
 	return(rc);
+}
+
+/* Mark the given link dead */
+void
+mark_link_dead(struct node_info *hip, struct link *lnk)
+{
+	/* FIXME: Do something useful */
+	ha_log(LOG_ERR, "Link %s:%s DEAD.", hip->nodename, lnk->name);
+	strcpy(lnk->status, "dead");
 }
 
 /* Mark the given node dead */
@@ -2177,7 +2288,8 @@ should_ring_copy_msg(struct ha_msg *m)
  *	Should we ignore this packet, or pay attention to it?
  */
 int
-should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
+should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
+					const char *iface)
 {
 	struct seqtrack *	t = &thisnode->track;
 	const char *		cseq = ha_msg_value(msg, F_SEQ);
@@ -2208,8 +2320,12 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	/* Is this packet in sequence? */
 	if (t->last_seq == NOSEQUENCE || seq == (t->last_seq+1)) {
 		t->last_seq = seq;
+		t->last_iface = iface;
 		return(IsToUs ? KEEPIT : DROPIT);
 	}else if (seq == t->last_seq) {
+		if(iface && t->last_iface && strcmp(iface, t->last_iface) == 0) { 
+			return (DUPLICATE);
+		}
 		/* Same as last-seen packet -- very common case */
 		if (DEBUGPKT) {
 			ha_log(LOG_DEBUG,
@@ -2236,6 +2352,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 			/* This keeps the loop below from going a long time */
 			t->nmissing = 0;
 			t->last_seq = seq;
+			t->last_iface = iface;
 			ha_log(LOG_ERR, "lost a lot of packets!");
 			return(IsToUs ? KEEPIT : DROPIT);
 		}else{
@@ -2269,6 +2386,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 			}
 		}
 		t->last_seq = seq;
+		t->last_iface = iface;
 		return(IsToUs ? KEEPIT : DROPIT);
 	}
 	/*
@@ -2331,6 +2449,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 			t->nmissing = 0;
 			t->last_seq = seq;
 			t->last_rexmit_req = 0L;
+			t->last_iface = iface;
 			return(IsToUs ? KEEPIT : DROPIT);
 		}
 	}
@@ -2621,6 +2740,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.42  2000/04/12 23:03:49  marcelo
+ * Added per-link status instead per-host status. Now we will able
+ * to develop link<->service dependacy scheme.
+ *
  * Revision 1.41  2000/04/08 21:33:35  horms
  * readding logfile cleanup
  *

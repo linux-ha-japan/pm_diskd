@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.9 1999/11/22 20:28:23 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.10 2000/04/12 23:03:49 marcelo Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -214,6 +214,72 @@ ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 	return(ha_msg_add(msg, name, value));
 }
 
+/* Return the next message found in the stream and copies */
+/* the iface in "iface"  */
+
+struct ha_msg *
+if_msgfromstream(FILE * f, char *iface)
+{
+	char		buf[MAXLINE];
+	char *		getsret;
+	struct ha_msg*	ret;
+
+	clearerr(f);
+
+	if(!(getsret=fgets(buf, MAXLINE, f))) { 
+		if (!ferror(f) || errno != EINTR) 
+			ha_error("if_msgfromstream: cannot get message");
+		return(NULL);
+	}
+
+	/* Try to find the interface on the message. */
+
+	if(!strcmp(buf, IFACE)) {
+		/* Found interface name header, get interface name. */
+		if(!(getsret=fgets(buf, MAXLINE, f))) { 
+			if (!ferror(f) || errno != EINTR)
+				ha_error("if_msgfromstream: cannot get message");
+			return(NULL);
+		}
+		if(iface) { 
+			int len = strlen(buf);
+			if(len < MAXIFACELEN) {
+				strncpy(iface, buf, len);
+				iface[len -1] = EOS;
+			}
+		}
+	}
+
+	if(strcmp(buf, MSG_START)) { 	
+		/* Skip until we find a MSG_START (hopefully we skip nothing) */
+		while ((getsret=fgets(buf, MAXLINE, f)) != NULL
+		&&	strcmp(buf, MSG_START) != 0) {
+			/* Nothing */
+		}
+	}
+
+	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
+		/* Getting an error with EINTR is pretty normal */
+		if (!ferror(f) || errno != EINTR) {
+			ha_error("if_msgfromstream: cannot get message");
+		}
+		return(NULL);
+	}
+
+	/* Add Name=value pairs until we reach MSG_END or EOF */
+	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
+	&&	strcmp(buf, MSG_END) != 0) {
+
+		/* Add the "name=value" string on this line to the message */
+		if (ha_msg_add_nv(ret, buf) != HA_OK) {
+			ha_error("NV failure (if_msgfromsteam):");
+			ha_error(buf);
+			ha_msg_del(ret);
+			return(NULL);
+		}
+	}
+	return(ret);
+}
 
 /* Return the next message found in the stream */
 struct ha_msg *
@@ -251,6 +317,45 @@ msgfromstream(FILE * f)
 		}
 	}
 	return(ret);
+}
+
+/* Converts a message into a string and adds the iface name on the message */
+char *
+msg2if_string(const struct ha_msg *m, const char *iface) 
+{
+
+	int	j;
+	char *	buf;
+	char *	bp;
+
+	if (m->nfields <= 0) {
+		ha_error("msg2if_string: Message with zero fields");
+		return(NULL);
+	}
+
+	buf = ha_malloc(m->stringlen + ((strlen(iface) + sizeof(IFACE)) * sizeof(char )));
+
+	if (buf == NULL) {
+		ha_error("msg2if_string: no memory for string");
+	}else{
+		bp = buf;
+		strcpy(buf, IFACE);
+		strcat(buf, iface);
+		strcat(buf, "\n");
+		strcat(buf, MSG_START);
+		for (j=0; j < m->nfields; ++j) {
+			strcat(bp, m->names[j]);
+			bp += m->nlens[j];
+			strcat(bp, "=");
+			bp++;
+			strcat(bp, m->values[j]);
+			bp += m->vlens[j];
+			strcat(bp, "\n");
+			bp++;
+		}
+		strcat(bp, MSG_END);
+	}
+	return(buf);
 }
 
 /* Writes a message into a stream - used for serial lines */
@@ -651,6 +756,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.10  2000/04/12 23:03:49  marcelo
+ * Added per-link status instead per-host status. Now we will able
+ * to develop link<->service dependacy scheme.
+ *
  * Revision 1.9  1999/11/22 20:28:23  alan
  * First pass of putting real packet retransmission.
  * Still need to request missing packets from time to time

@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.19 2000/04/08 21:33:35 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.20 2000/04/12 23:03:49 marcelo Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -41,6 +41,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.19 2000/04/08 21:33:
 #define	MAXFIELDS	15		/* Max # of fields in a msg */
 #define HOSTLENG	100		/* Maximum size of "uname -a" return */
 #define STATUSLENG	32		/* Maximum size of status field */
+#define	MAXIFACELEN 30		/* Maximum interface length */
 #define	MAXSERIAL	4
 #define	MAXMEDIA	12
 #define	MAXNODE		100
@@ -147,9 +148,17 @@ struct seqtrack {
 	const char *	last_iface;
 };
 
+struct link {
+	clock_t	lastupdate;
+	const char *name;
+	char status[STATUSLENG]; /* Status from heartbeat */
+	time_t rmt_lastupdate; /* node's idea of last update timer over this link */
+};
+
 struct node_info {
 	char	nodename[HOSTLENG];	/* Host name from config file */
 	char	status[STATUSLENG];	/* Status from heartbeat */
+	struct link links[MAXMEDIA];
 	time_t	rmt_lastupdate;		/* node's idea of last update time */
 	unsigned long	status_seqno;	/* Seqno of last status update */
 	clock_t	local_lastupdate;	/* Date of last update in clock_t time */
@@ -290,6 +299,8 @@ extern int		add_msg_auth(struct ha_msg * msg);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
 struct auth_type *	findauth(const char * type);
 struct node_info *	lookup_node(const char *);
+struct link * lookup_iface(struct node_info * hip, const char *iface);
+struct link *  iface_lookup_node(const char *);
 
 void*		ha_malloc(size_t size);
 void*		ha_calloc(size_t nmemb, size_t size);

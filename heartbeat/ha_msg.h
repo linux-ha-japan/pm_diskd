@@ -1,7 +1,7 @@
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H
 
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.6 2000/04/08 21:33:35 horms Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.7 2000/04/12 23:03:49 marcelo Exp $";
 #include <stdio.h>
 /*
  *	Intracluster message object (struct ha_msg)
@@ -16,6 +16,7 @@ struct ha_msg {
 	char **	values;
 	int  *	vlens;
 };
+#define	IFACE		"!^!\n"  
 #define	MSG_START	">>>\n"
 #define	MSG_END		"<<<\n"
 #define	EQUAL		"="
@@ -71,8 +72,14 @@ const char *	ha_msg_value(const struct ha_msg * msg, const char * name);
 /* Reads a stream -- converts it into a message */
 struct ha_msg *	msgfromstream(FILE * f);
 
+/* Same as above plus copying the iface name to "iface" */
+struct ha_msg * if_msgfromstream(FILE * f, char *iface);
+
 /* Writes a message into a stream */
 int		msg2stream(struct ha_msg* m, FILE * f);
+
+/* Converts a message into a string and adds the iface name on start */
+char *     msg2if_string(const struct ha_msg *m, const char * iface);
 
 /* Converts a string gotten via UDP into a message */
 struct ha_msg *	string2msg(const char * s);
