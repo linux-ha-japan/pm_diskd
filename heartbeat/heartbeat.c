@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.46 2000/05/09 00:38:44 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.47 2000/05/09 03:00:59 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -178,9 +178,6 @@ int		Argc = -1;
 int		debug = 0;
 int		RestartRequested = 0;
 int		WeAreRestarting = 0;
-int             cluster_already_active = 0;
-int             we_are_primary = 0;
-int             nice_failback = 0;
 int		killrunninghb = 0;
 int		rpt_hb_status = 0;
 int		childpid = -1;
@@ -2745,6 +2742,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.47  2000/05/09 03:00:59  alan
+ * Hopefully finished the removal of the nice_failback code.
+ *
  * Revision 1.46  2000/05/09 00:38:44  alan
  * Removed most of the nice_failback code.
  *
