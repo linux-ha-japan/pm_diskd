@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.184 2002/04/15 16:48:13 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.185 2002/04/19 21:32:20 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2698,7 +2698,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				int	j;
 				make_normaltime();
 				set_proc_title("%s: notify_world()", cmdname);
-				setpgrp();
+				setpgid(0,0);
 				signal(SIGCHLD, SIG_DFL);
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
@@ -3188,7 +3188,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 
 	/* Child process:  start the managed child */
 	make_normaltime();
-	setpgrp();
+	setpgid(0,0);
 
 	/* Limit peak resource usage, maximize success chances */
 	if (centry->shortrcount > 0) {
@@ -4178,7 +4178,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 	}
 	/* Guard against possibly hanging Stonith code... */
 	make_normaltime();
-	setpgrp();
+	setpgid(0,0);
 	set_proc_title("%s: Initiate_Reset()", cmdname);
 	signal(SIGCHLD, SIG_DFL);
 
@@ -4329,7 +4329,7 @@ req_our_resources(int getthemanyway)
 
 	make_normaltime();
 	set_proc_title("%s: req_our_resources()", cmdname);
-	setpgrp();
+	setpgid(0,0);
 	signal(SIGCHLD, SIG_DFL);
 	alarm(0);
 	IGNORESIG(SIGALRM);
@@ -4441,7 +4441,7 @@ go_standby(enum standby who)
 	}
 
 	make_normaltime();
-	setpgrp();
+	setpgid(0,0);
 	signal(SIGCHLD, SIG_DFL);
 
 	if (who == ME) {
@@ -4553,7 +4553,7 @@ giveup_resources(void)
 	}
 
 	make_normaltime();
-	setpgrp();
+	setpgid(0,0);
 	set_proc_title("%s: giveup_resources()", cmdname);
 
 	/* We don't want to be interrupted while shutting down */
@@ -6040,6 +6040,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.185  2002/04/19 21:32:20  alan
+ * Changed setpgrp to setpgid(0,0)
+ *
  * Revision 1.184  2002/04/15 16:48:13  alan
  * Fixed a bug in the handling of shutdowns where if both machines were shutting down
  * simultaneously, one or both would take over the others resources, even
