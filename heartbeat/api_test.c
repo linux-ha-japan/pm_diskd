@@ -70,10 +70,12 @@ int
 main(int argc, char ** argv)
 {
 	struct ha_msg*	reply;
+	struct ha_msg*	pingreq = NULL;
 	unsigned	fmask;
 	ll_cluster_t*	hb;
 	const char *	node;
 	const char *	intf;
+	int		msgcount=0;
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
@@ -81,7 +83,7 @@ main(int argc, char ** argv)
 	hb = ll_cluster_new("heartbeat");
 	fprintf(stderr, "PID=%d\n", getpid());
 	fprintf(stderr, "Signing in with heartbeat\n");
-	if (hb->llc_ops->signon(hb, NULL)!= HA_OK) {
+	if (hb->llc_ops->signon(hb, "ping")!= HA_OK) {
 		fprintf(stderr, "Cannot sign on with heartbeat\n");
 		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(1);
@@ -147,6 +149,7 @@ main(int argc, char ** argv)
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, gotsig);
 
+#if 0
 	fprintf(stderr, "Setting message signal\n");
 	if (hb->llc_ops->setmsgsignal(hb, 0) != HA_OK) {
 		fprintf(stderr, "Cannot set message signal\n");
@@ -154,22 +157,63 @@ main(int argc, char ** argv)
 		exit(9);
 	}
 
+#endif
+	pingreq = ha_msg_new(0);
+	ha_msg_add(pingreq, F_TYPE, "ping");
+	fprintf(stderr, "Sleeping...\n");
+	sleep(5);
+	if (hb->llc_ops->sendclustermsg(hb, pingreq) == HA_OK) {
+		fprintf(stderr, "Sent ping request to cluster\n");
+	}else{
+		fprintf(stderr, "PING request FAIL to cluster\n");
+	}
 	fprintf(stderr, "Waiting for messages...\n");
 	errno = 0;
-
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
 		const char *	type;
 		const char *	orig;
+		++msgcount;
 		if ((type = ha_msg_value(reply, F_TYPE)) == NULL) {
 			type = "?";
 		}
 		if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
 			orig = "?";
 		}
-		fprintf(stderr, "Got a message of type [%s] from [%s]\n"
-		,	type, orig);
+		fprintf(stderr, "Got message %d of type [%s] from [%s]\n"
+		,	msgcount, type, orig);
 		ha_log_message(reply);
-		fprintf(stderr, "Message: %s\n", hb->llc_ops->errmsg(hb));
+		if (strcmp(type, "ping") ==0) {
+			struct ha_msg*	pingreply = ha_msg_new(4);
+
+			ha_msg_add(pingreply, F_TYPE, "pingreply");
+			if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
+			==	HA_OK) {
+			}else{
+				fprintf(stderr, "PING FAIL to [%s]\n", orig);
+			}
+			if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
+			==	HA_OK) {
+				fprintf(stderr, "Sent ping reply(2) to [%s]\n"
+				,	orig);
+			}else{
+				fprintf(stderr, "PING FAIL(2) to [%s]\n", orig);
+			}
+			if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
+			==	HA_OK) {
+				fprintf(stderr, "Sent ping reply(3) to [%s]\n"
+				,	orig);
+			}else{
+				fprintf(stderr, "PING FAIL(3) to [%s]\n", orig);
+			}
+			if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
+			==	HA_OK) {
+				fprintf(stderr, "Sent ping reply(4) to [%s]\n"
+				,	orig);
+			}else{
+				fprintf(stderr, "PING FAIL(4) to [%s]\n", orig);
+			}
+			ha_msg_del(pingreply); pingreply=NULL;
+		}
 		ha_msg_del(reply); reply=NULL;
 	}
 
