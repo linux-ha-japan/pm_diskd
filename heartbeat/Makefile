@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.32 2000/09/04 14:26:16 marcelo Exp $
+#	$Id: Makefile,v 1.33 2000/10/06 19:26:20 eric Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -80,6 +80,7 @@ H_OBJLIST = 	heartbeat.o		\
 		auth.o			\
 		config.o		\
 		hb_api.o		\
+		ha_if.o			\
 		ha_malloc.o		\
 		ha_msg.o		\
 		ha_msg_internal.o	\
@@ -90,7 +91,7 @@ COMM_OBJS = ping.o serial.o ppp-udp.o udp.o
 
 AUTH_OBJS =	md5.o sha1.o crc.o
 
-H_HDRS    = heartbeat.h ha_msg.h hb_api.h hb_api_core.h
+H_HDRS    = heartbeat.h ha_msg.h hb_api.h hb_api_core.h ha_if.h
 HBLIBS=	../stonith/libstonith.a
 LIBS=
 

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.12 2000/09/08 20:15:06 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.13 2000/10/06 19:26:20 eric Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -35,7 +35,9 @@ static const char _udp_Id [] = "$Id: udp.c,v 1.12 2000/09/08 20:15:06 alan Exp $
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
 #include "heartbeat.h"
+#include "ha_if.h"
 
 #if defined(SO_BINDTODEVICE)
 #	include <net/if.h>
@@ -45,8 +47,7 @@ static const char _udp_Id [] = "$Id: udp.c,v 1.12 2000/09/08 20:15:06 alan Exp $
 
 struct ip_private {
         char *  interface;      /* Interface name */
-        char *  bcast_addr;     /* Broadcast address */
-        struct hostent  bcast;  /* Broadcast address */
+	struct in_addr bcast;   /* Broadcast address */
         struct sockaddr_in      addr;   /* Broadcast addr */
         int     port;
         int     rsocket;        /* Read-socket */
@@ -400,6 +401,10 @@ HB_make_receive_sock(struct hb_media * mp) {
 	return(sockfd);
 }
 
+
+#if 0
+/* This is code I removed from new_ip_interface below -EZA 10/06/00 */
+
 /*
  *	Kludgy method of getting udp configuration information
  *	It works on Solaris and Linux and FreeBSD.  Maybe other places, too.
@@ -409,17 +414,13 @@ HB_make_receive_sock(struct hb_media * mp) {
 #	define	FILTER "grep '[Bb][a-z]*cast' | "	\
 	"sed -e 's%^.*[Bb][a-z]*cast[ :]*%%' -e 's% .*%%'"
 
-STATIC struct ip_private *
-new_ip_interface(const char * ifn, int port)
-{
 	FILE *	ifc;
 	char*	bp;
 	int	buflen;
 	char	buf[MAXLINE];
 	char	cmd[MAXLINE];
-	struct ip_private * ep;
 	struct hostent *he;
-
+	
 	sprintf(cmd, "%s %s | %s", IFCONFIG, ifn, FILTER);
 
 	/*
@@ -451,7 +452,20 @@ new_ip_interface(const char * ifn, int port)
 		ha_perror("Error getting IP for broadcast address");
 		return(NULL);
 	}
+#endif
 
+STATIC struct ip_private *
+new_ip_interface(const char * ifn, int port)
+{
+	struct ip_private * ep;
+	struct in_addr broadaddr;
+
+	/* Fetch the broadcast address for this interface */
+	if (if_get_broadaddr(ifn, &broadaddr) < 0) {
+		/* this function whines about problems... */
+		return (NULL);
+	}
+	
 	/*
 	 * We now have all the information we need.  Populate our
 	 * structure with the information we've gotten.
@@ -462,7 +476,7 @@ new_ip_interface(const char * ifn, int port)
 		return(NULL);
 	}
 
-	ep->bcast = *he;
+	ep->bcast = broadaddr;
 
 	ep->interface = (char *)ha_malloc(strlen(ifn)+1);
 	if(ep->interface == NULL) {
@@ -470,24 +484,22 @@ new_ip_interface(const char * ifn, int port)
 		return(NULL);
 	}
 	strcpy(ep->interface, ifn);
-	ep->bcast_addr = ha_malloc(strlen(bp)+1);
-	if(ep->bcast_addr == NULL) {
-		ha_free(ep->interface);
-		ha_free(ep);
-		return(NULL);
-	}
-	strcpy(ep->bcast_addr, bp);
+	
 	bzero(&ep->addr, sizeof(ep->addr));	/* zero the struct */
 	ep->addr.sin_family = AF_INET;		/* host byte order */
 	ep->addr.sin_port = htons(port);	/* short, network byte order */
 	ep->port = port;
 	ep->wsocket = -1;
 	ep->rsocket = -1;
-	ep->addr.sin_addr = *((struct in_addr *)ep->bcast.h_addr);
+	ep->addr.sin_addr = ep->bcast;
 	return(ep);
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.13  2000/10/06 19:26:20  eric
+ * Removed code that parses the output of ifconfig to get the broadcast address.
+ * Added code that uses ioctl() calls instead.
+ *
  * Revision 1.12  2000/09/08 20:15:06  alan
  * Added code to retry the bind operation several times before giving up.
  *
