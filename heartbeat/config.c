@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.18 2000/08/13 04:36:16 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.19 2000/08/13 15:47:48 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -192,7 +192,8 @@ init_config(const char * cfgfile)
         }
 	if (!RestartRequested && errcount == 0 && !parse_only) {
 		ha_log(LOG_INFO, "**************************");
-		ha_log(LOG_INFO, "Configuration validated. Starting heartbeat %s", VERSION);
+		ha_log(LOG_INFO, "Configuration validated."
+		" Starting heartbeat %s", VERSION);
 		if (nice_failback) {
 			ha_log(LOG_INFO, "nice_failback is in effect.");
 		}
