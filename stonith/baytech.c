@@ -61,13 +61,9 @@ struct BayTech {
 struct BayTechModelInfo {
 		const char *	type;		/* Baytech model info */
 		int		socklen;	/* Length of socket name string */
+		struct Etoken *	expect;		/* Expect string before outlet list */
 };
 
-static struct BayTechModelInfo ModelInfo [] = {
-		{"RPC-5", 18},	/* This first model will be the default */
-		{"RPC-3A", 10},
-		{NULL, 0},
-};
 static const char * BTid = "BayTech-Stonith";
 static const char * NOTbtid = "Hey, dummy this has been destroyed (BayTech)";
 
@@ -83,7 +79,7 @@ static const char * NOTbtid = "Hey, dummy this has been destroyed (BayTech)";
 #	define	FREE	free
 #endif
 #ifndef MALLOCT
-#	define     MALLOCT(t)      ((t *)(MALLOC(sizeof(t)))) 
+#	define     MALLOCT(t)      ((t *)(MALLOC(sizeof(t))))
 #endif
 
 #define DIMOF(a)	(sizeof(a)/sizeof(a[0]))
@@ -122,8 +118,10 @@ static struct Etoken LoginOK[] =	{ {"RPC", 0, 0}, {"Invalid password", 1, 0}
 					,	{NULL,0,0}};
 static struct Etoken GTSign[] =		{ {">", 0, 0} ,{NULL,0,0}};
 static struct Etoken Menu[] =		{ {"Menu:", 0, 0} ,{NULL,0,0}};
-static struct Etoken TempBreak[] =	{ {"emperature: ", 0, 0}
-					,	{"reaker: ", 0, 0} ,{NULL,0,0}};
+static struct Etoken Temp[] =		{ {"emperature: ", 0, 0}
+					,	{NULL,0,0}};
+static struct Etoken Break[] =		{ {"reaker: ", 0, 0}
+					,	{NULL,0,0}};
 static struct Etoken PowerApplied[] =	{ {"ower applied to outlet", 0, 0}
 					,	{NULL,0,0}};
 /* Accept either a CR/NL or an NL/CR */
@@ -134,6 +132,13 @@ static struct Etoken Rebooting[] =	{ {"ebooting selected outlet", 0, 0}
 				,	{"(Y/N)>", 1, 0}
 				,	{"already off.", 2, 0}
 				,	{NULL,0,0}};
+
+
+static struct BayTechModelInfo ModelInfo [] = {
+		{"RPC-5", 18, Temp},	/* This first model will be the default */
+		{"RPC-3A", 10, Break},
+		{NULL, 0, NULL},
+};
 
 static int	RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout);
 static int	RPC_connect_device(struct BayTech * bt);
@@ -252,7 +257,7 @@ RPCLogin(struct BayTech * bt)
 	 * We should be looking at something like this:
          *	RPC-5 Telnet Host
     	 *	Revision F 4.22, (C) 1999
-    	 *	Bay Technical Associates   
+    	 *	Bay Technical Associates
 	 */
 
 	/* Truncate the result after the RPC-5 part */
@@ -262,7 +267,7 @@ RPCLogin(struct BayTech * bt)
 	snprintf(IDbuf, sizeof(IDbuf), "BayTech %s", idptr);
 	REPLSTR(bt->idinfo, IDbuf);
 
-	
+
 	/* Look for the unit id info */
 	EXPECT(UnitId, 10);
 	SNARF(IDbuf, 2);
@@ -328,7 +333,7 @@ RPCRobustLogin(struct BayTech * bt)
 	int	rc=S_OOPS;
 	int	j;
 
-	for (j=0; j < 5 && rc != S_OK; ++j) {
+	for (j=0; j < 20 && rc != S_OK; ++j) {
 
 		if (bt->pid > 0) {
 			RPCkillcomm(bt);
@@ -420,7 +425,7 @@ RPCReset(struct BayTech* bt, int unitnum, const char * rebootid)
 			syslog(LOG_ERR, _("Host %s is OFF."), rebootid);
 			return(S_ISOFF);
 
-		default: 
+		default:
 			return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
 	syslog(LOG_INFO, _("Host %s being rebooted."), rebootid);
@@ -509,7 +514,7 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 	int	sockno;
 	char	sockname[32];
 	int	ret = -1;
-	char  format[32];
+	char	format[32];
 
 	snprintf(format, sizeof(format), "%%7d       %%%dc"
 	,	bt->modelinfo->socklen);
@@ -535,7 +540,7 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 	SEND("STATUS\r");
 
 	/* Expect: "emperature:" so we can skip over it... */
-	EXPECT(TempBreak, 5);
+	EXPECT(bt->modelinfo->expect, 5);
 	EXPECT(CRNL, 5);
 
 	/* Looks Good!  Parse the status output */
@@ -612,7 +617,7 @@ st_hostlist(Stonith  *s)
 	int		numnames = 0;
 	char **		ret = NULL;
 	struct BayTech*	bt;
-	char  format[32];
+	char		format[32];
 
 
 	if (!ISBAYTECH(s)) {
@@ -656,7 +661,7 @@ st_hostlist(Stonith  *s)
 	SEND("STATUS\r");
 
 	/* Expect: "emperature:" so we can skip over it... */
-	NULLEXPECT(TempBreak, 5);
+	NULLEXPECT(bt->modelinfo->expect, 5);
 	NULLEXPECT(CRNL, 5);
 
 	/* Looks Good!  Parse the status output */
