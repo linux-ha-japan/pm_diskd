@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.50 2000/08/30 22:10:18 alan Exp $
+#	$Id: Makefile,v 1.51 2000/08/30 22:36:27 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -128,7 +128,7 @@ clean:	local_clean
 
 local_clean:
 	rm -f *.o *.swp .*.swp core *~ make.out *.tar.gz
-	rm -f $(LIBCMDS)
+	rm -f $(LIBCMDS) $(SPECFILE)
 
 pristene: local_clean rpmclean
 	@for j in $(BUILDDIRS);				\

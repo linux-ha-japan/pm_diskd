@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.5 2000/08/30 20:31:13 alan Exp $
+#	$Id: Makefile,v 1.6 2000/08/30 22:36:27 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -90,7 +90,9 @@ $(S_OBJLIST) : $(S_HDRS)
 install: install_bin install_lib
 
 install_bin: all
+	[ ! -d $(BINDIR) ] && mkdir $(BINDIR)
 	$(INSTALL) -cm 755 $(BINCMDS) $(BINDIR)
+	ls -l $(BINDIR)/$(BINCMDS)
 
 install_lib: $(LIBFILES)
 	$(INSTALL) -cm 755 $(LIBFILES) $(LIBDIR)
