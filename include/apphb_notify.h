@@ -37,4 +37,8 @@ struct AppHBNotifyImports_s {
 	int (*auth)	(void * clienthandle
 ,	uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
 };
+
+#define APPHB_NOTIFY    AppHBNotification
+#define APPHB_NOTIFY_S  MKSTRING(AppHBNotification)
+
 #endif
