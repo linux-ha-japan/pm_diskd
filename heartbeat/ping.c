@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.3 2000/09/01 21:10:46 marcelo Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.4 2000/12/05 18:57:11 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -47,7 +47,11 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.3 2000/09/01 21:10:46 marcelo Ex
 #include <signal.h>
 #include "heartbeat.h"
 
-#define	ICMP_HDR_SZ	sizeof(struct icmphdr)		/* 8 */
+#ifdef linux
+#	define	ICMP_HDR_SZ	sizeof(struct icmphdr)	/* 8 */
+#else
+#	define	ICMP_HDR_SZ	8
+#endif
 
 #define	EOS	'\0'
 
