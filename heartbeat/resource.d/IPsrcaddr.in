@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	Description:	Preferred source address modification
+#	Description:	IPsrcaddr - Preferred source address modification
 #
 #	Author:			John Sutton <john@scl.co.uk>
 #	Support:		linux-ha@muc.de
@@ -19,7 +19,7 @@
 #
 #	It can add a preferred source address, or remove one.
 #
-#	usage: $0 ip-address {start|stop|status|monitor}
+#	usage: IPsrcaddr ip-address {start|stop|status|monitor}
 #
 #	The "start" arg adds a preferred source address.
 #
@@ -41,10 +41,14 @@
 #	check it!  Normally, I would expect that your haresources looks
 #	something like:
 #
-#		nodename ip1 ip2 ... ipN IPsrcroute::ipX
+#		nodename ip1 ip2 ... ipN IPsrcaddr::ipX
 #
 #	where ipX is one of the ip1 to ipN.
 #
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+. @sysconfdir@/ha.d/shellfuncs
 
 IPROUTE=@IP2UTIL@
 USAGE="usage: $0 ip-address {start|stop|status|monitor}";
@@ -56,10 +60,15 @@ usage() {
 	echo $USAGE >&2
 }
 
+errorexit() {
+	ha_log "ERROR: $*"
+	exit 1
+}
+
 #
 #	We can distinguish 3 cases: no preferred source address, a
 #	preferred source address exists which matches that specified, and one
-#	exists but doesn't match that specified.  srcr_read() returns 1,0,2
+#	exists but doesn't match that specified.  srca_read() returns 1,0,2
 #	respectively.
 #
 #	The output of route show is something along the lines of:
@@ -74,24 +83,16 @@ IPADDR="\($OCTET\.\)\{3\}$OCTET"
 SRCCLAUSE="src$WS$WS*\($IPADDR\)"
 MATCHROUTE="\(.*${WS}\)\($SRCCLAUSE\)\($WS.*\|$\)"
 
-srcr_read() {
+srca_read() {
 	# Capture the default route - doublequotes prevent word splitting...
-	DEFROUTE="`$CMDSHOW`" || {
-		echo "ERROR: command '$CMDSHOW' failed" >&2
-		exit 1
-	}
+	DEFROUTE="`$CMDSHOW`" || errorexit "command '$CMDSHOW' failed"
 
 	# ... so we can make sure there is only 1 default route
-	[ 1 = `echo "$DEFROUTE" | wc -l` ] || {
-		echo "ERROR: more than 1 default route exists" >&2
-		exit 1
-	}
+	[ 1 -eq `echo "$DEFROUTE" | wc -l` ] || \
+		errorexit "more than 1 default route exists"
 
 	# But there might still be no default route
-	[ -z "$DEFROUTE" ] && {
-		echo "ERROR: no default route exists" >&2
-		exit 1
-	}
+	[ -z "$DEFROUTE" ] && errorexit "no default route exists"
 
 	# Sed out the source ip address if it exists
 	SRCIP=`echo $DEFROUTE | sed -n "s/$MATCHROUTE/\3/p"`
@@ -106,15 +107,14 @@ srcr_read() {
 
 #
 #	Add (or change if it already exists) the preferred source address
+#	The exit code should conform to LSB exit codes.
 #
 
-srcr_start() {
-	srcr_read $1
+srca_start() {
+	srca_read $1
 
-	$CMDCHANGE $ROUTE_WO_SRC src $1 || {
-		echo "ERROR: command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed" >&2
-		exit 1
-	}
+	$CMDCHANGE $ROUTE_WO_SRC src $1 || \
+		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC src $1' failed"
 }
 
 #
@@ -123,43 +123,41 @@ srcr_start() {
 #	an error.  Maybe that's the wrong behaviour because if this fails
 #	then when IPaddr releases the associated interface (if there is one)
 #	your default route will also get dropped ;-(
+#	The exit code should conform to LSB exit codes.
 #
 
-srcr_stop() {
-	srcr_read $1
+srca_stop() {
+	srca_read $1
 
-	[ $? = 2 ] && {
-		echo "ERROR: addresses don't match" >&2
-		exit 1
-	}
+	[ $? = 2 ] && errorexit "addresses don't match"
 
-	$CMDCHANGE $ROUTE_WO_SRC || {
-		echo "ERROR: command '$CMDCHANGE $ROUTE_WO_SRC' failed" >&2
-		exit 1
-	}
+	$CMDCHANGE $ROUTE_WO_SRC || \
+		errorexit "command '$CMDCHANGE $ROUTE_WO_SRC' failed"
 }
 
 #
 #	The only difference between status and monitor is that the latter
 #	returns an appropriate exit code whereas status always returns 0.
-#	(Behavior copied from IPaddr, not sure if it makes sense?)
+#	The return code should conform to LSB exit codes.
 #
 
-srcr_status() {
-	srcr_read $1
+srca_status() {
+	srca_read $1
 
 	case $? in
 		0)	echo "OK"
 			return 0;;
+
 		1)	echo "No preferred source address defined"
-			[ needcode = "$2" ] && return 1 || return 1;;
-		2)	echo "Preferred source address defined but incorrect"
-			[ needcode = "$2" ] && return 1 || return 1;;
+			return 3;;
+
+		2)	echo "Preferred source address has incorrect value"
+			return 4;;
 	esac
 }
 
-srcr_monitor() {
-	srcr_status $1 needcode
+srca_monitor() {
+	srca_status $1
 }
 
 #
@@ -168,23 +166,6 @@ srcr_monitor() {
 #
 
 if
-	[ $# -eq 1 ]
-then
-  case $1 in
-	info)	cat <<-!INFO
-	Abstract=Preferred source address modification
-	Argument=IP address
-	Description:
-	An IPsrcroute resource is an IP address which is to be the preferred \\
-	source address associated with the default route.
-	An argument is required, and is of this form:
-	    nnn.nnn.nnn.nnn
-	where nnn.nnn.nnn.nnn is the IP address.
-	!INFO
-	exit 0;;
-  esac
-fi
-if
 	[ $# -ne 2 ]
 then
 	usage
@@ -192,14 +173,18 @@ then
 fi
 
 case $2 in
-	start)		srcr_start $1;;
-	stop)		srcr_stop $1;;
-	status)		srcr_status $1;;
-	monitor)	srcr_monitor $1;;
+	start)		srca_start $1;;
+	stop)		srca_stop $1;;
+	status)		srca_status $1;;
+	monitor)	srca_monitor $1;;
 	*)			usage
 				exit 1
 				;;
 esac
+#
+# Version 0.3  2002/11/04 17:00:00 John Sutton <john@scl.co.uk>
+# Name changed from IPsrcroute to IPsrcaddr and now reports errors
+# using ha_log rather than on stderr.
 #
 # Version 0.2  2002/11/02 17:00:00 John Sutton <john@scl.co.uk>
 # Changed status output to "OK" to satisfy ResourceManager's
