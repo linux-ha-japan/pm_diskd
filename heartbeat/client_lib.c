@@ -857,7 +857,7 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	strcmp(result, API_OK) == 0
 	&&	(status = ha_msg_value(reply,F_STATUS)) != NULL) {
-                bzero(statbuf, sizeof(statbuf));
+                memset(statbuf, 0, sizeof(statbuf));
 		strncpy(statbuf, status, sizeof(statbuf) - 1);
 		ret = statbuf;
 	}else{
@@ -1554,7 +1554,7 @@ int		BufLen = 0;
 static void
 ClearLog(void)
 {
-        bzero(APILogBuf, sizeof(APILogBuf));
+        memset(APILogBuf, 0, sizeof(APILogBuf));
 	APILogBuf[0] = EOS;
 	BufLen = 1;
 }

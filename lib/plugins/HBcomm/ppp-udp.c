@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.1 2001/08/10 17:16:44 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.2 2001/10/02 16:10:05 alan Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -220,7 +220,7 @@ hb_dev_new(const char* tty, const char* ipaddr)
 		return(NULL);
 	}
 
-	bzero(ipi, sizeof(*ipi));
+	memset(ipi, 0, sizeof(*ipi));
 
 
 	ipi->ipaddr = ha_malloc(strlen(ipaddr)+1);
@@ -937,7 +937,7 @@ ppp_udp_make_receive_sock(struct hb_media * mp) {
 	PPPUDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
 	set_up_ip(mp);
-	bzero(&(my_addr), sizeof(my_addr));	/* zero my address struct */
+	memset(&(my_addr), 0, sizeof(my_addr));	/* zero my address struct */
 	my_addr.sin_family = AF_INET;		/* host byte order */
 	my_addr.sin_port = htons(ei->port);	/* short, network byte order */
 	my_addr.sin_addr.s_addr = INADDR_ANY;	/* auto-fill with my IP */
@@ -1112,7 +1112,7 @@ set_up_ip(struct hb_media * mp)
 
 	ei->farhost = *he;
 
-	bzero(&ei->addr, sizeof(ei->addr));	/* zero the struct */
+	memset(&ei->addr, 0, sizeof(ei->addr));	/* zero the struct */
 	ei->addr.sin_family = AF_INET;		/* host byte order */
 	ei->addr.sin_port = htons(ei->port);	/* short, network byte order */
 	ei->addr.sin_addr = *((struct in_addr *)ei->farhost.h_addr);
@@ -1207,6 +1207,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.2  2001/10/02 16:10:05  alan
+ * Replaced the obsolescent bzero function with memset.
+ *
  * Revision 1.1  2001/08/10 17:16:44  alan
  * New code for the new plugin loading system.
  *
