@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.92 2001/03/11 06:28:28 alan Exp $
+#	$Id: Specfile,v 1.93 2001/03/11 06:40:31 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -52,7 +52,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 
 %changelog
 
-* Sat 10 March 2001 Alan Robertson <alanr@unix.sh>,
+* Sat March 10 2001 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
