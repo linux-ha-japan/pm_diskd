@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.86 2000/09/01 21:10:46 marcelo Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.87 2000/09/01 21:15:23 marcelo Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1733,6 +1733,26 @@ void
 check_auth_change(struct sys_config *conf)
 {
 	if (conf->rereadauth) {
+		int j, rem = 0;
+
+		for (j=0; j < num_auth_types; ++j) {
+			if(ValidAuths[j]) {
+				dlclose(ValidAuths[j]->dlhandler);
+				ha_free(ValidAuths[j]->authname);
+				ha_free(ValidAuths[j]);
+				ValidAuths[j] = NULL;
+			}
+		}
+
+		num_auth_types = 0;
+
+		if(auth_module_init() == HA_FAIL) { 
+			ha_log(LOG_ERR
+			,	"Authentication modules loading error, exiting.");
+			signal_all(SIGTERM);
+			cleanexit(1);
+		}
+
 		if (parse_authfile() != HA_OK) {
 			/* OOPS.  Sayonara. */
 			ha_log(LOG_ERR
@@ -1740,7 +1760,22 @@ check_auth_change(struct sys_config *conf)
 			signal_all(SIGTERM);
 			cleanexit(1);
 		}
+
 		conf->rereadauth = 0;
+
+		for (j=0; j < num_auth_types; ++j) {
+			if(ValidAuths[j]) {
+				if (ValidAuths[j]->ref == 0)  {
+					dlclose(ValidAuths[j]->dlhandler); 
+					ha_free(ValidAuths[j]->authname);
+					ha_free(ValidAuths[j]);
+					ValidAuths[j] = NULL;
+					rem++;
+				}
+			}
+		}
+
+		num_auth_types -= rem;
 	}
 }
 
@@ -2009,7 +2044,7 @@ restart_heartbeat(int quickrestart)
 void
 reread_config_sig(int sig)
 {
-	int	j;
+	int	j, rem = 0;
 
 	signal(sig, reread_config_sig);
 
@@ -2037,7 +2072,57 @@ reread_config_sig(int sig)
 		}else{
 			ha_log(LOG_INFO, "Configuration unchanged.");
 		}
+	} else { 
+
+		/* We are not the control process, and we received a SIGHUP signal.
+		 * This means configuration file has changed.
+		 */
+
+		for (j=0; j < num_auth_types; ++j) {
+			if(ValidAuths[j]) {
+				dlclose(ValidAuths[j]->dlhandler);
+				ha_free(ValidAuths[j]->authname);
+				ha_free(ValidAuths[j]);
+				ValidAuths[j] = NULL;
+			}
+		}
+
+		num_auth_types = 0;
+
+		if(auth_module_init() == HA_FAIL) { 
+			ha_log(LOG_ERR
+			,	"Authentication modules loading error, exiting.");
+			signal_all(SIGTERM);
+			cleanexit(1);
+		}
+	
+		if (parse_authfile() != HA_OK) {
+			/* OOPS.  Sayonara. */
+			ha_log(LOG_ERR
+			,	"Authentication reparsing error, exiting.");
+			signal_all(SIGTERM);
+			cleanexit(1);
+		}
+	
+		config->rereadauth = 0;
+	
+		/* Unload unreferenced modules */
+	
+		for (j=0; j < num_auth_types; ++j) {
+			if(ValidAuths[j]) { 
+				if (ValidAuths[j]->ref == 0)  {
+					dlclose(ValidAuths[j]->dlhandler); 
+					ha_free(ValidAuths[j]->authname);
+					ha_free(ValidAuths[j]);
+					ValidAuths[j] = NULL;
+					rem++;
+				}
+			}
+		}
+	
+		num_auth_types -= rem;
 	}
+
 	ParseTestOpts();
 }
 
@@ -3687,6 +3772,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.87  2000/09/01 21:15:23  marcelo
+ * Fixed auth file reread wrt dynamic modules
+ *
  * Revision 1.86  2000/09/01 21:10:46  marcelo
  * Added dynamic module support
  *
