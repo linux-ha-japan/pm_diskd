@@ -5,12 +5,7 @@
  * interface's connectivity and forces a hb_standby. It is based on the
  * api_test.c program included with Linux-HA.
  * 
- * Setup: Put this file in the src_dir/heartbeat directory, and modify the
- *        Makefile to compile ipfail.c by mimicking the api_test.c sections.
- *        (This can also be done in Makefile.am before you run configure.)
- *        This has to be done to both sides of the pair.  make && make install
- *        
- *        In your ha.cf file make sure you have a ping node setup for each
+ * Setup: In your ha.cf file make sure you have a ping node setup for each
  *        interface.  Choosing something like the switch that you are connected
  *        to is a good idea.  Choosing your win95 reboot-o-matic is a bad idea.
  *        
@@ -55,6 +50,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <stdarg.h>
+#include <libgen.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api.h>
@@ -63,8 +59,11 @@
 
 void NodeStatus(const char *node, const char *status, void *private);
 void LinkStatus(const char *node, const char *, const char *, void *);
+void msg_ipfail_join(const struct ha_msg *, void *);
 void msg_ping_nodes(const struct ha_msg *, void *);
 void i_am_dead(const struct ha_msg *, void *);
+void got_wake_up(const struct ha_msg *, void *);
+void msg_resources(const struct ha_msg *, void *);
 void gotsig(int);
 void giveup(ll_cluster_t *);
 void you_are_dead(ll_cluster_t *);
@@ -75,6 +74,8 @@ void wake_up(ll_cluster_t *);
 /* ICK! global vars. */
 char node_name[200];	/* The node we are connected to */
 char other_node[200];	/* The remote node in the pair */
+int node_stable;        /* Other node stable? */
+int need_standby;       /* Are we waiting for stability? */
 
 void
 NodeStatus(const char *node, const char *status, void *private)
@@ -94,6 +95,13 @@ NodeStatus(const char *node, const char *status, void *private)
 		 * If so, that would emulate the primary/secondary type of
 		 * High-Availability, instead of nice_failback mode
 		 */
+
+		/* Lets make sure we weren't both down, and now half up. */
+		int num_ping;
+
+		num_ping = ping_node_status(private);
+		ask_ping_nodes(private, num_ping);
+		cl_log(LOG_INFO, "Checking remote count of ping nodes.");
 	}
 }
 
@@ -135,7 +143,7 @@ ping_node_status(ll_cluster_t *hb)
 	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot start node walk");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(5);
+		exit(16);
 	}
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
 
@@ -148,7 +156,7 @@ ping_node_status(ll_cluster_t *hb)
 	if (hb->llc_ops->end_nodewalk(hb) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot end node walk");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(8);
+		exit(17);
 	}
 
 	return found;
@@ -164,17 +172,115 @@ giveup(ll_cluster_t *hb)
 	struct ha_msg *msg;
 	char pid[10];
 
-	memset(pid, 0, sizeof(pid));
-	snprintf(pid, sizeof(pid), "%ld", (long)getpid());
+	if (node_stable) {
+		memset(pid, 0, sizeof(pid));
+		snprintf(pid, sizeof(pid), "%ld", (long)getpid());
 
-	msg = ha_msg_new(3);
-	ha_msg_add(msg, F_TYPE, T_ASKRESOURCES);
-	ha_msg_add(msg, F_ORIG, node_name);
-	ha_msg_add(msg, F_COMMENT, "me");
+		msg = ha_msg_new(3);
+		ha_msg_add(msg, F_TYPE, T_ASKRESOURCES);
+		ha_msg_add(msg, F_ORIG, node_name);
+		ha_msg_add(msg, F_COMMENT, "me");
 
-	hb->llc_ops->sendclustermsg(hb, msg);
-	cl_log(LOG_DEBUG, "Message sent.");
-	ha_msg_del(msg);
+		hb->llc_ops->sendclustermsg(hb, msg);
+		cl_log(LOG_DEBUG, "Message [" T_ASKRESOURCES "] sent.");
+		ha_msg_del(msg);
+		need_standby = 0;
+	} else {
+		need_standby = 1;
+	}
+}
+
+void
+msg_ipfail_join(const struct ha_msg *msg, void *private)
+{
+	/* msg_ipfail_join: When another ipfail client sends a join 
+	 * message, call ask_ping_nodes() to compare ping node counts.
+	 * Callback for the T_APICLISTAT message. 
+	 */
+
+	const char *type;
+	const char *orig;
+	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
+		type = "?";
+	}
+	if ((orig = ha_msg_value(msg, F_ORIG)) == NULL) {
+		orig = "?";
+	}
+
+	if ((node_name[0] != 0) && (other_node[0] == 0) &&
+	    (orig[0] != '?') && (strcmp(node_name, orig) != 0)) {
+		strcpy(other_node, orig);
+		cl_log(LOG_DEBUG, "[They are %s]", other_node);
+		wake_up(private);
+	}
+	if ((node_name[0] == 0) && (orig[0] != '?')) {
+		strcpy(node_name, orig);
+		cl_log(LOG_DEBUG, "[We are %s]", node_name);
+	}
+
+
+	/* If this is a join message from ipfail on a different node.... */
+	if (!strcmp(ha_msg_value(msg, F_STATUS), JOINSTATUS) &&
+	    !strcmp(ha_msg_value(msg, F_FROMID), "ipfail")   && 
+	    strcmp(ha_msg_value(msg, F_ORIG),   node_name)) {
+		cl_log(LOG_DEBUG, 
+		       "Got join message from another ipfail client. (%s)",
+		       ha_msg_value(msg, F_ORIG));
+		ask_ping_nodes(private, ping_node_status(private));
+	}
+}
+
+void
+msg_resources(const struct ha_msg *msg, void *private)
+{
+	/* msg_resources: Catch T_RESOURCES messages, so that we can
+	 * find out when stability is achieved among the cluster
+	 */
+
+	/* Right now there are two stable messages sent out, we are
+	 * only concerned with the one that has no info= line on it.
+	 */
+	if (!strcmp(ha_msg_value(msg, F_ORIG), other_node) &&
+	    !ha_msg_value(msg, F_COMMENT) &&
+	    !strcmp(ha_msg_value(msg, F_ISSTABLE), "1")) {
+
+		cl_log(LOG_DEBUG, "Other side is now stable.");
+		node_stable = 1;
+		
+		/* There may be a pending standby */
+		if (need_standby) {
+			/* Gratuitious ARPs take some time, is there a
+			 * way to know when they're finished?  I don't
+			 * want this sleep here, even if it only is during
+			 * startup.
+			 */
+
+			/* This value is prone to be wrong for different
+			 * situations.  We need the resource stability
+			 * message to be delayed until the resource scripts
+			 * finish, and then we can stop waiting.
+			 */
+			sleep(10);
+
+
+			/* If the resource message stuff is solved, we could
+			 * safely giveup() here.  However, since we're waiting
+			 * for arbitrary amounts of time it may be wise to
+			 * recheck the assumptions of the cluster and count
+			 * ping nodes.
+			 */
+			ask_ping_nodes(private, ping_node_status(private));
+			//giveup(private);
+		}
+	}
+
+	else if (!strcmp(ha_msg_value(msg, F_ORIG), other_node) &&
+		 !strcmp(ha_msg_value(msg, F_ISSTABLE), "0")) {
+
+		cl_log(LOG_DEBUG, "Other side is unstable.");
+		node_stable = 0;
+	
+	}
 }
 
 void
@@ -200,20 +306,26 @@ ask_ping_nodes(ll_cluster_t *hb, int num_ping)
 	ha_msg_add(msg, "num_ping", np);
 
 	hb->llc_ops->sendnodemsg(hb, msg, other_node);
-	cl_log(LOG_DEBUG, "Message sent.");
+	cl_log(LOG_DEBUG, "Message [num_ping] sent.");
 	ha_msg_del(msg);
 }
 
 void
 msg_ping_nodes(const struct ha_msg *msg, void *private)
 {
-	/* msg_ping_nodes: Takes the message and the heartbeat cluster as input;
+	/* msg_ping_nodes: Takes the message and heartbeat cluster as input;
 	 * returns nothing.  Callback for the num_ping_nodes message.
 	 */
 
+	int num_nodes=0;
+
 	cl_log(LOG_DEBUG, "Got asked for num_ping.");
-	if (ping_node_status(private) > atoi(ha_msg_value(msg, "num_ping"))) {
+	num_nodes = ping_node_status(private);
+	if (num_nodes > atoi(ha_msg_value(msg, "num_ping"))) {
 		you_are_dead(private);
+	}
+	else if (num_nodes < atoi(ha_msg_value(msg, "num_ping"))) {
+		giveup(private);
 	}
 }
 
@@ -236,7 +348,7 @@ you_are_dead(ll_cluster_t *hb)
 	ha_msg_add(msg, F_TYPE, "you_are_dead");
 
 	hb->llc_ops->sendnodemsg(hb, msg, other_node);
-	printf("Message sent.");
+	cl_log(LOG_DEBUG, "Message [you_are_dead] sent.");
 	ha_msg_del(msg);
 }
 
@@ -268,6 +380,21 @@ wake_up(ll_cluster_t *hb)
 	ha_msg_del(msg);
 }
 
+void
+got_wake_up(const struct ha_msg *msg, void *private)
+{
+	/* got_wake_up: When we see a wake_up message, we can 
+	 * record the other node's name.
+	 */
+
+	const char *orig;
+
+	if ((orig = ha_msg_value(msg, F_ORIG)) != NULL) {
+		strcpy(other_node, orig);
+		cl_log(LOG_DEBUG, "[They are %s]", other_node);
+	}	
+}
+
 int quitnow = 0;
 
 void
@@ -289,18 +416,22 @@ main(int argc, char **argv)
 	const char *node;
 /*	const char *intf;  --Out until ifwalk is fixed */
 	char pid[10];
+	char *bname;
 	int	facility;
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
-	cl_log_enable_stderr(TRUE) ;
-	cl_log_set_entity(argv[0]) ;
+	cl_log_enable_stderr(TRUE);
+	bname = strdup(argv[0]);
+	cl_log_set_entity(basename(bname));
 	cl_log_set_facility(DEFAULT_FACILITY);
 
 	hb = ll_cluster_new("heartbeat");
 
 	memset(node_name, 0, sizeof(node_name));
 	memset(other_node, 0, sizeof(other_node));
+	node_stable = 0;
+	need_standby = 0;
 
 	memset(pid, 0, sizeof(pid));
 	snprintf(pid, sizeof(pid), "%ld", (long)getpid());
@@ -317,47 +448,67 @@ main(int argc, char **argv)
 	}
 	cl_log_set_facility(facility);
 
-	if (hb->llc_ops->set_msg_callback(hb, "num_ping_nodes", msg_ping_nodes, hb) !=HA_OK){
+	if (hb->llc_ops->set_msg_callback(hb, T_APICLISTAT, 
+					  msg_ipfail_join, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set msg_ipfail_join callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(2);
+	}
+
+	if (hb->llc_ops->set_msg_callback(hb, T_RESOURCES, 
+					  msg_resources, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set msg_resources callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(18);
+	}
+
+	if (hb->llc_ops->set_msg_callback(hb, "num_ping_nodes", 
+					  msg_ping_nodes, hb) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot set msg callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(2);
-	}
-
-	if (hb->llc_ops->set_msg_callback(hb, "you_are_dead", i_am_dead, hb) !=HA_OK){
-		cl_log(LOG_ERR, "Cannot set msg callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(2);
-	}
-
-	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, hb) !=HA_OK){
-		cl_log(LOG_ERR, "Cannot set node status callback");
-		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(2);
-	}
-
-	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, hb)!=HA_OK){
-		cl_log(LOG_ERR, "Cannot set if status callback");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(3);
 	}
 
-#if 0
-	fmask = LLC_FILTER_RAW;
-#else
+	if (hb->llc_ops->set_msg_callback(hb, "wake_up", 
+					  got_wake_up, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set msg callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(4);
+	}
+
+	if (hb->llc_ops->set_msg_callback(hb, "you_are_dead", 
+					  i_am_dead, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set i_am_dead callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(5);
+	}
+
+	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set node status callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(6);
+	}
+
+	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, hb) != HA_OK) {
+		cl_log(LOG_ERR, "Cannot set if status callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		exit(7);
+	}
+
 	fmask = LLC_FILTER_DEFAULT;
-#endif
+
 	cl_log(LOG_DEBUG, "Setting message filter mode");
 	if (hb->llc_ops->setfmode(hb, fmask) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot set filter mode");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(4);
+		exit(8);
 	}
 
 	cl_log(LOG_DEBUG, "Starting node walk");
 	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot start node walk");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(5);
+		exit(9);
 	}
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
 		cl_log(LOG_DEBUG, "Cluster node: %s: status: %s", node
@@ -370,7 +521,7 @@ main(int argc, char **argv)
 			cl_log(LOG_ERR, "Cannot start if walk");
 			cl_log(LOG_ERR, "REASON: %s"
 			,	hb->llc_ops->errmsg(hb));
-			exit(6);
+			exit(10);
 		}
 		while ((intf = hb->llc_ops->nextif(hb))) {
 			cl_log(LOG_DEBUG, "\tnode %s: intf: %s ifstatus: %s"
@@ -381,14 +532,14 @@ main(int argc, char **argv)
 			cl_log(LOG_ERR, "Cannot end if walk");
 			cl_log(LOG_ERR, "REASON: %s"
 			,	hb->llc_ops->errmsg(hb));
-			exit(7);
+			exit(11);
 		}
 		-END of ifwalkcode */
 	}
 	if (hb->llc_ops->end_nodewalk(hb) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot end node walk");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(8);
+		exit(12);
 	}
 
 	CL_SIGINTERRUPT(SIGINT, 1);
@@ -398,39 +549,16 @@ main(int argc, char **argv)
 	if (hb->llc_ops->setmsgsignal(hb, 0) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot set message signal");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(9);
+		exit(13);
 	}
 
 	cl_log(LOG_DEBUG, "Waiting for messages...");
 	errno = 0;
-	cl_log_enable_stderr(FALSE) ;
+	// turn me back on before committing cl_log_enable_stderr(FALSE);
 
 
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
-		const char *type;
-		const char *orig;
-		if ((type = ha_msg_value(reply, F_TYPE)) == NULL) {
-			type = "?";
-		}
-		if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
-			orig = "?";
-		}
-
-		if ((node_name[0] != 0) && (other_node[0] == 0) &&
-		    (orig[0] != '?') && (strcmp(node_name, orig) != 0)) {
-			strcpy(other_node, orig);
-			cl_log(LOG_DEBUG, "[They are %s]", other_node);
-			wake_up(hb);
-		}
-		if ((node_name[0] == 0) && (orig[0] != '?')) {
-			strcpy(node_name, orig);
-			cl_log(LOG_DEBUG, "[We are %s]", node_name);
-		}
-
-		cl_log(LOG_DEBUG, "Got a message of type [%s] from [%s]"
-		,	type, orig);
 		ha_log_message(reply);
-		cl_log(LOG_DEBUG, "Message: %s", hb->llc_ops->errmsg(hb));
 		ha_msg_del(reply); reply=NULL;
 	}
 
@@ -441,12 +569,15 @@ main(int argc, char **argv)
 	if (hb->llc_ops->signoff(hb) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot sign off from heartbeat.");
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		exit(10);
+		exit(14);
 	}
 	if (hb->llc_ops->delete(hb) != HA_OK) {
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		cl_log(LOG_ERR, "Cannot delete API object.");
-		exit(11);
+		exit(15);
 	}
+
 	return 0;
 }
+
+
