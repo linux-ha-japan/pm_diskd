@@ -1,2 +1,7 @@
 Makefile.in
 Makefile
+AudibleAlarm
+Filesystem
+IPaddr
+Raid1
+.deps
