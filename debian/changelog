@@ -1,0 +1,9 @@
+heartbeat (0.4.8-1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Juan Pedro Paredes Caballero <juampe@retemail.es>  Wed, 22 Nov 2000 04:08:58 +0100
+
+Local variables:
+mode: debian-changelog
+End:

@@ -1,0 +1,19 @@
+Source: heartbeat
+Section: utils
+Priority: optional
+Maintainer: Juan Pedro Paredes Caballero <juampe@retemail.es>
+Standards-Version: 3.0.1
+
+Package: heartbeat
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: Heartbeat subsystem for High-Availability Linux
+ heartbeat is a basic heartbeat subsystem for Linux-HA.
+ It will run scripts at initialization, and when machines go up or down.
+ This version will also perform IP address takeover using gratuitious ARPs.
+ It works correctly for a 2-node configuration, and is extensible to larger
+ configurations.
+ It implements the following kinds of heartbeats:
+   * Bidirectional Serial Rings ("raw" serial ports)
+   * UDP/IP braodcast (ethernet, etc)
+   * Bidirectional Serial PPP/UDP Rings (using PPP)

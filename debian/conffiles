@@ -1,0 +1,4 @@
+/etc/init.d/heartbeat
+/etc/ha.d/ha.cf
+/etc/ha.d/haresources
+/etc/ha.d/authkeys
