@@ -97,7 +97,7 @@ const char *	cmdname = "apphbd";
 #define		DBGMIN		1
 #define		DBGDETAIL	2
 int		debug = 0;
-int		usenormalpoll=FALSE;
+int		usenormalpoll=TRUE;
 
 
 
