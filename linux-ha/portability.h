@@ -38,6 +38,7 @@
 #endif
 
 
+#include <sys/param.h>
 #ifdef BSD
 #	define SCANSEL_CAST	(void *)
 #else
@@ -139,6 +140,6 @@ inet_pton(int af, const char *src, void *dst);
 #endif
 
 #ifndef HAVE_NFDS_T 
-	typedef unsigned long int nfds_t;
+	typedef unsigned int nfds_t;
 #endif
 #endif /* !PORTABILITY_H */
