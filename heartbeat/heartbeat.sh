@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.25 2000/06/21 04:34:48 alan Exp $
+#	$Id: heartbeat.sh,v 1.26 2000/08/01 12:21:55 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -21,7 +21,7 @@ CONFIG=$HA_DIR/ha.cf
 
 # exec 2>>/var/log/ha-debug
 
-RHFUNCS=/etc/rc.d/init.d/functions
+DISTFUNCS=/etc/rc.d/init.d/functions
 PROC_HA=$HA_BIN/ha.o
 SUBSYS=heartbeat
 INSMOD=/sbin/insmod
@@ -31,12 +31,12 @@ US=`uname -n`
 USE_MODULES=1
 
 #
-#	Source in Red Hat's function library.
+#	Some non-SUSE distributions like it if we their functions...
 #
 if
-  [ ! -x $RHFUNCS ]
+  [ ! -x $DISTFUNCS ]
 then
-  # Provide our own versions of Red Hat's "built-in" functions
+  # Provide our own versions of these functions
   status() {
 	$HA_BIN/heartbeat -s
   }
@@ -47,9 +47,8 @@ then
   echo_success() {
 	: Cool!  It started!
   }
-  # Historical note: We no longer use their 'killproc' or daemon functions.
 else
-  . $RHFUNCS
+  . $DISTFUNCS
 fi
 
 #
@@ -252,6 +251,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.26  2000/08/01 12:21:55  alan
+#  I modified some comments to make it less obvious tht we are specifically
+#  Red-Hat compatible.
+#
 #  Revision 1.25  2000/06/21 04:34:48  alan
 #  Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
 #
