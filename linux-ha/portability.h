@@ -7,6 +7,13 @@
 #define	STRLEN(conststr)	((sizeof(conststr)/sizeof(char))-1)
 
 
+#ifdef HAVE_STRINGIZE
+#       define  MKSTRING(s)     #s
+#else
+#       define  MKSTRING(s)     "s"
+#endif
+
+
 #ifdef BSD
 #	define SCANSEL_CAST	(void *)
 #else
@@ -74,12 +81,5 @@ inet_pton(int af, const char *src, void *dst);
 #    error "No definition for CLK_TCK available"
 #  endif
 #endif
-
-#ifdef HAVE_STRINGIZE
-#	define	MKSTRING(s)	#s
-#else
-#	define	MKSTRING(s)	"s"
-#endif
-
 #  endif /* HAVE_CONFIG_H */
 #endif /* !PORTABILITY_H */
