@@ -78,6 +78,8 @@ usr/lib/libplumb.so.0
 usr/lib/libplumb.so.0.0.0
 usr/lib/libapphb.so.0
 usr/lib/libapphb.so.0.0.0
+usr/lib/librecoverymgr.so.0
+usr/lib/librecoverymgr.so.0.0.0
 usr/share/man/man8/heartbeat.8.gz
 usr/share/man/man8/apphbd.8.gz
 etc/init.d/heartbeat
