@@ -281,17 +281,15 @@
  */
 #define	ML_FUNC_FMT	"%s" ML_INSERT_STR "%s" mlINIT_FUNC_STR
 
-#ifdef HAVE_STRINGIZE
-#  define EXPORTHELP1(moduletype, insert, modulename, function)	\
- 	moduletype##insert##modulename##function
+#ifdef __STDC__
+#  define EXPORTHELP1(moduletype, insert, modulename, function)	moduletype##insert##modulename##function
 #else
 #  define EXPORTHELP1(moduletype, insert, modulename, function)	\
  	moduletype/**/insert/**/modulename/**/function
 #endif
 
-#define EXPORTHELP2(a, b, c)    EXPORTHELP1(a, b, c, d)
-#define ML_MODULE_INIT	EXPORTHELP2(ML_MODULETYPE, ML_INSERT, ML_MODULE \
-			,	mlINIT_FUNC)
+#define EXPORTHELP2(a, b, c, d)    EXPORTHELP1(a, b, c, d)
+#define ML_MODULE_INIT	EXPORTHELP2(ML_MODULETYPE,ML_INSERT,ML_MODULE,mlINIT_FUNC)
 
 /*
  *	Module loading return codes.  OK will always be zero.
@@ -360,6 +358,7 @@ struct MLModuleImports_s {
 	,	const char *	pluginname	/* Name of plugin	*/
 	,	const void*	Ops		/* Info (functions) exported
 						   by this plugin	*/
+	
 	,	void**		pluginid	/* Plugin id 	(OP)	*/
 	,	const void**	Imports
 	,	void*		ud_plugin);	/* plugin user data */
@@ -446,6 +445,7 @@ struct MLModule_s {
 	int		refcnt;		/* Reference count for this module */
 	lt_dlhandle	dlhandle;	/* Reference to D.L. object */
 	MLModuleInitFun	dlinitfun;	/* Initialization function */
+	const MLModuleOps* moduleops;	/* Exported module operations */
 
 	void*		ud_module;	/* Data needed by module-common code*/
 	/* Other stuff goes here ...  (?) */

@@ -12,7 +12,8 @@ main(int argc, char ** argv)
 	u = NewMLModuleUniv(MOD);
 	MLsetdebuglevel(100);
 
-	printf("Load of foo: %d\n", MLLoadModule(u, PLUGIN_PLUGIN, "sha1"));
+	printf("Load of foo: %d\n", MLLoadModule(u, "Plugin", "test"));
+	printf("Error = [%s]\n", lt_dlerror());
 
 	return 0;
 }

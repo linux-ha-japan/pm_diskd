@@ -34,14 +34,22 @@ pkginclude_HEADERS	= $(top_builddir)/include/upmls/MLModule.h \
 ## binaries
 sbin_PROGRAMS		= main
 
+
 main_SOURCES		= main.c MLModule.c
 
 main_LDADD		= libupmls.la $(top_builddir)/libltdl/libltdlc.la
-main_LDFLAGS		= @LIBADD_DL@ @LIBLTDL@ -export-dynamic -dlpreopen force -dlopen self
+main_LDFLAGS		= @LIBADD_DL@ @LIBLTDL@ -export-dynamic -dlopen force -dlopen self
+
+plugindir		= /home/alanr/modules/Plugin
 
 ## libraries
 
 lib_LTLIBRARIES		= libupmls.la
 
+plugin_LTLIBRARIES	= test.la
+
 libupmls_la_SOURCES	= MLModule.c
 libupmls_la_LDFLAGS	= -version-info 0:0:0
+
+test_la_SOURCES		= test.c
+test_la_LDFLAGS		= -export-dynamic -module -avoid-version

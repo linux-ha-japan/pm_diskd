@@ -182,11 +182,12 @@ static ML_rc		pipi_unregister_plugin(MLPlugin* plugin);
 static ML_rc		pipi_close_plugin(MLPlugin* plugin
 				,	MLPlugin* pi2);
 
+#if 0
 static MLPluginType*	pipi_new_plugintype(MLPluginUniv*);
 static void		pipi_del_plugintype(MLPluginType*);
-
 static void		pipi_del_while_walk(gpointer key, gpointer value
 ,				gpointer user_data);
+#endif
 
 /*
  *	Functions exported by the Plugin plugins whose name is plugin
@@ -194,11 +195,9 @@ static void		pipi_del_while_walk(gpointer key, gpointer value
  */
 
 static const MLPluginOps  PiExports =
-{		pipi_register_plugin
-	,	pipi_unregister_plugin
-	,	pipi_close_plugin
-	,	pipi_new_plugintype
-	,	pipi_del_plugintype
+{	pipi_register_plugin
+,	pipi_unregister_plugin
+,	pipi_close_plugin
 };
 
 static int PiRefCount(MLPlugin * pih);
@@ -421,13 +420,23 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	pitype = NewMLPluginType(univ->piuniv, PLUGIN_PLUGIN, &PiExports
 	,	NULL);
 
+	g_hash_table_insert(univ->piuniv->pitypes
+	,	g_strdup(PLUGIN_PLUGIN), pitype);
+
 	modtype = NewMLModuleType(univ, PLUGIN_PLUGIN);
 
+	g_hash_table_insert(univ->ModuleTypes
+	,	g_strdup(PLUGIN_PLUGIN), modtype);
+
 	pipi_module= NewMLModule(modtype, PLUGIN_PLUGIN, NULL, NULL);
+
+	g_hash_table_insert(modtype->Modules
+	,	g_strdup(PLUGIN_PLUGIN), pipi_module);
 
 	/* We can call register_module, since it doesn't depend on us... */
 	rc = imports->register_module(pipi_module, &ModExports);
 	if (rc != ML_OK) {
+		MLLog(ML_CRIT, "register_module() failed in init: %d",	rc);
 		return(rc);
 	}
 	/*
@@ -445,7 +454,7 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	 *
 	 */
 
-	/* The first argument is the MLPluginType */
+	/* The first argument is the MLPluginType* */
 	piinfo = pipi_register_plugin(pitype, PLUGIN_PLUGIN, &PiExports
 	,	NULL, &dontcare);
 
@@ -673,7 +682,7 @@ close_a_plugin
 }
 
 
-/* Register a Plugin Plugin */
+/* Register a Plugin Plugin (Plugin manager) */
 static MLPlugin*
 pipi_register_plugin(MLPluginType* pitype
 	,	const char * pluginname, const void * exports
@@ -682,7 +691,16 @@ pipi_register_plugin(MLPluginType* pitype
 {
 	MLPlugin* ret;
 
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG
+		, 	"Registering Plugin manager for type '%s'"
+		,	pluginname);
+	}
 	if (g_hash_table_lookup(pitype->plugins, pluginname) != NULL) {
+		if (DEBUGMODULE) {
+			MLLog(ML_DEBUG, "duplicate plugin %s", pluginname);
+		}
+
 		return NULL;
 	}
 	ret = NewMLPlugin(pitype, pluginname, exports, user_data);
@@ -721,7 +739,7 @@ pipi_close_plugin(MLPlugin* basepi, MLPlugin*plugin)
 	return pipi_unregister_plugin(basepi);
 }
 
-/* Create a new MLPluginType object for PLUGINPLUGIN */
+#if 0
 static MLPluginType*
 pipi_new_plugintype(MLPluginUniv* pluginuniv)
 {
@@ -763,6 +781,7 @@ pipi_del_while_walk(gpointer key, gpointer value, gpointer user_data)
 	DelMLPlugin((MLPlugin*)value); value = NULL;
 }
 
+#endif
 
 /* Return the reference count for this plugin */
 static int
@@ -786,20 +805,22 @@ PiModRefCount(MLPlugin*epiinfo, int plusminus)
 static void
 PiUnloadIfPossible(MLPlugin *epiinfo)
 {
+	g_assert_not_reached();
 	/*FIXME!*/
 }
 
 static ML_rc
 MLregister_module(MLModule* modinfo, const MLModuleOps* commonops)
 {
-	/*FIXME!*/
-	return ML_OOPS;
+	modinfo->moduleops = commonops;
+	return ML_OK;
 }
 
 static ML_rc
 MLunregister_module(MLModule* modinfo)
 {
 	/*FIXME!*/
+	g_assert_not_reached();
 	return ML_OOPS;
 }
 
@@ -807,6 +828,7 @@ static ML_rc
 MLunregister_plugin(void* pluginid)
 {
 	/*FIXME!*/
+	g_assert_not_reached();
 	return ML_OOPS;
 }
 
@@ -882,7 +904,7 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 	,	LTDL_SHLIB_EXT);
 
 	if (DEBUGMODULE) {
-		MLLog(ML_DEBUG, "Module path for [%s] [%s]: [%s]"
+		MLLog(ML_DEBUG, "Module path for %s/%s => [%s]"
 		,	moduletype, modulename, ModulePath);
 	}
 
@@ -935,8 +957,11 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 
 	if (!dlhand) {
 		if (DEBUGMODULE) {
-			MLLog(ML_DEBUG, "Module %s:%s cannot be dlopen()ed"
-			,	moduletype, modulename);
+			MLLog(ML_DEBUG
+			,	"lt_dlopen() failure on module %s/%s."
+			" Reason: [%s]"
+			,	moduletype, modulename
+			,	lt_dlerror());
 		}
 		return ML_NOMODULE;
 	}
@@ -944,7 +969,7 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 	ModuleSym = g_strdup_printf(ML_FUNC_FMT
 	,	moduletype, modulename);
 	if (DEBUGMODULE) {
-		MLLog(ML_DEBUG, "Module %s:%s  init function: %s"
+		MLLog(ML_DEBUG, "Module %s/%s  init function: %s"
 		,	moduletype, modulename
 		,	ModuleSym);
 	}
@@ -954,7 +979,7 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 
 	if (initfun == NULL) {
 		if (DEBUGMODULE) {
-			MLLog(ML_DEBUG, "Module %s:%s init function not found"
+			MLLog(ML_DEBUG, "Module %s/%s init function not found"
 			,	moduletype, modulename);
 		}
 		lt_dlclose(dlhand); dlhand=NULL;
@@ -967,14 +992,19 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 	g_assert(modinfo != NULL);
 	g_hash_table_insert(mtype->Modules, modinfo->module_name, modinfo);
 	if (DEBUGMODULE) {
-		MLLog(ML_DEBUG, "Module %s:%s loaded and constructed."
+		MLLog(ML_DEBUG, "Module %s/%s loaded and constructed."
 		,	moduletype, modulename);
 	}
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "Calling init function in module %s/%s."
+		,	moduletype, modulename);
+	}
+	initfun(modinfo, universe->imports);
 
 	return ML_OK;
 }/*MLLoadModule*/
 
-#define REPORTERR(msg)	MLLog(ML_CRIT, "ERROR: %s", msg)
+#define REPORTERR(msg)	MLLog(ML_CRIT, "%s", msg)
 
 /*
  *	It may be the case that this function needs to be split into
@@ -1045,7 +1075,9 @@ MLRegisterAPlugin(MLModule* modinfo
 	}
 	if ((pipiinfo = g_hash_table_lookup(pipitype->plugins, plugintype))
 	==	NULL) {
-		REPORTERR("No " PLUGIN_PLUGIN " plugin for given type!");
+		MLLog(ML_CRIT
+		,	"No plugin manager for given type (%s) !"
+		,	plugintype);
 		return ML_BADTYPE;
 	}
 

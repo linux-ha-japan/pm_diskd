@@ -116,11 +116,6 @@ struct MLPluginOps_s{
 	/* Close a Plugin of the type we manage (not a PIPI ...) */
 	ML_rc	(*CloseOurPI)(MLPlugin*pipiinfo, MLPlugin* ourpiinfo);
 
-	/* Create a new MLPluginType object */
-	MLPluginType*	(*NewPluginEnv)(MLPluginUniv* universe);
-
-	/* Destroy a MLPluginType object */
-	void		(*DelPluginEnv)(MLPluginType*);
 };
 
 #endif /*ENABLE_PLUGIN_MANAGER_PRIVATE*/
