@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.233 2002/11/28 17:10:05 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.234 2002/11/29 19:18:34 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3255,8 +3255,14 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 
 				ha_log(LOG_WARNING
 				,	"Cluster node %s"
-				"returning after partition"
+				"returning after partition."
 				,	thisnode->nodename);
+				ha_log(LOG_WARNING
+				,	"Deadtime value may be too small.");
+				ha_log(LOG_INFO
+				,	"See documentation for information"
+				" on tuning deadtime.");
+
 				if (DoManageResources) {
 					send_local_status();
 					Gmain_timeout_add(2000
@@ -3883,6 +3889,10 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.234  2002/11/29 19:18:34  alan
+ * Put in pointers to the documentation for deadtime in the returning
+ * from cluster partition message.
+ *
  * Revision 1.233  2002/11/28 17:10:05  alan
  * We had a problem with local status updates getting all hosed sometimes
  * (depending on timing).  This greatly simplifies the management of
