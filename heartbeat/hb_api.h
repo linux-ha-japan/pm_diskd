@@ -103,7 +103,7 @@ struct llc_ops {
 /*
  *	node_status:	Return most recent heartbeat status of the given node
  */
-	int		(*node_status)(ll_cluster_t*, const char * nodename);
+	const char *	(*node_status)(ll_cluster_t*, const char * nodename);
 /*
  *	init_ifwalk:	Initialize walk through list of list of known interfaces
  */
@@ -119,7 +119,7 @@ struct llc_ops {
 /*
  *	if_status:	Return current status of the given interface
  */
-	int		(*if_status)(ll_cluster_t*, const char * nodename
+	const char*	(*if_status)(ll_cluster_t*, const char * nodename
 ,			const char *iface);
 
 /*************************************************************************
@@ -193,5 +193,5 @@ struct llc_ops {
 #	define	LLC_FILTER_ALLHB	2
 #	define	LLC_FILTER_RAW		3
 
-	struct ha_msg*	(*setfmode)(ll_cluster_t*, int mode);
+	int (*setfmode)(ll_cluster_t*, int mode);
 };

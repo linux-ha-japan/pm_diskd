@@ -2,9 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <signal.h>
-#include <sys/utsname.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
+#include <sys/time.h>
 #include <sys/stat.h>
 #include <stdarg.h>
 #include <heartbeat.h>
@@ -48,13 +50,10 @@ static struct ha_msg*	hb_api_boilerplate(const char * apitype);
 static int		hb_api_signon(const char * clientid);
 static int		hb_api_signoff(void);
 static int		hb_api_setfilter(unsigned);
-static int		hb_api_setsignal(unsigned);
 static void		destroy_stringlist(struct stringlist *);
 static struct stringlist*
 			new_stringlist(const char *);
 static int		get_nodelist(void);
-static const char *	get_nodestatus(const char *host);
-static const char *	get_ifstatus(const char *host, const char * intf);
 static void		zap_nodelist(void);
 static int		get_iflist(const char *host);
 static void		zap_iflist(void);
@@ -68,6 +67,7 @@ static int		del_gen_callback(llc_private_t*, const char * msgtype);
 static struct ha_msg*	read_api_msg(void);
 static struct ha_msg*	read_hb_msg(void);
 
+static int		hb_api_setsignal(ll_cluster_t*, int nsig);
 static int set_msg_callback
 			(ll_cluster_t*, const char * msgtype
 ,			llc_msg_callback_t* callback, void * p);
@@ -82,6 +82,12 @@ static int
 static int init_nodewalk (ll_cluster_t*);
 static const char * nextnode (ll_cluster_t* ci);
 static int init_ifwalk (ll_cluster_t* ci, const char * host);
+static const char *	get_nodestatus(ll_cluster_t*, const char *host);
+static const char *	get_ifstatus(ll_cluster_t*, const char *host
+,	const char * intf);
+static int get_inputfd(ll_cluster_t*);
+static int msgready(ll_cluster_t*);
+static int setfmode(ll_cluster_t*, int mode);
 
 volatile struct process_info *	curproc = NULL;
 static char		OurPid[16];
@@ -275,7 +281,7 @@ hb_api_setfilter(unsigned fmask)
 	return rc;
 }
 int
-hb_api_setsignal(unsigned nsig)
+hb_api_setsignal(ll_cluster_t* lct, int nsig)
 {
 	struct ha_msg*	request;
 	struct ha_msg*	reply;
@@ -404,7 +410,7 @@ get_iflist(const char *host)
 	return HA_FAIL;
 }
 static const char *
-get_nodestatus(const char *host)
+get_nodestatus(ll_cluster_t* lcl, const char *host)
 {
 	struct ha_msg*		request;
 	struct ha_msg*		reply;
@@ -436,9 +442,10 @@ get_nodestatus(const char *host)
 		perror("can't read reply");
 		return NULL;
 	}
+ha_log_message(reply);
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	strcmp(result, API_OK) == 0
-	&&	(status = ha_msg_value(reply,F_STATUS)) != NULL) {
+	&&	(status = ha_msg_value(reply, F_STATUS)) != NULL) {
 		strncpy(statbuf, status, sizeof(statbuf));
 		ret = statbuf;
 	}else{
@@ -449,7 +456,7 @@ get_nodestatus(const char *host)
 	return ret;
 }
 static const char *
-get_ifstatus(const char *host, const char * ifname)
+get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 {
 	struct ha_msg*		request;
 	struct ha_msg*		reply;
@@ -792,6 +799,55 @@ end_ifwalk(ll_cluster_t* ci)
 	return(HA_OK);
 }
 
+static int
+get_inputfd(ll_cluster_t*ci )
+{
+	return(fileno(ReplyFIFO));
+}
+static int
+msgready(ll_cluster_t*ci )
+{
+	fd_set		fds;
+	struct timeval	tv;
+	int		rc;
+
+
+	FD_ZERO(&fds);
+	FD_SET(get_inputfd(ci), &fds);
+	tv.tv_sec = 0;
+	tv.tv_usec = 0;
+
+	rc = select(1, &fds, NULL, NULL, &tv);
+	
+	return (rc > 0);
+}
+static int
+setfmode(ll_cluster_t* lct, int mode)
+{
+	unsigned	filtermask;
+
+	switch(mode) {
+
+		case LLC_FILTER_DEFAULT:
+			filtermask = DEFAULTREATMENT;
+			break;
+		case LLC_FILTER_PMODE:
+			filtermask = (KEEPIT|DUPLICATE|DROPIT);
+			break;
+		case LLC_FILTER_ALLHB:
+			filtermask = (KEEPIT|DUPLICATE|DROPIT|NOCHANGE);
+			break;
+		case LLC_FILTER_RAW:
+			filtermask = ALLTREATMENTS;
+			break;
+		default:
+			return(HA_FAIL);
+	}
+	return(hb_api_setfilter(filtermask));
+	
+}
+
+
 struct llc_ops heartbeat_ops = {
 	set_msg_callback,	/* set_msg_callback */
 	set_nstatus_callback,	/* set_nstatus_callback */
@@ -799,19 +855,19 @@ struct llc_ops heartbeat_ops = {
 	init_nodewalk,		/* init_nodewalk */
 	nextnode,		/* nextnode */
 	end_nodewalk,		/* end_nodewalk */
-	NULL	,		/* node_status */
+	get_nodestatus,		/* node_status */
 	init_ifwalk,		/* init_ifwalk */
 	nextif,			/* nextif */
 	end_ifwalk,		/* end_ifwalk */
-	NULL,			/* if_status */
+	get_ifstatus,		/* if_status */
 	NULL,			/* sendclustermsg */
 	NULL,			/* sendnodemsg */
-	NULL,			/* inputfd */
-	NULL,			/* msgready */
-	NULL,			/* setmsgsignal */
+	get_inputfd,		/* inputfd */
+	msgready,		/* msgready */
+	hb_api_setsignal,	/* setmsgsignal */
 	NULL,			/* rcvmsg */
 	NULL,			/* readmsg */
-	NULL,			/* setfmode */
+	setfmode,		/* setfmode */
 };
 
 void gotsig(int nsig);
@@ -841,11 +897,11 @@ main(int argc, char ** argv)
 	fprintf(stderr, "Setting message filter mask\n");
 	hb_api_setfilter(fmask);
 	fprintf(stderr, "Setting message signal\n");
-	hb_api_setsignal(0);
+	hb_api_setsignal(NULL, 0);
 	get_nodelist();
 	get_iflist("kathyamy");
-	fprintf(stderr, "Node status: %s\n", get_nodestatus("kathyamy"));
-	fprintf(stderr, "IF status: %s\n", get_ifstatus("kathyamy", "eth0"));
+	fprintf(stderr, "Node status: %s\n", get_nodestatus(NULL, "kathyamy"));
+	fprintf(stderr, "IF status: %s\n", get_ifstatus(NULL, "kathyamy", "eth0"));
 
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, gotsig);
