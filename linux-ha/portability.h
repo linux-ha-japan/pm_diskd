@@ -27,6 +27,7 @@ scandir (const char *directory_name,
 	);
 
 #endif /* HAVE_SCANDIR */
+
 #ifndef HAVE_INET_PTON
   /* We supply a replacement function, but need a prototype */
 int
@@ -34,6 +35,15 @@ inet_pton(int af, const char *src, void *dst);
 
 #endif /* HAVE_INET_PTON */
 
+/*
+ * Special Note:  CLK_TCK is *not* the same as CLOCKS_PER_SEC.
+ *
+ * CLOCKS_PER_SEC is supposed to be 1000000 on every system.
+ * This is most certainly *not* what we need.
+ *
+ * Older UNIX systems used to call this (CLK_TCK) HZ.
+ *
+ */
 #ifdef CLK_TCK_IN_TIME_H
 #  include <time.h>
 #else
