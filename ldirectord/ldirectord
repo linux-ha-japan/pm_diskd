@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.59 2002/10/17 00:53:29 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.60 2002/11/19 11:38:15 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -359,6 +359,15 @@ if ($DEBUG>0 and -f "./ipvsadm") {
 if ($opt_h) {
 	&system_wrapper("/usr/bin/perldoc -U $LDIRECTORD");
 } else {
+	# There is a memory leak in perl's socket code when
+	# the default IO layer is used. So use "perlio" unless
+	# something else has been explicitly set.
+	# http://archive.develooper.com/perl5-porters@perl.org/msg85468.html
+	unless(defined($ENV{'PERLIO'})) {
+		$ENV{'PERLIO'} = "perlio";
+		exec_wrapper($0, @OLD_ARGV);
+	}
+
 	$initializing = 1;
 	ld_init();
 	ld_setup();
@@ -2165,16 +2174,49 @@ sub ld_debug
 
 
 # system_wrapper
-# Wrapper arround system command to log errors
+# Wrapper around system() to log errors
 # pre: LIST: arguments to pass to system()
-# post: system is called and if it returns non-zero a failure message is logged
-# return: none
+# post: system() is called and if it returns non-zero a failure 
+#       message is logged
+# return: return value of system()
 
 sub system_wrapper
 {
 	my (@args)=(@_);
+
+	my $status;
+
         &ld_log("Running system(@args)") if $DEBUG>2;
-	system(@args) == 0 or &ld_log("system(@args) failed");
+	$status = system(@args);
+	if($status != 0) {
+		&ld_log("system(@args) failed");
+	}
+
+	return($status)
+}
+
+
+# exec_wrapper
+# Wrapper around exec() to log errors
+# pre: LIST: arguments to pass to exec()
+# post: exec() is called and if it returns non-zero a failure 
+#       message is logged
+# return: return value of exec() on failure
+#         does not return on success
+
+sub exec_wrapper
+{
+	my (@args)=(@_);
+
+	my $status;
+
+        &ld_log("Running exec(@args)") if $DEBUG>2;
+	$status = exec(@args);
+	if($status != 0) {
+		&ld_log("exec(@args) failed");
+	}
+
+	return($status)
 }
 
 
