@@ -1,175 +1,196 @@
-<!DOCTYPE html PUBLIC "-//w3c//dtd html 4.0 transitional//en">
+<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
 <html>
 <head>
-    
-  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-    
-  <meta name="GENERATOR" content="Mozilla/4.75 [en]">
-  <title>Faq'n Tips</title>
+   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+   <meta name="GENERATOR" content="Mozilla/4.77 [en] (X11; U; Linux 2.4.4 i686) [Netscape]">
+   <title>Faq'n Tips</title>
 </head>
- <body bgcolor=#ffffff>
-  
+<body bgcolor="#FFFFFF">
+
 <center><b>Faq'n Tips</b></center>
-  
+
 <p><br>
- </p>
 <ol>
- 
-  <li> <a href="#FAQ">Hey!&nbsp; This doesn't look like a FAQ!&nbsp; What
-gives?</a></li>
-  
-  <li><a href="#what_is_it">What is a cluster?</a></li>
-  
-  <li><a href="#mon">How to monitor various resources ?</a></li>
-  
-  <li> <a href="#nettools">Every time my machine releases an IP alias, it
-loses the whole interface (i.e eth0)!&nbsp; How do I fix this?</a></li>
-  
-  <li> <a href="#manyIPs">I want a lot of IP addresses as resources (more
-than 8).&nbsp; What's the best way?</a></li>
-   
-  <li> <a href="#serial">The documentation indicates that a serial line is
-mandatory, but when I comment it out from the config file and use use only
-two ethernet connections it seems to work fine.</a></li>
-  
-  <li> <a href="#nice_failback">What is a difference between normal and nice
-failback ?</a></li>
-  <li><a href="#firewall">How to use heartbeat with ipchains firewall
+<li>
+<a href="#FAQ">Hey!&nbsp; This doesn't look like a FAQ!&nbsp; What gives?</a></li>
+
+<li>
+<a href="#what_is_it">What is a cluster?</a></li>
+
+<li>
+<a href="#res_scr">What is a resource script ?</a></li>
+
+<li>
+<a href="#mon">How to monitor various resources ?</a></li>
+
+<li>
+<a href="#nettools">Every time my machine releases an IP alias, it loses
+the whole interface (i.e eth0)!&nbsp; How do I fix this?</a></li>
+
+<li>
+<a href="#manyIPs">I want a lot of IP addresses as resources (more than
+8).&nbsp; What's the best way?</a></li>
+
+<li>
+<a href="#serial">The documentation indicates that a serial line is mandatory,
+but when I comment it out from the config file and use use only two ethernet
+connections it seems to work fine.</a></li>
+
+<li>
+<a href="#nice_failback">What is a difference between normal and nice failback
 ?</a></li>
-  <li><a href="#CVS">How to get latest CVS version of heartbeat ?</a></li>
-  <li><a href="#other_os">Heartbeat on other OSs.</a>
-  </li>
-   
+
+<li>
+<a href="#firewall">How to use heartbeat with ipchains firewall ?</a></li>
+
+<li>
+<a href="#authkeys">When I try to start heartbeat i receive messsage:</a></li>
+
+<br><a href="#authkeys">"Starting High-Availability services: Heartbeat
+failure [rc=1]. Failed.</a>
+<br><a href="#authkeys">and there is nothing in any of the log files and
+do messages. What is wrong ?</a>
+<li>
+<a href="#CVS">How to get latest CVS version of heartbeat ?</a></li>
+
+<li>
+<a href="#other_os">Heartbeat on other OSs.</a></li>
 </ol>
- 
-<hr width="100%"> <br>
-&nbsp; 
+
+<hr width="100%">
+<br>&nbsp;
 <ol>
- 
-  <li> <a name="FAQ"></a>Quit your bellyachin'!&nbsp; We needed a "catch-all" 
-document to supply useful information in a way that was easily referenced 
-and would grow without a lot of work.&nbsp; It's closer to a FAQ than anything 
+<li>
+<a NAME="FAQ"></a>Quit your bellyachin'!&nbsp; We needed a "catch-all"
+document to supply useful information in a way that was easily referenced
+and would grow without a lot of work.&nbsp; It's closer to a FAQ than anything
 else.</li>
-  
-  <li>  <a name="what_is_it"></a>HA (High availability Cluster) - This is
-a cluster that allows a host (or hosts) to become Highly Available, that
-means if one node goes down (or a service on that node goes down) another
-node can pick up the service or node and take over from the failed machine.
-    <a href="http://www.linux-ha.org">www.linux-ha.org</a>  <br>
- Computing Cluster - This is what a beuwolf cluster is.  It allows distributed
-computing over off the shelf components.  In this case it is usually cheap
-ia32 machines. <a href="http://www.beowulf.org">http://www.beowulf.org/ </a>
- <br>
-   Load balancing clusters - This is what the Linux Virtual Server project
-does.  In this scenario you have one machine with load balances requests
-to a certain server (apache for example) over a farm of servers.  <a href="http://www.linuxvirtualserver.org">
-www.linuxvirtualserver.org</a> <br>
-  All of these sites have howtos etc on them.  For a general overview on clustering
-under Linux, look at the Clustering-HOWTO. </li>
- 
-  <li> <a name="mon"></a>  Heartbeat itself was not designed for monitoring
-various resources. If you need to monitor some resources (for example, availability
-of WWW server) you need some third party software. Good solution is mon.
-<br>    1. Get mon<br>
-    
-http://kernel.org/software/mon/<br>
- <br>
-2. Get all required modules listed. You can find them at nearest mirror or
-at the CPAN archive (www.cpan.org). I am not very familiar with Perl, so
-i downloaded them from CPAN archive as .tar.gz packages and installed them
-usual way (perl Makefile.pl &amp;&amp; make &amp;&amp; make test &amp;&amp;
-make install).<br>
- <br>
-3. Mon is software for monitoring different network resources. It can ping
-computers, connect to various ports, monitor WWW, MySQL etc. In case of disfunction
-of some resources it triggerrs some scripts.<br>
- <br>
-4. Unpack mon in some directory. Best starting point is README file. Complete
-documentation is in &lt;dir&gt;/doc, where &lt;dir&gt; is place where you
-unpacked mon package.<br>
- <br>
-5. For a fast start do following steps:<br>
-copy all subdirs found in &lt;dir&gt; to /usr/lib/mon<br>
-create dir /etc/mon<br>
-copy auth.cf from &lt;dir&gt;/etc to /etc/mon<br>
- <br>
-Now, mon is prepared to work. You need to create your own mon.cf file, where
-you should point to resources mon shuould watch and actions mon will start
-in case<br>
-of disfunction and when resources are available again. All monitoromg scripts
-are in /usr/lib/mon/mon.d/. At the beginnig of every script you can find
-explanation how to use it.<br>
-All alert scripts are placed in /usr/lib/mon/alert.d/. Those are scripts
+
+<li>
+<a NAME="what_is_it"></a>HA (High availability Cluster) - This is a cluster
+that allows a host (or hosts) to become Highly Available, that means if
+one node goes down (or a service on that node goes down) another node can
+pick up the service or node and take over from the failed machine. <a href="http://www.linux-ha.org">www.linux-ha.org</a></li>
+
+<br>Computing Cluster - This is what a beuwolf cluster is. It allows distributed
+computing over off the shelf components. In this case it is usually cheap
+ia32 machines. <a href="http://www.beowulf.org">http://www.beowulf.org/</a>
+<br>Load balancing clusters - This is what the Linux Virtual Server project
+does. In this scenario you have one machine with load balances requests
+to a certain server (apache for example) over a farm of servers. <a href="http://www.linuxvirtualserver.org">www.linuxvirtualserver.org</a>
+<br>All of these sites have howtos etc on them. For a general overview
+on clustering under Linux, look at the Clustering-HOWTO.
+<li>
+<a NAME="res_scr"></a>Resource scripts are basically (extended) System
+V init scripts. They have to support stop, start, and status operations.&nbsp;
+In the future we will also add support for a "monitor" operation for monitoring
+services as you requested. The IPaddr script implements this new "monitor"
+operation now (but heartbeat doesn't use that function of it). For more
+info see Resource-HOWTO.</li>
+
+<li>
+<a NAME="mon"></a>Heartbeat itself was not designed for monitoring various
+resources. If you need to monitor some resources (for example, availability
+of WWW server) you need some third party software. Good solution is mon.</li>
+
+<br>1. Get mon
+<br>http://kernel.org/software/mon/
+<p>2. Get all required modules listed. You can find them at nearest mirror
+or at the CPAN archive (www.cpan.org). I am not very familiar with Perl,
+so i downloaded them from CPAN archive as .tar.gz packages and installed
+them usual way (perl Makefile.pl &amp;&amp; make &amp;&amp; make test &amp;&amp;
+make install).
+<p>3. Mon is software for monitoring different network resources. It can
+ping computers, connect to various ports, monitor WWW, MySQL etc. In case
+of disfunction of some resources it triggerrs some scripts.
+<p>4. Unpack mon in some directory. Best starting point is README file.
+Complete documentation is in &lt;dir>/doc, where &lt;dir> is place where
+you unpacked mon package.
+<p>5. For a fast start do following steps:
+<br>copy all subdirs found in &lt;dir> to /usr/lib/mon
+<br>create dir /etc/mon
+<br>copy auth.cf from &lt;dir>/etc to /etc/mon
+<p>Now, mon is prepared to work. You need to create your own mon.cf file,
+where you should point to resources mon shuould watch and actions mon will
+start in case
+<br>of disfunction and when resources are available again. All monitoromg
+scripts are in /usr/lib/mon/mon.d/. At the beginnig of every script you
+can find explanation how to use it.
+<br>All alert scripts are placed in /usr/lib/mon/alert.d/. Those are scripts
 triggered in case something went wrong. In case you are using ipvs on theirs
 homepage (www.linuxvirtualserver.org) you can find scripts for adding and
-removing servers from ipvs list.<br>
-  </li>
-   
-    <li> <a name="nettools"></a>This isn't a problem with heartbeat, but
-rather is caused by various versions of net-tools.&nbsp; Upgrade to the most
-recent version of net-tools and it will go away.&nbsp; You can test it with
-ifconfig manually.</li>
-  
-    <li> <a name="manyIPs"></a>Instead of failing over many IP addresses,
-just fail over one router address.&nbsp; On your router, do the equivalent
-of "route add -net x.x.x.0/24 gw x.x.x.2", where x.x.x.2 is the cluster IP
-address controlled by heartbeat.&nbsp; Then, make every address within x.x.x.0/24 
-that you wish to failover a permanent alias of lo0 on BOTH cluster nodes.&nbsp; 
+removing servers from ipvs list.
+<li>
+<a NAME="nettools"></a>This isn't a problem with heartbeat, but rather
+is caused by various versions of net-tools.&nbsp; Upgrade to the most recent
+version of net-tools and it will go away.&nbsp; You can test it with ifconfig
+manually.</li>
+
+<li>
+<a NAME="manyIPs"></a>Instead of failing over many IP addresses, just fail
+over one router address.&nbsp; On your router, do the equivalent of "route
+add -net x.x.x.0/24 gw x.x.x.2", where x.x.x.2 is the cluster IP address
+controlled by heartbeat.&nbsp; Then, make every address within x.x.x.0/24
+that you wish to failover a permanent alias of lo0 on BOTH cluster nodes.&nbsp;
 This is done via "ifconfig lo:2 x.x.x.3 netmask 255.255.255.255 -arp" etc....</li>
- 
-    <li> <a name="serial"></a>It will work, however if anything makes your
-ethernet / IP stack fail, you will lose both connections. You definetely
-should run the cables  differently, depending on how important your data
-is... </li>
-  
-    <li> <a name="nice_failback"></a> Normal failback mode:<br>
- <br>
- In this mode, one of the two machines is designated as the preferred provider
-of a given resource group.  If that machine is up, then it will always be
-the provider of every resource group for which it is preferred provider.
- Failovers occur when the preferred provider goes out of service, and when
-it comes back (failback).  This mode is required if you wish to run an active-active
-configuration.<br>
-   Nice failback mode:<br>
- In this mode, there is no natural affinity between a resource group and
-a particular node in the cluster (haresources file nonwithstanding).  Instead, 
-there is an affinity between a resource group and whatever machine it is currently
-running on.  Failovers occur *only* when a machine which is providing a service
-goes out of service.  There is no concept of failback in this mode.  This
-mode minimizes service interruptions, but cannot run an active-active configuration.</li>
-    <li><a name="firewall"></a>To make heartbeat work with ipchains, you
-must accept incoming and outgoing traffic on 694 UDP port. Add something
-like:<br>
- <br>
-/sbin/ipchains -A output -i ethN -p udp -s &lt;source_IP&gt; -d &lt;dest_IP&gt;&nbsp;
--j ACCEPT<br>
-/sbin/ipchains -A input -i ethN -p udp -s &lt;source_IP&gt; -d &lt;dest_IP&gt;&nbsp;
--j ACCEPT</li>
-    <li><a name="CVS"></a>The information for CVS access is on the linux-ha
-home page in the section marked links: <a href="http://linux-ha.org/#Links
- 
-         There is also a CVS repository for Linux-HA. You can find it at
- 
-cvs.linux-ha.org. Read only access is
-        via login guest, password guest, module name linux-ha. More details
-are              to be found in the announcement email. It is also available through
-         the web using viewcvs at
-            http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/">
-http://linux-ha.org/#Links</a><br>
- <br>
- There is also a CVS repository for Linux-HA. You can find it at cvs.linux-ha.org.
-Read only access is via login guest, password guest, module name linux-ha.
-More details are to be found in the announcement email. It is also available
-through the web using viewcvs at <a href="http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/">
-http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/</a></li>
-    <li><a name="other_os"></a>Heartbeat is currently being ported to use
-automake.<br>
-   </li>
-  </ol>
-  
-  <hr width="100%"> <br>
-Rev 0.0.1 <br>
-(c) 2000 Rudy Pawul <br>
+
+<li>
+<a NAME="serial"></a>It will work, however if anything makes your ethernet
+/ IP stack fail, you will lose both connections. You definetely should
+run the cables differently, depending on how important your data is...</li>
+
+<li>
+<a NAME="nice_failback"></a>Normal failback mode:</li>
+
+<br>In this mode, one of the two machines is designated as the preferred
+provider of a given resource group. If that machine is up, then it will
+always be the provider of every resource group for which it is preferred
+provider. Failovers occur when the preferred provider goes out of service,
+and when it comes back (failback). This mode is required if you wish to
+run an active-active configuration.
+<br>Nice failback mode:
+<br>In this mode, there is no natural affinity between a resource group
+and a particular node in the cluster (haresources file nonwithstanding).
+Instead, there is an affinity between a resource group and whatever machine
+it is currently running on. Failovers occur *only* when a machine which
+is providing a service goes out of service. There is no concept of failback
+in this mode. This mode minimizes service interruptions, but cannot run
+an active-active configuration.
+<li>
+<a NAME="firewall"></a>To make heartbeat work with ipchains, you must accept
+incoming and outgoing traffic on 694 UDP port. Add something like:</li>
+
+<br>/sbin/ipchains -A output -i ethN -p udp -s &lt;source_IP> -d &lt;dest_IP>&nbsp;
+-j ACCEPT
+<br>/sbin/ipchains -A input -i ethN -p udp -s &lt;source_IP> -d &lt;dest_IP>&nbsp;
+-j ACCEPT
+<li>
+<a NAME="authkeys"></a>It's probably a permissions problem on authkeys.&nbsp;
+It wants it to be read only mode (400, 600 or 700).&nbsp; Depending on
+where and when it discovers the problem, the message will wind up in different
+places.</li>
+
+<br>But, it tends to be in
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; a) stdout/stderr
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; b) wherever you specified
+in your setup
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; c) /var/log/messages
+<li>
+<a NAME="CVS"></a>There&nbsp; is&nbsp; a&nbsp; CVS repository for Linux-HA.
+You can find it at cvs.linux-ha.org.&nbsp; Read&nbsp; only&nbsp; access
+is via login guest, password guest, module name linux-ha. More details
+are to be found in the announcement&nbsp; email.&nbsp; It is also available
+through the web using viewcvs at <a href="http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/">http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/</a></li>
+
+<li>
+<a NAME="other_os"></a>Heartbeat is currently being ported to use automake.</li>
+</ol>
+
+<hr width="100%">
+<p>Rev 0.0.3
+<br>(c) 2001 Dusan Djordjevic
+<br><a href="mailto:dj.dule@linux.org.yu">dj.dule@linux.org.yu</a>
+<br>(c) 2000 Rudy Pawul <br>
   <a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a> 
-  </body>
-  </html>
+</body>
+</html>
