@@ -24,7 +24,32 @@
 ##AUX_DIST_EXTRA          = $(auxdir)/readline.m4 $(auxdir)/sys_errlist.m4 \
 ##                        $(auxdir)/sys_siglist.m4
 EXTRA_DIST              = bootstrap acconfig.h rc.config.heartbeat \
-                        heartbeat.spec.in heartbeat.spec
+                        	heartbeat.spec.in heartbeat.spec
+
+RPMREL			= @RPMREL@
+RPM			= @RPM@
+RPMFLAGS		= -ta
+TARFILE			= $(distdir).tar.gz
+#
+#       Debian wants things to start with DESTDIR,
+#       but Red Hat starts them with RPM_BUILD_ROOT     (sigh...)
+#
+#       When make is called it should be run as
+#       BUILD_ROOT=$VAR make ...
+#
+#       e.g.
+#       BUILD_ROOT=$RPM_BUILD_ROOT make install
+#
+#	(The above comments carried over from the previous version of
+#	the make system -- not sure this is all carried out like it
+#	should be to make everyone happy -- at least at this time...)
+#
+DESTDIR=
+WEBDIR=/home/alanr/ha-web/download
+RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PACKAGE)-$(VERS)-$(RPMREL).src.rpm
+RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-$(VERS)-$(RPMREL).i386.rpm
+RPMstonith=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-stonith-$(VERS)-$(RPMREL).i386.rpm
+RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-ldirectord-$(VERS)-$(RPMREL).i386.rpm
 
 AUTOMAKE_OPTIONS	= foreign
 ##ACLOCAL                 = aclocal -I $(auxdir)
@@ -37,3 +62,6 @@ MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
 SUBDIRS                 = libltdl doc debian replace include lib \
                         @XPERIMENTALDIRS@ ldirectord stonith heartbeat \
                         linux-ha
+
+rpm:		dist
+		$(RPM) $(RPMFLAGS) $(TARFILE);
