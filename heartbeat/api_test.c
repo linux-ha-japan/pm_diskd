@@ -223,7 +223,6 @@ hb_api_boilerplate(const char * apitype)
 /*
  * Sign ourselves on as a heartbeat client process.
  */
-
 static int
 hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 {
@@ -270,6 +269,12 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	snprintf(pi->ReqFIFOName, sizeof(pi->ReqFIFOName)
 	,	"%s/%s%s", directory, OurClientID, REQ_SUFFIX);
 
+	/*
+	 * We need to provide locking for named clients to ensure that only
+	 * one client is accessing the request/response FIFOs simultaneously.
+	 *	(for now, it's a wee bug ;-))
+	 */
+
 	if (uname(&un) < 0) {
 		ha_perror("uname failure");
 		return HA_FAIL;
@@ -280,6 +285,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	if ((request = hb_api_boilerplate(API_SIGNON)) == NULL) {
 		return HA_FAIL;
 	}
+
 	/* Make sure the registration FIFO exists */
 	if (stat(API_REGFIFO, &sbuf) < 0 || !S_ISFIFO(sbuf.st_mode)) {
 		ha_log(LOG_ERR, "FIFO %s does not exist", API_REGFIFO);
@@ -294,6 +300,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
+
 	/* Make our request FIFO */
 	if (mkfifo(pi->ReqFIFOName, 0600) < 0) {
 		ha_perror("hb_api_signon: Can't create fifo %s"
@@ -309,13 +316,13 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
-
 	if ((pi->ReplyFIFO = fdopen(fd, "r")) == NULL) {
 		ha_log(LOG_ERR, "hb_api_signon: Can't fdopen reply fifo %s"
 		,	pi->ReplyFIFOName);
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
+
 	/* Probably not necessary */
 	setvbuf(pi->ReplyFIFO, ReplyFdBuf, _IOLBF, sizeof(ReplyFdBuf));
 
@@ -342,6 +349,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	if ((reply=read_api_msg(pi)) == NULL) {
 		return HA_FAIL;
 	}
+
 	/* Get the return code */
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	strcmp(result, API_OK) == 0) {
