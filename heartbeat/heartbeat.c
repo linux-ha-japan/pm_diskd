@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.212 2002/09/26 03:28:46 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.213 2002/09/26 09:20:43 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3482,14 +3482,14 @@ process_pending_handlers(void)
 	while (pending_handlers) {
 		unsigned long	handlers;
 
-		/* Block signals... */
+		/* Block signals */
 		if (sigprocmask(SIG_BLOCK, &CommonSignalSet, NULL) < 0) {
 			ha_log(LOG_ERR, "Could not block signals");
 		}
 			handlers = pending_handlers;
 			pending_handlers=0;
 
-		/* Allow signals ... */
+		/* Allow signals */
 		if (sigprocmask(SIG_UNBLOCK, &CommonSignalSet, NULL) < 0) {
 			ha_log(LOG_ERR, "Could not unblock signals");
 		}
@@ -4995,6 +4995,7 @@ make_daemon(void)
 	static int ignoresigs[] = {
 				SIGINT,
 				SIGQUIT,
+				SIGPIPE,
 #ifdef	SIGTTOU
 				SIGTTOU,
 #endif
@@ -6014,6 +6015,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.213  2002/09/26 09:20:43  horms
+ * Fixed file descriptor leak in heartbeat side of heartbeat API.
+ * I'm not sure about ignoreing SIGPIPE, but it will do for now.
+ *
  * Revision 1.212  2002/09/26 03:28:46  alan
  * Made the 2.53 patch work again.
  * Added code for preallocating a little memory before locking
