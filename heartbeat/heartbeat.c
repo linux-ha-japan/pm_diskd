@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.265 2003/06/24 06:43:53 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.266 2003/06/28 04:47:51 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2308,6 +2308,8 @@ restart_heartbeat(void)
 
 	if (quickrestart) {
 		if (nice_failback) {
+			cl_log(LOG_INFO, "Current resources: -R -C %s"
+			,	decode_resources(procinfo->i_hold_resources));
 			execl(HALIB "/heartbeat", "heartbeat", "-R"
 			,	"-C"
 			,	decode_resources(procinfo->i_hold_resources)
@@ -2418,7 +2420,7 @@ check_comm_isup(void)
 	for (j=0; j < config->nodecount; ++j) {
 		hip= &config->nodes[j];
 
-		if (hip->anypacketsyet) {
+		if (hip->anypacketsyet || strcmp(hip->status, DEADSTATUS) ==0){
 			++heardfromcount;
 		}
 	}
@@ -2639,7 +2641,6 @@ mark_node_dead(struct node_info *hip)
 {
 	cl_log(LOG_WARNING, "node %s: is dead", hip->nodename);
 
-	hip->anypacketsyet = 1;
 	if (hip == curnode) {
 		/* Uh, oh... we're dead! */
 		cl_log(LOG_ERR, "No local heartbeat. Forcing restart.");
@@ -2738,6 +2739,7 @@ main(int argc, char * argv[], char **envp)
 
 	num_hb_media_types = 0;
 
+	
 	/* Redirect messages from glib functions to our handler */
 	g_log_set_handler(NULL
 	,	G_LOG_LEVEL_ERROR	| G_LOG_LEVEL_CRITICAL
@@ -2756,6 +2758,11 @@ main(int argc, char * argv[], char **envp)
 		cmdname = tmp_cmdname;
 	}
 	cl_log_set_entity(cmdname);
+	if (module_init() != HA_OK) {
+		cl_log(LOG_ERR, "Heartbeat not started: module init error.");
+		cleanexit(generic_error);
+	}
+	init_procinfo();
 
 	Argc = argc;
 
@@ -2767,6 +2774,11 @@ main(int argc, char * argv[], char **envp)
 				CurrentStatus = optarg;
 				procinfo->i_hold_resources
 				=	encode_resources(CurrentStatus);
+				if (ANYDEBUG) {
+					cl_log(LOG_DEBUG
+					,	"Initializing resource state to %s"
+					,	decode_resources(procinfo->i_hold_resources));
+				}
 				break;
 			case 'd':
 				++debug;
@@ -2821,21 +2833,13 @@ main(int argc, char * argv[], char **envp)
 
 
 
-	setenv(HADIRENV, HA_D, TRUE);
-	setenv(DATEFMT, HA_DATEFMT, TRUE);
-	setenv(HAFUNCENV, HA_FUNCS, TRUE);
 	if (debug > 0) {
 		static char cdebug[8];
 		snprintf(cdebug, sizeof(debug), "%d", debug);
 		setenv(HADEBUGVAL, cdebug, TRUE);
 	}
 
-	init_procinfo();
 
-	if (module_init() != HA_OK) {
-		cl_log(LOG_ERR, "Heartbeat not started: module init error.");
-		cleanexit(generic_error);
-	}
 
 	/*
 	 *	We've been asked to shut down the currently running heartbeat
@@ -2893,6 +2897,16 @@ main(int argc, char * argv[], char **envp)
 	 */
 	if (WeAreRestarting) {
 
+		if (init_config(CONFIG_NAME) != HA_OK
+		||	parse_ha_resources(RESOURCE_CFG) != HA_OK){
+			int err = errno;
+			cl_log(LOG_INFO
+			,	"Config errors: Heartbeat"
+			" NOT restarted");
+			cleanexit((err == EPERM || err == EACCES)
+			?	LSB_EXIT_EPERM
+			:	LSB_EXIT_GENERIC);
+		}
 		if (running_hb_pid < 0) {
 			fprintf(stderr, "ERROR: %s is not running.\n"
 			,	cmdname);
@@ -2911,14 +2925,13 @@ main(int argc, char * argv[], char **envp)
 		 * We need to allow for the possibility that the user might
 		 * have changed nice_failback options in the config file
 		 */
-		if (CurrentStatus) {
+		if (CurrentStatus && ANYDEBUG) {
 			cl_log(LOG_INFO, "restart: i_hold_resources = %s"
 			,	decode_resources(procinfo->i_hold_resources));
 		}
 
 		if (nice_failback) {
 			/* nice_failback is currently ON */
-
 			if (CurrentStatus == NULL) {
 				/* From !nice_failback to nice_failback */
 				procinfo->i_hold_resources = HB_LOCAL_RSC;
@@ -2992,6 +3005,7 @@ main(int argc, char * argv[], char **envp)
 	}
 
 StartHeartbeat:
+
 
 	if (init_config(CONFIG_NAME) && parse_ha_resources(RESOURCE_CFG)) {
 		if (ANYDEBUG) {
@@ -3139,15 +3153,16 @@ make_daemon(void)
 
 	cl_log_enable_stderr(FALSE);
 
+	setenv(HADIRENV, HA_D, TRUE);
+	setenv(DATEFMT, HA_DATEFMT, TRUE);
+	setenv(HAFUNCENV, HA_FUNCS, TRUE);
 	umask(022);
 	close(FD_STDIN);
 	(void)open(devnull, O_RDONLY);		/* Stdin:  fd 0 */
 	close(FD_STDOUT);
 	(void)open(devnull, O_WRONLY);		/* Stdout: fd 1 */
-	if (!debug) {
-		close(FD_STDERR);
-		(void)open(devnull, O_WRONLY);	/* Stderr: fd 2 */
-	}
+	close(FD_STDERR);
+	(void)open(devnull, O_WRONLY);		/* Stderr: fd 2 */
 	chdir(HA_D);
 	/* We need to at least ignore SIGINTs early on */
 	hb_signal_set_common(NULL);
@@ -4078,6 +4093,13 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.266  2003/06/28 04:47:51  alan
+ * Fixed some terrible, horrible, no good very bad reload bugs -- especially
+ * with nice_failback turned on.  Yuck!
+ * Also fixed a STONITH bug.  The previous code wouldn't STONTIH a node
+ * we hadn't heard from yet -- but we really need to.
+ * Decreased debugging verbosity a bit...
+ *
  * Revision 1.265  2003/06/24 06:43:53  alan
  * Removed superfluous include of <ha_config.h>
  *

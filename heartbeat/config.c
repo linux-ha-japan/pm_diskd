@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.87 2003/06/19 04:04:00 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.88 2003/06/28 04:47:51 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -740,7 +740,7 @@ islegaldirective(const char *directive)
 	 *
 	 */
 	for (j=0; j < DIMOF(Directives); ++j) {
-		if (ANYDEBUG) {
+		if (DEBUGDETAILS) {
 			ha_log(LOG_DEBUG
 			,	"Comparing directive [%s] against [%s]"
 			,	 directive, Directives[j].name);
@@ -1569,6 +1569,13 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.88  2003/06/28 04:47:51  alan
+ * Fixed some terrible, horrible, no good very bad reload bugs -- especially
+ * with nice_failback turned on.  Yuck!
+ * Also fixed a STONITH bug.  The previous code wouldn't STONTIH a node
+ * we hadn't heard from yet -- but we really need to.
+ * Decreased debugging verbosity a bit...
+ *
  * Revision 1.87  2003/06/19 04:04:00  alan
  * Improved the documentation for how many configuration parameters are
  * stored away by SetParameterValue() and then made available to the

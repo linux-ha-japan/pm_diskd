@@ -375,8 +375,11 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 	 * resources - we have no way of knowing.
 	 */
 	if (hip->anypacketsyet) {
-		if (!hip->has_resources
-		||	(nice_failback && other_holds_resources == HB_NO_RSC)){
+		if (nice_failback) {
+			if (other_holds_resources == HB_NO_RSC) {
+				need_stonith = FALSE;
+			}
+		}else if (!hip->has_resources) {
 			need_stonith = FALSE;
 		}
 	}
@@ -1871,6 +1874,13 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.27  2003/06/28 04:47:51  alan
+ * Fixed some terrible, horrible, no good very bad reload bugs -- especially
+ * with nice_failback turned on.  Yuck!
+ * Also fixed a STONITH bug.  The previous code wouldn't STONTIH a node
+ * we hadn't heard from yet -- but we really need to.
+ * Decreased debugging verbosity a bit...
+ *
  * Revision 1.26  2003/06/24 06:40:49  alan
  * Removed a redundant include of <ha_config.h>
  *
