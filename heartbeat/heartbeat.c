@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.9 1999/10/04 03:12:20 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.10 1999/10/05 04:03:42 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -223,7 +223,7 @@ struct _syslog_code facilitynames[] =
 	{ NULL, -1 }
 };
 
-struct sys_config *	config;
+struct sys_config *	config = NULL;
 struct node_info *	curnode = NULL;
 
 volatile struct pstat_shm *	procinfo = NULL;
@@ -265,6 +265,7 @@ void	check_node_timeouts(void);
 void	mark_node_dead(struct node_info* hip);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
 struct node_info *	lookup_node(const char *);
+pid_t	get_current_running_pid(void);
 void	make_daemon(void);
 void	heartbeat_monitor(struct ha_msg * msg);
 void	init_monitor(void);
@@ -374,8 +375,10 @@ init_config(const char * cfgfile)
 	if (*(config->dbgfile) == 0) {
 		strcpy(config->dbgfile, DEFAULTDEBUG);
 	}
-	ha_log(LOG_INFO, "***********************");
-	ha_log(LOG_INFO, "Configuration validated. Starting heartbeat.");
+	if (!isarestart && errcount == 0) {
+		ha_log(LOG_INFO, "***********************");
+		ha_log(LOG_INFO, "Configuration validated. Starting heartbeat.");
+	}
 	return(errcount ? HA_FAIL : HA_OK);
 }
 
@@ -1052,7 +1055,7 @@ ha_timestamp(void)
 void
 ha_error(const char *	msg)
 {
-	ha_log(LOG_ERR, msg);
+	ha_log(LOG_ERR, "%s", msg);
 }
 
 
@@ -1061,15 +1064,23 @@ void
 ha_log(int priority, const char * fmt, ...)
 {
 	va_list ap;
-	FILE *	fp;
+	FILE *	fp = NULL;
+	char *	fn = NULL;
 	char buf[MAXLINE];
 
 	va_start(ap, fmt);
 	vsnprintf(buf, MAXLINE, fmt, ap);
-	if (config->log_facility < 0) {
+	va_end(ap);
 
-		fp = fopen(priority == LOG_DEBUG
-		?	config->dbgfile : config->logfile, "a");
+	if (config) {
+		fn = (priority == LOG_DEBUG ? config->dbgfile : config->logfile);
+	}
+
+	if (!config  || fn != NULL) {
+
+		if (fn) {
+			fp = fopen(fn, "a");
+		}
 
 		if (fp == NULL) {
 			fp = stderr;
@@ -1081,10 +1092,10 @@ ha_log(int priority, const char * fmt, ...)
 		if (fp != stderr) {
 			fclose(fp);
 		}
-	}else{
+	}
+	if (config && config->log_facility >= 0) {
 		syslog(priority, "%s", buf);
 	}
-	va_end(ap);
 }
 
 void
@@ -2109,6 +2120,35 @@ main(int argc, const char ** argv)
 		}
 	}
 
+	/*
+	 *	We've been asked to restart the currently running heartbeat process
+	 *	(or at least get it to reread it's configuration files)
+	 */
+
+	if (isarestart) {
+		pid_t	running_hb_pid = get_current_running_pid();
+
+		if (running_hb_pid < 0) {
+			fprintf(stderr, "ERROR: Heartbeat not currently running.\n");
+			cleanexit(1);
+		}
+			
+		if (init_config(CONFIG_NAME) && parse_ha_resources(RESOURCE_CFG)) {
+			ha_log(LOG_INFO
+			,	"Signalling heartbeat pid %d to reread config files"
+			,	running_hb_pid);
+			if (kill(running_hb_pid, SIGHUP) >= 0) {
+				cleanexit(0);
+			}
+			ha_perror("Unable to send SIGHUP to pid %d", running_hb_pid);
+		}else{
+			ha_log(LOG_INFO
+			,	"Config errors: Heartbeat pid %d NOT restarted"
+			,	running_hb_pid);
+		}
+		cleanexit(1);
+	}
+
 	if (init_config(CONFIG_NAME) && parse_ha_resources(RESOURCE_CFG)) {
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG
@@ -2144,7 +2184,7 @@ cleanexit(rc)
 		ha_log(LOG_DEBUG, "Exiting from pid %d [%d]"
 		,	getpid(), rc);
 	}
-	if(config->log_facility >= 0) {
+	if(config && config->log_facility >= 0) {
 		closelog();
 	}
 	exit(rc);
@@ -2170,14 +2210,34 @@ signal_all(int sig)
 			if (localdie) {
 				(*localdie)();
 			}
-			if (curproc->type == PROC_CONTROL) {
+			if (curproc && curproc->type == PROC_CONTROL) {
 				ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
 				giveup_resources();
 				ha_log(LOG_INFO, "Heartbeat shutdown complete.");
+				unlink(PIDFILE);
 			}
 			cleanexit(sig);
 			break;
 	}
+}
+
+
+pid_t
+get_current_running_pid()
+{
+	pid_t	pid;
+	FILE *	lockfd;
+	if ((lockfd = fopen(PIDFILE, "r")) != NULL
+	&&	fscanf(lockfd, "%d", &pid) == 1 && pid > 0) {
+		if (kill(pid, 0) >= 0 || errno != ESRCH) {
+			fclose(lockfd);
+			return(pid);
+		}
+	}
+	if (lockfd != NULL) {
+		fclose(lockfd);
+	}
+	return(-1);
 }
 
 
@@ -2189,18 +2249,12 @@ make_daemon(void)
 
 	/* See if we're already running... */
 
-	if ((lockfd = fopen(PIDFILE, "r")) != NULL
-	&&	fscanf(lockfd, "%d", &pid) == 1 && pid > 0) {
-		if (kill(pid, 0) >= 0 || errno != ESRCH) {
-			ha_log(LOG_ERR, "%s: already running [pid %d].\n"
-			,	cmdname, pid);
-			fprintf(stderr, "%s: already running [pid %d].\n"
-			,	cmdname, pid);
-			exit(HA_FAILEXIT);
-		}
-	}
-	if (lockfd != NULL) {
-		fclose(lockfd);
+	if ((pid=get_current_running_pid()) > 0) {
+		ha_log(LOG_ERR, "%s: already running [pid %d].\n"
+		,	cmdname, pid);
+		fprintf(stderr, "%s: already running [pid %d].\n"
+		,	cmdname, pid);
+		exit(HA_FAILEXIT);
 	}
 
 	/* Guess not. Go ahead and start things up*/
@@ -2541,6 +2595,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.10  1999/10/05 04:03:42  alanr
+ * added code to implement the -r (restart already running heartbeat process) option.
+ * It seems to work and everything!
+ *
  * Revision 1.9  1999/10/04 03:12:20  alanr
  * Shutdown code now runs from heartbeat.
  * Logging should be in pretty good shape now, too.
