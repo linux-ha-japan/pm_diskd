@@ -266,49 +266,299 @@ class HBipResource(HBResource):
     def IsWorkingCorrectly(self, nodename):
         return self._ResourceOperation("monitor", "OK", self.CM.OurNode)
 
+
+
+#
+#	A heartbeat configuration class...
+#	It reads and parses the heartbeat config
+#	files
+#
+
+class HBConfig:
+
+    # Which options have multiple words on the line?
+    MultiTokenKeywords = {"mcast" : None , "stonith_host": None}
+
+    def __init__(self, configdir="/etc/ha.d"):
+        self.Parameters = {}
+        self.ResourceGroups = {}
+
+        self._ReadConfig(os.path.join(configdir, "ha.cf"))
+
+	#
+	# We allow each resource group to have its own failover/back
+	# policies
+	#
+        if self.Parameters.has_key("nice_failback") 	\
+        and		self.Parameters["nice_failback"] == "on":
+            HBConfig.DefaultFailbackPolicy = no_failback
+        elif self.Parameters.has_key("auto_failback") 	\
+        and		self.Parameters["auto_failback"] == "off":
+            HBConfig.DefaultFailbackPolicy = no_failback
+        else:
+            HBConfig.DefaultFailbackPolicy = auto_failback
+        HBConfig.DefaultNodeSelectionPolicy = NodeSelectionPolicies["FirstUp"]
+
+        self._ReadResourceGroups(os.path.join(configdir, "haresources"))
+
+    # Read ha.cf config file
+    def _ReadConfig(self, ConfigFile):
+        self.ConfigPath = ConfigFile;
+        fp = open(ConfigFile)
+
+        while 1:
+            line=fp.readline()
+            if not line:
+                return
+            line = re.sub("#.*", "", line)
+            line = string.rstrip(line)
+            if len(line) < 1:
+                continue
+            tokens = line.split()
+	    key = tokens[0]
+            values = tokens[1:]
+
+            if HBConfig.MultiTokenKeywords.has_key(key):
+                # group items from this line together, and separate
+                # from the items on other lines
+                values = [values]
+            if self.Parameters.has_key(key):
+                self.Parameters[key].append(values)
+            else:
+                self.Parameters[key] = values
+
+    # Read a line from the haresources file...
+    # - allow for \ continuations...
+    def _GetRscLine(self, fp):
+        linesofar = None
+        continuation=1
+        while continuation:
+            continuation = 0
+            line=fp.readline()
+            if not line:
+                break
+            line = re.sub("#.*", "", line)
+
+            if line[len(line)-2] == "\\":
+               line = line[0:len(line)-2] + "\n"
+               continuation=1
+
+            if linesofar == None:
+                linesofar = line
+            else:
+                linesofar = linesofar + line
+        return linesofar
+
+
+    def _ReadResourceGroups(self, RscFile):
+        self.RscPath = RscFile;
+        fp = open(RscFile)
+
+        thisline = ""
+        while 1:
+            line=self._GetRscLine(fp)
+            if not line:
+                return
+            line = line.strip()
+            if len(line) < 1:
+                continue
+            tokens = line.split()
+	    node = tokens[0]
+            resources = tokens[1:]
+            rscargs=[]
+            for resource in resources:
+                name=resource.split("::", 1)
+                if len(name) > 1:
+                    args=name[1].split("::")
+                else:
+                    args=None
+                name = name[0]
+                rscargs.append(Resource(name, args))
+            name = tokens[0] + "__" + tokens[1]
+
+            assert not self.ResourceGroups.has_key(name)
+
+            #
+            #	Create the resource group
+            #
+            self.ResourceGroups[name] = ResourceGroup(name \
+            ,	rscargs
+            ,	node.split(",")
+		# Provide default value
+            ,	HBConfig.DefaultNodeSelectionPolicy
+            ,	HBConfig.DefaultFailbackPolicy)
+#
+#	Return the list of nodes in the cluster...
+#
+
+    def nodes(self):
+        result = self.Parameters["node"]
+        result.sort()
+        return result
+
+class ClusterState:
+    pass
+
+class ResourceGroup:
+    def __init__(self, name, resourcelist, possiblenodes
+    ,	nodeselection_policy, failback_policy):
+        self.name = name
+        self.resourcelist = resourcelist
+        self.possiblenodes = possiblenodes
+        self.nodeselection_policy = nodeselection_policy
+        self.failback_policy = failback_policy
+        self.state = None
+        self.attributes = {}
+        self.history = []
+
+    def __str__(self):
+        result = string.join(self.possiblenodes, ",")
+        for rsc in self.resourcelist:
+            result = result + " " + str(rsc)
+        return result
+
+class Resource:
+    def __init__(self, name, arguments=None):
+        self.name = name
+        self.arguments = arguments
+
+    def __str__(self):
+        result = self.name
+        try:
+            for arg in self.arguments:
+                result = result + "::" + arg
+        except TypeError:
+            pass
+        return result
+
+
+#######################################################################
+#
+#	Base class defining policies for where we put resources
+#	when we're starting, or when a failure has occurred...
+#
+#######################################################################
+NodeSelectionPolicies = {}
+
+class NodeSelectionPolicy:
+    def __init__(self, name):
+        self.name = name
+        assert not NodeSelectionPolicies.has_key(name)
+        NodeSelectionPolicies[name] = self
+
+    def name(self):
+        return self.name
+
+#
+#	nodenames: the list of nodes eligible to run this resource
+#	ResourceGroup:	the group to be started...
+#	ClusterState:	Cluster state information
+#
+    def SelectNode(self, nodenames, ResourceGroup, ClusterState):
+        return None
+
+#
+#	Choose the first node in the list...
+#
+class FirstUp_NodeSelection(NodeSelectionPolicy):
+    def __init__(self):
+        NodeSelectionPolicy.__init__(self, "FirstUp")
+
+    def SelectNode(self, nodenames, ResourceGroup, ClusterState):
+        return nodenames[0]
+
+#
+#	Choose the last node in the list...
+#	(kind of a dumb example)
+#
+class LastUp_NodeSelection(NodeSelectionPolicy):
+    def __init__(self):
+        NodeSelectionPolicy.__init__(self, "LastUp")
+
+    def SelectNode(self, nodenames, ResourceGroup, ClusterState):
+        return nodenames[len(nodenames)-1]
+
+#######################################################################
+#
+#	Failback policies...
+#
+#	Where to locate a resource group when an eligible node rejoins
+#	the cluster...
+#
+#######################################################################
+FailbackPolicies = {}
+
+class FailbackPolicy:
+    def __init__(self, name):
+        self.name = name
+        assert not FailbackPolicies.has_key(name)
+        FailbackPolicies[name] = self
+
+    def name(self):
+        return self.name
+
+	#
+	# currentnode:  The node the service is currently on
+	# returningnode:  The node which just rejoined
+	# eligiblenodes:  Permitted nodes which are up
+	# SelectionPolicy:  the normal NodeSelectionPolicy
+	# Cluster state information...
+	#
+    def SelectNewNode(self, currentnode, returningnode, eligiblenodes
+    ,		SelectionPolicy, ResourceGroup, ClusterState):
+        return None
+
+#
+#	This FailbackPolicy is like "normal failback" in heartbeat
+#
+class AutoFailbackPolicy(FailbackPolicy):
+    def __init__(self):
+        FailbackPolicy.__init__(self, "failback")
+
+    def SelectNewNode(self, currentnode, returningnode, eligiblenodes
+    ,		SelectionPolicy, ResourceGroup, ClusterState):
+
+        # Select where it should run based on current normal policy
+	# just as though we were starting it for the first time.
+
+        return SelectionPolicy(eligiblenodes, ResourceGroup, ClusterState)
+#
+#	This FailbackPolicy is like "nice failback" in heartbeat
+#
+class NoAutoFailbackPolicy(FailbackPolicy):
+    def __init__(self):
+        FailbackPolicy.__init__(self, "failuresonly")
+
+    def SelectNewNode(self, currentnode, returningnode, eligiblenodes
+    ,		SelectionPolicy, ResourceGroup):
+
+        # Always leave the resource where it is...
+
+        return currentnode
+
+
+#######################################################################
 #
 #   A little test code...
 #
 #   Which you are advised to completely ignore...
 #
-if __name__ == '__main__':
+#######################################################################
+if __name__ == '__main__': 
+        FirstUp_NodeSelection()
+        LastUp_NodeSelection()
+
+        no_failback = NoAutoFailbackPolicy()
+	auto_failback = AutoFailbackPolicy()
+	
+
+        cf=HBConfig("/etc/ha.d")
 
 
-    #cm = HeartbeatCM(randseed=(88, 246, 228))
-    #cm = HeartbeatCM(randseed=(108, 10, 174)) 
-    cm = HeartbeatCM()
-    cm.log(">>>>>>>>>>>>>>>> BEGINNING TESTS")
+        print "Cluster configuration:\n"
 
-    cm.setnodes(["sgi1", "sgi2"])
+        print "Nodes:", cf.nodes(), "\n"
+        print "Config Parameters:", cf.Parameters, "\n"
 
-    # We need to make sure all machines are up before starting the tests
-    # A ping -c1 -s nodename >/dev/null might be a suitable command to use
-
-    cm.SyncTestConfigs()
-    cm.log("Setting Cluster Config")
-    cm.SetClusterConfig()
-
-    cm.log("Resource Groups: " + repr(cm.ResourceGroups()))
-
-#	Set up the test scenario
-
-    cm.TruncLogs()
-    print "Calling stopall\n"
-    cm.stopall()
-    print "Calling startall\n"
-    cm.startall()
-    time.sleep(10)
-
-    Audits = AuditList(cm)
-
-    ListOfTests = TestList(cm)
-
-    tests = RandomTests(cm, ListOfTests, Audits)
-    overall, detailed = tests.run(5)
-    cm.log("****************")
-    cm.log("Overall Results:" + repr(overall))
-    cm.log("****************")
-    cm.log("Detailed Results")
-    for test in detailed.keys():
-        cm.log("Test %s:" % test + repr(detailed[test]))
-    cm.log("<<<<<<<<<<<<<<<< TESTS COMPLETED")
+        for groupname in cf.ResourceGroups.keys():
+            print "Resource Group %s:\n\t%s\n" % (groupname, cf.ResourceGroups[groupname])
