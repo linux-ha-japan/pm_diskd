@@ -37,17 +37,17 @@ ldirectord.8:	ldirectord
 install: ldirectord.8
 	[ -d $(CONF) ] ||  $(MKDIR) -p $(CONF)
 	[ -d $(SBIN) ] ||  $(MKDIR) -p $(SBIN)
-	$(INSTALL) -m 0755 -o root -g root ldirectord $(SBIN)
+	$(INSTALL) -m 0755 ldirectord $(SBIN)
 	[ -d $(MAN) ] ||  $(MKDIR) -p $(MAN)
-	$(INSTALL) -m 0644 -o root -g root ldirectord.8 $(MAN)
+	$(INSTALL) -m 0644 ldirectord.8 $(MAN)
 	if [ -d $(LOGROTATED) ]; then 					 \
 		[ -d $(LOGROTATE) ] ||  $(MKDIR) -p $(LOGROTATE) 	;\
-		$(INSTALL) -m 0644 -o root -g root 			 \
+		$(INSTALL) -m 0644 					\
 			ldirectord.logrotate $(LOGROTATE)/ldirectord	;\
 	fi
 	if [ -d $(INITD) ]; then 					 \
 		[ -d $(INIT) ] ||  $(MKDIR) -p $(INIT) 			;\
-		$(INSTALL) -m 0755 -o root -g root 			 \
+		$(INSTALL) -m 0755 					\
 			ldirectord.sh $(INIT)/ldirectord		;\
 	fi
 	
