@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+#       High-Availability Pre-Startup/Shutdown Script
+#
+# apache (aka IBMhttpd)
+#
+# Description:  Runs on Startup or shutdown of heartbeat (not resource based).
+#
+# Author:       Matthew Soffen
+#
+# Support:      linux-ha-dev@lists.tummy.com
+#
+# License:      GNU Lesser General Public License (LGPL)
+#
+# Copyright:    (C) 2002 Matthew Soffen
+#
+#
+unset LC_ALL; export LC_ALL
+unset LANGUAGE; export LANGUAGE
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+. @sysconfdir@/ha.d/shellfuncs
+
+case "$1" in
+'start')
+        ;;
+'stop')
+        ;;
+*)
+        echo "Usage: $0 { start | stop }"
+        ;;
+esac
+exit 0

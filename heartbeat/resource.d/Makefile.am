@@ -32,6 +32,7 @@ hard_SCRIPTS	=			\
 			LVM		\
 			MailTo		\
 			ServeRAID	\
+			startstop	\
 			Raid1		\
 			WAS		\
 			WinPopup
