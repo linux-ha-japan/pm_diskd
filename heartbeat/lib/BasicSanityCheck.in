@@ -30,6 +30,10 @@ IFCONFIG="@IFCONFIG@ @IFCONFIG_A_OPT@"
 HADIR=@sysconfdir@/ha.d
 INITDIR=@INITDIR@
 STONITH=@sbindir@/stonith
+LIBDIR=@libdir@/
+HBLIB=$LIBDIR/heartbeat
+APPHBD=$HBLIB/apphbd
+APPHBTEST=$HBLIB/apphbtest
 #
 DEFAULTINTERFACE=eth0	# But we really guess it...
 #
@@ -197,6 +201,18 @@ LookForString() {
   return 1
 }
 
+#	Check for the given count of the given string
+#	Complain unless the right number are there.
+CheckPat()
+{
+  count=`egrep -c "$1" $LOGFILE`
+  if
+    [ $count -ne $2 ]
+  then
+    echo "ERROR: Did not find $2 occurances of $1 in $LOGFILE"
+    errcount=`expr $errcount + 1`
+  fi
+}
 
 TestHeartbeat() {
   if
@@ -284,12 +300,6 @@ TestHeartbeat() {
     errcount=`expr $errcount + 1`
   fi
 
-  if
-    grep -i ERROR $LOGFILE
-  then
-    echo "OOPS! Looks like we had some errors come up."
-    errcount=`expr $errcount + 1`
-  fi
 }
 
 StonithCheck() {
@@ -344,6 +354,36 @@ StonithCheck() {
   errcount=`expr $errcount + $serrcount`
 }
 
+
+AppHBCheck() {
+	CFFILE=/tmp/$$.apphbd.cf
+	clientcount=5
+	cat <<-! >$CFFILE
+		realtime yes
+		debug_level	1
+		debugfile	$LOGFILE
+		logfile		$LOGFILE
+	!
+	echo "Performing apphbd success case tests"
+	$APPHBD -k >/dev/null 2>&1
+	$APPHBD -c $CFFILE
+	$APPHBTEST -i 1000 -p $clientcount -n 5 >>$CFFILE 2>&1
+	for pat in "apphb_client_register:" "type=setint" "info:.*apphb_client_remove:"
+	do
+	  CheckPat "$pat" $clientcount
+	done
+	CheckPat "failed to heartbeat|resumed heartbeats" 0
+	
+	echo "Performing apphbd failure case tests"
+	$APPHBTEST -F -i 1000 -p 1 -n 5 >>$CFFILE 2>&1
+	for pat in "'failtest'.* failed to heartbeat" "'failtest'.* resumed heartbeats" "WARN:.*hangup"
+	do
+          CheckPat "$pat" 1
+	done
+	$APPHBD -k $CFFILE
+	CheckPat "info:.*apphbd.*stopped" 1
+}
+
 #
 #	Check our identity.
 #	Set Up Config Files.
@@ -364,6 +404,13 @@ SetUpConfigFiles
 TestHeartbeat
 RemoveConfigFiles
 StonithCheck
+AppHBCheck
+if
+  egrep -i 'CRIT|ERROR' $LOGFILE
+then
+  echo "OOPS! Looks like we had some errors come up."
+  errcount=`expr $errcount + 1`
+fi
 
 echo "$errcount errors. Log file is stored in $LOGFILE"
 exit $errcount
