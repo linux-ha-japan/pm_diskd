@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.43 2000/04/27 12:50:20 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.44 2000/04/28 21:41:37 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -153,6 +153,12 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.43 2000/04/27 12:50:
 #include <sys/stat.h>
 #include <sys/resource.h>
 #include <netdb.h>
+#ifdef _POSIX_MEMLOCK
+#	include <sys/mman.h>
+#endif
+#ifdef _POSIX_PRIORITY_SCHEDULING
+#	include <sched.h>
+#endif
 
 #include <heartbeat.h>
 #include <ha_msg.h>
@@ -256,6 +262,7 @@ void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
 void	nak_rexmit(int seqno, const char * reason);
 int	req_our_resources(void);
 int	giveup_resources(void);
+void	make_realtime(void);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -545,6 +552,7 @@ initialize_heartbeat()
 				curproc = &procinfo->info[ourproc];
 				curproc->type = PROC_MST_STATUS;
 				curproc->pid = getpid();
+				make_realtime();
 				master_status_process();
 				ha_perror("master status process exiting");
 				cleanexit(1);
@@ -569,6 +577,7 @@ initialize_heartbeat()
 					curproc = &procinfo->info[ourproc];
 					curproc->type = PROC_HBWRITE;
 					curproc->pid = getpid();
+					make_realtime();
 					write_child(mp);
 					ha_perror("write process exiting");
 					cleanexit(1);
@@ -589,6 +598,7 @@ initialize_heartbeat()
 					curproc = &procinfo->info[ourproc];
 					curproc->type = PROC_HBREAD;
 					curproc->pid = getpid();
+					make_realtime();
 					read_child(mp);
 					ha_perror("read child process exiting");
 					cleanexit(1);
@@ -605,6 +615,7 @@ initialize_heartbeat()
 		ha_perror("FIFO open failed.");
 	}
 	(void)open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
+	make_realtime();
 	control_process(fifo);
 	ha_log(LOG_ERR, "control_process exiting");
 	cleanexit(1);
@@ -612,6 +623,47 @@ initialize_heartbeat()
 	return(HA_OK);
 }
 
+/*
+ *	Make us behave like a soft real-time process.
+ *	We need scheduling priority and being locked in memory.
+ */
+
+void
+make_realtime()
+{
+
+#ifdef SCHED_RR
+#	define HB_SCHED_POLICY	SCHED_RR
+#endif
+
+#ifdef HB_SCHED_POLICY
+	struct sched_param	sp;
+	int			staticp;
+
+	ha_log(LOG_INFO, "Setting process %d to realtime", getpid());
+	if ((staticp=sched_getscheduler(0)) < 0) {
+		ha_log(LOG_ERR, "unable to get scheduler parameters.");
+	}else{
+		memset(&sp, 0, sizeof(sp));
+		sp.sched_priority = HB_STATIC_PRIO;
+		if (sched_setscheduler(0, HB_SCHED_POLICY, &sp) < 0) {
+			ha_log(LOG_ERR, "unable to set scheduler parameters.");
+		}else{
+			ha_log(LOG_INFO
+			,	"scheduler priority set to %d", HB_STATIC_PRIO);
+		}
+	}
+	
+#endif
+
+#ifdef MCL_FUTURE
+	if (mlockall(MCL_FUTURE) < 0) {
+		ha_log(LOG_ERR, "unable to lock pid %d in memory", getpid());
+	}else{
+		ha_log(LOG_INFO, "pid %d locked in memory.", getpid());
+	}
+#endif
+}
 
 
 void
@@ -2740,6 +2792,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.44  2000/04/28 21:41:37  alan
+ * Added the features to lock things in memory, and set our priority up.
+ *
  * Revision 1.43  2000/04/27 12:50:20  alan
  * Changed the port number to 694.  Added the pristene target to the ldirectord
  * Makefile.  Minor tweaks to heartbeat.sh, so that it gives some kind of

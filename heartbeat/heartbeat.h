@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.22 2000/04/27 12:50:20 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.23 2000/04/28 21:41:37 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -103,6 +103,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.22 2000/04/27 12:50:
 
 #define	DEFAULTBAUD	B19200	/* Default serial link speed */
 #define	DEFAULTBAUDRATE	19200	/* Default serial link speed as int */
+
+#define HB_STATIC_PRIO	1	/* Used with soft realtime scheduling */
 
 #ifndef PPP_D
 #	define	PPP_D		VAR_RUN_D "/ppp.d"
