@@ -46,7 +46,6 @@ EXTRA_DIST = $(htmlfiles) $(man_MANS) $(OTHER_DOCS)
 ChangeLog: $(SPECSRC)
 	rm -fr ChangeLog
 	sed -e '1,/^%changelog/d' -e '/^%/,$$d' < $< > $@
-	chmod 444 $@
 
 
 %.txt: %.html
