@@ -20,4 +20,4 @@
 MAINTAINERCLEANFILES    = Makefile.in
 
 ## Subdirectories...
-SUBDIRS			=  apphb clplumbing pils plugins stonith 
+SUBDIRS			=  apphb clplumbing pils recoverymgr stonith plugins 

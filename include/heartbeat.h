@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.32 2003/02/11 15:16:09 msoffen Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.33 2003/04/15 23:09:51 alan Exp $";
 
 #ifdef SYSV
 #	include <sys/termio.h>
@@ -151,8 +151,9 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.32 2003/02/11 15:16:
 #define LOGFACILITY	"HA_LOGFACILITY"/* Facility to use for logger */
 #define HADIRENV	"HA_DIR"	/* The base HA directory */
 #define HAFUNCENV	"HA_FUNCS"	/* Location of ha shell functions */
-#define HANICEFAILBACK	"HA_NICEFAILBACK"	/* "yes" when nice_failback is on */
+#define HANICEFAILBACK	"HA_NICEFAILBACK" /* "yes" when nice_failback is on */
 #define HADONTASK	"HA_DONTASK"	/* "yes" when no other nodes "active" ...*/
+#define HADEBUGVAL	"HA_DEBUG"	/* current debug value (if nonzero) */
 
 
 #define	DEFAULTBAUD	B19200	/* Default serial link speed */
@@ -366,6 +367,7 @@ void	SetParameterValue(const char * name, const char * value);
 void*		ha_malloc(size_t size);
 void*		ha_calloc(size_t nmemb, size_t size);
 void		ha_free(void *ptr);
+int		ha_is_allocated(const void *ptr);
 void		ha_malloc_report(void);
 
 #ifndef HA_HAVE_SETENV

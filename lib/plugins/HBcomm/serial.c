@@ -1,4 +1,4 @@
-const static char _serial_c_Id [] = "$Id: serial.c,v 1.24 2003/02/07 08:37:18 horms Exp $";
+const static char _serial_c_Id [] = "$Id: serial.c,v 1.25 2003/04/15 23:09:52 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -348,7 +348,8 @@ ttysetup(int fd, const char * ourtty)
 #	define CRTSCTS 020000000000U
 #endif
 
-	ti.c_cflag |=  (serial_baud|(unsigned)CS8|(unsigned)CREAD|(unsigned)CLOCAL|(unsigned)CRTSCTS);
+	ti.c_cflag |=  (serial_baud|(unsigned)CS8|(unsigned)CREAD
+	|		(unsigned)CLOCAL|(unsigned)CRTSCTS);
 
 	ti.c_lflag &= ~(ICANON|ECHO|ISIG);
 #ifdef HAVE_TERMIOS_C_LINE
@@ -357,7 +358,8 @@ ttysetup(int fd, const char * ourtty)
 	ti.c_cc[VMIN] = 1;
 	ti.c_cc[VTIME] = 1;
 	if (SETATTR(fd, &ti) < 0) {
-		LOG(PIL_CRIT, "cannot set tty attributes: %s", strerror(errno));
+		LOG(PIL_CRIT, "cannot set tty attributes: %s"
+		,	strerror(errno));
 		return(HA_FAIL);
 	}
 	if (ANYDEBUG) {
@@ -370,6 +372,7 @@ ttysetup(int fd, const char * ourtty)
 	}
 	/* For good measure */
 	FLUSH(fd);
+	tcsetpgrp(fd, getsid(getpid()));
 	return(HA_OK);
 }
 
@@ -380,7 +383,8 @@ opentty(char * serial_device)
 	int	fd;
 
 	if ((fd=open(serial_device, O_RDWR)) < 0 ) {
-		LOG(LOG_CRIT, "cannot open %s: %s", serial_device, strerror(errno));
+		LOG(LOG_CRIT, "cannot open %s: %s", serial_device
+		,	strerror(errno));
 		return(fd);
 	}
 	if (!ttysetup(fd, serial_device)) {
@@ -530,6 +534,14 @@ serial_read (struct hb_media*mp)
 			return(NULL);
 		}
 	}
+
+	if (buf[0] == EOS || ret->nfields < 1) {
+		ha_msg_del(ret);
+		return NULL;
+	}else{
+		thissp->consecutive_errors=0;
+	}
+
 	/* Should this message should continue around the ring? */
 
 	if (!isauthentic(ret) || !should_ring_copy_msg(ret)) {
@@ -537,19 +549,6 @@ serial_read (struct hb_media*mp)
 		return(ret);
 	}
 
-	if (buf[0] == EOS) {
-		++thissp->consecutive_errors;
-		if ((thissp->consecutive_errors % 10) == 0) {
-			LOG(PIL_WARN
-			,	"10 consecutive EOF errors from serial port %s"
-			,	thissp->ttyname);
-			sleep(10);
-		}
-		ha_msg_del(ret);
-		return NULL;
-	}else{
-		thissp->consecutive_errors=0;
-	}
 
 	/* Add Name=value pairs until we reach MSG_END or EOF */
 	/* Forward message to other port in ring (if any) */
@@ -641,11 +640,26 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 			if (rc == 0 || errno == EINTR) {
 				LOG(PIL_CRIT, "EOF in ttygets [%s]: %s [%d]"
 				,	tty->ttyname, strerror(errno), rc);
+				++tty->consecutive_errors;
+				tcsetpgrp(fd, getsid(getpid()));
+				if ((tty->consecutive_errors % 10) == 0) {
+					LOG(PIL_WARN
+					,	"10 consecutive EOF"
+					" errors from serial port %s"
+					,	tty->ttyname);
+					LOG(PIL_INFO
+					,	"%s pgrp: %d", tty->ttyname
+					,	tcgetpgrp(fd));
+					sleep(10);
+				}
 				return(NULL);
 			}
 			errno = 0;
 			continue;
+		}else{
+			tty->consecutive_errors = 0;
 		}
+			
 		if (*cp == '\r' || *cp == '\n') {
 			break;
 		}
@@ -655,6 +669,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.25  2003/04/15 23:09:52  alan
+ * Continuing saga of the semi-major heartbeat process restructure.
+ *
  * Revision 1.24  2003/02/07 08:37:18  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.
