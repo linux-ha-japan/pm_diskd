@@ -1163,7 +1163,7 @@ ccm_compute_and_send_final_memlist(ll_cluster_t *hb, ccm_info_t *info)
 					!= HA_OK) {
 		cl_log(LOG_ERR, "ccm_compute_and_send_final_memlist: failure "
 						"to send finalmemlist");
-		sleep(1);
+		cl_shortsleep();
 	}
 
 	/* fill my new memlist and update the new cookie if any */
@@ -1273,7 +1273,7 @@ ccm_send_join_reply(ll_cluster_t *hb, ccm_info_t *info)
 		while (ccm_send_joiner_reply(hb, info, joiner_name)!=HA_OK) {
 			cl_log(LOG_ERR, "ccm_send_join_reply: failure "
 				"to send join reply");
-			sleep(1);
+			cl_shortsleep();
 		}
 		head = g_slist_next(head);
 	}
@@ -1674,7 +1674,7 @@ ccm_send_cl_reply(ll_cluster_t *hb, ccm_info_t *info)
 						!=HA_OK) {
 				cl_log(LOG_ERR, "ccm_state_version_request: "
 					"failure to send join");
-					sleep(1);
+					cl_shortsleep();
 			}
 			update_strdelete(memlist);
 		} else {
@@ -1685,7 +1685,7 @@ ccm_send_cl_reply(ll_cluster_t *hb, ccm_info_t *info)
 				cl_log(LOG_ERR, 
 				"ccm_state_version_request: failure "
 						"to send join");
-				sleep(1);
+				cl_shortsleep();
 			}
 		}
 	}
@@ -1942,7 +1942,7 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 			  	 * a response from a bigger group 
 				 */
 				resp_dropped();
-				usleep(1000); /* sleep for a while */
+				cl_shortsleep(); /* sleep for a while */
 				/* send a fresh version request message */
 				version_reset(CCM_GET_VERSION(info));
 				CCM_SET_STATE(info, CCM_STATE_NONE);
@@ -1978,7 +1978,7 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 		CCM_SET_COOKIE(info, cookie);
 		while (ccm_send_join(hb, info) != HA_OK) {
 			cl_log(LOG_WARNING, "ccm_state_version_request: failure to send join");
-			sleep(1);
+			cl_shortsleep();
 		}
 
 		/* initialize the update table  and set our state to JOINING */
@@ -2134,7 +2134,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 						!= HA_OK) {
 					cl_log(LOG_WARNING, "ccm_state_joined: "
 						"failure to send join reply");
-						sleep(1);
+						cl_shortsleep();
 				}
 			}
 			break;
@@ -2160,7 +2160,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 			while (ccm_send_join(hb, info) != HA_OK) {
 				cl_log(LOG_WARNING, "ccm_state_joined: failure "
 							"to send join");
-				sleep(1);
+				cl_shortsleep();
 			}
 
 			CCM_SET_STATE(info, CCM_STATE_JOINING);
@@ -2175,7 +2175,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 			while (ccm_send_join(hb, info) != HA_OK) {
 				cl_log(LOG_WARNING, "ccm_state_joined:"
 				" failure to send join");
-				sleep(1);
+				cl_shortsleep();
 			}
 			CCM_SET_STATE(info, CCM_STATE_JOINING);
 			break;
@@ -2328,7 +2328,7 @@ switchstatement:
 					while (ccm_send_leave(hb, info) != HA_OK) {
 						cl_log(LOG_ERR, "ccm_state_memlistreq: "
 							"failure to send leave");
-						sleep(1);
+						cl_shortsleep();
 					}
 					ccm_reset(info);
 				} else {
@@ -2356,7 +2356,7 @@ switchstatement:
 						HA_OK) {
 				cl_log(LOG_ERR, "ccm_state_sent_memlistreq: "
 					"failure to send join");
-				sleep(1);
+				cl_shortsleep();
 			}
 			break;
 
@@ -2407,7 +2407,7 @@ switchstatement:
 						cl_log(LOG_ERR, 
 						 "ccm_state_memlistreq: "
 						 "failure to send leave");
-						sleep(1);
+						cl_shortsleep();
 					}
 					ccm_reset(info);
 				} else {
@@ -2447,7 +2447,7 @@ switchstatement:
 						cl_log(LOG_ERR, 
 						 "ccm_state_memlistreq: "
 						 "failure to send leave");
-						sleep(1);
+						cl_shortsleep();
 					}
 					ccm_reset(info);
 				} else {
@@ -2580,7 +2580,7 @@ switchstatement:
 							!= HA_OK) {
 					cl_log(LOG_ERR, "ccm_state_memlist_res:"
 						" failure to send join");
-					sleep(1);
+					cl_shortsleep();
 				}
 				break;
 			}
@@ -2607,7 +2607,7 @@ switchstatement:
 				while (ccm_send_join(hb, info) != HA_OK) {
 					cl_log(LOG_ERR, "ccm_state_memlist_res:"
 						" failure to send join");
-					sleep(1);
+					cl_shortsleep();
 				}
 				CCM_SET_STATE(info, CCM_STATE_JOINING);
 			}
@@ -2634,7 +2634,7 @@ switchstatement:
 							NULL) != HA_OK) {
 					cl_log(LOG_ERR, "ccm_state_memlist_res:"
 					 " failure to send join");
-					sleep(1);
+					cl_shortsleep();
 				}
 				break;
 			}
@@ -2645,7 +2645,7 @@ switchstatement:
 			while (ccm_send_leave(hb, info) != HA_OK) {
 				cl_log(LOG_ERR, "ccm_state_memlist_res: "
 					"failure to send join");
-				sleep(1);
+				cl_shortsleep();
 			}
 
 			ccm_reset(info); 
@@ -2664,7 +2664,7 @@ switchstatement:
 			while (ccm_send_join(hb, info) != HA_OK) {
 				cl_log(LOG_ERR, "ccm_state_memlist_res:"
 				" failure to send join");
-				sleep(1);
+				cl_shortsleep();
 			}
 			finallist_reset();
 			CCM_SET_STATE(info, CCM_STATE_JOINING);
@@ -2689,7 +2689,7 @@ switchstatement:
 				while (ccm_send_join(hb, info) != HA_OK) {
 					cl_log(LOG_ERR, "ccm_state_memlist_res:"
 					" failure to send join");
-					sleep(1);
+					cl_shortsleep();
 				}
 				finallist_reset();
 				CCM_SET_STATE(info, CCM_STATE_JOINING);
@@ -2942,7 +2942,7 @@ switchstatement:
 					cl_log(LOG_ERR, 
 					 "ccm_state_joining: failure "
 						"to send join");
-					sleep(1);
+					cl_shortsleep();
 				}
 			} else {
 				/* update the update table  */
@@ -2969,7 +2969,7 @@ switchstatement:
 							"ccm_state_joining: "
 							"failure to send "
 							"memlist request");
-							sleep(1);
+							cl_shortsleep();
 						}
 						ccm_memcomp_init(info);
 						ccm_memcomp_note_my_membership(
@@ -3054,7 +3054,7 @@ switchstatement:
 					cl_log(LOG_ERR, "ccm_state_joining: "
 						"failure to send memlist "
 						"request");
-					sleep(1);
+					cl_shortsleep();
 				}
 				ccm_memcomp_init(info);
 				ccm_memcomp_note_my_membership(info);
@@ -3082,7 +3082,7 @@ switchstatement:
 					   	cl_log(LOG_ERR, 
 							"ccm_state_joining: "
 					 		"failure to send leave");
-						sleep(1);
+						cl_shortsleep();
 					}
 					ccm_reset(info);
 					CCM_SET_STATE(info, CCM_STATE_NONE);
@@ -3117,7 +3117,7 @@ switchstatement:
 			while (ccm_send_join(hb, info) != HA_OK) {
 				cl_log(LOG_ERR, "ccm_state_joining: failure "
 					"to send join");
-				sleep(1);
+				cl_shortsleep();
 			}
 
 			break;
@@ -3370,7 +3370,7 @@ ccm_control_process(ccm_info_t *info, ll_cluster_t * hb)
 		while(ccm_send_protoversion(hb, info) != HA_OK) {
 			cl_log(LOG_ERR, "ccm_control_process:failure to send "
 					"protoversion request");
-			sleep(1);
+			cl_shortsleep();
 		}
 		CCM_SET_STATE(info, CCM_STATE_VERSION_REQUEST);
 		/* 

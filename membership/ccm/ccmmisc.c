@@ -44,7 +44,7 @@ ccm_str2bitmap(const char *memlist, unsigned char **bitlist)
 	}
 
 	while ((*bitlist = (char *)g_malloc(outbytes)) == NULL) {
-		sleep(1);
+		cl_shortsleep();
 	}
 	memset(*bitlist,0,outbytes);
 
@@ -65,7 +65,7 @@ ccm_bitmap2str(const unsigned char *bitmap, int numBytes, char **memlist)
 	maxstrsize = B64_stringlen(numBytes)+1;
 	/* we want memory and we want it now */
 	while ((*memlist = (char *)g_malloc(maxstrsize)) == NULL) {
-		sleep(1);
+		cl_shortsleep();
 	}
 
 	return binary_to_base64(bitmap, numBytes, *memlist, maxstrsize);

@@ -28,6 +28,7 @@
 #include <glib.h>
 #include <string.h>
 #include <ipc.h>
+#include <clplumbing/realtime.h>
 #include <sys/time.h>
 
 #ifdef __CCM_LIBRARY__

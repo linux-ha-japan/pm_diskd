@@ -198,7 +198,7 @@ init_llmborn(mbr_private_t *private)
 		}
 	 	if(ret == IPC_FAIL){
 			fprintf(stderr, ".");
-			sleep(1);
+			cl_shortsleep();
 			continue;
 		}
 
