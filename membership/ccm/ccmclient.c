@@ -345,12 +345,6 @@ client_new_mbrship(int n,  int trans, int *member, void *borndata)
 		 sizeof(ccm_born_t )+n*sizeof(struct born_s));
 	ipc_born_message->count++;
 	
-
-	if(global_debug) {
-		cl_log(LOG_DEBUG, "n=%d, msg->msg_len=%ld",
-			n,ipc_born_message->ipcmsg.msg_len);
-	}
-
 	send_all();
 }
 
