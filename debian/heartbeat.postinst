@@ -30,9 +30,10 @@ if [ "$1" = "configure" ]; then
 	if getent group "$HA_APIGROUP" > /dev/null ; then
 		TMP_GID=`getent group "$HA_APIGROUP" | cut -d: -f3`
 		if test "$TMP_GID" != "$HA_APIGID"; then
-			echo "Group ID missmatch for group \"$HA_APIGROUP\": "
-				"needs to be \"$HA_APIGID\" but "
-				"it already exists with group id "
+			echo "Group ID missmatch for group " \
+				"\"$HA_APIGROUP\": " \
+				"needs to be \"$HA_APIGID\" but " \
+				"it already exists with group id " \
 				"\"$TMP_GID\"" >& 2
 			exit 1
 		fi
@@ -44,9 +45,9 @@ if [ "$1" = "configure" ]; then
 	if getent passwd "$HA_CCMUSER" > /dev/null ; then
 		TMP_UID=`getent passwd "$HA_CCMUSER" | cut -d: -f3`
 		if test "$TMP_UID" != "$HA_CCMUID"; then
-			echo "User ID missmatch for group \"$HA_CCMUSER\": "
-				"needs to be \"$HA_CCMUID\" but "
-				"it already exists with user id "
+			echo "User ID missmatch for group \"$HA_CCMUSER\": " \
+				"needs to be \"$HA_CCMUID\" but " \
+				"it already exists with user id " \
 				"\"$TMP_UID\"" >& 2
 			exit 1
 		fi
@@ -57,16 +58,16 @@ if [ "$1" = "configure" ]; then
 	fi
 
 	rm -f /var/lib/heartbeat/fifo
-	mknod -m 644 /var/lib/heartbeat/fifo p
+	mknod -m 0600 /var/lib/heartbeat/fifo p
 
 	rm -f /var/lib/heartbeat/api/ccm.req \
 		/var/lib/heartbeat/api/ccm.rsp \
 		/var/lib/heartbeat/api/ipfail.req \
 		/var/lib/heartbeat/api/ipfail.rsp
-	mknod -m 200 /var/lib/heartbeat/api/ccm.req p
-	mknod -m 600 /var/lib/heartbeat/api/ccm.rsp p
-	mknod -m 200 /var/lib/heartbeat/api/ipfail.req p
-	mknod -m 600 /var/lib/heartbeat/api/ipfail.rsp p
+	mknod -m 0200 /var/lib/heartbeat/api/ccm.req p
+	mknod -m 0600 /var/lib/heartbeat/api/ccm.rsp p
+	mknod -m 0200 /var/lib/heartbeat/api/ipfail.req p
+	mknod -m 0600 /var/lib/heartbeat/api/ipfail.rsp p
 	chown "$HA_CCMUSER" /var/lib/heartbeat/api/ccm.req \
 			/var/lib/heartbeat/api/ccm.rsp \
 			/var/lib/heartbeat/api/ipfail.req \
@@ -77,10 +78,17 @@ if [ "$1" = "configure" ]; then
 			/var/lib/heartbeat/api/ipfail.rsp
 
 	rm -f /var/lib/heartbeat/register
-	mknod -m 644 /var/lib/heartbeat/register p
+	mknod -m 0620 /var/lib/heartbeat/register p
 	chgrp "$HA_APIGROUP" /var/lib/heartbeat/register
 
-	chgrp "$HA_APIGROUP" /var/lib/heartbeat/casual /var/lib/heartbeat/api
+	chmod 1770 /var/lib/heartbeat/casual
+	chgrp "$HA_APIGROUP" /var/lib/heartbeat/casual
+
+	chmod 0750 /var/lib/heartbeat/api
+	chgrp "$HA_APIGROUP" /var/lib/heartbeat/api
+
+	chown "$HA_CCMUSER" /var/lib/heartbeat/ccm
+	chgrp "$HA_APIGROUP" /var/lib/heartbeat/ccm
 
 	update-rc.d heartbeat defaults >/dev/null
 fi

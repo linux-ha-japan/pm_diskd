@@ -14,3 +14,4 @@ var/run
 var/lib/heartbeat
 var/lib/heartbeat/api
 var/lib/heartbeat/casual
+var/lib/heartbeat/ccm
