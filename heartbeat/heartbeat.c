@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.142 2001/10/09 19:22:52 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.143 2001/10/10 13:18:35 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1285,7 +1285,7 @@ master_status_process(void)
 			send_status_now = 1;
 			ClockJustJumped = 1;
 		}else{
-			Clock_Just_Jumped = 0;
+			ClockJustJumped = 0;
 		}
 
 		if (send_status_now) {
@@ -4286,6 +4286,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.143  2001/10/10 13:18:35  alan
+ * Fixed a typo on ClockJustJumped.  Oops!
+ *
  * Revision 1.142  2001/10/09 19:22:52  alan
  * Made some minor changes to how we handle clock jumps and timeout other
  * nodes.  I'm not sure why it's necessary, or if it is for that matter.
