@@ -59,6 +59,7 @@ struct symbol_str {
 #	define SCANSEL_C	/* Nothing */
 #endif
 
+#define	SOEND			".so"
 
 static int so_select (const struct dirent *dire);
 
@@ -120,7 +121,7 @@ stonith_new(const char * type)
 		return(NULL);
 	}
 	
-	sprintf(obj_path,"%s/%s.so", STONITH_MODULES, type);
+	sprintf(obj_path,"%s/%s%s", STONITH_MODULES, type, SOEND);
 
 	if ((s->dlhandle = dlopen(obj_path, RTLD_LAZY|RTLD_GLOBAL)) == NULL) {
 		syslog(LOG_ERR, "%s: %s\n", __FUNCTION__, dlerror());
@@ -173,7 +174,7 @@ stonith_types(void)
 	struct dirent **namelist;
 	int n, i;
 	static char **	lastret = NULL;
-	static int	lastcount = 0;
+	static int	lastcount = -1;
 
 
 	n = scandir(STONITH_MODULES, &namelist, SCANSEL_C &so_select, 0);
@@ -204,8 +205,8 @@ stonith_types(void)
 		return(NULL);
 	}
 
-	for(i=0; i<n; i++) { 
-		int len = strlen(namelist[i]->d_name);
+	for(i=0; i < n; i++) { 
+		int len = strlen(namelist[i]->d_name)+1;
 
 		list[i] = (char*)  MALLOC(len * sizeof(char));
 		if (list[i] == NULL) {
@@ -215,7 +216,7 @@ stonith_types(void)
 		strcpy(list[i], namelist[i]->d_name);
 
 		/* strip ".so" */
-		list[i][len - 3] = '\0';
+		list[i][len - sizeof(SOEND)] = '\0';
 
 		FREE(namelist[i]);
 	}
@@ -227,15 +228,14 @@ stonith_types(void)
 	return list;
 }
 
-static int so_select (const struct dirent *dire) {
+static int
+so_select (const struct dirent *dire) {
 
-	const char *end = &dire->d_name[strlen(dire->d_name) - 3];
-	const char *obj_end = ".so";
+	const char *end = &dire->d_name[strlen(dire->d_name) - STRLEN(SOEND)];
 
-	if (strcmp(end, obj_end) == 0){
+	if (strcmp(end, SOEND) == 0){
 		return 1;
 	}
 
 	return 0;
 }
-
