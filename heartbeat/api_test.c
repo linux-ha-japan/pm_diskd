@@ -119,11 +119,16 @@ main(int argc, char ** argv)
 		exit(4);
 	}
 
-	if ((ctmp = hb->llc_ops->get_parameter(hb, "auto_failback")) != NULL) {
+	if ((ctmp = hb->llc_ops->get_parameter(hb, KEY_HBVERSION)) != NULL) {
+		cl_log(LOG_INFO, "Heartbeat version is %s", ctmp);
+		free(ctmp);
+	}
+
+	if ((ctmp = hb->llc_ops->get_parameter(hb, KEY_AUTOFAIL)) != NULL) {
 		cl_log(LOG_INFO, "auto_failback is set to %s", ctmp);
 		free(ctmp);
 	}
-	if ((ctmp = hb->llc_ops->get_parameter(hb, "init_dead")) != NULL) {
+	if ((ctmp = hb->llc_ops->get_parameter(hb, KEY_INITDEAD)) != NULL) {
 		cl_log(LOG_INFO, "init_dead is set to %s", ctmp);
 		free(ctmp);
 	}

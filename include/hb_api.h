@@ -274,6 +274,31 @@ struct llc_ops {
 	const char * (*errmsg)(ll_cluster_t*);
 };
 
+/* Parameters we can ask for via get_parameter */
+#define	KEY_HBVERSION	"hbversion"	/* Not a configuration parameter */
+#define	KEY_HOST	"node"
+#define KEY_HOPS	"hopfudge"
+#define KEY_KEEPALIVE	"keepalive"
+#define KEY_DEADTIME	"deadtime"
+#define KEY_DEADPING	"deadping"
+#define KEY_WARNTIME	"warntime"
+#define KEY_INITDEAD	"initdead"
+#define KEY_WATCHDOG	"watchdog"
+#define	KEY_BAUDRATE	"baud"
+#define	KEY_UDPPORT	"udpport"
+#define	KEY_FACILITY	"logfacility"
+#define	KEY_LOGFILE	"logfile"
+#define	KEY_DBGFILE	"debugfile"
+#define KEY_FAILBACK	"nice_failback"
+#define KEY_AUTOFAIL	"auto_failback"
+#define KEY_STONITH	"stonith"
+#define KEY_STONITHHOST "stonith_host"
+#define KEY_CLIENT_CHILD "respawn"
+#define KEY_RT_PRIO	"rtprio"
+#define KEY_GEN_METH	"hbgenmethod"
+#define KEY_REALTIME	"realtime"
+#define KEY_DEBUGLEVEL	"debug"
+#define KEY_NORMALPOLL	"normalpoll"
 
 ll_cluster_t*	ll_cluster_new(const char * llctype);
 #endif /* __HB_API_H */

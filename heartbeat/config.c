@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.92 2003/07/01 16:56:04 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.93 2003/07/03 23:27:19 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -54,33 +54,11 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.92 2003/07/01 16:56:04 
 #include <clplumbing/realtime.h>
 #include <HBcomm.h>
 #include <hb_module.h>
+#include <hb_api.h>
 #include <hb_config.h>
 
 #define	DIRTYALIASKLUDGE
 
-#define	KEY_HOST	"node"
-#define KEY_HOPS	"hopfudge"
-#define KEY_KEEPALIVE	"keepalive"
-#define KEY_DEADTIME	"deadtime"
-#define KEY_DEADPING	"deadping"
-#define KEY_WARNTIME	"warntime"
-#define KEY_INITDEAD	"initdead"
-#define KEY_WATCHDOG	"watchdog"
-#define	KEY_BAUDRATE	"baud"
-#define	KEY_UDPPORT	"udpport"
-#define	KEY_FACILITY	"logfacility"
-#define	KEY_LOGFILE	"logfile"
-#define	KEY_DBGFILE	"debugfile"
-#define KEY_FAILBACK	"nice_failback"
-#define KEY_AUTOFAIL	"auto_failback"
-#define KEY_STONITH	"stonith"
-#define KEY_STONITHHOST "stonith_host"
-#define KEY_CLIENT_CHILD "respawn"
-#define KEY_RT_PRIO	 "rtprio"
-#define KEY_GEN_METH	 "hbgenmethod"
-#define KEY_REALTIME	 "realtime"
-#define KEY_DEBUGLEVEL	 "debug"
-#define KEY_NORMALPOLL	 "normalpoll"
 
 static int add_normal_node(const char *);
 static int set_hopfudge(const char *);
@@ -1605,6 +1583,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.93  2003/07/03 23:27:19  alan
+ * Moved #defines for parameter names to a public header file.
+ * Added the ability to ask for the heartbeat version info through the API.
+ *
  * Revision 1.92  2003/07/01 16:56:04  alan
  * Added code to allow us to specify whether to use normal or alternative
  * poll methods.

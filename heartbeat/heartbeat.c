@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.269 2003/07/03 21:49:33 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.270 2003/07/03 23:27:19 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -242,6 +242,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.269 2003/07/03 21:49
 #include <clplumbing/cpulimits.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
+#include <hb_api.h>
 #include <hb_api_core.h>
 #include <test.h>
 #include <hb_proc.h>
@@ -2825,6 +2826,7 @@ main(int argc, char * argv[], char **envp)
 	}
 
 	get_localnodeinfo();
+	SetParameterValue(KEY_HBVERSION, VERSION);
 
 	init_set_proc_title(argc, argv, envp);
 	set_proc_title("%s", cmdname);
@@ -4124,6 +4126,10 @@ get_localnodeinfo(void)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.270  2003/07/03 23:27:19  alan
+ * Moved #defines for parameter names to a public header file.
+ * Added the ability to ask for the heartbeat version info through the API.
+ *
  * Revision 1.269  2003/07/03 21:49:33  alan
  * Added code to allow us to use our own poll substitute for everything...
  *
