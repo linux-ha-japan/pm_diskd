@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.27 2000/08/31 05:23:36 alan Exp $
+#	$Id: Makefile,v 1.28 2000/08/31 05:27:31 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -141,7 +141,7 @@ $(FINDIF): $(F_OBJLIST)
 $(LDIRECTORD):
 	$(MAKE) -C $(LDIRECTORD_DIR)
 
-install: install_bin
+install: install_lib install_bin
 
 install_bin: all
 	[ -p $(FIFO) ] || mkfifo $(FIFO) || chmod 0600 $(FIFO)
