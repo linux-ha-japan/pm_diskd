@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.34 2001/07/25 06:04:50 horms Exp $
+# $Id: ldirectord,v 1.35 2001/08/10 03:01:37 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -15,7 +15,7 @@ Daemon to monitor remote services and control Linux Virtual Server
 
 =head1 SYNOPSIS
 
-B<ldirectord> I<configuration> [B<-d>] [B<-h>]
+B<ldirectord> [B<-d>] [B<-h>] I<configuration> 
 B<start>|B<stop>|B<restart>|B<reload>|B<status>
 
 
@@ -147,10 +147,12 @@ This is useful to run B<ldirectord> for instance from daemontools.
 The following commands must follow a B<virtual> entry and must be indented
 with a minimum of 4 spaces or one tab.
 
-B<real => I<ip_address|hostname[->ip_address|hostname]:portnumber|servicename> B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
+B<real => I<ip_address|hostname[-E<gt>ip_address|hostname][:portnumber|servicename>] B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
 
 Defines a real service by IP-address (or hostname) and port (or
-servicename). Optionally a range of IP addresses (or two hostnames) may be
+servicename). If the port is omitted then a 0 will be used, this is
+intended primarily for fwmark services where the port for real servers is
+ignored. Optionally a range of IP addresses (or two hostnames) may be
 given, in which case each IP address in the range will be treated as a real
 server using the given port. The second argument defines the forwarding
 method, must be B<gate>, B<ipip> or B<masq>.  The thrid argument is
@@ -362,7 +364,7 @@ sub init
 
 	# search for the correct configuration file
 	if ( !defined $ARGV[0] ) {
-	 	init_error("Usage ldirectord [configfile] [-d] \{start|stop|restart|reload|status\}\nRun ldirectord -h for more information");
+	 	init_error("Usage ldirectord [-d] [configfile] \{start|stop|restart|reload|status\}\nRun ldirectord -h for more information");
 	}
 	if ( defined $ARGV[0] && defined $ARGV[1] ) {
 		$CONFIG = $ARGV[0];
@@ -376,7 +378,7 @@ sub init
 		$CMD = $ARGV[0];
 	}
 	if ( $CMD ne "start" && $CMD ne "stop" && $CMD ne "status" && $CMD ne "restart" && $CMD ne "reload") {
-	 	init_error("Usage ldirectord [configfile] [-d] \{start|stop|restart|reload|status\}\nType ldirectord -h for more information");
+	 	init_error("Usage ldirectord [-d] [configfile] \{start|stop|restart|reload|status\}\nType ldirectord -h for more information");
 	}
 	if ( -f "/etc/ha.d/$CONFIG" ) {
 		$CONFIG = "/etc/ha.d/$CONFIG";
@@ -842,26 +844,42 @@ sub _ld_read_config_real_resolve
 
 	for $i (@$rsrv_todo) {
 		($str, $line)=@$i;
-		$str =~	 /(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+)(->(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+))?:(\d+|[A-Za-z0-9-]+)\s+(.*)/
+		$str =~	 /(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+)(->(\d+\.\d+\.\d+\.\d+|[A-Za-z0-9.-]+))?(:(\d+|[A-Za-z0-9-]+))?\s+(.*)/
 			or &config_error($line, 
-				"invalid address for real server");
+				"invalid address for real server" .
+                                " (wrong format)");
 		$ip1=$1;
 		$ip2=$3;
-		$port=$4;
-		$flags=$5;
-		$ip1=&ld_gethostbyname($ip1) or
-			&config_error($line, "invalid address for real server");
+                if(defined($5)){
+		   $port=$5;
+                }
+                else {
+                   $port="0";
+                }
+		$flags=$6;
+		$ip1=&ld_gethostbyname($ip1);
+                unless( defined($ip1) ) {
+			&config_error($line, 
+                                "invalid address for real server" .
+                                " (could not resolve host)");
+                }
 		if( defined($port) ){
-			$port=&ld_getservbyname($port) or
+			$port=&ld_getservbyname($port);
+                        unless( defined($port) ){
 				&config_error($line, 
-					"invalid port for real server");
+                                        "invalid port for real server" .
+                                        " (could not resolve port)");
+                        }
 		}
 		if ( defined ($ip2) ) {
-			$ip2=&ld_gethostbyname($ip2) or
+			$ip2=&ld_gethostbyname($ip2);
+                        unless( defined ($ip2) ) {
 				&config_error($line, 
-					"invalid address for real server");
-			&add_real_server_range($line, $vsrv, 
-				$ip1, $ip2, $port, $flags);
+                                        "invalid address for real server" .
+                                        " (could not resolve end host)");
+                        }
+			&add_real_server_range($line, $vsrv, $ip1, $ip2, 
+                                $port, $flags);
 		} else {
 			&add_real_server($line, $vsrv, $ip1, $port, $flags);
 		}
