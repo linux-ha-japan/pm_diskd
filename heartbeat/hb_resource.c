@@ -217,8 +217,6 @@ PerformAutoFailback(void)
 	}
 	if ((procinfo->i_hold_resources & HB_FOREIGN_RSC) == 0
 	||	!rsc_needs_failback || !auto_failback) {
-		ha_log(LOG_INFO, INITMSG " (none)");
-		init_takeover_announced = TRUE;
 		rsc_needs_failback = FALSE;
 		shutdown_if_needed();
 		return;
@@ -670,7 +668,7 @@ process_resources(const char * type, struct ha_msg* msg
 				hb_send_resources_held(TRUE, NULL);
 				PerformAutoFailback();
 			}
-		}else{
+		}else{	/* This message is from us... */
 			const char * comment = ha_msg_value(msg, F_COMMENT);
 
 			/*
@@ -877,6 +875,11 @@ send_local_starting(void)
 
 	if (!nice_failback) {
 		return HA_OK;
+	}
+	if (!auto_failback && !init_takeover_announced) {
+		ha_log(LOG_INFO
+		,	INITMSG " (auto_failback off)");
+		init_takeover_announced = TRUE;
 	}
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG
@@ -1349,8 +1352,7 @@ ask_for_resources(struct ha_msg *msg)
 				,	"Standby resource"
 				" acquisition done [%s]."
 				,	decode_resources(rtype));
-				if (failback_in_progress) {
-					failback_in_progress = FALSE;
+				if (!init_takeover_announced) {
 					ha_log(LOG_INFO
 					,	INITMSG " (auto_failback)");
 					init_takeover_announced = TRUE;
@@ -1955,6 +1957,10 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.32  2003/07/14 04:12:12  alan
+ * Changed heartbeat so that the resource acquisition messages come out at
+ * the right time.
+ *
  * Revision 1.31  2003/07/13 12:54:32  alan
  * Added a (warning) message indicating shutdown has been delayed until
  * current resource activities are completed.
