@@ -24,7 +24,7 @@ EXTRADIST = ha_config.h.in
 
 includedir=$(base_includedir)/heartbeat
 
-include_HEADERS	        = apphb.h HBauth.h HBcomm.h ha_msg.h heartbeat.h \
+include_HEADERS	        = apphb.h apphb_notify.h HBauth.h HBcomm.h ha_msg.h heartbeat.h \
 				ha_config.h hb_api.h
 
 SUBDIRS                 = clplumbing ocf pils stonith

@@ -68,6 +68,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <apphb.h>
+#include <apphb_notify.h>
 #define	time	footime
 #define	index	fooindex
 #include	<glib.h>
@@ -87,7 +88,6 @@
 
 #include <clplumbing/cl_signal.h>
 
-#include <portability.h>
 
 #ifndef PIDFILE
 #	define	PIDFILE "/var/run/apphbd.pid"
@@ -124,40 +124,7 @@ struct apphb_client {
 	gboolean		deleteme;	/* Delete after next call */
 };
 
-typedef enum apphb_event apphb_event_t;
-enum apphb_event {
-	APPHB_HUP	= 1,
-	APPHB_NOHB	= 2,
-	APPHB_HBAGAIN	= 3,
-	APPHB_HBWARN	= 4,
-	APPHB_HBUNREG	= 5,
-};
-
 #define	MAXNOTIFYPLUGIN	100
-
-/*
- * Definitions for plugins.  They should be in a header file.
- */
-typedef struct AppHBNotifyOps_s AppHBNotifyOps;
-typedef struct AppHBNotifyImports_s AppHBNotifyImports;
-
-/*
- * Plugin exported functions.
- */
-struct AppHBNotifyOps_s {
-	int (*cregister)(pid_t pid, const char * appname, const char * appinst
-	,	uid_t uid, gid_t gid, void * handle);
-	int (*status)(const char * appname, const char * appinst, pid_t pid
-	,	uid_t uid, gid_t gid, apphb_event_t event);
-};
-
-/*
- * Plugin imported functions.
- */
-struct AppHBNotifyImports_s {
-	gboolean (*auth)	(void * clienthandle
-,	uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
-};
 
 
 AppHBNotifyOps*	NotificationPlugins[MAXNOTIFYPLUGIN];
@@ -185,7 +152,7 @@ static int apphb_client_register(apphb_client_t* client, void* Msg, int len);
 static gboolean apphb_read_msg(apphb_client_t* client);
 static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
 void apphb_process_msg(apphb_client_t* client, void* msg,  int length);
-static gboolean authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
+static int authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
 
 /* "event source" functions for client communication */
 static gboolean apphb_dispatch(IPC_Channel* src, gpointer user);
@@ -804,7 +771,9 @@ make_daemon(void)
 
 	umask(022);
 	getsid(0);
-	cl_log_enable_stderr(FALSE);
+	if (!debug) {
+		cl_log_enable_stderr(FALSE);
+	}
 	for (j=0; j < 3; ++j) {
 		close(j);
 		(void)open("/dev/null", j == 0 ? O_RDONLY : O_RDONLY);
