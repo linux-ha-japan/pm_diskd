@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.3 2002/03/12 22:36:17 alan Exp $
+# $Id: db2.in,v 1.4 2002/03/14 04:27:03 alan Exp $
 # 
 # db2
 #
@@ -39,6 +39,7 @@ usage() {
 	The 'monitor' operation reports whether the database seems to be working
 	The 'methods' operation reports on the methods $0 supports
 
+	$Id: db2.in,v 1.4 2002/03/14 04:27:03 alan Exp $
 	!
   exit 1
 
@@ -233,7 +234,7 @@ db2_monitor() {
 #
 
 if
-  [ $# -eq 1 ]
+  [ $# -le 1 ]
 then
   if
     [ "methods" = "$1" ]
