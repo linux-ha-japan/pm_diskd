@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.54 2002/01/25 05:32:01 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.55 2002/02/06 21:22:40 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -354,7 +354,7 @@ parse_config(const char * cfgfile, char *nodename)
 		strncpy(directive, bp, dirlength);
 		directive[dirlength] = EOS;
 #ifdef DIRTYALIASKLUDGE
-		if (strcmp(directive, "udp")) {
+		if (strcmp(directive, "udp") == 0) {
 			ha_log(LOG_WARNING
 			,	"WARNING: directive 'udp' replaced by 'bcast'");
 			strncpy(directive, "bcast", sizeof("bcast"));
@@ -882,10 +882,9 @@ set_udpport(const char * value)
 	/* Make sure this port isn't reserved for something else */
 	if ((service=getservbyport(htons(port), "udp")) != NULL) {
 		if (strcmp(service->s_name, HA_SERVICENAME) != 0) {
-			ha_log(LOG_ERR
+			ha_log(LOG_WARNING
 			,	"%s: udp port %s reserved for service \"%s\"."
 			,	cmdname, value, service->s_name);
-			return(HA_FAIL);
 		}
 	}
 	endservent();
@@ -1233,6 +1232,9 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.55  2002/02/06 21:22:40  alan
+ * Fixed a bug concerning comparing a string to "udp".  Forgot the == 0.
+ *
  * Revision 1.54  2002/01/25 05:32:01  alan
  * Put in a warning when 'udp' is encountered.
  *
