@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.10 1999/11/15 05:31:43 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.11 2000/02/23 18:44:53 alan Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -199,7 +199,7 @@ ttylock(const char *serial_device)
 		if (read(fd, buf, 12) < 1) {
 			/* lockfile empty -> rm it and go on */
 		} else {
-			if (sscanf("%d", buf, &pid) < 1) {
+			if (sscanf(buf, "%d", &pid) < 1) {
 				/* lockfile screwed up -> rm it and go on */
 			} else {
 				if (kill(pid, 0) != ESRCH) {
@@ -521,6 +521,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.11  2000/02/23 18:44:53  alan
+ * Put in a bug fix from Cliff Liang <lqm@readworld.com> to fix the tty
+ * locking code.  The parameters to sscanf were mixed up.
+ *
  * Revision 1.10  1999/11/15 05:31:43  alan
  * More tweaks for CTS/RTS flow control.
  *
