@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.153 2001/10/23 05:40:41 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.154 2001/10/24 00:24:44 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -440,6 +440,8 @@ void	make_realtime(void);
 void	make_normaltime(void);
 int	IncrGeneration(unsigned long * generation);
 void	ask_for_resources(struct ha_msg *msg);
+void	process_control_packet(struct msg_xmit_hist msghist
+,	struct ha_msg * msg);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -1073,12 +1075,12 @@ write_child(struct hb_media* mp)
 
 
 /* The master control process -- reads control fifo, sends msgs to cluster */
-/* Not much to this one, eh? */
+/* Not a lot to this one, eh? */
 void
 control_process(FILE * fp)
 {
-	int	statusfd = status_pipe[P_WRITEFD];
 	struct msg_xmit_hist	msghist;
+
 	init_xmit_hist (&msghist);
 
 	/* Catch and propagate debugging level signals... */
@@ -1095,73 +1097,94 @@ control_process(FILE * fp)
 
 	for(;;) {
 		struct ha_msg *	msg = controlfifo2msg(fp);
-		char *		smsg;
-		const char *	type;
-		int		len;
-		const char *	cseq;
-		unsigned long	seqno = -1;
-		const  char *	to;
-		int		IsToUs;
 
+		/* Process all pending signals */
 		process_pending_handlers();
 
-		if (msg == NULL) {
-			ha_log(LOG_DEBUG, "got NULL msg in control_process");
-			continue;
+		if (msg) {
+			process_control_packet(msghist, msg);
 		}
-		if (DEBUGPKTCONT) {
-			ha_log(LOG_DEBUG, "got msg in control_process");
-		}
-		if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
-			ha_log(LOG_ERR, "control_process: no type in msg.");
+	}
+	/* That's All Folks... */
+}
+
+/*
+ * Control (outbound) packet processing...
+ *
+ * This is where the reliable multicast protocol is implemented -
+ * through the use of process_rexmit(), and add2_xmit_hist().
+ * process_rexmit(), and add2_xmit_hist() use msghist to track sent
+ * packets so we can retransmit them if they get lost.
+ *
+ * NOTE: It's our job to dispose of the packet we're given...
+ */
+void
+process_control_packet(struct msg_xmit_hist	msghist
+,		struct ha_msg *	msg)
+{
+	int	statusfd = status_pipe[P_WRITEFD];
+
+	char *		smsg;
+	const char *	type;
+	int		len;
+	const char *	cseq;
+	unsigned long	seqno = -1;
+	const  char *	to;
+	int		IsToUs;
+
+	if (DEBUGPKTCONT) {
+		ha_log(LOG_DEBUG, "got msg in process_control_packet");
+	}
+	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
+		ha_log(LOG_ERR, "process_control_packet: no type in msg.");
+		ha_msg_del(msg);
+		return;
+	}
+	if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
+		if (sscanf(cseq, "%lx", &seqno) != 1
+		||	seqno <= 0) {
+			ha_log(LOG_ERR, "process_control_packet: "
+			"bad sequence number");
+			smsg = NULL;
 			ha_msg_del(msg);
-			continue;
+			return;
 		}
-		if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
-			if (sscanf(cseq, "%lx", &seqno) != 1
-			||	seqno <= 0) {
-				ha_log(LOG_ERR, "control_process: "
-				"bad sequence number");
-				smsg = NULL;
-				ha_msg_del(msg);
-				continue;
-			}
-		}
+	}
 
-		to = ha_msg_value(msg, F_TO);
-		IsToUs = (to != NULL) && (strcmp(to, curnode->nodename) == 0);
+	to = ha_msg_value(msg, F_TO);
+	IsToUs = (to != NULL) && (strcmp(to, curnode->nodename) == 0);
 
-		if (strcasecmp(type, T_REXMIT) == 0
-		&&	IsToUs) {
-			process_rexmit(&msghist, msg);
-			ha_msg_del(msg);
-			continue;
-		}
-		/* Convert it to a string */
-		smsg = msg2string(msg);
+	/* Is this a request to retransmit a packet? */
+	if (strcasecmp(type, T_REXMIT) == 0 && IsToUs) {
+		/* OK... Process retransmit request */
+		process_rexmit(&msghist, msg);
+		ha_msg_del(msg);
+		return;
+	}
+	/* Convert the incoming message to a string */
+	smsg = msg2string(msg);
 
-		/* If it didn't convert, throw original message away */
-		if (smsg == NULL) {
-			ha_msg_del(msg);
-			continue;
-		}
-		/* Remember Messages with sequence numbers */
-		if (cseq != NULL) {
-			add2_xmit_hist (&msghist, msg, seqno);
-		}
+	/* If it didn't convert, throw original message away */
+	if (smsg == NULL) {
+		ha_msg_del(msg);
+		return;
+	}
+	/* Remember Messages with sequence numbers */
+	if (cseq != NULL) {
+		add2_xmit_hist (&msghist, msg, seqno);
+	}
 
-		len = strlen(smsg);
+	len = strlen(smsg);
 
-		/* Copy the message to the status process */
-		write(statusfd, smsg, len);
+	/* Copy the message to the status process */
+	write(statusfd, smsg, len);
 
-		send_to_all_media(smsg, len);
-		ha_free(smsg);
+	send_to_all_media(smsg, len);
+	ha_free(smsg);
 
-		/*  Throw away "msg" here if it's not saved above */
-		if (cseq == NULL) {
-			ha_msg_del(msg);
-		}
+	/*  Throw away "msg" here if it's not saved above */
+	if (cseq == NULL) {
+		ha_msg_del(msg);
 	}
 	/* That's All Folks... */
 }
@@ -1418,6 +1441,7 @@ process_clustermsg(FILE * f)
 		   time to enable the standby messages again... */
 		if (now >= standby_running) {
 			standby_running = 0L;
+			ha_log(LOG_ERR, "Standby processing timed out.");
 			going_standby = NOT;
 		}
 	}
@@ -2077,6 +2101,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 		case 0:	{	/* Child */
 				int	j;
 				make_normaltime();
+				set_proc_title("%s: notify_world()", cmdname);
 				signal(SIGCHLD, SIG_DFL);
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
@@ -2966,6 +2991,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 	}
 	/* Guard against possibly hanging Stonith code... */
 	make_normaltime();
+	set_proc_title("%s: Initiate_Reset()", cmdname);
 	signal(SIGCHLD, SIG_DFL);
 
 	ha_log(LOG_INFO
@@ -3103,6 +3129,7 @@ req_our_resources(int getthemanyway)
 	}
 
 	make_normaltime();
+	set_proc_title("%s: req_our_resources()", cmdname);
 	signal(SIGCHLD, SIG_DFL);
 	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
 
@@ -3286,6 +3313,7 @@ giveup_resources(int dummy)
 	}
 
 	make_normaltime();
+	set_proc_title("%s: giveup_resources()", cmdname);
 	signal(SIGCHLD, SIG_DFL);
 	ha_log(LOG_INFO, "Giving up all HA resources.");
 	/*
@@ -4657,6 +4685,15 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.154  2001/10/24 00:24:44  alan
+ * Moving in the direction of being able to get rid of one of our
+ * control processes.
+ * Today's work: splitting control_process() into control_process() and
+ * process_control_packet().
+ * The idea is that once the control_process and the master_status_process
+ * are merged, that this function can be called from the select already
+ * present in master_status_process().
+ *
  * Revision 1.153  2001/10/23 05:40:41  alan
  * Put in code to make the management of the audit periods work a little
  * more neatly.
