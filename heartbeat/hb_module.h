@@ -35,7 +35,7 @@
 
 struct symbol_str { 
 	char     name[MAX_FUNC_NAME];	
-        lt_ptr_t function;
+        lt_ptr   function;
 	int      mandatory; 
 };
 
