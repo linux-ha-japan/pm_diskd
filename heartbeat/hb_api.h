@@ -1,5 +1,7 @@
 #include <ha_msg.h>
 
+#define	LLC_PROTOCOL_VERSION	1
+
 /*
  *	Low-level clustering API to heartbeat.
  */
