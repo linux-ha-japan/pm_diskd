@@ -385,16 +385,6 @@ mode for heartbeat.</td>
 </tr>
 
 <tr>
-<td>SysLog</td>
-
-<td>change ha_log() functions to use syslog.</td>
-
-<td></td>
-
-<td></td>
-</tr>
-
-<tr>
 <td>SecKeeps</td>
 
 <td>Optionally allow the secondary host to keep the resources it has when
@@ -403,24 +393,6 @@ the primary comes back online.</td>
 <td></td>
 
 <td></td>
-</tr>
-
-<tr>
-<td>HBSec</td>
-
-<td>Authenticate intracluster packets for heartbeat, etc.&nbsp; This
-provides both error checking and security.&nbsp; Could simply add a auth_packet
-entry point, and then we can plug our favorite authentication method into
-it, and even allow the method to be chosen in the configuration file.&nbsp;
-This would allow people with secure networks to use crc without encryption,
-people in a more hostile environment could use HMAC-SHA1 with a
-shared secret, etc.
-Current thinking is to model the key file and authentication after
-the methods used by NTP.</td>
-<td></td>
-<td>Mitja Sarp,
-<br>
-Neal McBurnett (consulting)</td>
 </tr>
 
 <tr>
@@ -435,14 +407,6 @@ Heavens! Perish the thought!  :-)
 <td></td>
 </tr>
 
-<tr>
-<td>Reconfig</td>
-<td>Should be able to update configurations without shutting down the
-cluster and restarting it.
-This could be accomplished in lots of different ways.  From a local kill -1 type
-approach, to a global synchronized cluster restart.
-</td>
-</tr>
 
 
 <tr>
@@ -492,6 +456,25 @@ not just discovered.</td>
 </tr>
 
 <tr>
+<TD>manpage</TD>
+<td>Write wonderful man pages for heartbeat, heartbeat.cf and haresources
+</td>
+<td></td>
+<td>Shawn McKenzie (?)</td>
+</tr>
+
+<tr>
+<td>Reconfig</td>
+<td>Should be able to update configurations without shutting down the
+cluster and restarting it.
+This could be accomplished in lots of different ways.  From a local kill -1 type
+approach, to a global synchronized cluster restart.
+</td>
+<td></td>
+<td>alanr (available in 0.4.5)</td>
+</tr>
+
+<tr>
 	<TD>TrimScripts</TD>
 	<td>
 		Should trim the number of scripts and how much they control.
@@ -506,23 +489,45 @@ not just discovered.</td>
 		given up.
 	</td>
 	<td></td>
-	<td>alanr</td>
+	<td>alanr (available in 0.4.5)</td>
+</tr>
+
+
+<tr>
+<td>SysLog</td>
+<td>change ha_log() functions to use syslog.</td>
+<td></td>
+<td>Guenther Thomsen
+(Available in 0.4.5)</td>
 </tr>
 
 <tr>
+
 <TD>debugoutput</TD>
 <td>Heartbeat debuginfo doesn't go into debug-log</td>
 <td></td>
-<td></td>
+<td>Guenther Thomsen
+(Available in 0.4.5)</td>
 </tr>
 
+
 <tr>
-<TD>manpage</TD>
-<td>Write wonderful man pages for heartbeat, heartbeat.cf and ipresources
-</td>
+<td>HBSec</td>
+<td>Authenticate intracluster packets for heartbeat, etc.&nbsp; This
+provides both error checking and security.&nbsp; Could simply add a auth_packet
+entry point, and then we can plug our favorite authentication method into
+it, and even allow the method to be chosen in the configuration file.&nbsp;
+This would allow people with secure networks to use crc without encryption,
+people in a more hostile environment could use HMAC-SHA1 with a
+shared secret, etc.
+Current thinking is to model the key file and authentication after
+the methods used by NTP.</td>
 <td></td>
-<td></td>
+<td>Mitja Sarp,
+Neal McBurnett (consulting)
+(Will be available in 0.4.5)</td>
 </tr>
+
 
 <tr>
 <TD>DEBUG</TD>

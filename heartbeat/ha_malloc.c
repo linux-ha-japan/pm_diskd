@@ -1,15 +1,39 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.3 1999/10/10 22:22:45 alanr Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.4 1999/10/11 04:50:28 alanr Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 #include <errno.h>
-#include <signal.h>
-#include <sys/utsname.h>
 #include <heartbeat.h>
 
+/*
+ *
+ *	Malloc wrapper functions
+ *
+ *	I wrote these so we can better track memory leaks, etc. and verify
+ *	that the system is stable in terms of memory usage.
+ *
+ *	For our purposes, these functions are a somewhat faster than using
+ *	malloc directly (although they use a more memory)
+ *
+ *	The general strategy is loosely related to the buddy system, 
+ *	except very simple, well-suited to our continuous running
+ *	nature, and the constancy of the requests and messages.
+ *
+ *	We keep an array of linked lists, each for a different size
+ *	buffer.  If we need a buffer larger than the largest one provided
+ *	by the list, we go directly to malloc.
+ *
+ *	Otherwise, we keep return them to the appropriate linked list
+ *	when we're done with them, and reuse them from the list.
+ *
+ *	We never coalesce buffers on our lists, and we never free them.
+ *
+ *	It's very simple.  We get usage stats.  It makes me happy.
+ *
+ */
+
 #define	HA_MALLOC_MAGIC	0xFEEDBEEFUL
-#define	HA_MALLOC_GUARD	0xACE00ECAUL
+#define	HA_MALLOC_GUARD	0xACE00ECAUL		/* Not yet used */
 
 struct ha_mhdr {
 	unsigned long	magic;	/* Must match HA_MALLOC_MAGIC */
@@ -23,12 +47,8 @@ struct ha_bucket {
 };
 
 
-
 #define	NUMBUCKS	8
 #define	NOBUCKET	(NUMBUCKS)
-
-#define	MALLOC_BEGIN_CRITICAL()	BeginCritical()
-#define	MALLOC_END_CRITICAL()	EndCritical()
 
 struct ha_bucket*	ha_malloc_buckets[NUMBUCKS];
 size_t	ha_bucket_sizes[NUMBUCKS];
@@ -41,9 +61,10 @@ static void*	ha_new_mem(size_t size, int numbuck);
 void*		ha_calloc(size_t nmemb, size_t size);
 void		ha_free(void *ptr);
 static void	ha_malloc_init(void);
-static void	remember_signal(int sig);
-static void	BeginCritical(void);
-static void	EndCritical(void);
+
+/*
+ * ha_malloc: malloc clone
+ */
 
 void *
 ha_malloc(size_t size)
@@ -61,32 +82,43 @@ ha_malloc(size_t size)
 		ha_malloc_init();
 	}
 
-	MALLOC_BEGIN_CRITICAL();
-		for (j=0; j < NUMBUCKS; ++j) {
-			if (size <= ha_bucket_sizes[j]) {
-				numbuck = j;
-				buckptr = ha_malloc_buckets[numbuck];
-				break;
-			}
+	/*
+	 * Find which bucket would have buffers of the requested size
+	 */
+	for (j=0; j < NUMBUCKS; ++j) {
+		if (size <= ha_bucket_sizes[j]) {
+			numbuck = j;
+			buckptr = ha_malloc_buckets[numbuck];
+			break;
 		}
+	}
 
-		if (buckptr == NULL) {
-			ret = ha_new_mem(size, numbuck);
-		}else{
-			ha_malloc_buckets[numbuck] = buckptr->next;
-			buckptr->hdr.reqsize = size;
-			ret = (((char*)buckptr)+ha_malloc_hdr_offset);
-			if (curproc) {
-				curproc->nbytes_req += size;
-			}
-			
+	/*
+	 * Pull it out of the linked list of free buffers if we can...
+	 */
+
+	if (buckptr == NULL) {
+		ret = ha_new_mem(size, numbuck);
+	}else{
+		ha_malloc_buckets[numbuck] = buckptr->next;
+		buckptr->hdr.reqsize = size;
+		ret = (((char*)buckptr)+ha_malloc_hdr_offset);
+		if (curproc) {
+			curproc->nbytes_req += size;
+			curproc->nbytes_alloc+=ha_bucket_sizes[numbuck];
 		}
-	MALLOC_END_CRITICAL();
+		
+	}
+
 	if (ret && curproc) {
 		curproc->numalloc++;
 	}
 	return(ret);
 }
+
+/*
+ * ha_free: "free" clone
+ */
 
 void
 ha_free(void *ptr)
@@ -106,6 +138,8 @@ ha_free(void *ptr)
 		return;
 	}
 
+	/* Find the beginning of our "hidden" structure */
+
 	cptr = ptr;
 	cptr -= ha_malloc_hdr_offset;
 
@@ -116,33 +150,40 @@ ha_free(void *ptr)
 		return;
 	}
 	bucket = bhdr->hdr.bucket;
+
+	/*
+	 * Return it to the appropriate bucket (linked list), or just free
+	 * it if it didn't come from one of our lists...
+	 */
+
 	if (bucket >= NUMBUCKS) {
 		if (curproc) {
-			if (curproc->nbytes_alloc > bhdr->hdr.reqsize) {
+			if (curproc->nbytes_alloc >= bhdr->hdr.reqsize) {
 				curproc->nbytes_req   -= bhdr->hdr.reqsize;
+				curproc->nbytes_alloc -= bhdr->hdr.reqsize;
 				curproc->mallocbytes  -= bhdr->hdr.reqsize;
 			}
 		}
-		MALLOC_BEGIN_CRITICAL();
-			free(bhdr);
-		MALLOC_END_CRITICAL();
+		free(bhdr);
 	}else{
 		ASSERT(bhdr->hdr.reqsize <= ha_bucket_sizes[bucket]);
 		if (curproc) {
-			if (curproc->nbytes_alloc > bhdr->hdr.reqsize) {
+			if (curproc->nbytes_alloc >= bhdr->hdr.reqsize) {
 				curproc->nbytes_req  -= bhdr->hdr.reqsize;
 				curproc->nbytes_alloc-= ha_bucket_sizes[bucket];
 			}
 		}
-		MALLOC_BEGIN_CRITICAL();
-			bhdr->next = ha_malloc_buckets[bucket];
-			ha_malloc_buckets[bucket] = bhdr;
-		MALLOC_END_CRITICAL();
+		bhdr->next = ha_malloc_buckets[bucket];
+		ha_malloc_buckets[bucket] = bhdr;
 	}
 	if (curproc) {
 		curproc->numfree++;
 	}
 }
+
+/*
+ * ha_new_mem:	use the real malloc to allocate some new memory
+ */
 
 static void*
 ha_new_mem(size_t size, int numbuck)
@@ -172,6 +213,11 @@ ha_new_mem(size_t size, int numbuck)
 	return(((char*)hdrret)+ha_malloc_hdr_offset);
 }
 
+
+/*
+ * ha_malloc: calloc clone
+ */
+
 void *
 ha_calloc(size_t nmemb, size_t size)
 {
@@ -184,12 +230,10 @@ ha_calloc(size_t nmemb, size_t size)
 	return(ret);
 }
 
+/*
+ * ha_malloc_init():	initialize our malloc wrapper things
+ */
 
-void
-ha_malloc_report()
-{
-
-}
 static void
 ha_malloc_init()
 {
@@ -203,60 +247,4 @@ ha_malloc_init()
 		ha_bucket_sizes[j] = cursize;
 		cursize <<= 1;
 	}
-}
-
-
-static int	signals_to_block[] = {SIGALRM};
-
-#define	MAXSIGS	(DIMOF(signals_to_block))
-#define	SIGMAX	64
-static void	(*ha_signal_handlers[SIGMAX])(int);
-static int	ha_signal_memory[MAXSIGS*4];
-static int	num_mem_sigs = 0;
-
-static void
-remember_signal(int sig)
-{
-	if (num_mem_sigs >= DIMOF(ha_signal_memory)) {
-		/* You win some, you lose some... */
-		ha_log(LOG_ERR, "Lost signal %d (!)", sig);
-		return;
-	}
-	ha_signal_memory[num_mem_sigs] = sig;
-	++num_mem_sigs;
-}
-
-static void
-BeginCritical()
-{
-	int	j;
-
-	num_mem_sigs = 0;
-	/* Set up alternate signal handlers to remember signals */
-
-	for (j=0; j < DIMOF(signals_to_block); ++j) {
-		int	sig = signals_to_block[j];
-		ha_signal_handlers[sig] = signal(sig, remember_signal);
-	}
-}
-
-static void
-EndCritical()
-{
-	int	j;
-
-	/* Restore original signal handlers ...*/
-
-	for (j=0; j < DIMOF(signals_to_block); ++j) {
-		int	sig = signals_to_block[j];
-		signal(sig, ha_signal_handlers[sig]);
-	}
-
-	/* Play back any delayed signals... */
-
-	for (j=0; j < num_mem_sigs; ++j) {
-		int	sig = ha_signal_memory[j];
-		ha_signal_handlers[sig](sig);
-	}
-	num_mem_sigs = 0;
 }

@@ -182,11 +182,11 @@ a ppp-udp heartbeat and a serial heartbeat.</dd>
 <dd>
 <i>Mandatory</i>.&nbsp; Hostname of machine in cluster.</dd>
 </dl>
-Once you've got your ha.cf set up, you need to configure <i>ipresources</i>.&nbsp;
+Once you've got your ha.cf set up, you need to configure <i>haresources</i>.&nbsp;
 This file specifies the services for the cluster and who the default owner
 is.
 <br>For our example, we'll assume the high availability services are Apache
-and Samba (the IP for the cluster is mandatory!).&nbsp; The ipresources
+and Samba (the IP for the cluster is mandatory!).&nbsp; The haresources
 will need one line:
 <pre>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><tt>linuxha1 192.168.85.3 httpd smb</tt></b></pre>
 <tt>So, this line dictates that on startup, have linuxha1 serve the IP
@@ -208,7 +208,7 @@ standard.</tt>
 be:
 <pre>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b>scriptname::argument</b></pre>
 So, if we added a service "maid" which needed the argument "vacuum", our
-ipresources line would modify to the following:
+haresources line would modify to the following:
 <pre><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; linuxha1 192.168.85.3 httpd smb maid::vacuum</b></pre>
 
 <p><br><font size=+1>This bring us </font>to some added flexibility with
@@ -237,22 +237,22 @@ broadcast address, then no, it's not necessary for you.&nbsp; However,
 this case won't fit everybody and that's why the option's there!&nbsp;
 In addition, you may have more than one possible interface that could be
 used for the service IP.&nbsp; Read on to see how heartbeat treats this...
-<p>Once you straighten out your ipresources file, copy ha.cf and ipresources
+<p>Once you straighten out your haresources file, copy ha.cf and haresources
 to /etc/ha.d and you're ready to start!
 <br>&nbsp;
 <h2>
 Selecting an Interface</h2>
-One important aspect of configuring the ipresources file for a machine
+One important aspect of configuring the haresources file for a machine
 which has multiple ethernet interfaces is to know how heartbeat selects
 which interface will wind up supporting the service addresses that are
-configured in ipresources.&nbsp; After all, no interface was specified
-in the ipresources file.
+configured in haresources.&nbsp; After all, no interface was specified
+in the haresources file.
 <p>Heartbeat decides which interface will be used by looking at the routing
 table.&nbsp; It tries to select the lowest cost route to the IP address
 to be taken over.&nbsp; In the case of a tie, it chooses the first route
 found.&nbsp; For most configurations this means the default route will
 be least preferred.
-<p>If you don't specify a netmask for the IP address in the ipresources
+<p>If you don't specify a netmask for the IP address in the haresources
 file, the netmask associated with the selected route will be used.
 <h2>
 Starting and testing heartbeat</h2>

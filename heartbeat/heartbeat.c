@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.18 1999/10/10 22:22:47 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.19 1999/10/11 04:50:31 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -294,6 +294,7 @@ void master_status_process(void);		/* The real biggie */
 
 pid_t	processes[MAXPROCS];
 int	num_procs = 0;
+int	send_status_now = 1;	/* Send initial status immediately */
 
 #define	ADDPROC(pid)	{if (pid > 0 && pid != -1) {processes[num_procs] = (pid); ++num_procs;};}
 
@@ -1422,7 +1423,6 @@ master_status_process(void)
 
 	init_status_alarm();
 	init_watchdog();
-	send_local_status();	/* Send initial local status */
 
 	clearerr(f);
 
@@ -1433,10 +1433,18 @@ master_status_process(void)
 		const char *	ts;
 		const char *	type;
 
+		if (send_status_now) {
+			send_local_status();
+			send_status_now = 0;
+		}
+
+		/* Scan nodes to see if any have timed out */
+		check_node_timeouts();
+
 		msg = msgfromstream(f);
 
+		/* This may be caused by SIGALRM signals */
 		if (msg == NULL) {
-			ha_log(LOG_ERR, "NULL msg in master_status_process");
 			continue;
 		}
 		now = time(NULL);
@@ -1447,7 +1455,8 @@ master_status_process(void)
 		ts = ha_msg_value(msg, F_TIME);
 
 		if (from == NULL || ts == NULL || type == NULL) {
-			ha_log(LOG_ERR, "master_status_process: missing from/ts/type");
+			ha_log(LOG_ERR
+			,	"master_status_process: missing from/ts/type");
 			continue;
 		}
 
@@ -1564,6 +1573,7 @@ check_auth_change(struct sys_config *conf)
 void
 init_status_alarm(void)
 {
+	siginterrupt(SIGALRM, 1);
 	signal(SIGALRM, ding);
 	alarm(1);
 }
@@ -1686,7 +1696,7 @@ debug_sig(int sig)
 		,	curproc->numalloc, curproc->numfree
 		,	curproc->nbytes_alloc, curproc->nbytes_req
 		,	curproc->pid, ct);
-		ha_log(LOG_DEBUG, "MALLOC info: %lu total malloc bytes."
+		ha_log(LOG_DEBUG, "RealMalloc: %lu total malloc bytes."
 		" pid %d/%s]", curproc->mallocbytes, curproc->pid, ct);
 	}
 }
@@ -1813,11 +1823,9 @@ ding(int sig)
 	dingtime --;
 	if (dingtime <= 0) {
 		dingtime = config->heartbeat_interval;
-		/* Send out our status update */
-		send_local_status();
+		/* Note that it's time to send out our status update */
+		send_status_now = 1;
 	}
-	/* Now we need to scan our nodes to see if any have timed out */
-	check_node_timeouts();
 	alarm(1);
 }
 
@@ -2761,6 +2769,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.19  1999/10/11 04:50:31  alanr
+ * Alan Cox's suggested signal changes
+ *
  * Revision 1.18  1999/10/10 22:22:47  alanr
  * New malloc scheme + send initial status immediately
  *

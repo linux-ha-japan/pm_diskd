@@ -15,7 +15,7 @@ After installing this package, you'll have to make some HA config files
 in /etc/ha.d.  Samples of these config files are found in the doc directory.
 These files are named:
 	ha.cf
-and	ipresources
+and	haresources
 
 The beginnings of a Hardware Installation guide can also be found under
 the doc directory as:

@@ -1,4 +1,4 @@
-/etc/ha.d/ipresources and /etc/ha.d/ha.cf are config files which are
+/etc/ha.d/haresources and /etc/ha.d/ha.cf are config files which are
 	specifically permitted by the FHS.
 	"/etc contains configuration files and directories that are
 		specific to the current system."
