@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.173 2002/04/10 07:41:14 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.174 2002/04/10 21:05:33 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -469,7 +469,7 @@ void	process_control_packet(struct msg_xmit_hist* msghist
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
 
 /* The biggies */
-void control_process(FILE * f);
+void control_process(FILE * f, int ofd);
 void read_child(struct hb_media* mp);
 void write_child(struct hb_media* mp);
 void master_status_process(void);		/* The real biggie */
@@ -824,6 +824,7 @@ initialize_heartbeat()
 	int		pid;
 	FILE *		fifo;
 	int		ourproc = 0;
+	int		fifoofd;
 
 	localdie = NULL;
 	starttime = time(NULL);
@@ -925,7 +926,7 @@ initialize_heartbeat()
  *		write_child();
  *		read_child();
  *		master_status_process();
- *		control_process(FILE * f);
+ *		control_process(FILE * f, int ofd);
  *
  */
 	ourproc = procinfo->nprocs;
@@ -1015,11 +1016,11 @@ initialize_heartbeat()
 	if (fifo == NULL) {
 		ha_perror("FIFO open failed.");
 	}
-	(void)open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
-	control_process(fifo);
+	fifoofd = open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
+	control_process(fifo, fifoofd);
 
 	/*NOTREACHED*/
-	ha_log(LOG_ERR, "control_process exiting");
+	ha_log(LOG_ERR, "control_process exiting?");
 	cleanexit(1);
 	return(HA_FAIL);
 }
@@ -1189,7 +1190,7 @@ write_child(struct hb_media* mp)
 /* The master control process -- reads control fifo, sends msgs to cluster */
 /* Not a lot to this one, eh? */
 void
-control_process(FILE * fp)
+control_process(FILE * fp, int fifoofd)
 {
 	struct msg_xmit_hist	msghist;
 
@@ -1210,16 +1211,33 @@ control_process(FILE * fp)
 	make_realtime();
 
 	for(;;) {
-		struct ha_msg *	msg = controlfifo2msg(fp);
+		struct ha_msg *	msg;
 
-		/* Process all pending signals */
+		/* Process pending signals */
 		process_pending_handlers();
+		msg = controlfifo2msg(fp);
 
 		if (msg) {
 			process_control_packet(&msghist, msg);
+			if (fifoofd > 0) {
+				/* FIFO Reads will now fail if writers die */
+				close(fifoofd);
+				fifoofd = -1;
+			}
+		}else if (feof(fp)) {
+			break;
 		}
 	}
+
+	/* Wait for shutdown to complete */
+
+	while (CoreProcessCount > 1) {
+		process_pending_handlers();
+		pause();
+	}
+
 	/* That's All Folks... */
+	cleanexit(0);
 }
 
 /*
@@ -5737,6 +5755,16 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.174  2002/04/10 21:05:33  alan
+ * Put in some changes to control_process() to hopefully make it
+ * exit completely reliably.
+ * After 300 iterations, I saw a case where it hung in the read for control
+ * packets, and didn't respond to signals, but all its children were dead.
+ * I now close the FIFO, so that all reads will fail with EOF, and then
+ * changed the read loop to drop out when it got EOF.
+ * I added a  loop afterwards which consists of a pause and poll for signals
+ * until all its children died.
+ *
  * Revision 1.173  2002/04/10 07:41:14  alan
  * Enhanced the process tracking code, and used the enhancements ;-)
  * Made a number of minor fixes to make the tests come out better.
