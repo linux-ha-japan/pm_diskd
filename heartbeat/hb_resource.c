@@ -1588,7 +1588,12 @@ hb_giveup_resources(void)
 	if (!hb_rsc_isstable()) {
 		/* Try again later... */
 		/* (through shutdown_if_needed()) */
-		rsc_needs_shutdown = TRUE;
+		if (!rsc_needs_shutdown) {
+			cl_log(LOG_WARNING
+			,	"Shutdown delayed until current"
+			" resource activity finishes.");
+			rsc_needs_shutdown = TRUE;
+		}
 		return;
 	}
 	rsc_needs_shutdown = FALSE;
@@ -1950,6 +1955,10 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.31  2003/07/13 12:54:32  alan
+ * Added a (warning) message indicating shutdown has been delayed until
+ * current resource activities are completed.
+ *
  * Revision 1.30  2003/07/13 12:45:53  alan
  * Put in two changes:
  *     Determine when we are done with initial takeover after we first
