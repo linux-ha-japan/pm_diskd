@@ -36,6 +36,11 @@
 #include <hb_api_core.h>
 #include <hb_api.h>
 
+#ifdef sun
+#define LOG_PERROR 0x0 /* Solaris' syslog doesn't allow you to log messages
+                        * to stderr as well as to a log facility */
+#endif /* sun */
+
 /*
  * A heartbeat API test program...
  */

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager.in,v 1.6 2002/01/24 16:00:43 alan Exp $
+#	$Id: ResourceManager.in,v 1.7 2002/02/15 06:53:16 horms Exp $
 #
 #	New haresources format:
 #
@@ -35,8 +35,8 @@
 : 
 : ==================== Starting ResourceManager $* ==========================
  
-LC_ALL=en; export LC_ALL # Make ifconfig work in France for David Jules :-)
-LANGUAGE=en; export LANGUAGE # Make ifconfig work in France for Fabrice :-)
+unset LC_ALL; export LC_ALL # Make ifconfig work in France for David Jules :-)
+unset LANGUAGE; export LANGUAGE # Make ifconfig work in France for Fabrice :-)
  
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -336,9 +336,15 @@ esac
 
 #
 #	$Log: ResourceManager.in,v $
+#	Revision 1.7  2002/02/15 06:53:16  horms
+#	Small changes to allow heartbeat to work on Solaris 8
+#	* use unset LC_ALL and unset LANGUAGE instead of LC_ALL=en and LANGUAGE=en
+#	* provide LOG_PERROR, as Solaris doesn't
+#	-- Horms
+#
 #	Revision 1.6  2002/01/24 16:00:43  alan
 #	Put in a patch sent by Matt Soffen.
-#
+#	
 #	Revision 1.5  2001/10/24 20:46:29  alan
 #	A large number of patches.  They are in these categories:
 #		Fixes from Matt Soffen
