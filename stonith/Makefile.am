@@ -122,7 +122,7 @@ ssh_la_LDFLAGS		= -module -avoid-version
 vacm_la_SOURCES		= vacm.c expect.c 
 vacm_la_LDFLAGS		= -module -avoid-version -lvacmclient
 
-wti_nps_la_SOURCES	= meatware.c expect.c 
+wti_nps_la_SOURCES	= wti_nps.c expect.c 
 wti_nps_la_LDFLAGS	= -module -avoid-version
 
 ## Man pages
