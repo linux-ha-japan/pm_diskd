@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.177 2002/04/12 19:36:14 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.178 2002/04/13 02:07:14 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -355,7 +355,7 @@ const char *ha_log_priority[8] = {
 #define DING_SIG			0x0020UL
 #define FALSE_ALARM_SIG			0x0040UL
 
-unsigned volatile long pending_handlers = 0;
+volatile unsigned long pending_handlers = 0;
 
 struct sys_config *	config = NULL;
 struct node_info *	curnode = NULL;
@@ -1245,6 +1245,9 @@ control_process(FILE * fp, int fifoofd)
 		}
 	}
 
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Control Process: entering pause loop.");
+	}
 	/* Wait for shutdown to complete */
 
 	while (CoreProcessCount > 1) {
@@ -2803,7 +2806,7 @@ CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged
 
 	if (shutdown_in_progress) {
 		p->privatedata = NULL;
-		ha_log(LOG_INFO,"Core process %d died. %d remaining"
+		ha_log(LOG_INFO,"Core process %d exited. %d remaining"
 		,	p->pid, CoreProcessCount);
 
 		if (CoreProcessCount <= 1) {
@@ -3568,40 +3571,64 @@ false_alarm_action(void)
 void
 process_pending_handlers(void)
 {
+	
+	static sigset_t	oursigset;
+	int		siginityet = 0;
 
-	/* Be careful! We could get more signals while we're in here... */
+	if (!siginityet) {
+		sigemptyset(&oursigset);
+		sigaddset(&oursigset, SIGCHLD);
+		sigaddset(&oursigset, SIGHUP);
+		sigaddset(&oursigset, SIGTERM);
+		sigaddset(&oursigset, SIGQUIT);
+		sigaddset(&oursigset, SIGUSR1);
+		sigaddset(&oursigset, SIGUSR2);
+		sigaddset(&oursigset, SIGALRM);
+	}
 
 	while (pending_handlers) {
+		unsigned long	handlers;
 
-		if (pending_handlers&REAPER_SIG) {
-			pending_handlers &= ~REAPER_SIG;
+		/* Block signals... */
+		if (sigprocmask(SIG_BLOCK, &oursigset, NULL) < 0) {
+			ha_log(LOG_ERR, "Could not block signals");
+		}
+			handlers = pending_handlers;
+			pending_handlers=0;
+
+		/* Allow signals ... */
+		if (sigprocmask(SIG_UNBLOCK, &oursigset, NULL) < 0) {
+			ha_log(LOG_ERR, "Could not unblock signals");
+		}
+
+		if (handlers&REAPER_SIG) {
 			reaper_action();
 		}
-		if (pending_handlers&TERM_SIG) {
-			pending_handlers &= ~TERM_SIG;
+
+		if (handlers&TERM_SIG) {
 			term_action();
 		}
-		if (pending_handlers&PARENT_DEBUG_USR1_SIG) {
-			pending_handlers &= ~PARENT_DEBUG_USR1_SIG;
+
+		if (handlers&PARENT_DEBUG_USR1_SIG) {
 			parent_debug_usr1_action();
 		}
-		if (pending_handlers&PARENT_DEBUG_USR2_SIG) {
-			pending_handlers &= ~PARENT_DEBUG_USR2_SIG;
+
+		if (handlers&PARENT_DEBUG_USR2_SIG) {
 			parent_debug_usr2_action();
 		}
-		if (pending_handlers&REREAD_CONFIG_SIG) {
-			pending_handlers &= ~REREAD_CONFIG_SIG;
+
+		if (handlers&REREAD_CONFIG_SIG) {
 			reread_config_action();
 		}
-		if (pending_handlers&DING_SIG) {
-			pending_handlers &= ~DING_SIG;
+
+		if (handlers&DING_SIG) {
 			ding_action();
+
 		}
-		if (pending_handlers&FALSE_ALARM_SIG) {
-			pending_handlers &= ~FALSE_ALARM_SIG;
+		if (handlers&FALSE_ALARM_SIG) {
 			false_alarm_action();
 		}
-	}
+}
 }
 
 /* See if any nodes or links have timed out */
@@ -5970,6 +5997,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.178  2002/04/13 02:07:14  alan
+ * Made some changes to the way signals are handled so we don't lose
+ * SIGCHLDs when shutting down.
+ *
  * Revision 1.177  2002/04/12 19:36:14  alan
  * Previous changes broke nice_failback.
  * There was some code which was sent out the STARTING messages
