@@ -104,7 +104,7 @@ struct stonith_ops {
 };
 
 extern Stonith *	stonith_new(const char * type);
-extern const char **	stonith_types(void);	/* NULL-terminated list */
+extern char **	stonith_types(void);	/* NULL-terminated list */
 
 /*
  * It is intended that the ST_CONF_FILE_SYNTAX info call return a string
