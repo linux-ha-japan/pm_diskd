@@ -83,11 +83,11 @@ to use STONITH. &nbsp;Any recommendations?</a><br>
    <li> <a name="FAQ">Quit your bellyachin'!</a>&nbsp; We needed a "catch-all"
 document to supply useful information in a way that was easily referenced
 and would grow without a lot of work.&nbsp; It's closer to a FAQ than anything
-else.</li>
+else.</li><br>
   <li><a name="mailinglists">Yes! &nbsp;There are two public mailing
 lists for Linux-HA.</a> &nbsp;You can find out about them by visiting <a
  href="http://linux-ha.org/contact/">http://linux-ha.org/contact/</a>.<br>
-  </li>
+  </li><br>
    <li> <a name="what_is_it">HA (High availability Cluster)</a> - This is 
 a cluster that allows a host (or hosts) to become Highly Available, that means
 if one node goes down (or a service on that node goes down) another node
@@ -103,49 +103,61 @@ server (apache for example) over a farm of servers. <a
  href="http://www.linuxvirtualserver.org">www.linuxvirtualserver.org</a>
     <br>
  All of these sites have howtos etc. on them. For a general overview on clustering
-under Linux, look at the Clustering HOWTO.</li>
+under Linux, look at the Clustering HOWTO.</li><br>
    <li> <a name="res_scr">Resource scripts</a> are basically (extended) System
 V init scripts. They have to support stop, start, and status operations.&nbsp;
 In the future we will also add support for a "monitor" operation for monitoring
 services as you requested. The IPaddr script implements this new "monitor"
 operation now (but heartbeat doesn't use that function of it). For more info
-see Resource HOWTO.</li>
+see Resource HOWTO.</li><br>
    <li> <a name="mon">Heartbeat itself was not designed for monitoring</a> 
-various resources. If you need to monitor some resources (for example, availability
-of WWW server) you need some third party software. Mon is a reasonable solution.
+	various resources.
+	If you need to monitor some resources (for example, availability
+	of WWW server) you need some third party software.
+	Mon is a reasonable solution.
     <br>
- 1. Get mon <br>
- http://kernel.org/software/mon/     
-    <p>2. Get all required modules listed. You can find them at nearest mirror
-or at the CPAN archive (www.cpan.org). I am not very familiar with Perl,
-so i downloaded them from CPAN archive as .tar.gz packages and installed
-them usual way (perl Makefile.pl &amp;&amp; make &amp;&amp; make test &amp;&amp;
-make install). </p>
+    <ol type=A>
+	<li>Get Mon  from <a href="http://kernel.org/software/mon/"
+	>http://kernel.org/software/mon/</a>.
+
+	<li>Get all required modules listed. You can find them at
+	nearest mirror or at the CPAN archive (www.cpan.org).
+	I am not very familiar with Perl, so i downloaded them from CPAN
+	archive as .tar.gz packages and installed them usual way
+	(perl Makefile.pl &amp;&amp; make &amp;&amp; make test &amp;&amp;
+	make install).
      
-    <p>3. Mon is software for monitoring different network resources. It
-can ping computers, connect to various ports, monitor WWW, MySQL etc. In
-case of dysfunction of some resources it triggers some scripts. </p>
+    <li>Mon is software for monitoring different network resources.
+	It can ping computers, connect to various ports, monitor WWW,
+	MySQL etc. In case of dysfunction of some resources it triggers
+	some scripts.
      
-    <p>4. Unpack mon in some directory. Best starting point is README file.
-Complete documentation is in &lt;dir&gt;/doc, where &lt;dir&gt; is place
-where you unpacked mon package. </p>
+    <li>Unpack mon in some directory. Best starting point is README file.
+	Complete documentation is in &lt;dir&gt;/doc, where &lt;dir&gt;
+	is place where you unpacked mon package.
      
-    <p>5. For a fast start do following steps: <br>
- copy all subdirs found in &lt;dir&gt; to /usr/lib/mon <br>
- create dir /etc/mon <br>
- copy auth.cf from &lt;dir&gt;/etc to /etc/mon </p>
+    <li>For a fast start do following steps:
+        <ol type=a>
+ 	<li>copy all subdirs found in &lt;dir&gt; to /usr/lib/mon </li>
+ 	<li>create dir /etc/mon </li>
+ 	<li>copy auth.cf from &lt;dir&gt;/etc to /etc/mon</li>
+	</ol>
      
     <p>Now, mon is prepared to work. You need to create your own mon.cf file,
-where you should point to resources mon should watch and actions mon will
-start in case <br>
- of dysfunction and when resources are available again. All monitoring scripts
-are in /usr/lib/mon/mon.d/. At the beginning of every script you can find
-explanation how to use it. <br>
- All alert scripts are placed in /usr/lib/mon/alert.d/. Those are scripts
-triggered in case something went wrong. In case you are using ipvs on theirs
-homepage (www.linuxvirtualserver.org) you can find scripts for adding and
-removing servers from ipvs list.</p>
-   </li>
+	where you should point to resources mon should watch and
+	actions mon will start in case of dysfunction and when resources
+	are available again. &nbsp;
+	All monitoring scripts are in /usr/lib/mon/mon.d/.
+	At the beginning of every script you can find explanation how to use it.
+	<br>
+ 	All alert scripts are placed in /usr/lib/mon/alert.d/.
+	Those are scripts triggered in case something went wrong.
+	In case you are using ipvs on theirs homepage
+	(www.linuxvirtualserver.org) you can find scripts for adding and
+	removing servers from an ipvs list.</p>
+   </ol>
+   </li><br>
+
    <li>     
     <p><a name="ipfail">Yes! &nbsp;Use the ipfail plug-in.</a> &nbsp;For
 each interface you wish to monitor, specify one or more "ping" nodes in your
@@ -167,22 +179,23 @@ files:<br>
  style="font-weight: bold;">NOTE: &nbsp;</span>ipfail requires the "nice_failback
 on" option.<br>
      </p>
-   </li>
+   </li><br>
    <li>     
     <p><a name="nettools">This isn't a problem with heartbeat</a>, but rather
 is caused by various versions of net-tools.&nbsp; Upgrade to the most recent
 version of net-tools and it will go away.&nbsp; You can test it with ifconfig
 manually.</p>
-   </li>
+   </li><br>
    <li> <a name="manyIPs">Instead of failing over many IP addresses, just
 fail over one router address</a>.&nbsp; On your router, do the equivalent
 of "route add -net x.x.x.0/24 gw x.x.x.2", where x.x.x.2 is the cluster IP
 address controlled by heartbeat.&nbsp; Then, make every address within x.x.x.0/24
 that you wish to failover a permanent alias of lo0 on BOTH cluster nodes.&nbsp;
-This is done via "ifconfig lo:2 x.x.x.3 netmask 255.255.255.255 -arp" etc....</li>
+This is done via "ifconfig lo:2 x.x.x.3 netmask 255.255.255.255 -arp"
+etc...</li><br>
    <li> <a name="serial">I</a>f anything makes your ethernet / IP stack fail,
 you may lose both connections. You definitely should run the cables differently,
-depending on how important your data is...</li>
+depending on how important your data is...</li><br>
    <li> <a name="nice_failback">Normal failback mode:</a> <br>
  In this mode, one of the two machines is designated as the preferred provider
 of a given resource group. If that machine is up, then it will always be
@@ -197,14 +210,14 @@ there is an affinity between a resource group and whatever machine it is
 currently running on. Failovers occur *only* when a machine which is providing
 a service goes out of service. There is no concept of failback in this mode.
 This mode minimizes service interruptions, but cannot run an active-active
-configuration.</li>
+configuration.</li><br>
    <li> <a name="firewall">To make heartbeat work with ipchains</a>, you must
 accept incoming and outgoing traffic on 694 UDP port. Add something like
     <br>
  /sbin/ipchains -A output -i ethN -p udp -s &lt;source_IP&gt; -d &lt;dest_IP&gt;&nbsp;
 -j ACCEPT <br>
  /sbin/ipchains -A input -i ethN -p udp -s &lt;source_IP&gt; -d &lt;dest_IP&gt;&nbsp;
--j ACCEPT</li>
+-j ACCEPT</li><br>
    <li> <a name="nolocalheartbeat">
 	This can be caused by one of two things:<ul>
 	<li>System under heavy I/O load, or</li>
@@ -242,13 +255,13 @@ accept incoming and outgoing traffic on 694 UDP port. Add something like
 	Adding memory to the machine generally helps.
 	Limiting workload on the machine generally helps. Newer versions
 	of heartbeat are a bit better about this than
-	pre 1.0 versions.</li>
+	pre 1.0 versions.</li><br>
 
    <li><a name="serialerr">It's common to get a single mangled packet
 	on your serial interface when heartbeat starts up.</a>
 	&nbsp;This is an indicator that happened. &nbsp;It's harmless in
 	this scenario.<br>
-   </li>
+   </li><br>
 
    <li> <a name="authkeys">It's probably a permissions problem on authkeys.</a>&nbsp;
 It wants it to be read only mode (400, 600 or 700).&nbsp; Depending on where
@@ -262,7 +275,8 @@ places. <br>
      
     </ol>
  Newer releases are better about also putting out startup messages to stderr
-in addition to whereever you have configured them to go. </li>
+in addition to whereever you have configured them to go. </li><br>
+
    <li> <a name="multiple_clusters">Use multicast</a> and give each its own
 multicast group. If you need to/want to use broadcast, then run each cluster
 on different port numbers. &nbsp;An example of a configuration using multicast
@@ -273,7 +287,8 @@ would be to have the following line in your ha.cf file:<br>
 as the multicast group (will be same on each node in the same cluster), udp
 port 694 (heartbeat default), time to live of 1 (limit multicast to local
 network segment and not propagate through routers), multicast loopback enabled
-(typical).</li>
+(typical).</li><br>
+
    <li><a name="CVS">There is a CVS repository for Linux-HA.</a> You can find
 	it at cvs.linux-ha.org.&nbsp; Read-only access is via login guest,
 	password guest, module name linux-ha.
@@ -282,9 +297,14 @@ network segment and not propagate through routers), multicast loopback enabled
 	>announcement email</a>.&nbsp;
 	It is also available through the web using viewcvs at <a
  	href="http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/"
-	>http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/</a></li>
+	>http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/</a></li><br>
 
-   <li> <a name="other_os">Heartbeat is currently being ported to use automake.</a></li>
+   <li> <a name="other_os">Heartbeat now uses use automake</a>
+        and is generally quite portable at this point.  Join
+	the Linux-HA-dev mailing list if you want to help port it
+	to your favorite platform.
+	</li><br>
+
    <li><a name="RPM">Due to distribution RPM package name differences,
 	this was unavoidable.</a>&nbsp; If you're not using STONITH,
 	use the "--nodeps" option with rpm. &nbsp;Otherwise, use the
@@ -296,7 +316,7 @@ network segment and not propagate through routers), multicast loopback enabled
 	source and from the top directory, run "./ConfigureMe rpm".&nbsp;
 	This will build RPMS and place them where it's customary for your
 	particular distro. &nbsp;It may even tell you if you are missing
-	some other required packages!</li>
+	some other required packages!</li><br>
 
    <li><a name="meatware">You configure a "meatware" STONITH device into
 	the ha.cf file.</a> &nbsp;The meatware STONITH device asks the
@@ -306,7 +326,7 @@ network segment and not propagate through routers), multicast loopback enabled
  	taken place. &nbsp;Heartbeat will wait indefinitely until
 	the operator acknowledges the reset has occured. &nbsp;During
 	this time, the resources will not be taken over, and
-	nothing will happen.</li>
+	nothing will happen.</li><br>
 
   <li><a name="STONITH">STONITH is a form of fencing</a>, and is an acronym
 	standing for Shoot The Other Node In The Head. &nbsp;It allows one
@@ -317,8 +337,8 @@ network segment and not propagate through routers), multicast loopback enabled
 	some kind of fencing whenever you have a cluster resource
 	which might be permanently damaged if both machines tried to make
 	it active at the same time. &nbsp;When in doubt check with the
-	Linux-HA mailing list.<br>
-   </li>
+	Linux-HA mailing list.
+   </li><br>
 
    <li><a name="self_fence">This is not something which heartbeat supports
 	directly, however, there are a few kinds of resources which
@@ -329,29 +349,32 @@ network segment and not propagate through routers), multicast loopback enabled
 	doesn't have to know) about it. &nbsp;Two possible hardware candidates
 	are IBM's ServeRAID-4 RAID controllers and ICP
 	Vortex RAID controllers - but do your homework!!! &nbsp;
-	When in doubt check with the mailing list.<br>
-   </li>
+	When in doubt check with the mailing list.
+   </li><br>
 
    <li> <a name="last_hope">Please be sure that you read all documentation</a>
-and searched mail list archives. If you still can't find a solution you can
-post questions to the mailing list. Please include following:</li>
+	and searched mail list archives. If you still can't find a
+	solution you can post questions to the mailing list. Please
+	include following:
    
   <ul>
      <li> What OS are you running.</li>
      <li>What version (distro/kernel).</li>
-     <li>How did you install heartbeat (tar.gz, rpm, src.rpm or manual installation)</li>
-     <li>Include your configuration files from BOTH machines. You can omit
-authkeys.</li>
+     <li>How did you install heartbeat (tar.gz, rpm, src.rpm or
+	manual installation)</li>
+     <li>Include your configuration files from BOTH machines.
+	You can omit authkeys.</li>
      <li>Include the of your logs which describes errors.&nbsp; Send them
-as attachments. <br>
- Please don't send "cleaned up" logs.&nbsp; The real logs have more information
-in them than cleaned up versions.&nbsp; Always include at least a little
-irrelevant data before and after the events in question so that we know nothing
-was missed.&nbsp; Don't edit the logs unless you really have some super-secret
-high-security reason for doing so.       
-      <p> This means you need to send 6 or 8 files.  Include 6 if your debug
-output goes into the same file as your normal output and 8 otherwise. For
-each machine you need to send: </p>
+	as text/plain attachments. <br>
+ 	Please don't send "cleaned up" logs.&nbsp; The real logs have
+	more information in them than cleaned up versions.&nbsp; Always
+	include at least a little irrelevant data before and after the events
+	in question so that we know nothing was missed.&nbsp; Don't edit
+	the logs unless you really have some super-secret high-security
+	reason for doing so.
+      <p> This means you need to attach 6 or 8 files.  Include 6 if your debug
+	output goes into the same file as your normal output and 8 otherwise.
+	For each machine you need to send: </p>
        
       <ul>
          <li>ha.cf</li>
@@ -360,9 +383,9 @@ each machine you need to send: </p>
          <li>debug logs (perhaps)</li>
        
       </ul>
-    </li>
    
-  </ul>
+  </ul></li><br>
+
   <li><a name="patches">We love to get good patches. &nbsp;Here's the
 preferred way:</a>
   <ul>
@@ -373,9 +396,10 @@ linux-ha-dev mailing list for answers before starting.</li>
     <li>Produce the patch this way:<br>
 &nbsp; &nbsp; &nbsp; &nbsp;<b><tt>cvs -q diff -u &gt;patchname.txt</tt></b></li>
     <li>Send an email to the linux-ha-dev mailing list with the patch as
-an attachment.<b><tt><br>
-      </tt></b></li>
-  </ul></li>
+a [text/plain] attachment.
+	If your mailer wants to zip it up for you, please fix it.<br>
+      </li>
+  </ul></li><br>
  
 </ol>
  
