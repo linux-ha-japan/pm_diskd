@@ -21,7 +21,7 @@
  */
 #include <stdlib.h>
 #ifdef HAVE_MALLINFO
-#include malloc.h
+#include <malloc.h>
 #endif
 #include <ccm.h>
 
