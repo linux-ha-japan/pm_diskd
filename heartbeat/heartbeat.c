@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.79 2000/07/31 03:39:40 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.80 2000/08/01 05:48:25 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -380,10 +380,12 @@ int	send_local_starting(void);
 int	send_local_status(void);
 int	set_local_status(const char * status);
 void	process_resources(struct ha_msg* msg, struct node_info * thisnode);
-void	request_msg_rexmit(struct node_info *, unsigned long lowseq, unsigned long hiseq);
+void	request_msg_rexmit(struct node_info *, unsigned long lowseq
+,		unsigned long hiseq);
 void	check_rexmit_reqs(void);
 void	mark_node_dead(struct node_info* hip);
-void	change_link_status(struct node_info* hip, struct link *lnk, const char * new);
+void	change_link_status(struct node_info* hip, struct link *lnk
+,		const char * new);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
 pid_t	get_running_hb_pid(void);
 void	make_daemon(void);
@@ -509,7 +511,7 @@ ha_versioninfo(void)
 	}
 }
 
-/* Look up the interface in the node struct, returning the link info structure */
+/* Look up the interface in the node struct, returning the link info structure*/
 struct link *
 lookup_iface(struct node_info * hip, const char *iface)
 {
@@ -884,6 +886,7 @@ make_normaltime()
 #endif
 }
 
+/* Create a read child process (to read messages from hb medium) */
 void
 read_child(struct hb_media* mp)
 {
@@ -928,6 +931,7 @@ read_child(struct hb_media* mp)
 }
 
 
+/* Create a write child process (to write messages to hb medium) */
 void
 write_child(struct hb_media* mp)
 {
@@ -1031,6 +1035,7 @@ control_process(FILE * fp)
 	/* That's All Folks... */
 }
 
+/* Send this message to all of our heartbeat media */
 void
 send_to_all_media(char * smsg, int len)
 {
@@ -1063,32 +1068,23 @@ send_to_all_media(char * smsg, int len)
 }
 
 
-/*
- *	This code has gotten a bit out of hand.
- *	It was simple, but now has grown various functions that shouldn't
- *	be here in the main body of the code.  We're in the process of
- *	migrate some of thme out of here...
- */
-
 /* The master status process */
 void
 master_status_process(void)
 {
-	struct node_info *	thisnode;
 	FILE *			f = fdopen(status_pipe[P_READFD], "r");
 	FILE *			regfifo;
 	struct ha_msg *		msg = NULL;
 	time_t			lastnow = 0L;
 	char			iface[MAXIFACELEN];
-	struct	link *		lnk;
 	int			fd, regfd;
 
 	init_status_alarm();
 	init_watchdog();
 	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
-#if 1
 	/* We open it this way to keep the open from hanging... */
+
 	if ((fd = open(API_REGFIFO, O_RDWR)) < 0) {
 		ha_log(LOG_ERR
 		,	"master_status_process: Can't open " API_REGFIFO);
@@ -1101,23 +1097,11 @@ master_status_process(void)
 		cleanexit(1);
 	}
 	fd = -1;
-#else
-	if ((regfifo = fopen(API_REGFIFO, "rw")) == NULL) {
-		ha_perror("Cannot open " API_REGFIFO);
-		cleanexit(1);	
-	}
-#endif
 	fd = fileno(f);			clearerr(f);
 	regfd = fileno(regfifo);	clearerr(regfifo);
 
 	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
-		time_t		msgtime;
 		time_t		now = time(NULL);
-		const char *	from;
-		const char *	ts;
-		const char *	type;
-		int		action;
-		clock_t		messagetime;
 		fd_set		inpset;
 		fd_set		exset;
 		int		ndesc;
@@ -1176,203 +1160,32 @@ master_status_process(void)
 			continue;	/* Timeout */
 		}
 
+		/* Do we have input on our status message FIFO? */
 		if (FD_ISSET(fd, &inpset)) {
 			process_statusmsg(f);
 			FD_CLR(fd, &inpset);
 			--selret;
 		}
+
+		/* Do we have input on the API registration FIFO? */
 		if (selret > 0 && FD_ISSET(regfd, &inpset)) {
-ha_log(LOG_DEBUG, "Processing registration message.\n");
+			ha_log(LOG_DEBUG, "Processing registration message.\n");
 			process_registermsg(regfifo);
 			FD_CLR(regfd, &inpset);
 			--selret;
 		}
+
+		/* How about requests from our API clients? */
 		if (selret > 0) {
-ha_log(LOG_DEBUG, "Processing %d API messages", selret);
+			ha_log(LOG_DEBUG, "Processing %d API messages", selret);
 			process_api_msgs(&inpset, &exset);
-		}
-		if (msg == NULL) {
-			continue;
-		}
-		now = time(NULL);
-		messagetime = times(NULL);
-
-		/* Extract message type, originator, timestamp, auth */
-		type = ha_msg_value(msg, F_TYPE);
-		from = ha_msg_value(msg, F_ORIG);
-		ts = ha_msg_value(msg, F_TIME);
-
-		if (from == NULL || ts == NULL || type == NULL) {
-			ha_log(LOG_ERR
-			,	"master_status_process: missing from/ts/type");
-			continue;
-		}
-
-		if (!isauthentic(msg)) {
-			ha_log(LOG_DEBUG
-			,       "master_status_process: node [%s]"
-			" failed authentication", from);
-			if (ANYDEBUG) {
-				ha_log_message(msg);
-			}
-			continue;
-		}else if(ANYDEBUG) {
-			ha_log(LOG_DEBUG
-			,       "master_status_process: node [%s] auth  ok"
-			,	from);
-		}
-
-
-		thisnode = lookup_node(from);
-		if (thisnode == NULL) {
-#if defined(MITJA)
-			/* If a node isn't in the configfile, add it... */
-			ha_log(LOG_WARNING
-			,   "master_status_process: new node [%s] in message"
-			,	from);
-			add_node(from);
-			thisnode = lookup_node(from);
-			if (thisnode == NULL) {
-				continue;
-			}
-#else
-			/* If a node isn't in the configfile - whine */
-			ha_log(LOG_ERR
-			,   "master_status_process: bad node [%s] in message"
-			,	from);
-			ha_log_message(msg);
-			continue;
-#endif
-		}
-
-		/* Throw away some incoming packets if testing is enabled */
-		if (TESTRCV) {
-			if (thisnode != curnode && TestRand(rcv_loss_prob)) {
-				continue;
-			}
-		}
-		thisnode->anypacketsyet = 1;
-		check_comm_isup();
-
-		lnk = lookup_iface(thisnode, iface);
-
-		/* Is this message a duplicate, or destined for someone else? */
-
-		action=should_drop_message(thisnode, msg, iface);
-
-		switch (action) {
-			case DROPIT:
-			/* Ignore it */
-			heartbeat_monitor(msg, action, iface);
- 			continue;
-
-			case DUPLICATE:
-			heartbeat_monitor(msg, action, iface);
-			case KEEPIT:
-
-			/* Even though it's a DUP, it could update link status*/
-			if (lnk) {
-				lnk->lastupdate = messagetime;
-				/* Is this from a link which was down? */
-				if (strcasecmp(lnk->status, LINKUP) != 0) {
-					change_link_status(thisnode, lnk
-					,	LINKUP);
-				}
-			}
-			if (action == DUPLICATE) {
-				continue;
-			}
-			break;
-		}
-
-
-		thisnode->track.last_iface = iface;
-		if (heartbeat_comm_state == COMM_LINKSUP) {
-			/*
-			 * process_resources() will deal with T_STARTING
-			 * and T_RESOURCES messages appropriately.
-			 */
-			process_resources(msg, thisnode);
-		}
-
-		if (strcasecmp(type, T_STARTING) == 0
-		||	strcasecmp(type, T_RESOURCES) == 0) {
-			heartbeat_monitor(msg, action, iface);
-			continue;
-		}
-
-		/* Is this a status update (i.e., "heartbeat") message? */
-		if (strcasecmp(type, T_STATUS) == 0) {
-			clock_t		heartbeat_interval;
-			const char *	status;
-			const char *	cseq;
-			long		seqno;
-
-			sscanf(ts, "%lx", &msgtime);
-			status = ha_msg_value(msg, F_STATUS);
-			if (status == NULL)  {
-				ha_log(LOG_ERR, "master_status_process: "
-				"status update without "
-				F_STATUS " field");
-				continue;
-			}
-			if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
-				if (sscanf(cseq, "%lx", &seqno) != 1
-				||	seqno <= 0) {
-					continue;
-				}
-			}
-
-			/* Do we already have a newer status? */
-			if (msgtime < thisnode->rmt_lastupdate
-			&&	seqno < thisnode->status_seqno) {
-				continue;
-			}
-			heartbeat_interval = messagetime
-			-	thisnode->local_lastupdate;
-			if (heartbeat_interval > config->warntime_interval) {
-				ha_log(LOG_WARNING
-				,	"Late heartbeat: Node %s:"
-				" interval %ld ms"
-				,	thisnode->nodename
-				,	(heartbeat_interval * 1000) / CLK_TCK);
-			}
-
-			thisnode->rmt_lastupdate = msgtime;
-
-			thisnode->local_lastupdate = messagetime;
-
-			thisnode->status_seqno = seqno;
-
-			/* Is the node status the same? */
-			if (strcasecmp(thisnode->status, status) != 0) {
-				ha_log(LOG_INFO
-				,	"Node %s: status %s"
-				,	thisnode->nodename
-				,	status);
-				notify_world(msg, thisnode->status);
-				strcpy(thisnode->status, status);
-				heartbeat_monitor(msg, action, iface);
-			}else{
-				heartbeat_monitor(msg, NOCHANGE, iface);
-			}
-
-			/* Did we get a status update on ourselves? */
-			if (thisnode == curnode) {
-				tickle_watchdog();
-			}
-		}else if (strcasecmp(type, T_REXMIT) == 0) {
-			heartbeat_monitor(msg, PROTOCOL, iface);
-			if (thisnode != curnode) {
-				/* Forward to control process */
-				send_cluster_msg(msg);
-			}
-		}else{
-			heartbeat_monitor(msg, action, iface);
-			notify_world(msg, thisnode->status);
 		}
 	}
 }
+
+/*
+ * Process a message coming in from our status FIFO
+ */
 void
 process_statusmsg(FILE * f)
 {
@@ -1574,6 +1387,8 @@ process_statusmsg(FILE * f)
 psm_done:
 	ha_msg_del(msg);  msg = NULL;
 }
+
+/* Process a registration request from a potential client */
 void
 process_registermsg(FILE *regfifo)
 {
@@ -3757,6 +3572,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.80  2000/08/01 05:48:25  alan
+ * Fixed several serious bugs and a few minor ones for the heartbeat API.
+ *
  * Revision 1.79  2000/07/31 03:39:40  alan
  * This is a working version of heartbeat with the API code.
  * I think it even has a reasonable security policy in it.

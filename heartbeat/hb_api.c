@@ -17,6 +17,48 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
+/*
+ *	A little about the API FIFO structure...
+ *
+ *	We have two kinds of API clients:  casual and named
+ *
+ *	Casual clients just attach and listen in to messages, and ask
+ *	the status of things. Casual clients are typically used as status
+ *	agents, or debugging agents.
+ *
+ *	They can't send messages, and they are known only by their PID.
+ *	Anyone in the group that owns the casual FIFO directory can use
+ *	the casual API.  Casual clients create and delete their own
+ *	FIFOs for the API (or are cleaned up after by heartbeat ;-))
+ *	Hence, the casual client FIFO directory must be group writable,
+ *	and sticky.
+ *
+ *	Named clients attach and listen in to messages, and they are also
+ *	allowed to send messages to the other clients in the cluster with
+ *	the same name. Named clients typically provide persistent services
+ *	in the cluster.  A cluster manager would be an example
+ *	of such a persistent service.
+ *
+ *	Their FIFOs are pre-created for them, and they neither create nor
+ *	delete them - nor should they be able to.
+ *	The named client FIFO directory must not be writable by group or other.
+ *
+ *	We deliver messages from named clients to clients in the cluster
+ *	which are registered with the same name.  Each named client
+ *	also receives the messages it sends.  I could allow them to send
+ *	to any other service that they want, but right now that's overridden.
+ *	We mark each packet with the service name that the packet came from.
+ *
+ *	A client can only register for a given name if their userid is the
+ *	owner of the named FIFO for that name.
+ *
+ *	If a client has permissions to snoop on packets (debug mode),
+ *	then they are allowed to receive all packets, but otherwise only
+ *	clients registered with the same name will receive these messages.
+ *
+ *	It is important to make sure that each named client FIFO is owned by the
+ *	same UID on each machine.
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,21 +72,23 @@
 #include <hb_api_core.h>
 #include <sys/stat.h>
 
-
+/*
+ *	Per-client API data structure.
+ */
 typedef struct client_process {
 	char		client_id[32];	/* Client identification */
 	pid_t		pid;		/* PID of client process */
 	uid_t		uid;		/* UID of client  process */
 	int		iscasual;	/* 1 if this is a "casual" client */
 	FILE*		input_fifo;	/* Input FIFO file pointer */
-	int		signal;		/* Defaults to zero */
-	int		desired_types;	/* A bit mask */
+	int		signal;		/* What signal to indicate new msgs with */
+	int		desired_types;	/* A bit mask of desired message types*/
 	struct client_process*	next;
 }client_proc_t;
 
 int		debug_client_count = 0;
 int		total_client_count = 0;
-client_proc_t*	client_list = NULL;
+client_proc_t*	client_list = NULL;	/* List of all our API clients */
 
 void api_process_request(client_proc_t* client, struct ha_msg *msg);
 static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
@@ -64,8 +108,8 @@ static int		HostSecurityIsOK(void);
 #endif
 
 /*
- *	One client pointer per input FIFO.  It's indexed by file
- *	descriptor, so it's not densely populated.
+ *	One client pointer per input FIFO.  It's indexed by file descriptor, so
+ *	it's not densely populated.  We use this in conjunction with select(2)
  */
 static client_proc_t*	FDclients[MAXFD];
 
@@ -73,8 +117,8 @@ static client_proc_t*	FDclients[MAXFD];
  * The original structure of this code was due to
  * Marcelo Tosatti <marcelo@conectiva.com.br>
  *
- * It has been significantly and repeatedly mangled by
- * Alan Robertson <alanr@unix.sh>
+ * It has been significantly and repeatedly mangled into unrecognizable oblivion
+ * by Alan Robertson <alanr@unix.sh>
  *
  */
 
@@ -92,10 +136,13 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 	(void)_ha_msg_h_Id;
 
 
-	/* This kicks out most messages... */
+	/* This kicks out most messages, since debug clients are rare */
+
 	if ((msgtype&DEBUGTREATMENTS) != 0 && debug_client_count <= 0) {
 		return;
 	}
+
+	/* Verify that we understand what kind of message we've got here */
 
 	if ((msgtype & ALLTREATMENTS) != msgtype || msgtype == 0) {
 		ha_log(LOG_ERR, "heartbeat_monitor: unknown msgtype [%d]"
@@ -103,22 +150,30 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 		return;
 	}
 
+	/* See who this message is addressed to (if anyone) */
+
 	clientid = ha_msg_value(msg, F_TOID);
 
 	for (client=client_list; client != NULL; client=nextclient) {
 		/*
-		 * "client" could be removed by api_send_client_msg()
+		 * "client" might be removed by api_send_client_msg()
 		 * so, we'd better fetch the next client now!
 		 */
 		nextclient=client->next;
 	
+		/* Is this message addressed to us? */
 		if (clientid != NULL
 		&&	strcmp(clientid, client->client_id) != 0) {
 			continue;
 		}
+
+		/* Is this one of the types of messages we're interested in? */
+
 		if ((msgtype & client->desired_types) != 0) {
 			api_send_client_msg(client, msg);
 		}
+
+		/* If this is addressed to us, then no one else should get it */
 		if (clientid != NULL) {
 			break;	/* No one else should get it */
 		}
@@ -126,7 +181,7 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 }
 
 /*
- * Process an API request message...
+ * Process an API request message from one of our clients
  */
 void
 api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
@@ -146,6 +201,9 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 
 	/* Things that aren't T_APIREQ are general packet xmit requests... */
 	if (strcmp(msgtype, T_APIREQ) != 0) {
+
+		/* Only named clients can send out packets to clients */
+
 		if (fromclient->iscasual) {
 			ha_log(LOG_ERR, "api_process_request: "
 			"general message from casual client!");
@@ -153,17 +211,23 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			api_remove_client(client);
 			return;
 		}
+
+		/* We put their client ID info in the packet as the F_FROMID */
 		if (ha_msg_mod(msg, F_FROMID, fromclient->client_id) != HA_OK) {
 			ha_log(LOG_ERR, "api_process_request: "
 			"cannot add F_FROMID field");
 			return;
 		}
 		/* Is this too restrictive? */
+		/* We also put their client ID info in the packet as F_TOID */
+
 		if (ha_msg_mod(msg, F_TOID, fromclient->client_id) != HA_OK) {
 			ha_log(LOG_ERR, "api_process_request: "
 			"cannot add F_TOID field");
 			return;
 		}
+
+		/* Mikey likes it! */
 		if (send_cluster_msg(msg) != HA_OK) {
 			ha_log(LOG_ERR, "api_process_request: "
 			"cannot forward message to cluster");
@@ -171,28 +235,33 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		return;
 	}
 
-	if (strcmp(msgtype, T_APIREQ) != 0
-	||	(reqtype = ha_msg_value(msg, F_APIREQ)) == NULL) {
-		ha_log(LOG_ERR, "api_process_request: bad message");
-		return;
-	}
+	/* It must be a T_APIREQ request */
+
 	fromid = ha_msg_value(msg, F_FROMID);
 	pid = ha_msg_value(msg, F_PID);
+	reqtype = ha_msg_value(msg, F_APIREQ);
 
-	if (fromid == NULL && pid == NULL) {
-		ha_log(LOG_ERR, "api_process_request: no fromid/pid in msg");
+	if ((fromid == NULL && pid == NULL) || reqtype == NULL) {
+		ha_log(LOG_ERR, "api_process_request: no fromid/pid/reqtype"
+		" in message.");
 		return;
 	}
 
+	/*
+	 * Create the response message
+	 */
 	if ((resp = ha_msg_new(4)) == NULL) {
 		ha_log(LOG_ERR, "api_process_request: out of memory/1");
 		return;
 	}
+
+	/* API response messages are of type T_APIRESP */
 	if (ha_msg_add(resp, F_TYPE, T_APIRESP) != HA_OK) {
 		ha_log(LOG_ERR, "api_process_request: cannot add field/2");
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
+	/* Echo back the type of API request we're responding to */
 	if (ha_msg_add(resp, F_APIREQ, reqtype) != HA_OK) {
 		ha_log(LOG_ERR, "api_process_request: cannot add field/3");
 		ha_msg_del(resp); resp=NULL;
@@ -204,12 +273,14 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		ha_log(LOG_ERR, "api_process_request: msg from non-client");
 		return;
 	}
+
+	/* Look and see if they correctly stated their client id information... */
 	if (client != fromclient) {
 		ha_log(LOG_ERR, "Client mismatch! (impersonation?)");
 		return;
 	}
 
-	/* See if this client is (still) properly secured */
+	/* See if this client FIFOs are (still) properly secured */
 
 	if (!ClientSecurityIsOK(client)) {
 		api_remove_client(client);
@@ -217,13 +288,21 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		return;
 	}
 
+	/**********************************************************************
+	 * API_SIGNOFF: Sign off as a client
+	 **********************************************************************/
 	if (strcmp(reqtype, API_SIGNOFF) == 0) {
 		/* We send them no reply */
 		ha_log(LOG_INFO, "Signing client %d off", client->pid);
 		api_remove_client(client);
 		ha_msg_del(resp); resp=NULL;
 		return;
-	}else if (strcmp(reqtype, API_SETFILTER) == 0) {
+	}
+
+	/**********************************************************************
+	 * API_SETFILTER: Set the types of messages we want to see
+	 **********************************************************************/
+	if (strcmp(reqtype, API_SETFILTER) == 0) {
 	/*
 	 *	Record the types of messages desired by this client
 	 *		(desired_types)
@@ -259,7 +338,12 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
-	}else if (strcmp(reqtype, API_SETSIGNAL) == 0) {
+	}
+
+	/**********************************************************************
+	 * API_SETSIGNAL: Record the type of signal they want us to send.
+	 **********************************************************************/
+	if (strcmp(reqtype, API_SETSIGNAL) == 0) {
 	/*
 	 *	Set a signal to send whenever a message arrives
 	 */
@@ -288,10 +372,11 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
-	/*
-	 *	List the nodes in the cluster
-	 */
-	}else if (strcmp(reqtype, API_NODELIST) == 0) {
+	}
+	/***********************************************************************
+	 * API_NODELIST: List the nodes in the cluster
+	 **********************************************************************/
+	if (strcmp(reqtype, API_NODELIST) == 0) {
 		int	j;
 		int	last = config->nodecount-1;
 
@@ -317,8 +402,12 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		}
 		ha_msg_del(resp); resp=NULL;
 		return;
-		
-	}else if (strcmp(reqtype, API_NODESTATUS) == 0) {
+	}
+
+	/**********************************************************************
+	 * API_NODESTATUS: Return the status of the given node
+	 *********************************************************************/
+	if (strcmp(reqtype, API_NODESTATUS) == 0) {
 	/*
 	 *	Return the status of the given node
 	 */
@@ -345,12 +434,12 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
-
-	}else if (strcmp(reqtype, API_IFLIST) == 0) {
+	}
+	/**********************************************************************
+	 * API_IFLIST: List the interfaces for the given machine
+	 *********************************************************************/
+	if (strcmp(reqtype, API_IFLIST) == 0) {
 		struct link * lnk;
-	/*
-	 *	List the set of our interfaces for the given host
-	 */
 		int	j;
 		int	last = config->nodecount-1;
 		const char *		cnode;
@@ -389,11 +478,11 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		}
 		ha_msg_del(resp); resp=NULL;
 		return;
-	}else if (strcmp(reqtype, API_IFSTATUS) == 0) {
-	/*
-	 *	Return the status of the given interface for the given
-	 *	node.
-	 */
+	}
+	/**********************************************************************
+	 * API_IFSTATUS: Return the status of the given interface...
+	 *********************************************************************/
+	if (strcmp(reqtype, API_IFSTATUS) == 0) {
 		const char *		cnode;
 		struct node_info *	node;
 		const char *		ciface;
@@ -409,7 +498,6 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		if (ha_msg_mod(resp, F_STATUS,	iface->status) != HA_OK) {
 			ha_log(LOG_ERR
 			,	"api_process_request: cannot add field/9");
-			ha_log_message(resp);
 			ha_log(LOG_ERR
 			,	"name: %s, value: %s (if=%s)"
 			,	F_STATUS, iface->status, ciface);
@@ -425,10 +513,13 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
-	}else{
-		ha_log(LOG_ERR, "Unknown API request");
 	}
+	/**********************************************************************
+	 * Unknown request type...
+	 *********************************************************************/
+	ha_log(LOG_ERR, "Unknown API request");
 
+	/* Common error return handling */
 bad_req:
 	ha_log(LOG_ERR, "api_process_request: bad request [%s]"
 	,	reqtype);
@@ -480,6 +571,9 @@ api_process_registration(struct ha_msg * msg)
 		return;
 	}
 
+	/*
+	 *	Create the response message
+	 */
 	if ((resp = ha_msg_new(4)) == NULL) {
 		ha_log(LOG_ERR, "api_process_registration: out of memory/1");
 		return;
@@ -499,10 +593,13 @@ api_process_registration(struct ha_msg * msg)
 	 *	Sign 'em up.
 	 */
 	api_add_client(msg);
+
+	/* Make sure we can find them in the table... */
 	if ((client = find_client(fromid, pid)) == NULL) {
 		ha_log(LOG_ERR
 		,	"api_process_registration: cannot add client");
 		ha_msg_del(resp); resp=NULL;
+		/* We can't properly reply to them.  Sorry they'll hang... */
 		return;
 	}
 	if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
@@ -565,11 +662,13 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 	}
 }
 
+static int	maxfd = -1;
+static int	minfd = -1;
+
 /*
  *	Make this client no longer a client ;-)
  */
-static int	maxfd = -1;
-static int	minfd = -1;
+
 void
 api_remove_client(client_proc_t* req)
 {
@@ -584,7 +683,9 @@ api_remove_client(client_proc_t* req)
 	/* Locate the client data structure in our list */
 
 	for (client=client_list; client != NULL; client=client->next) {
+		/* Is this the client? */
 		if (client->pid == req->pid) {
+			/* Close the input FIFO */
 			if (client->input_fifo != NULL) {
 				int	fd = fileno(client->input_fifo);
 				if (fd == maxfd) {
@@ -604,6 +705,7 @@ api_remove_client(client_proc_t* req)
 			}else{
 				prev->next = client->next;
 			}
+			/* Zap! */
 			memset(client, 0, sizeof(*client));
 			ha_free(client);
 			return;
@@ -664,6 +766,7 @@ api_add_client(struct ha_msg* msg)
 		,	"unable to add client pid %d [no memory]", pid);
 		return;
 	}
+	/* Zap! */
 	memset(client, 0, sizeof(*client));
 	client->input_fifo = NULL;
 	client->pid = pid;
@@ -685,7 +788,10 @@ api_add_client(struct ha_msg* msg)
 	client_list = client;
 	total_client_count++;
 
+	/* Make sure their FIFOs are properly secured */
 	if (!ClientSecurityIsOK(client)) {
+		/* No insecure clients allowed! */
+		api_remove_client(client);
 		return;
 	}
 	if ((fifofp=open_reqfifo(client)) <= 0) {
@@ -755,51 +861,9 @@ client_fifo_name(client_proc_t* client, int isrequest)
 	return(fifoname);
 }
 
-/*
- *	A little about the API FIFO structure...
- *
- *	We have two kinds of API clients:  casual and named
- *
- *	Casual clients just attach and listen in to messages, and ask
- *	the status of things. Casual clients are typically used as status
- *	agents, or debugging agents.
- *
- *	They can't send messages, and they are known only by their PID.
- *	Anyone in the group that owns the casual FIFO directory can use
- *	the casual API.  Casual clients create and delete their own
- *	FIFOs for the API (or are cleaned up after by heartbeat ;-))
- *	Hence, the casual client FIFO directory must be group writable,
- *	and sticky.
- *
- *	Named clients attach and listen in to messages, and they are also
- *	allowed to send messages to the other clients in the cluster with
- *	the same name. Named clients typically provide persistent services
- *	in the cluster.  A cluster manager would be an example
- *	of such a persistent service.
- *
- *	Their FIFOs are pre-created for them, and they
- *	neither create nor delete them - nor should they be able to.
- *	The named client FIFO directory must not be writable by group or other.
- *
- *	We deliver messages from named clients to clients in the cluster
- *	which are registered with the same name.  Each named client
- *	also receives the messages it sends.  I could allow them to send
- *	to any other service that they want, but right now that's overridden.
- *	We mark each packet with the service name that the packet came from.
- *
- *	A client can only register for a given name if their userid is the
- *	owner of the named FIFO for that name.
- *
- *	If a client has permissions to snoop on packets (debug mode),
- *	then they are allowed to receive all packets, but otherwise only
- *	clients registered with the same name will receive these messages.
- *
- *	It is important to make sure that each named client FIFO is owned by the
- *	same UID on each machine.
- */
 
 /*
- * Our Goal: To be as big a pain in the posterior as we can be
+ * Our Goal: To be as big a pain in the posterior as we can be :-)
  */
 
 static int
@@ -884,7 +948,7 @@ HostSecurityIsOK(void)
 
 
 	/* 
-	 * Check out the Casual Client FIFO directory
+	 * Check out the casual client FIFO directory
 	 */
 
 	if (stat(CASUALCLIENTDIR, &s) < 0) {
@@ -910,9 +974,9 @@ HostSecurityIsOK(void)
 		return 0;
 	}
 
-	/* Check to make sure it isn't R,W or X by other. */
+	/* Make sure it isn't R,W or X by other. */
 
-	if ((s.st_mode&(S_IXOTH|S_IROTH|S_IWOTH)) != 0) {
+	if ((s.st_mode&(S_IROTH|S_IWOTH|S_IXOTH)) != 0) {
 		ha_log(LOG_ERR
 		,	"Directory %s is not secure.", CASUALCLIENTDIR);
 		return 0;
@@ -1127,7 +1191,7 @@ open_reqfifo(client_proc_t* client)
 	FILE *		ret;
 
 
-	if (client->input_fifo > 0) {
+	if (client->input_fifo != NULL) {
 		return(client->input_fifo);
 	}
 
@@ -1169,6 +1233,7 @@ pid2uid(pid_t pid)
 int
 compute_msp_fdset(fd_set* set, int fd1, int fd2)
 {
+	/* msp == Master Status Process */
 	int	fd;
 	int	newmax = -1;
 	int	newmin = MAXFD + 1;
@@ -1199,7 +1264,7 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 	int		fd;
 	client_proc_t*	client;
 
-	/* Loop over the range of file descriptors we have open for clients */
+	/* Loop over the range of file descriptors we have open for our clients */
 
 	for (fd=minfd; fd <= maxfd; ++fd) {
 
@@ -1207,6 +1272,8 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 
 		if ((client = FDclients[fd]) != NULL) {
 			struct ha_msg*	msg;
+
+			/* I'm not sure if this is useful... */
 			if (FD_ISSET(fd, exceptions)) {
 				if (kill(client->pid, 0) < 0
 				&&	errno == ESRCH) {
@@ -1230,11 +1297,13 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 				continue;
 			}
 
+			/* See if we can read the message */
 			if ((msg = msgfromstream(client->input_fifo)) == NULL) {
 				/*
-				 * So far this has always been a bug, but when
-				 * it happens we often go into a loop :-(
-				 * No doubt all those bugs are fixed now ;-)
+				 * If you kill -9 the process, we can see
+				 * this.  It appears that we get an input
+				 * indication on the FIFO, but the process
+				 * isn't quite gone yet.
 				 */
 				ha_log(LOG_ERR, "No message from pid %d "
 				,	client->pid);
@@ -1244,6 +1313,8 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 				continue;
 			}
 			api_heartbeat_monitor(msg, APICALL, "<api>");
+
+			/* Process the API request message... */
 			api_process_request(client, msg);
 			ha_msg_del(msg); msg = NULL;
 		}
