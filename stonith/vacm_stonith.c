@@ -13,15 +13,16 @@
 *    This file is maintained by:
 *      Michael C Tilstra <conrad@sistina.com>
 *
-* You'll nee the two following line in the makefile for this:
-* vacm_stonith.so: vacm_stonith.o
-*	$(CC) -shared -o $@ $^ -lvacmclient
+*    You'll need to uncomment a line from the Makefile to get this
+*    to compile and install with the normal stonith distribution.
 *
+*    This module provides a driver for the VA Linux Cluster Manager.
+*    For more information on VACM, see http://vacm.sourceforge.net/
 *
-* This is rather poorly commented.  But if you've read the VACM Manual, and
-* looked at the code example they have, this should make pretty clean
-* sense. (You obiviously should have looked at the other stonith source
-* too)
+*    This module is rather poorly commented.  But if you've read the
+*    VACM Manual, and looked at the code example they have, this
+*    should make pretty clean sense. (You obiviously should have
+*    looked at the other stonith source too)
 * 
 */
 
