@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.31 2000/04/25 23:38:36 horms Exp $
+#	$Id: Makefile,v 1.32 2000/04/26 07:06:41 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -97,7 +97,6 @@ bin_dirs:
 	[ -d $(HARCD) ]	  || mkdir -p $(HARCD)
 	[ -d $(HAPPP) ]   || mkdir -p $(HAPPP)
 	[ -d $(RESOURCEDIR) ] || mkdir -p $(RESOURCEDIR)
-	[ -d $(CONFDIR) ] || mkdir -p $(CONFDIR)
 	[ -d $(CONFDIR) ] || mkdir -p $(CONFDIR)
 	[ -d $(LOGROTATED) ] && \
 		[ -d $(LOGROTATEDIR) ] || mkdir -p $(LOGROTATEDIR)

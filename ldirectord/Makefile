@@ -16,7 +16,7 @@ LOGROTATE	= $(BUILD_ROOT)/$(LOGROTATED)
 INITD		=\
 $(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
 INIT		= $(BUILD_ROOT)/$(INITD)
-CONF            = /etc/ha.d/conf
+CONF            = $(BUILD_ROOT)/etc/ha.d/conf
 INSTALL		= install
 MKDIR		= mkdir
 

@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.34 2000/04/24 07:08:13 horms Exp $
+#	$Id: Specfile,v 1.35 2000/04/26 07:06:41 horms Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -256,6 +256,9 @@ popd
 /usr/man/man8/ldirectord.8
 %doc %DOCDIR%
 %doc ldirectord/ldirectord.cf
+%clean
+rm -rf $RPM_BUILD_ROOT
+rm -rf $RPM_BUILD_DIR/%PKG%-%VERS%
 %post
 #
 #	Hack to allow ppp-udp to be notified about PPP processes starting
