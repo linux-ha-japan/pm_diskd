@@ -131,6 +131,17 @@ then
 fi
 
 
+LT_version=`libtool --version | oneline | sed -e 's%^[^0-9]*%%' -e s'% .*%%'`
+LT_majvers=`echo "$LT_version" | sed -e 's%\..*%%'`
+LT_minvers=`echo "$LT_version" | sed -e 's%^[^.]*\.%%' `
+LT_minnum=`echo  "$LT_minvers" | sed -e 's%[^0-9].*%%'`
+
+if
+  [ $LT_majvers -lt 1 -o $LT_minnum -lt 4 ]
+then
+  echo "Minimum version of libtool is 1.4.  You have $LT_version installed."
+  exit 1
+fi
 
 echo aclocal $ACLOCAL_FLAGS
 aclocal $ACLOCAL_FLAGS
