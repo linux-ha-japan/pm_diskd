@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.219 2002/10/08 03:40:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.220 2002/10/08 13:43:59 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -352,6 +352,7 @@ struct node_info *	curnode = NULL;
 
 volatile struct pstat_shm *	procinfo = NULL;
 volatile struct process_info *	curproc = NULL;
+volatile struct process_info *	m_s_proc = NULL;
 
 int	countbystatus(const char * status, int matchornot);
 int	setline(int fd);
@@ -898,6 +899,7 @@ initialize_heartbeat()
 				cleanexit(1);
 	}
 	master_status_pid = pid;
+	m_s_proc = procinfo->info+ourproc;
 
 	NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 	,	&CoreProcessTrackOps);
@@ -1041,6 +1043,15 @@ control_process(FILE * fp, int fifoofd)
 	make_realtime(-1, -1, 32);
 
 //	setmsrepeattimer(10);
+	/*
+	 * Wait until the master status process is ready to go
+	 * otherwise, we'll sometimes get EOF immediately.
+	 * This isn't the best solution, but it works ;-)
+	 */
+	while (m_s_proc && m_s_proc->pstat != RUNNING) {
+		sleep(1);
+	}
+
 	for(;;) {
 		struct ha_msg *	msg;
 
@@ -2709,6 +2720,7 @@ FinalCPShutdown(void)
 		restart_heartbeat();
 	}
 	IGNORESIG(SIGTERM);
+	return_to_orig_privs();
 	/* Kill any lingering processes, etc.*/
 	kill(-getpid(), SIGTERM);
 
@@ -2960,7 +2972,9 @@ KillTrackedProcess(ProcTrack* p, void * data)
 	,	(int) p->pid, nsig);
 	/* Suppress logging this process' death */
 	p->loglevel = PT_LOGNONE;
+	return_to_orig_privs();
 	kill(pid, nsig);
+	return_to_dropped_privs();
 }
 
 struct StonithProcHelper {
@@ -3221,12 +3235,15 @@ trigger_restart(int quickrestart)
 	}
 	procinfo->restart_after_shutdown = 1;
 	procinfo->giveup_resources = (quickrestart ? FALSE : TRUE);
+	return_to_orig_privs();
 	if (kill(master_status_pid, SIGTERM) >= 0) {
 		/* Tell master status proc to shut down */
 		/* He'll send us a SIGQUIT when done */
 		/* Meanwhile, we'll just go on... */
+		return_to_dropped_privs();
 		return;
 	}
+	/* We stay in the high privilege state */
 	ha_perror("MSP signal failed (trigger_restart)");
 	emergency_shutdown();
 	/*NOTREACHED*/
@@ -3247,6 +3264,7 @@ restart_heartbeat(void)
 
 	shutdown_in_progress = 1;
 	close_watchdog();
+	return_to_orig_privs();
 	send_local_status(NULL);
 	/*
 	 * We need to do these things:
@@ -3260,6 +3278,7 @@ restart_heartbeat(void)
 	 *	re-exec ourselves with the -R option
 	 */
 	make_normaltime();
+	return_to_orig_privs();	/* Remain privileged 'til the end */
 	ha_log(LOG_INFO, "Restarting heartbeat.");
 	quickrestart = (procinfo->giveup_resources ? FALSE : TRUE);
 
@@ -3375,11 +3394,13 @@ reread_config_action(void)
 		signal_children = 1;
 	}
 	if (signal_children) {
+		return_to_orig_privs();
 		for (j=0; j < procinfo->nprocs; ++j) {
 			if (procinfo->info+j != curproc) {
 				kill(procinfo->info[j].pid, SIGHUP);
 			}
 		}
+		return_to_dropped_privs();
 	}
 }
 
@@ -3868,6 +3889,7 @@ mark_node_dead(struct node_info *hip)
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		/* Bump up debug level */
 		debug_sig(SIGUSR1);
+		return_to_orig_privs();	/* And we stay this way... */
 		kill(procinfo->info[0].pid, SIGUSR1);
 
 		if (!shutdown_in_progress) {
@@ -4809,11 +4831,14 @@ force_shutdown(void)
 		,	(int) processes[0]);
 	}
 
+	return_to_orig_privs();
 	if (curproc->pid == processes[0]) {
 		signal_all(SIGTERM);
+		return_to_dropped_privs();
 		return;
 	}else if (kill(processes[0], SIGTERM >= 0)) {
 		/* Kill worked! */
+		return_to_dropped_privs();
 		return;
 	}
 	ha_perror("Could not signal Control Process");
@@ -4824,8 +4849,8 @@ force_shutdown(void)
 void
 emergency_shutdown(void)
 {
-	return_to_orig_privs();
 	make_normaltime();
+	return_to_orig_privs();
 	IGNORESIG(SIGTERM);
 	ha_log(LOG_ERR
 	,	"Emergency Shutdown"
@@ -4889,7 +4914,9 @@ signal_all(int sig)
 				,	"%d: Signalling process %d [%d]"
 				,	us, (int) processes[j], (int) sig);
 			}
+			return_to_orig_privs();
 			kill(processes[j], sig);
+			return_to_dropped_privs();
 		}
 	}
 	switch (sig) {
@@ -5970,6 +5997,21 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.220  2002/10/08 13:43:59  alan
+ * Put in some more pairs of grab/drop privileges around sending
+ * signals.
+ *
+ * Fixed a bug where heartbeat simply wouldn't start due to a
+ * race condition.  The race condition was that the control process
+ * might start running before the master status process opened the
+ * FIFO the CP was reading from, and the CP would get immediate EOF.
+ * This was rare, but it happened.  Probably could happen a lot
+ * more on an large-scale SMP.
+ *
+ * This condition originally caused an immediate "no local heartbeat"
+ * condition and looked more like failure to shut down than failure to
+ * start up at least in my testing.
+ *
  * Revision 1.219  2002/10/08 03:40:37  alan
  * An attempt to fix Matt's problem which appears to be the result of dropping
  * privileges incorrectly.
