@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.27 2001/03/28 02:07:48 horms Exp $
+# $Id: ldirectord,v 1.28 2001/04/19 03:26:07 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -840,7 +840,9 @@ sub ld_setup
 			} else {
 				my $uri = $$v{request};
 				$uri =~ s/^\///g;
-				$$r{url} = "$$v{service}:\/\/$$r{server}:$$r{port}\/$uri";
+				my $port=(defined $$v{checkport}?$$v{checkport}:$$r{port});
+				$$r{url} = "$$v{service}:\/\/$$r{server}:$port\/$uri";
+
                 		$$r{request} = $$v{request} unless defined $$r{request};
                 		$$r{receive} = $$v{receive};
 			}
