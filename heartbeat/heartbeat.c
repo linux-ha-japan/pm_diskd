@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.160 2002/02/09 21:21:42 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.161 2002/02/10 23:09:25 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2173,13 +2173,30 @@ reaper_sig(int sig)
 	pending_handlers|=REAPER_SIG;
 }
 
+/*
+ *	We need to handle the case of the exiting process is one of our
+ *	client children that we spawn as requested when we started up.
+ */
 void
 reaper_action(void)
 {
 	int status;
+	pid_t	pid;
 
-	while(wait3(&status, WNOHANG, 0)>0) {
-		;
+	while((pid=wait3(&status, WNOHANG, NULL)) > 0) {
+		struct client_child*	child;
+		ha_log(LOG_INFO, "Child %d terminated", pid);
+		/* Remove them  from client table (if present) */
+		api_remove_client_pid(pid, "died");
+		if ((child = g_hash_table_lookup(config->client_children
+		,	GINT_TO_POINTER(pid)))) {
+			g_hash_table_remove(config->client_children
+			,	GINT_TO_POINTER(pid));
+			child->pid = 0;
+			/* FIXME: Respawn them unless shutting down */
+			ha_free(child);
+			;
+		}
 	}
 }
 
@@ -4741,6 +4758,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.161  2002/02/10 23:09:25  alan
+ * Added a little initial code to support starting client
+ * programs when we start, and shutting them down when we stop.
+ *
  * Revision 1.160  2002/02/09 21:21:42  alan
  * Minor message and indentation changes.
  *

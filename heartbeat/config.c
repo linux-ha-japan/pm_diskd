@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.55 2002/02/06 21:22:40 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.56 2002/02/10 23:09:25 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -125,6 +125,8 @@ init_config(const char * cfgfile)
 	config->initial_deadtime = 30;
 	config->hopfudge = 1;
 	config->log_facility = -1;
+	config->client_children = g_hash_table_new(g_direct_hash
+	,	g_direct_equal);
 
 	uname(&u);
 	curnode = NULL;
@@ -1232,6 +1234,10 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.56  2002/02/10 23:09:25  alan
+ * Added a little initial code to support starting client
+ * programs when we start, and shutting them down when we stop.
+ *
  * Revision 1.55  2002/02/06 21:22:40  alan
  * Fixed a bug concerning comparing a string to "udp".  Forgot the == 0.
  *

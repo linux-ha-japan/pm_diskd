@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.9 2002/01/16 22:02:59 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.10 2002/02/10 23:09:26 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -268,11 +268,13 @@ struct sys_config {
         int     use_dbgfile;            /* Flag to use the debug file*/
 	int	rereadauth;		/* 1 if we need to reread auth file */
 	unsigned long	generation;	/* Heartbeat generation # */
-	int	authnum;
+	int		authnum;
 	Stonith*	stonith;	/* Stonith method: WE NEED A LIST TO SUPPORT MULTIPLE STONITH DEVICES PER NODE -EZA */
 	struct HBauth_info* authmethod;	/* auth_config[authnum] */
 	struct node_info  nodes[MAXNODE];
 	struct HBauth_info  auth_config[MAXAUTH];
+	GHashTable*	client_children;/* Indexed by pid */
+			/* associated data: struct client_child */
 };
 
 
@@ -300,6 +302,22 @@ struct msg_xmit_hist {
 	int			hiseq;
 	int			lowseq; /* one less than min actually present */
 };
+
+/*
+ *	client_child: information on clients that we spawn and keep track of
+ *	They don't strictly have to use the client API, but most probably do.
+ *	We start them when we start up, and shut them down when we shut down.
+ *	Normally, if they they die, we restart them.
+ */
+struct client_child {
+	pid_t	pid;		/* Process id of child process */
+	int	respawn;	/* Respawn it if it dies? */
+	uid_t	u_runas;	/* Which user to run as? */
+	char*	command;	/* What command to run? */
+};
+
+int api_remove_client_pid(pid_t c_pid, const char * reason);
+
 
 extern struct sys_config *	config;
 extern struct node_info *	curnode;

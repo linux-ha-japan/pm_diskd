@@ -874,6 +874,20 @@ api_clean_clientQ(client_proc_t* client)
 static int	maxfd = -1;
 static int	minfd = -1;
 
+int
+api_remove_client_pid(pid_t c_pid, const char * reason)
+{
+	char		cpid[20];
+	client_proc_t* 	client;
+
+	snprintf(cpid, sizeof(c_pid), "%d", c_pid);
+	if ((client = find_client(cpid, NULL)) == NULL) {
+		return 0;
+	}
+
+	api_remove_client(client, reason);
+	return 1;
+}
 /*
  *	Make this client no longer a client ;-)
  */

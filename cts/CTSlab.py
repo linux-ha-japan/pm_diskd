@@ -307,7 +307,7 @@ if __name__ == '__main__':
     Tests = TestList(cm)
 
     tests = RandomTests(scenario, cm, Tests, Audits)
-    overall, detailed = tests.run(5000)
+    overall, detailed = tests.run(500)
  
     cm.log("****************")
     cm.log("Overall Results:" + repr(overall))
