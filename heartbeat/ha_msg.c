@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.20 2001/10/24 20:46:28 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.21 2002/02/14 14:09:29 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -126,7 +126,8 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 	char *	cpname;
 	char *	cpvalue;
 	int	startlen = sizeof(MSG_START)-1;
-	int	newlen = msg->stringlen + (namelen+vallen+2);	/* 2 == "=" + "\n" */
+	int	newlen = msg->stringlen + (namelen+vallen+2);
+				/* 2 == "=" + "\n" */
 
 	if (!msg || (msg->nfields >= msg->nalloc)
 	||	msg->names == NULL || msg->values == NULL) {
@@ -134,7 +135,7 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 		return(HA_FAIL);
 	}
 	if (name == NULL || value == NULL
-	||	namelen <= 0 || vallen <= 0 || newlen >= MAXMSG) {
+	||	namelen <= 0 || vallen < 0 || newlen >= MAXMSG) {
 		ha_error("ha_msg_nadd: cannot add name/value to ha_msg");
 		return(HA_FAIL);
 	}
@@ -420,6 +421,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.21  2002/02/14 14:09:29  alan
+ * Put in a change requested by Ram Pai to allow message values to be
+ * empty strings.
+ *
  * Revision 1.20  2001/10/24 20:46:28  alan
  * A large number of patches.  They are in these categories:
  * 	Fixes from Matt Soffen
