@@ -24,7 +24,12 @@ ha_log() {
         then
 	  : logging through syslog
 	  # loglevel is unknown, use 'notice' for now
-	  logger -t $HA_LOGTAG -p ${HA_LOGFACILITY}.notice "${*}"
+          level=notice
+          case "${*}" in
+            *ERROR*)	loglevel=err;;
+            *WARN*)	loglevel=warning;;
+	  esac
+	  logger -t $HA_LOGTAG -p ${HA_LOGFACILITY}.${loglevel} "${*}"
         fi	
         if
 	  [ -n "$HA_LOGFILE" ]
