@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.10 2000/04/12 23:03:49 marcelo Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.11 2000/05/11 22:47:50 alan Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -234,14 +234,14 @@ if_msgfromstream(FILE * f, char *iface)
 
 	/* Try to find the interface on the message. */
 
-	if(!strcmp(buf, IFACE)) {
+	if (!strcmp(buf, IFACE)) {
 		/* Found interface name header, get interface name. */
 		if(!(getsret=fgets(buf, MAXLINE, f))) { 
 			if (!ferror(f) || errno != EINTR)
 				ha_error("if_msgfromstream: cannot get message");
 			return(NULL);
 		}
-		if(iface) { 
+		if (iface) { 
 			int len = strlen(buf);
 			if(len < MAXIFACELEN) {
 				strncpy(iface, buf, len);
@@ -250,7 +250,7 @@ if_msgfromstream(FILE * f, char *iface)
 		}
 	}
 
-	if(strcmp(buf, MSG_START)) { 	
+	if (strcmp(buf, MSG_START)) { 	
 		/* Skip until we find a MSG_START (hopefully we skip nothing) */
 		while ((getsret=fgets(buf, MAXLINE, f)) != NULL
 		&&	strcmp(buf, MSG_START) != 0) {
@@ -756,6 +756,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.11  2000/05/11 22:47:50  alan
+ * Minor changes, plus code to put in hooks for the new API.
+ *
  * Revision 1.10  2000/04/12 23:03:49  marcelo
  * Added per-link status instead per-host status. Now we will able
  * to develop link<->service dependacy scheme.

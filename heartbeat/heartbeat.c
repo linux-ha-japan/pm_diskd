@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.47 2000/05/09 03:00:59 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.48 2000/05/11 22:47:50 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -245,7 +245,7 @@ void	mark_link_dead(struct node_info* hip, struct link *lnk);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
 pid_t	get_running_hb_pid(void);
 void	make_daemon(void);
-void	heartbeat_monitor(struct ha_msg * msg);
+void	heartbeat_monitor(struct ha_msg * msg, int status, const char * iface);
 void	send_to_all_media(char * smsg, int len);
 void	init_monitor(void);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
@@ -902,13 +902,14 @@ master_status_process(void)
 
 		/* Check for clock jumps */
 		if (now < lastnow) {
-			ha_log(LOG_INFO, "Clock jumped backwards. Compensating.");
+			ha_log(LOG_INFO
+			,	"Clock jumped backwards. Compensating.");
 			send_local_status();
 			init_status_alarm();
 		}
 		lastnow = now;
 
-		bzero(iface, MAXIFACELEN);
+		*iface = EOS;
 
 		msg = if_msgfromstream(f, iface);
 
@@ -1029,10 +1030,12 @@ master_status_process(void)
 				, thisnode->nodename, lnk->name, status);
 				strcpy(lnk->status, status);
 			}
+			heartbeat_monitor(msg, DUPLICATE, iface);
 			continue;
 
 			case DROPIT:
 			/* Ignore it */
+			heartbeat_monitor(msg, DROPIT, iface);
  			continue;
 		} 
 
@@ -1066,14 +1069,13 @@ master_status_process(void)
 				continue;
 			}
 
-			heartbeat_monitor(msg);
+			heartbeat_monitor(msg, KEEPIT, iface);
 
 			thisnode->rmt_lastupdate = msgtime;
 
+			thisnode->local_lastupdate = times(NULL);
 			if (lnk) {
-				thisnode->local_lastupdate = lnk->lastupdate = times(NULL);
-			}else{
-				thisnode->local_lastupdate = times(NULL);
+				lnk->lastupdate = thisnode->local_lastupdate;
 			}
 
 			thisnode->status_seqno = seqno;
@@ -1089,10 +1091,12 @@ master_status_process(void)
 			}
 
 			/* Is the link status the same? */
-			if(lnk) {
+			if (lnk) {
 				if (strcasecmp(lnk->status, status) != 0) {
-					ha_log(LOG_INFO, "node %s -- link %s: status %s"
-					, thisnode->nodename, lnk->name, status);
+					ha_log(LOG_INFO
+					,	"node %s -- link %s: status %s"
+					,	thisnode->nodename
+					,	lnk->name, status);
 					strcpy(lnk->status, status);
 				}
 			}
@@ -1106,8 +1110,10 @@ master_status_process(void)
 				/* Forward to control process */
 				send_cluster_msg(msg);
 			}
+			heartbeat_monitor(msg, KEEPIT, iface);
 		}else{
 			notify_world(msg, thisnode->status);
+			heartbeat_monitor(msg, KEEPIT, iface);
 		}
 	}
 }
@@ -1598,7 +1604,7 @@ mark_node_dead(struct node_info *hip)
 	}
 	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
 
-	heartbeat_monitor(hmsg);
+	heartbeat_monitor(hmsg, KEEPIT, "<internal>");
 	notify_world(hmsg, hip->status);
 	strcpy(hip->status, "dead");
 	if (hip == curnode) {
@@ -1660,8 +1666,14 @@ void init_monitor()
 	}
 }
 
+/* 
+ * Values of msgtype:
+ *	KEEPIT
+ *	DROPIT
+ *	DUPLICATE
+ */
 void
-heartbeat_monitor(struct ha_msg * msg)
+heartbeat_monitor(struct ha_msg * msg, int msgtype, const char * iface)
 {
 #if 0
 	char		mon[MAXLINE];
@@ -2742,6 +2754,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.48  2000/05/11 22:47:50  alan
+ * Minor changes, plus code to put in hooks for the new API.
+ *
  * Revision 1.47  2000/05/09 03:00:59  alan
  * Hopefully finished the removal of the nice_failback code.
  *
