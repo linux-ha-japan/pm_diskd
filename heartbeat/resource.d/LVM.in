@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.1 2002/03/15 15:39:28 alan Exp $
+# $Id: LVM.in,v 1.2 2002/04/12 07:31:47 alan Exp $
 # 
 # LVM
 #
@@ -28,7 +28,6 @@ exec_prefix=@exec_prefix@
 . /etc/ha.d/shellfuncs
 
 #
-WGET=/usr/bin/wget
 #
 #
 unset LC_ALL; export LC_ALL
@@ -41,15 +40,15 @@ usage() {
 	usage: $0 <LVM-configuration file> ($methods)
 	usage: $0 methods
 
-	$0 manages a Websphere Application Server (LVM) as an HA resource
+	$0 manages an  Linux Volume Manager volume (LVM) as an HA resource
 
-	The 'start' operation brings the given volumen online
-	The 'stop' operation takes the given volume offlilne
+	The 'start' operation brings the given volume online
+	The 'stop' operation takes the given volume offline
 	The 'status' operation reports whether the volume is available
 	The 'monitor' operation reports whether the volume seems present
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.1 2002/03/15 15:39:28 alan Exp $
+	$Id: LVM.in,v 1.2 2002/04/12 07:31:47 alan Exp $
 	!
   exit 1
 
@@ -114,7 +113,7 @@ LVM_report_status() {
 
   VGOUT=`vgdisplay $1 2>&1`
   if
-    echo "$VGOUT" | grep -i 'Status.*available' >/dev/nulll
+    echo "$VGOUT" | grep -i 'Status.*available' >/dev/null
   then
     : Volume $1 is available
   else
@@ -122,7 +121,7 @@ LVM_report_status() {
     return 1
   fi
   if
-    echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/nulll
+    echo "$VGOUT" | grep -i 'Access.*read/write' >/dev/null
   then
     echo "Volume $1 is available read/write (running)"
   else
