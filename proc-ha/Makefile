@@ -1,5 +1,5 @@
 #
-# $Id: Makefile,v 1.4 2000/04/15 22:05:27 horms Exp $
+# $Id: Makefile,v 1.5 2000/12/12 22:09:34 alan Exp $
 #
 # Makefile for the Linux-HA /proc interface
 #
@@ -52,7 +52,7 @@ SRC = proc_ha.c
 OBJLIST = ha.o
 
 
-.PHONY = all install clean pristene
+.PHONY = all install clean pristine
 
 all: $(OBJLIST)
 
@@ -90,10 +90,13 @@ rh-install_bin: rh-install
 clean:
 	rm -f *.o core *~
 
-pristene: clean
+pristine: clean
 
 #####################################################
 # $Log: Makefile,v $
+# Revision 1.5  2000/12/12 22:09:34  alan
+# Makefile changes to correct a spelling error and make it build correctly on IA64.
+#
 # Revision 1.4  2000/04/15 22:05:27  horms
 # Tidied up build process
 #

@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.5 2000/06/12 06:11:09 alan Exp $
+#	$Id: Makefile,v 1.6 2000/12/12 22:09:34 alan Exp $
 #
 #	Makefile for making High-Availability Linux documents
 #
@@ -41,7 +41,7 @@ DOCFILES =			\
 
 SPECSRC = ../Specfile
 
-.PHONY = all install clean pristene
+.PHONY = all install clean pristine
 
 all: $(DOCFILES)
 
@@ -72,5 +72,5 @@ rh-install_bin: install_bin
 clean:
 	rm -f core *.o *.swp .*.swp make.out 
 
-pristene: clean
+pristine: clean
 	rm -f $(MADEDOCS)

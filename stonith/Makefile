@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.13 2000/12/05 15:28:46 alan Exp $
+#	$Id: Makefile,v 1.14 2000/12/12 22:09:34 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -50,6 +50,7 @@ CFLAGS=-g 				\
 	-Wpointer-arith			\
 	-Wwrite-strings			\
 	-Werror                         \
+	$(PICFLAG)			\
 	-I.				\
 	-DST_TEXTDOMAIN='"Stonith"'	\
 	-DLOCALEDIR='"/usr/share/locale"'
@@ -131,5 +132,5 @@ clean:
 	rm -f *.o *.swp .*.swp *.a *.so core make.out
 	rm -f $(BINCMDS) $(LIBFILES)
 
-pristene: clean
+pristine: clean
 

@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.44 2000/12/05 22:02:33 alan Exp $
+#	$Id: Makefile,v 1.45 2000/12/12 22:09:34 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -74,6 +74,7 @@ CFLAGS=-g 				\
 	-Wpointer-arith			\
 	-Wwrite-strings			\
 	-Werror				\
+	$(PICFLAG)			\
 	-I.				\
 	-I../stonith			\
 	-DVERSION='"$(VERS)"'		\
@@ -217,6 +218,6 @@ clean:
 	rm -f *.o *.swp .*.swp core make.out *.so
 	rm -f $(PRODUCTS)
 
-pristene: clean
+pristine: clean
 
 

@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.65 2000/12/05 15:28:46 alan Exp $
+#	$Id: Makefile,v 1.66 2000/12/12 22:09:34 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -50,12 +50,22 @@ B_HAPPP=$(B_VARRUN)/ppp.d
 # For FreeBSD
 LIBDL =
 LIBINTL = -lintl
+PICFLAG = -fPIC
 
 # For Linux
 LIBDL = -ldl
 LIBINTL =
+PICFLAG = -fPIC
 
-VARS=MAKE="$(MAKE)" PKG=$(PKG) VERS=$(VERS) APIGID=$(APIGID) APIGROUP=$(APIGROUP) LIBDL="$(LIBDL)" LIBINTL="$(LIBINTL)"
+VARS=MAKE="$(MAKE)" 			\
+	PKG="$(PKG)"			\
+	VERS="$(VERS)"			\
+	APIGID="$(APIGID)"		\
+	APIGROUP="$(APIGROUP)"		\
+	LIBDL="$(LIBDL)"		\
+	LIBINTL="$(LIBINTL)"		\
+	PICFLAG="$(PICFLAG)"
+
 MAKE=make
 MAKE_CMD = $(MAKE) $(VARS)
 
@@ -80,7 +90,7 @@ RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-ldirectord-$(VERS)-$(RPMREL).i386.r
 	install		\
 	handy		\
 	clean		\
-	pristene	\
+	pristine	\
 	rpmclean	\
 	rpm		\
 	tar		\
@@ -143,9 +153,9 @@ local_clean:
 	rm -f *.o *.swp .*.swp core *~ make.out *.tar.gz
 	rm -f $(LIBCMDS) $(SPECFILE)
 
-pristene: local_clean rpmclean
+pristine: local_clean rpmclean
 	@set -e; for j in $(BUILDDIRS);				\
-	do ( cd $$j; $(MAKE_CMD) pristene; ); done
+	do ( cd $$j; $(MAKE_CMD) pristine; ); done
 
 
 ###############################################################################
@@ -236,11 +246,11 @@ $(TARFILE):     tarclean clean $(SPECFILE)
 
 distclean:	tarclean
 
-tarclean:	pristene
+tarclean:	pristine
 		rm -fr $(OURDIR) $(TARFILE)
 		@set -e; for j in $(BUILDDIRS);			\
 		do					\
-			$(MAKE_CMD) -C $$j pristene;	\
+			$(MAKE_CMD) -C $$j pristine;	\
 		done
 
 

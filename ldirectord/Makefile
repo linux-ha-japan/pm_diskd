@@ -23,11 +23,11 @@ MKDIR		= mkdir
 # No servicable parts below this line
 
 
-.PHONY=clean all install pristene
+.PHONY=clean all install pristine
 
 all: ldirectord.8
 
-pristene: clean
+pristine: clean
 clean:
 	$(RM) -f ldirectord.8
 
