@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.30 2002/10/21 10:17:18 horms Exp $
+#	$Id: IPaddr.in,v 1.31 2002/10/22 02:48:04 msoffen Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -104,12 +104,7 @@ find_interface_generic() {
 
     case $SYSTYPE in
       *BSD)
-		#  FIXME! This is broken!
-		#  This code always selects the first interface on a machine.
-		#  This is wrong for a machine with multiple NICs.
-		#  A case statement like the non-BSD case is needed!
-
-		echo `echo "$ifname" | sed s'%:$%%'`
+		$IFCONFIG | grep $ipaddr -B4 | grep "UP," | cut -d ":" -f 1
 		return 0;;
       *)
     		: "comparing $ipaddr to $addr (from ifconfig)"
@@ -509,7 +504,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.30 2002/10/21 10:17:18 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.31 2002/10/22 02:48:04 msoffen Exp $"
 }
 
 #
@@ -556,6 +551,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.31  2002/10/22 02:48:04  msoffen
+# Replaced find_interface_generic BSD code with more robust code.
+#
 # Revision 1.30  2002/10/21 10:17:18  horms
 # hb api clients may now be built outside of the heartbeat tree
 #
