@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.134 2001/09/29 19:08:24 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.135 2001/10/01 20:24:36 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2531,26 +2531,34 @@ send_cluster_msg(struct ha_msg* msg)
 	}
 
 	{
-	        int     ffd = open(FIFONAME, O_WRONLY);
-		int	length;
-		int	wrc;
+	        static int	ffd = -1;
+		int		length;
+		int		wrc;
 
 		if (ffd < 0) {
-			ha_free(smsg);
-			return(HA_FAIL);
+	        	ffd = open(FIFONAME, O_WRONLY);
+			if (ffd < 0) {
+				ha_free(smsg);
+				return(HA_FAIL);
+			}
 		}
 
 		length=strlen(smsg);
 		if ((wrc = write(ffd, smsg, length)) != length) {
 			ha_perror("cannot write message to FIFO! [rc=%d]", wrc);
 			rc = HA_FAIL;
+			close(ffd);
+			ffd = -1;
 		}
 		if (DEBUGPKTCONT) {
 			ha_log(LOG_DEBUG, "%d bytes written to %s"
 			,	length, FIFONAME);
 			ha_log(LOG_DEBUG, "Packet content: %s", smsg);
 		}
+#ifdef OPEN_FIFO_FOR_EACH_MESSAGE
 		close(ffd);
+		ffd = -1;
+#endif
 
 	}
 	ha_free(smsg);
@@ -4178,6 +4186,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.135  2001/10/01 20:24:36  alan
+ * Changed the code to not open the FIFO for every message we send to the cluster.
+ * This should improve our worst-case (and average) latency.
+ *
  * Revision 1.134  2001/09/29 19:08:24  alan
  * Wonderful security and error correction patch from Emily Ratliff
  * 	<ratliff@austin.ibm.com>
