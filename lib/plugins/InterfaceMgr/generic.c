@@ -107,7 +107,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 	PILGenericIfMgmtRqst*	user_req;
 	PILGenericIfMgmtRqst*	curreq;
 	/*
-	 * Force compiler to check our parameters...
+	 * Force the compiler to check our parameters...
 	 */
 	PILPluginInitFun	fun = &PIL_PLUGIN_INIT; (void)fun;
 
@@ -116,6 +116,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 		GenPIImports->log(PIL_DEBUG
 		,	"IF manager %s: initializing.", PIL_PLUGIN_S);
 	}
+
 	if (user_ptr == NULL) {
 		imports->log(PIL_CRIT
 		,	"%s Interface Manager requires non-NULL "
@@ -132,7 +133,9 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 		,	"IF manager %s: registering as a plugin."
 		, PIL_PLUGIN_S);
 	}
-	/* Register as a plugin */
+
+	/* Register ourselves as a plugin */
+
 	if ((ret = imports->register_plugin(us, &OurPIExports)) != PIL_OK) {
 		imports->log(PIL_CRIT
 		,	"IF manager %s unable to register as plugin (%s)"
@@ -144,8 +147,10 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 	user_req = user_ptr;
 	MasterTable = g_hash_table_new(g_str_hash, g_str_equal);
 
-	/* Register to manage client implementations */
-	/* for all the interface types we've been asked to support */
+	/*
+	 * Register to manage implementations
+	 * for all the interface types we've been asked to manage.
+	 */
 
 	for(curreq = user_req; curreq->iftype != NULL; ++curreq) {
 		PIL_rc newret;
@@ -184,15 +189,18 @@ AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
 
 	if (GenDebugFlag) {
 		GenPIImports->log(PIL_DEBUG
-		,	"IF manager %s: registerng ourselves"
+		,	"IF manager %s: registering ourselves"
 		" to manage interface type %s"
 		,	PIL_PLUGIN_S, req->iftype);
 		GenPIImports->log(PIL_DEBUG
 		,	"%s IF manager: ifmap: 0x%lx callback: 0x%lx"
+		" imports: 0x%lx"
 		,	PIL_PLUGIN_S
 		,	(unsigned long)req->ifmap
-		,	(unsigned long)req->callback);
+		,	(unsigned long)req->callback
+		,	(unsigned long)req->importfuns);
 	}
+
 	/* Create the hash table to communicate with this client */
 	*(req->ifmap) = g_hash_table_new(g_str_hash, g_str_equal);
 
@@ -207,8 +215,8 @@ AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
 
 	if (rc != PIL_OK) {
 		GenPIImports->log(PIL_CRIT
-		,	"IF manager %s: unable to register"
-		" interface type %s: %s"
+		,	"Generic interface manager %s: unable to register"
+		" to manage interface type %s: %s"
 		,	PIL_PLUGIN_S, req->iftype
 		,	PIL_strerror(rc));
 	}
@@ -252,14 +260,17 @@ RegisterGenIF(PILInterface* intf,  void** imports)
 	g_assert(intf->refcnt == 1);
 	/*
 	 * We need to add it to the table that goes with this particular
-	 * type of implementation.
+	 * type of interface.
 	 */
 	if ((ifinfo = g_hash_table_lookup(MasterTable
 	,	intf->interfacetype->typename)) !=	NULL)	{
 		GHashTable*		ifmap = *(ifinfo->ifmap);
 
+		g_hash_table_insert(ifmap, intf->interfacename,intf->exports);
+
 		if (ifinfo->callback != NULL) {
 			PILInterfaceType*	t = intf->interfacetype;
+
 			if (GenDebugFlag) {
 				GenPIImports->log(PIL_DEBUG
 				,	"%s IF manager: callback 0x%lx"
@@ -269,7 +280,6 @@ RegisterGenIF(PILInterface* intf,  void** imports)
 			,	t->universe->piuniv, intf->interfacename
 			,	t->typename, ifinfo->userptr);
 		}
-		g_hash_table_insert(ifmap, intf->interfacename,intf->exports);
 
 		*imports = ifinfo->importfuns;
 
@@ -330,6 +340,7 @@ UnregisterGenIF(PILInterface*intf)
 
 		/* Remove the client entry from master table */
 		g_hash_table_remove(ifmap, intf->interfacename);
+
 	}else{
 		GenPIImports->log(PIL_WARN
 		,	"UnregisterGenIF: interface type %s not found"
@@ -345,16 +356,22 @@ static PIL_rc
 CloseGenInterfaceManager(PILInterface*intf, void* info)
 {
 	int	count;
-	/* All our clients have already been shut down automatically */
-	/* This is the final shutdown for us... */
+
+	/*
+	 * All our clients have already been shut down automatically
+	 * This is the final shutdown for us...
+	 */
 
 	/* There *shouldn't* be any keys in there ;-) */
 
 	if ((count=g_hash_table_size(MasterTable)) > 0) {
+
 		GenPIImports->log(PIL_CRIT
 		,	"Generic plugin manager still has %d"
 		" MasterTable entries  at interface close time", count);
+
 		/* But just in case there are... */
+
 		g_hash_table_foreach_remove(MasterTable, FreeAKey, NULL);
 	}
 	g_hash_table_destroy(MasterTable);
