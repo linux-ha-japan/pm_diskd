@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.141 2001/10/04 02:45:06 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.142 2001/10/09 19:22:52 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1202,6 +1202,7 @@ master_status_process(void)
 	volatile struct process_info *	pinfo;
 	int			allstarted;
 	int			j;
+	int			ClockJustJumped = 0;
 
 	init_status_alarm();
 	init_watchdog();
@@ -1276,6 +1277,17 @@ master_status_process(void)
 
                 process_pending_handlers();
 
+		/* Check for clock jumps */
+		if (now < lastnow) {
+			ha_log(LOG_INFO
+			,	"Clock jumped backwards. Compensating.");
+			init_status_alarm();
+			send_status_now = 1;
+			ClockJustJumped = 1;
+		}else{
+			Clock_Just_Jumped = 0;
+		}
+
 		if (send_status_now) {
 			send_status_now = 0;
 			send_local_status();
@@ -1287,18 +1299,13 @@ master_status_process(void)
 		}
 
 		/* Scan nodes and links to see if any have timed out */
-		check_for_timeouts();
+		if (!ClockJustJumped) {
+			/* We'll catch it again next time around... */
+			check_for_timeouts();
+		}
 
 		/* Check to see we need to resend any rexmit requests... */
 		check_rexmit_reqs();
-
-		/* Check for clock jumps */
-		if (now < lastnow) {
-			ha_log(LOG_INFO
-			,	"Clock jumped backwards. Compensating.");
-			send_local_status();
-			init_status_alarm();
-		}
 
 		/* See if our comm channels are working yet... */
 		check_comm_isup();
@@ -4279,6 +4286,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.142  2001/10/09 19:22:52  alan
+ * Made some minor changes to how we handle clock jumps and timeout other
+ * nodes.  I'm not sure why it's necessary, or if it is for that matter.
+ * But it shouldn't *hurt* anything either.  This problem reported by Matt Soffen.
+ *
  * Revision 1.141  2001/10/04 02:45:06  alan
  * Added comments about the lousy realtime behavior of the old method
  * of sending messages.  Changed the indentation of one line.
