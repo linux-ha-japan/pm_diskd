@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.18 2002/07/16 16:16:06 msoffen Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.19 2002/07/16 16:18:15 msoffen Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -765,8 +765,14 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.19  2002/07/16 16:18:15  msoffen
+ * -Re-added in LArs's comments.
+ *
  * Revision 1.18  2002/07/16 16:16:06  msoffen
  * Changed to NOT assume that the address is 1st.
+ *
+ * Revision 1.17  2002/07/16 11:47:53 lars
+ * Type and alignment fixes for IA64, x86_64, sparc, s390 and PPC(64).
  *
  * Revision 1.16  2002/06/16 06:11:26  alan
  * Put in a couple of changes to the PILS interfaces
