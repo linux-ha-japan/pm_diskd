@@ -40,7 +40,7 @@
 #define SSH_COMMAND "ssh -q -x -o PasswordAuthentication=no StrictHostKeyChecking=no" 
 */
 /* use this if you have the (broken) OpenSSH 2.1.1 */
-#define SSH_COMMAND "ssh -qxn"
+#define SSH_COMMAND "ssh -q -x -n"
 
 /* We need to do a real hard reboot without syncing anything to simulate a
  * power cut. 
@@ -244,7 +244,7 @@ ssh_parse_config_info(struct sshDevice* sd, const char * info)
 int
 st_reset(Stonith * s, int request, const char * host)
 {
-  char cmd[50];
+  char cmd[4096];
 
   if (!ISSSHDEV(s)) {
     syslog(LOG_ERR, "invalid argument to %s", __FUNCTION__);
@@ -252,7 +252,7 @@ st_reset(Stonith * s, int request, const char * host)
   }
   syslog(LOG_INFO, _("Host %s ssh-reset initiating"), host);
 
-  sprintf(cmd, "%s %s %s", SSH_COMMAND, host, REBOOT_COMMAND);
+  snprintf(cmd, 4096, "%s \"%s\" \"%s\"", SSH_COMMAND, host, REBOOT_COMMAND);
   
   if (system(cmd) == 0) 
     return S_OK;
