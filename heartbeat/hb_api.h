@@ -47,7 +47,7 @@ struct llc_ops {
  *	p:		private data - later passed to callback.
  */
 	int		(*set_msg_callback) (ll_cluster_t*, const char * msgtype
-	,			llc_msg_callback_t* callback, void * p);
+	,			llc_msg_callback_t callback, void * p);
 
 /*
  *	set_nstatus_callback:	Define callback for node status messages
@@ -59,7 +59,7 @@ struct llc_ops {
  */
 
 	int		(*set_nstatus_callback) (ll_cluster_t*
-	,		llc_nstatus_callback_t* cbf, 	void * p);
+	,		llc_nstatus_callback_t cbf, 	void * p);
 /*
  *	set_ifstatus_callback:	Define callback for interface status messages
  *				This is a message of type "???"
@@ -85,7 +85,7 @@ struct llc_ops {
 
 	int             (*set_ifstatus_callback) (ll_cluster_t*
 ,			const char * node, const char * iface
-,			llc_ifstatus_callback_t* cbf, void * p);
+,			llc_ifstatus_callback_t cbf, void * p);
  
 
 /*************************************************************************

@@ -32,16 +32,16 @@ struct MsgQueue *	lastQdmsg = NULL;
 
 typedef struct gen_callback {
 	char *			msgtype;
-	llc_msg_callback_t *	cf;
+	llc_msg_callback_t 	cf;
 	void *			pd;
 	struct gen_callback*	next;
 }gen_callback_t;
 
 typedef struct llc_private {
 	const char *			PrivateId;
-	llc_nstatus_callback_t*		node_callback;
+	llc_nstatus_callback_t		node_callback;
 	void*				node_private;
-	llc_ifstatus_callback_t*	if_callback;
+	llc_ifstatus_callback_t		if_callback;
 	void*				if_private;
 	struct gen_callback*		genlist;
 	struct stringlist*		nextnode;
@@ -67,7 +67,7 @@ static int		enqueue_msg(struct ha_msg*);
 static struct ha_msg*	dequeue_msg(void);
 static gen_callback_t*	search_gen_callback(const char * type, llc_private_t*);
 static int		add_gen_callback(const char * msgtype
-,	llc_private_t*, llc_msg_callback_t *, void*);
+,	llc_private_t*, llc_msg_callback_t , void*);
 static int		del_gen_callback(llc_private_t*, const char * msgtype);
 
 static struct ha_msg*	read_api_msg(void);
@@ -76,15 +76,15 @@ static struct ha_msg*	read_hb_msg(ll_cluster_t*, int blocking);
 static int		hb_api_setsignal(ll_cluster_t*, int nsig);
 static int set_msg_callback
 			(ll_cluster_t*, const char * msgtype
-,			llc_msg_callback_t* callback, void * p);
+,			llc_msg_callback_t callback, void * p);
 static int
 set_nstatus_callback (ll_cluster_t*
-,		llc_nstatus_callback_t* cbf, 	void * p);
+,		llc_nstatus_callback_t cbf, 	void * p);
 static int
 		set_ifstatus_callback (ll_cluster_t* ci
 ,		const char *node
 ,		const char *iface
-,		llc_ifstatus_callback_t* cbf, void * p);
+,		llc_ifstatus_callback_t cbf, void * p);
 static int init_nodewalk (ll_cluster_t*);
 static const char * nextnode (ll_cluster_t* ci);
 static int init_ifwalk (ll_cluster_t* ci, const char * host);
@@ -782,7 +782,7 @@ search_gen_callback(const char * type, llc_private_t* lcp)
  */
 static int
 add_gen_callback(const char * msgtype, llc_private_t* lcp
-,	llc_msg_callback_t * funp, void* pd)
+,	llc_msg_callback_t funp, void* pd)
 {
 	struct gen_callback*	gcb;
 	char *			type;
@@ -891,7 +891,7 @@ read_hb_msg(ll_cluster_t* llc, int blocking)
  */
 static int
 set_msg_callback(ll_cluster_t* ci, const char * msgtype
-,			llc_msg_callback_t* callback, void * p)
+,			llc_msg_callback_t callback, void * p)
 {
 
 	ClearLog();
@@ -908,7 +908,7 @@ set_msg_callback(ll_cluster_t* ci, const char * msgtype
  */
 static int
 set_nstatus_callback (ll_cluster_t* ci
-,		llc_nstatus_callback_t* cbf, 	void * p)
+,		llc_nstatus_callback_t cbf, 	void * p)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
 	pi->node_callback = cbf;
@@ -922,7 +922,7 @@ static int
 set_ifstatus_callback (ll_cluster_t* ci
 ,		const char *node
 ,		const char *iface
-,		llc_ifstatus_callback_t* cbf, void * p)
+,		llc_ifstatus_callback_t cbf, void * p)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
 	pi->if_callback = cbf;
@@ -947,7 +947,7 @@ CallbackCall(llc_private_t* p, struct ha_msg * msg)
 	/* Special case: node status (change) */
 
 	if (p->node_callback && strcasecmp(mtype, T_STATUS) == 0) {
-		(*p->node_callback)(ha_msg_value(msg, F_ORIG)
+		p->node_callback(ha_msg_value(msg, F_ORIG)
 		,	ha_msg_value(msg, F_STATUS), p->node_private);
 		return(1);
 	}
@@ -955,7 +955,7 @@ CallbackCall(llc_private_t* p, struct ha_msg * msg)
 	/* Special case: interface status (change) */
 
 	if (p->if_callback && strcasecmp(mtype, T_IFSTATUS) == 0) {
-		(*p->if_callback)(ha_msg_value(msg, F_NODE)
+		p->if_callback(ha_msg_value(msg, F_NODE)
 		,	ha_msg_value(msg, F_IFNAME)
 		,	ha_msg_value(msg, F_STATUS)
 		,	p->if_private);
@@ -966,7 +966,7 @@ CallbackCall(llc_private_t* p, struct ha_msg * msg)
 
 	for (gcb = p->genlist; gcb; gcb=gcb->next) {
 		if (gcb->cf && strcasecmp(gcb->msgtype, mtype) == 0) {
-			(*gcb->cf)(msg, gcb->pd);
+			gcb->cf(msg, gcb->pd);
 			return(1);
 		}
 	}
@@ -1424,7 +1424,14 @@ ll_cluster_new(const char * llctype)
 	}
 	return NULL;
 }
+void NodeStatus(const char * node, const char * status, void * private);
 
+void
+NodeStatus(const char * node, const char * status, void * private)
+{
+	fprintf(stderr, "Status update: Node %s now has status %s\n"
+	,	node, status);
+}
 
 void gotsig(int nsig);
 int quitnow = 0;
@@ -1433,6 +1440,7 @@ void gotsig(int nsig)
 	(void)nsig;
 	quitnow = 1;
 }
+
 
 
 int
@@ -1450,6 +1458,8 @@ main(int argc, char ** argv)
 	hb = ll_cluster_new("heartbeat");
 	fprintf(stderr, "Signing in with heartbeat\n");
 	hb->llc_ops->signon(hb, NULL);
+
+	hb->llc_ops->set_nstatus_callback(hb, NodeStatus, NULL);
 
 #if 0
 	fmask = LLC_FILTER_RAW;
@@ -1479,14 +1489,18 @@ main(int argc, char ** argv)
 	signal(SIGINT, gotsig);
 	/* Read all subsequent replies... */
 	fprintf(stderr, "Now waiting for more messages...\n");
-	for(; !quitnow && (reply=read_hb_msg(hb, 1)) != NULL;) {
+	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
 		fprintf(stderr, "Got another message...\n");
 		ha_log_message(reply);
+		fputs(hb->llc_ops->errmsg(hb), stderr);
+		fputs("\n", stderr);
+		ClearLog();
 		ZAPMSG(reply);
 	}
 	if (!quitnow) {
 		perror("read_hb_msg returned NULL");
 	}
-	hb_api_signoff(hb);
+	hb->llc_ops->signoff(hb);
+	hb->llc_ops->delete(hb);
 	return 0;
 }
