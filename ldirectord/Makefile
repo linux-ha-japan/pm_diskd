@@ -1,10 +1,10 @@
 #
 # Makefile for ldirectord
-# $Id: Makefile,v 1.14 2000/12/23 05:08:59 horms Exp $
+# $Id: Makefile,v 1.15 2000/12/28 10:36:25 jacob Exp $
 #
 # Produces all manner of documentation for ldirectord
 #
-# Author: Jacob Rief <jacob.rief@tis.at>
+# Author: Jacob Rief <jacob.rief@tiscover.com>
 #
 # This file: Horms <horms@vergenet.net>
 #
@@ -39,8 +39,8 @@ install: ldirectord.8
 	[ -d $(CONF) ] ||  $(MKDIR) -p $(CONF)
 	[ -d $(SBIN) ] ||  $(MKDIR) -p $(SBIN)
 	$(INSTALL) -m 0755 ldirectord $(SBIN)
-	[ -d $(MANDIR)/man8 ] ||  $(MKDIR) -p $(MANDIR)/man8
-	$(INSTALL) -m 0644 ldirectord.8 $(MANDIR)/man8
+	[ -d $(MANDIR) ] ||  $(MKDIR) -p $(MANDIR)
+	$(INSTALL) -m 0644 ldirectord.8 $(MANDIR)
 	[ -d $(LOGROTATE) ] ||  $(MKDIR) -p $(LOGROTATE) 
 	$(INSTALL) -m 0644  ldirectord.logrotate $(LOGROTATE)/ldirectord
 	[  -d $(INIT) ]     ||  $(MKDIR) -p $(INIT)	
