@@ -20,6 +20,8 @@
 MAINTAINERCLEANFILES    = Makefile.in
 CLEANFILES	       	= ldirectord.8
 
+EXTRA_DIST              = ldirectord ldirectord.cf README
+
 harcconfdir		= $(sysconfdir)/ha.d/conf
 
 SUBDIRS			= logrotate.d init.d

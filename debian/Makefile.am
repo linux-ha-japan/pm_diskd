@@ -1,7 +1,8 @@
 #
-# heartbeat: Linux-HA heartbeat code
+# linux-ha: Linux-HA heartbeat code
 #
 # Copyright (C) 2001 Michael Moerz
+#                    This instance created by Horms
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -19,8 +20,13 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
-initddir		= $(sysconfdir)/init.d
-
-initd_SCRIPTS		= heartbeat
-
-EXTRA_DIST              = heartbeat.in
+EXTRA_DIST	        = changelog control copyright dpkg-checkbuild \
+                          heartbeat-ldirectord.conffiles \
+                          heartbeat-ldirectord.files \
+                          heartbeat-ldirectord.postinst \
+                          heartbeat-ldirectord.postrm \
+                          heartbeat-stonith.dirs heartbeat-stonith.files \
+                          heartbeat-stonith.postinst heartbeat.conffiles \
+                          heartbeat.dirs heartbeat.files \
+                          heartbeat.postinst \
+                          heartbeat.postrm rules

@@ -24,20 +24,26 @@ docdir 			= $(datadir)/@HEARTBEATPKG@
 htmlfiles		= HardwareGuide.html GettingStarted.html \
 Requirements.html
 
-SPECSRC 		= $(top_builddir)/Specfile
+SPECSRC 		= $(top_builddir)/heartbeat.spec
 
-doc_DATA		= AUTHORS COPYING ChangeLog $(htmlfiles:.html=) \
-			$(htmlfiles) README authkeys ha.cf haresources
+OTHER_DOCS              = AUTHORS COPYING ChangeLog \
+                                README authkeys ha.cf haresources
+
+doc_DATA		= $(OTHER_DOCS) $(htmlfiles:.html=) $(htmlfiles) 
 
 man_MANS		= heartbeat.8
+
+EXTRA_DIST = $(htmlfiles) $(man_MANS) $(OTHER_DOCS)
 
 ChangeLog: $(SPECSRC)
 	rm -fr ChangeLog
 	sed -e '1,/^%changelog/d' -e '/^%/,$$d' < $< > $@
 	chmod 444 $@
 
+
 $(htmlfiles:.html=): $(htmlfiles)
 	@HTML2TXT@ -dump $< >$@
+
 
 
 

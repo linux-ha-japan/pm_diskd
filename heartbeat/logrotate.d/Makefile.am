@@ -22,3 +22,5 @@ MAINTAINERCLEANFILES    = Makefile.in
 logrotateddir		= $(sysconfdir)/logrotate.d
 
 logrotated_DATA		= heartbeat
+
+EXTRA_DIST              = $(logrotated_DATA)

@@ -1,14 +1,14 @@
-#	$Id: Specfile,v 1.95 2001/03/16 03:36:01 alan Exp $
-Summary: %PKG% - heartbeat subsystem for High-Availability Linux
-Name:	%PKG%
-Version:	%VERS%
-Release:	%RPMREL%
+#	$Id: heartbeat.spec.in,v 1.1 2001/08/14 03:25:07 horms Exp $
+Summary: @PACKAGE@ - heartbeat subsystem for High-Availability Linux
+Name:	@PACKAGE@
+Version:	@VERSION@
+Release:	1
 Copyright: GPL
 URL: http://linux-ha.org/
 Group: Utilities
 Packager: Alan Robertson <alanr@henge.com>
-Source: http://linux-ha.org/download/%PKG%-%VERS%.tar.gz
-Buildroot: /var/tmp/%PKG%-root
+Source: http://linux-ha.org/download/@PACKAGE@-@VERSION@.tar.gz
+Buildroot: /var/tmp/@PACKAGE@-root
 BuildPreReq: lynx
 Requires: sysklogd
 
@@ -24,7 +24,7 @@ Summary: Provides an interface to Shoot The Other Node In The Head
 Group: Utilities
 
 %description
-%PKG% is a basic heartbeat subsystem for Linux-HA.
+@PACKAGE@ is a basic heartbeat subsystem for Linux-HA.
 It will run scripts at initialization, and when machines go up or down.
 This version will also perform IP address takeover using gratuitous ARPs.
 It works correctly for a 2-node configuration, and is extensible to larger
@@ -335,10 +335,19 @@ machine. It's simple and reliable, albeit admittedly brutal.
     - Doesn't yet include Tom Vogt's ethernet heartbeat code
     - No documentation
     - Not very useful yet :-)
+
+###########################################################
 %prep
+###########################################################
 %setup
+
+###########################################################
 %build
+###########################################################
+CFLAGS="${RPM_OPT_FLAGS}" \
+  ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var
 make
+
 ###########################################################
 %install
 ###########################################################
@@ -347,7 +356,7 @@ if
 then
   rm -rf $RPM_BUILD_ROOT
 fi
-RPM_BUILD=yes BUILD_ROOT=$RPM_BUILD_ROOT make install
+make DESTDIR=$RPM_BUILD_ROOT install-strip
 (
   cd $RPM_BUILD_ROOT/etc/ha.d/resource.d
   ln -s /usr/sbin/ldirectord ldirectord
@@ -378,11 +387,11 @@ install -m 644 rc.config.heartbeat $TEMPL
 /etc/init.d/heartbeat
 /etc/logrotate.d/heartbeat
 /var/adm/fillup-templates/rc.config.heartbeat
-%dir /var/lib/%PKG%
-%attr (600, root, root)       /var/lib/%PKG%/fifo
-%attr (750, root, %APIGROUP%) /var/lib/%PKG%/api
-%attr (620, root, %APIGROUP%) /var/lib/%PKG%/register
-%attr (1770, root, %APIGROUP%) /var/lib/%PKG%/casual
+%dir /var/lib/@PACKAGE@
+%attr (600, root, root)       /var/lib/@PACKAGE@/fifo
+%attr (750, root, @APIGROUP@) /var/lib/@PACKAGE@/api
+%attr (620, root, @APIGROUP@) /var/lib/@PACKAGE@/register
+%attr (1770, root, @APIGROUP@) /var/lib/@PACKAGE@/casual
 /usr/man/man8/heartbeat.8*
 %doc doc/*
 
@@ -403,19 +412,20 @@ install -m 644 rc.config.heartbeat $TEMPL
 %files stonith
 ###########################################################
 %defattr(-,root,root)
+/usr/include/stonith.h
 /usr/lib/libstonith.a
-/usr/lib/libstonith.so
-%dir /usr/lib/stonith/*.so
+/usr/lib/libstonith.la
+/usr/lib/*bstonith.so*
+/usr/lib/stonith/*.so*
 /usr/sbin/stonith
 /usr/sbin/meatclient
-/usr/include/stonith.h
 
 
 ###########################################################
 %clean
 ###########################################################
 rm -rf $RPM_BUILD_ROOT
-rm -rf $RPM_BUILD_DIR/%PKG%-%VERS%
+rm -rf $RPM_BUILD_DIR/@PACKAGE@-@VERSION@
 
 ###########################################################
 %pre
@@ -425,17 +435,17 @@ rm -rf $RPM_BUILD_DIR/%PKG%-%VERS%
 #	to agree on group id's seems hard to me :-(
 #
 if
-  grep '^%APIGROUP%:' etc/group >/dev/null
+  grep '^@APIGROUP@:' etc/group >/dev/null
 then
-  : OK group %APIGROUP% already present
+  : OK group @APIGROUP@ already present
 else
-  GROUPOPT="-g %APIGID%"
+  GROUPOPT="-g @APIGID@"
   if
-    usr/sbin/groupadd $GROUPOPT %APIGROUP% 2>/dev/null
+    usr/sbin/groupadd $GROUPOPT @APIGROUP@ 2>/dev/null
   then
-    : OK we were able to add group %APIGROUP%
+    : OK we were able to add group @APIGROUP@
   else
-    usr/sbin/groupadd %APIGROUP%
+    usr/sbin/groupadd @APIGROUP@
   fi
 fi
 #

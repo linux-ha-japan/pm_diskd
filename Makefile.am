@@ -23,7 +23,7 @@
 ##                        $(auxdir)/mkinstalldirs
 ##AUX_DIST_EXTRA          = $(auxdir)/readline.m4 $(auxdir)/sys_errlist.m4 \
 ##                        $(auxdir)/sys_siglist.m4
-EXTRA_DIST              = bootstrap acconfig.h rc.config.heartbeat \
+EXTRA_DIST              = acconfig.h rc.config.heartbeat \
                         heartbeat.spec.in heartbeat.spec
 
 AUTOMAKE_OPTIONS	= foreign

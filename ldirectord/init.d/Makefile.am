@@ -19,6 +19,8 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
+EXTRA_DIST              = ldirectord
+
 initdir			= $(sysconfdir)/init.d
 
 init_SCRIPTS	        = ldirectord

@@ -19,6 +19,8 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
+EXTRA_DIST              = ldirectord
+
 logrotatedir		= $(sysconfdir)/logrotate.d
 
 logrotate_DATA       	= ldirectord

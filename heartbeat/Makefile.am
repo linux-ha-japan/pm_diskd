@@ -65,7 +65,8 @@ halib_PROGRAMS		= heartbeat send_arp findif api_test
 ## SOURCES
 heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
 			ha_malloc.c ha_msg.c ha_msg_internal.c lock.c \
-			module.c
+			module.c ha_if.h ha_msg.h hb_api.h hb_api_core.h \
+                        hb_md5.h hb_module.h hb_proc.h hb_sha1.h lock.h test.h
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
 			$(top_builddir)/replace/libreplace.la	\
 			$(top_builddir)/lib/pils/libpils.la	\
@@ -86,6 +87,9 @@ api_test_LDADD		= libhbclient.la
 ## SCRIPTS/DATA
 ha_DATA			= shellfuncs README.config
 ha_SCRIPTS		= harc
+
+
+EXTRA_DIST              = $(ha_DATA) $(ha_SCRIPTS)
 
 
 ## additional Makefile targets
