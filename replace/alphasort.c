@@ -36,7 +36,6 @@
 #if !defined sgi && !defined _POSIX_VERSION
 #include <sys/dir.h>
 #endif
- */
 
 #include <portability.h>
 #include <sys/types.h>
@@ -45,6 +44,6 @@
 #include <stddef.h>
 
 int alphasort(const void *dirent1, const void *dirent2) {
-  return(strcmp((*(struct dirent **)dirent1)->d_name,
-                (*(struct dirent **)dirent2)->d_name));
+  return(strcmp((*(const struct dirent **)dirent1)->d_name,
+                (*(const struct dirent **)dirent2)->d_name));
 }
