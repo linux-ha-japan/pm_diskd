@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.22 2001/06/13 03:15:49 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.23 2001/06/14 22:06:31 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -166,8 +166,8 @@ static int
 comm_module_init(void)
 { 
 	struct symbol_str comm_symbols[NR_HB_MEDIA_FNS]; 
-        int a, n;
-        struct dirent **namelist;
+	int a, n;
+	struct dirent **namelist;
 
 	strcpy(comm_symbols[0].name, "hb_dev_init");
 	comm_symbols[0].mandatory = 1;
@@ -211,12 +211,12 @@ comm_module_init(void)
 		,	COMM_MODULE_DIR, n);
 	}
 
-        if (n < 0) { 
+	if (n < 0) { 
 		ha_log(LOG_ERR, "%s: scandir failed.", __FUNCTION__);
 		return (HA_FAIL);
-        }
+	}
 
-        for (a = 0; a < n; a++) {
+	for (a = 0; a < n; a++) {
 		char *mod_path           = NULL;
 		struct hb_media_fns*	fns;
 		int			ret;
@@ -228,11 +228,11 @@ comm_module_init(void)
 
 		mod_path = (char*) ha_malloc(pathlen);
 		if (!mod_path) { 
-		        ha_log(LOG_ERR, "%s: Failed to alloc module path."
+			ha_log(LOG_ERR, "%s: Failed to alloc module path."
 			,	__FUNCTION__);
 			for (a=0; a < n; a++) {
 				free(namelist[a]);
-                        } 
+			} 
 			return(HA_FAIL);
 		}
 
@@ -251,7 +251,7 @@ comm_module_init(void)
 			ha_free(mod_path); 
 			for (a=0; a < n; a++) {
 				free(namelist[a]);
-                        } 
+			} 
 			return(HA_FAIL);
 		}
 
@@ -261,7 +261,7 @@ comm_module_init(void)
 			ha_free(fns); fns = NULL;
 			for (a=0; a < n; a++) {
 				free(namelist[a]);
-                        } 
+			} 
 			return(HA_FAIL);
 		}
 		if (DEBUGMODULE) {
@@ -289,8 +289,8 @@ comm_module_init(void)
 			ha_free(mod_path); mod_path=NULL;
 			ha_free(fns);
 			for (a=0; a < n; a++) {
-                                free(namelist[a]);
-                        } 
+				free(namelist[a]);
+			} 
 			return ret;
 		}
 		hbmedia_types[num_hb_media_types] = fns;
@@ -314,8 +314,8 @@ int
 auth_module_init() 
 { 
 	struct symbol_str auth_symbols[NR_AUTH_FNS]; 
-        int a, n;
-        struct dirent **namelist;
+	int a, n;
+	struct dirent **namelist;
 	
 	strcpy(auth_symbols[0].name, "hb_auth_calc");
 	auth_symbols[0].mandatory = 1;
@@ -331,20 +331,20 @@ auth_module_init()
 		,	"Scanning directory %s for modules."
 		,	AUTH_MODULE_DIR);
 	}
-        n = scandir(AUTH_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
+	n = scandir(AUTH_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
 
 	if (DEBUGMODULE) {
 		ha_log(LOG_DEBUG
 		,	"scandir on %s returned %d."
 		,	AUTH_MODULE_DIR, n);
 	}
-        if (n < 0) { 
+	if (n < 0) { 
 		ha_log(LOG_ERR, "%s: scandir failed", __FUNCTION__);
 		return (HA_FAIL);
-        }
+	}
 	
-        for (a = 0; a < n; a++) {
-	        char *mod_path         = NULL; 
+	for (a = 0; a < n; a++) {
+		char *mod_path         = NULL; 
 		struct auth_type* auth;
 		int			pathlen;
 		int ret;
@@ -357,9 +357,9 @@ auth_module_init()
 		if (!mod_path) { 
 			ha_log(LOG_ERR, "%s: Failed to alloc module path"
 			,	__FUNCTION__);
-                        for (a=0; a < n; a++) {
-                                free(namelist[a]);
-                        }
+			for (a=0; a < n; a++) {
+				free(namelist[a]);
+			}
 			return(HA_FAIL);
 		}
 
@@ -372,9 +372,9 @@ auth_module_init()
 			ha_log(LOG_ERR, "%s: auth_type alloc failed"
 			,	__FUNCTION__);
 			ha_free(mod_path);
-                        for (a=0; a < n; a++) {
+			for (a=0; a < n; a++) {
 				free(namelist[a]);
-                        } 
+			} 
 			return(HA_FAIL);
 		}
 
@@ -382,9 +382,9 @@ auth_module_init()
 			ha_log(LOG_ERR, "%s: dlopen failed", __FUNCTION__);
 			ha_free(mod_path);
 			ha_free(auth);
-                        for (a=0; a < n; a++) {
-                                free(namelist[a]);
-                        } 
+			for (a=0; a < n; a++) {
+				free(namelist[a]);
+			} 
 			return(HA_FAIL);
 		}
 		
@@ -402,12 +402,12 @@ auth_module_init()
 		auth->needskey = auth_symbols[2].function;
 
 		if (ret == HA_FAIL) {
-                        ha_free(mod_path); mod_path = NULL;
+			ha_free(mod_path); mod_path = NULL;
 			ha_free(auth); auth=NULL;
-                        for (a=0; a < n; a++) {
-                                free(namelist[a]);
+			for (a=0; a < n; a++) {
+				free(namelist[a]);
 				namelist[a]=NULL;
-                        } 
+			} 
 			return ret;
 		}
 		
@@ -421,10 +421,10 @@ auth_module_init()
 		mod_path = NULL;
 	}
 	
-        for (a=0; a < n; a++) {
+	for (a=0; a < n; a++) {
 		free(namelist[a]);
 		namelist[a] = NULL;
-        } 
+	} 
 	
 	return(HA_OK);
 
@@ -475,15 +475,18 @@ module_init(void)
 
 #ifdef NEWMODULECODE
 /*
- *	Herein lie many fragments and pieces of the new module loading scheme...
+ *	Herein lie many fragments and pieces of the new module loading
+ *	scheme...
  *
- *	Ultimately most of the things in here will go into separate files, and probably
- *	into separate directories as well...
+ *	Ultimately most of the things in here will go into separate files,
+ *	and probably into separate directories as well...
  *
  *	This stuff is all pretty cool if we can make it work ;-)
  *
  */
-/* Gotta love the glib folks ... whose prototype parameters shadow system functions  */
+/* Gotta love the glib folks ... whose prototype parameters shadow system
+ * functions
+ */
 #define index _fooIndex
 #define time _fooTime
 
@@ -530,7 +533,7 @@ ml_get_module_list	/* Return (sorted) list of available module names */
 {
 	GString*	path;
 	char **		result = NULL;
-        struct dirent**	files;
+	struct dirent**	files;
 	int		modulecount;
 	int		j;
 
@@ -791,6 +794,7 @@ typedef struct MLModuleImports_s	MLModuleImports;
 typedef struct MLModuleOps_s		MLModuleOps;
 typedef struct MLModule_s		MLModule;
 typedef struct MLModuleUniv_s		MLModuleUniv;
+typedef struct MLModuleType_s		MLModuleType;
 
 
 /*
@@ -806,6 +810,7 @@ typedef struct MLModuleUniv_s		MLModuleUniv;
 
 struct MLModule_s {
 	const char*	module_name;
+	MLModuleType*	moduletype;	/* Parent structure */
 	GHashTable*	Plugins;	/* Plugins registered by this module*/
 	int		refcnt;		/* Reference count for this module */
 
@@ -878,7 +883,6 @@ MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
  * names should match the module name.
  */
 
-typedef struct MLModuleType_s		MLModuleType;
 
 extern MLModuleType* NewMLModuleType(MLModuleUniv* moduleuniv
 	,	const char * moduletype
@@ -926,7 +930,7 @@ struct MLModuleType_s {
 struct MLModuleUniv_s {
 			/* key is module type, data is MLModuleType* struct */
 	GHashTable*		ModuleEnvs;
-	struct MLPluginUniv_s*	pienv; /* Parallel Universe of plugins */
+	struct MLPluginUniv_s*	piuniv; /* Parallel Universe of plugins */
 	MLModuleImports*	imports;
 };
 
@@ -961,9 +965,14 @@ typedef struct MLPluginImports_s	MLPluginImports;
 
 /* Interfaces exported by a Plugin plugin */
 struct MLPluginOps_s{
+/*
+ *	These are the interfaces exported by a PluginPlugin to the
+ *	plugin management infrastructure.  These are not imported
+ *	by plugins - only the plugin management infrastructure.
+ */
 
 	/* RegisterPlugin - Returns unique id for plugin or NULL (fail) */
- 	MLPlugin* (*RegisterPlugin)(MLPluginType* env
+ 	MLPlugin* (*RegisterPlugin)(MLPluginType* pienv
 		,	const char * pluginname, void * exports
 		,	void *	ud_plugin
 		,	void**	imports);
@@ -1077,7 +1086,7 @@ static MLPluginOps  PiExports =
 	,	pipi_del_plugintype
 };
 
-static MLModule modinfo ={
+static MLModule PluginPluginModinfo ={
 	PLUGIN_PLUGIN
 };
 
@@ -1102,20 +1111,20 @@ ML_rc
 PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 {
 	MLPlugin*	piinfo;
-	MLPluginType*	pienv;
+	MLPluginType*	piuniv;
 	void*		dontcare;
 
-	if (univ->pienv) {
+	if (univ->piuniv) {
 		return 0;
 	}
 
 	/* We are the creator of the MLPluginType object */
 
-	pienv = NEW(MLPluginType);
-	memset(pienv, 0, sizeof(*pienv));
+	piuniv = NEW(MLPluginType);
+	memset(piuniv, 0, sizeof(*piuniv));
 
 	/* We can call register_module, since it doesn't depend on us... */
-	if (imports->register_module(&modinfo, &ModExports) == 0) {
+	if (imports->register_module(&PluginPluginModinfo, &ModExports) == 0) {
 		return(0);
 	}
 	/*
@@ -1135,7 +1144,7 @@ PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 	 */
 
 	/* The first argument is the MLPluginType */
-	piinfo = pipi_register_plugin(pienv, PLUGIN_PLUGIN, &PiExports
+	piinfo = pipi_register_plugin(piuniv, PLUGIN_PLUGIN, &PiExports
 	,	NULL, &dontcare);
 
 	return(1);
@@ -1293,4 +1302,119 @@ static void
 PiUnloadIfPossible(MLPlugin *epiinfo)
 {
 }
+/*****************************************************************************
+ *
+ * PluginMgmt.c
+ *
+ * This code is for managing plugins, and interacting
+ *
+ ****************************************************************************/
+#define MESSAGE	g_message
+#define WARNING	g_warning
+#define FATAL	g_error
+ 
+#ifdef __GNUC__
+ 
+#define REPORTERR(expr)                  G_STMT_START{		\
+       g_log (G_LOG_DOMAIN,                                     \
+	      G_LOG_LEVEL_ERROR,                                \
+	      "ERROR: file %s: line %d (%s): %s",  			\
+	      __FILE__,                                         \
+	      __LINE__,                                         \
+	      __PRETTY_FUNCTION__,                              \
+	      #expr);                   }G_STMT_END
+ 
+#else /* !__GNUC__ */
+ 
+#define REPORTERR(expr)                  G_STMT_START{           \
+       g_log (G_LOG_DOMAIN,                                     \
+	      G_LOG_LEVEL_ERROR,                                \
+	      "ERROR: file %s: line %d: %s",       \
+	      __FILE__,                                         \
+	      __LINE__,                                         \
+	      #expr);                   }G_STMT_END
+ 
+#endif /* __GNUC__ */
+ 
+
+ML_rc
+RegisterAPlugin(MLModule* modinfo
+,	const char *	plugintype	/* Type of plugin	*/
+,	const char *	pluginname	/* Name of plugin	*/
+,	void*		Ops		/* Info (functions) exported
+					   by this plugin	*/
+,	void**		pluginid	/* Plugin id 	(OP)	*/
+,	void**		Imports		/* Functions imported by
+					 this plugin	(OP)	*/
+,	void*		ud_plugin	/* plugin user data */
+);
+ML_rc
+RegisterAPlugin(MLModule* modinfo
+,	const char *	plugintype	/* Type of plugin	*/
+,	const char *	pluginname	/* Name of plugin	*/
+,	void*		Ops		/* Info (functions) exported
+					   by this plugin	*/
+,	void**		pluginid	/* Plugin id 	(OP)	*/
+,	void**		Imports		/* Functions imported by
+					 this plugin	(OP)	*/
+,	void*		ud_plugin	/* Optional user_data */
+)
+{
+	MLModuleUniv*	moduniv;
+	MLModuleType*	modtype;
+	MLPluginUniv*	piuniv;
+	MLPluginType*	pitype;
+	MLPlugin*	piinfo;
+
+	MLPluginType*	pipitype;
+	MLPlugin*	pipiinfo;
+	MLPluginOps*	piops;
+
+	if (modinfo == NULL
+	||	(modtype = modinfo->moduletype)	== NULL
+	||	(moduniv = modtype->moduniv)	== NULL
+	||	(piuniv = moduniv->piuniv)	== NULL
+	) {
+		REPORTERR("bad parameters");
+		return 0;
+	}
+
+	/* Now we have lots of info, but not quite enough... */
+
+	if ((pitype = g_hash_table_lookup(piuniv->pitypes, plugintype))
+	==	NULL) {
+		/* Really ought to try and autoload this plugin module */
+		return 0;
+	}
+	if ((piinfo = g_hash_table_lookup(pitype->plugins, pluginname))
+	!=	NULL) {
+		WARNING("Attempt to register duplicate plugin: %s/%s"
+		,	plugintype, pluginname);
+		return 0;
+	}
+	/*
+	 * OK...  Now we know it is valid, and isn't registered...
+	 * let's look up the PluginPlugin hander for this type
+	 */
+	if ((pipitype = g_hash_table_lookup(piuniv->pitypes, PLUGIN_PLUGIN))
+	==	NULL) {
+		REPORTERR("No " PLUGIN_PLUGIN " type!");
+		return 0;
+	}
+	if ((pipiinfo = g_hash_table_lookup(pipitype->plugins, PLUGIN_PLUGIN))
+	==	NULL) {
+		REPORTERR("No " PLUGIN_PLUGIN " plugin!");
+		return 0;
+	}
+
+	/* Now we have all the information anyone could possibly want ;-) */
+
+	piops = pipiinfo->exports;
+	piops->RegisterPlugin(pitype, pluginname, Ops
+	,	ud_plugin
+	,	Imports);
+
+	return 1;
+}
+
 #endif /* NEWMODULECODE */
