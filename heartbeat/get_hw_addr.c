@@ -2,11 +2,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef HAVE_LIBNET_1_1_API
-#	ifdef HAVE_NET_ETHERNET_H
-#		include <net/ethernet.h>
-#	endif
-#endif
 #include <libnet.h>
 #include <string.h>
 #include <syslog.h>
@@ -73,7 +68,7 @@ main(int argc, char *argv[])
 
 
 	if (argc != 2) {
-		syslog(LOG_ERR,"usage: get_hw_addr <INTERFACE-NAME>\n");
+		fprintf(stderr,"usage: get_hw_addr <INTERFACE-NAME>\n");
 		exit(1);
 	}
 
