@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.15 2003/04/15 23:03:14 alan Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.16 2003/04/16 18:32:28 msoffen Exp $";
 #include <portability.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -108,13 +108,13 @@ static void	ha_dump_item(struct ha_bucket*b);
 
 #define	BHDR(p)	 ((struct ha_bucket*)(((char*)p)-ha_malloc_hdr_offset))
 #define	CBHDR(p) ((const struct ha_bucket*)(((const char*)p)-ha_malloc_hdr_offset))
-#define	MSIZE(p)(CBHDR(p)->hdr.reqsize)
+#define	MEMORYSIZE(p)(CBHDR(p)->hdr.reqsize)
 
 #ifdef MAKE_GUARD
 static const char ha_malloc_guard[] = {0x5A, 0xA5, 0x5A, 0xA5};
 #	define GUARDSIZE	sizeof(ha_malloc_guard)
-#	define	ADD_GUARD(cp)	(memcpy((((char*)cp)+MSIZE(cp)), ha_malloc_guard, sizeof(ha_malloc_guard)))
-#	define	GUARD_IS_OK(cp)	(memcmp((((char*)cp)+MSIZE(cp)), ha_malloc_guard, sizeof(ha_malloc_guard)) == 0)
+#	define	ADD_GUARD(cp)	(memcpy((((char*)cp)+MEMORYSIZE(cp)), ha_malloc_guard, sizeof(ha_malloc_guard)))
+#	define	GUARD_IS_OK(cp)	(memcmp((((char*)cp)+MEMORYSIZE(cp)), ha_malloc_guard, sizeof(ha_malloc_guard)) == 0)
 #else
 #	define GUARDSIZE	0
 #	define ADD_GUARD(cp)	/* */
