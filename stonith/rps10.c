@@ -562,24 +562,10 @@ st_freehostlist (char ** hlist)
 
 
 /*
- *	Parse the given configuration information, and stash it away...
+ *	Parse the given configuration information, and stash
+ *      it away...
  *
- *      The expected format of the string is:
- *      "stonith" <type> <node> <parameters>
- *
- *      The first 3 fields are common to all stonith types
- *
- *      where "stonith" is a fixed string
- *      <type> should be the name of the stonith module to invoke.
- *                the fixed string "WTI_RPS10" for this object
- *      <node> should be the nodename of the machine this stonith device 
- *                is accessible from as reported by sysinfo()
- *                (or uname -n), or * to indicate all nodes (let's say,
- *                if the device was accessible over the network)
- * 
- *      <parameters> are the parameters specific to this type of object
- *
- *         The format of <parameters> for this module is:
+ *         The format of <info> for this module is:
  *            <serial device> <remotenode> <outlet> [<remotenode> <outlet>] ...
  *
  *      e.g. A machine named 'nodea' can kill a machine named 'nodeb' through
@@ -588,15 +574,18 @@ st_freehostlist (char ** hlist)
  *           through a device attached to serial port /dev/ttyS1 (outlets 0 
  *             and 1 respectively)
  *
- *      stonith nodea WTI_RPS10 /dev/ttyS0 nodeb 0 
- *      stonith nodeb WTI_RPS10 /dev/ttyS0 nodea 0 nodec 1
+ *      <assuming this is the heartbeat configuration syntax:>
+ * 
+ *      stonith nodea rps10 /dev/ttyS0 nodeb 0 
+ *      stonith nodeb rps10 /dev/ttyS0 nodea 0 nodec 1
  *
- *      Another possible configuration is for 2 stonith devices accessible
- *         through 2 different serial ports on nodeb:
+ *      Another possible configuration is for 2 stonith devices
+ *         accessible through 2 different serial ports on nodeb:
  *
- *      stonith nodeb WTI_RPS10 /dev/ttyS0 nodea 0 
- *      stonith nodeb WTI_RPS10 /dev/ttyS1 nodec 0
+ *      stonith nodeb rps10 /dev/ttyS0 nodea 0 
+ *      stonith nodeb rps10 /dev/ttyS1 nodec 0
  */
+
 /*
  * 	OOPS!
  *
@@ -616,9 +605,6 @@ RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 	char *outlet, *node;
 	int  anyconfigured = 0;
 
-#ifdef MAKE_EVERYBODY_SUFFER
-	char hostname[128];
-#endif
 
 	if (ctx->config) {
 		/* The module is already configured. */
@@ -637,43 +623,9 @@ RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 		return S_OOPS;
 	}
 
-	token = strtok (copy, " \t");
-#ifdef MAKE_EVERYBODY_SUFFER
-	
-	if (!token || strcmp(token, "stonith")) {
-		/* didn't get "stonith" prefix...  */
-		syslog(LOG_ERR, "%s: expected 'stonith' as first token in line '%s' got %s",
-		       WTIid,info, token ? token : "<NULL>");
-		goto token_error;
-	}
-
-	hostname[0]=0;
-	if (gethostname(hostname, sizeof(hostname)) != 0) {
-		syslog(LOG_ERR, "%s: can't get hostname: %s", WTIid,
-		       strerror(errno));
-		goto token_error; 
-	}
-
-	token = strtok (NULL, " \t");
-	if (!token || strcmp(token, hostname)) {
-		syslog(LOG_ERR, "%s: hostname %s doesn't match expected %s",
-		       WTIid, token, hostname);
-		goto token_error;
-	}
-
-	/* OK, now we know we're on the correct node... 
-	 * Check the module name 
-	 */
-	token = strtok (NULL, " \t");
-	if (!token || strcmp(token, WTIid)) {
-		syslog(LOG_ERR, "%s: module name %s doesn't match expected %s",
-		       WTIid, token, WTIid);
-		goto token_error;
-	}
-	
 	/* Grab the serial device */
-	token = strtok (NULL, " \t");
-#endif
+	token = strtok (copy, " \t");
+
 	if (!token) {
 		syslog(LOG_ERR, "%s: Can't find serial device on config line '%s'",
 		       WTIid, info);
@@ -1018,27 +970,16 @@ st_getinfo(Stonith * s, int reqtype)
 			break;
 
 		case ST_CONF_INFO_SYNTAX:
-#ifdef MAKE_EVERYBODY_SUFFER
-			ret = _("stonith <nodename> WTI_RPS10 <serial_device> <node> <outlet> [ <node> <outlet> [...] ]\n"
-			"All tokens are white-space delimited.\n");
-#else
 			ret = _("<serial_device> <node> <outlet> "
 			"[ <node> <outlet> [...] ]\n"
 			"All tokens are white-space delimited.\n");
-#endif
 			break;
 
 		case ST_CONF_FILE_SYNTAX:
-#ifdef MAKE_EVERYBODY_SUFFER
-			ret = _("stonith <nodename> WTI_RPS10 <serial_device> <node> <outlet> [ <node> <outlet> [...] ]\n"
-			"All tokens are white-space delimited.\n"
-			"Blank lines and lines beginning with # are ignored");
-#else
 			ret = _("<serial_device> <node> <outlet> "
 			"[ <node> <outlet> [...] ]\n"
 			"All tokens are white-space delimited.\n"
 			"Blank lines and lines beginning with # are ignored");
-#endif
 			break;
 
 		default:

@@ -488,20 +488,7 @@ st_freehostlist (char ** hlist)
 /*
  *	Parse the given configuration information, and stash it away...
  *
- *      The expected format of the string is:
- *      "stonith" <type> <node> <parameters>
- *
- *      The first 3 fields are common to all stonith types
- *
- *      where "stonith" is a fixed string
- *      <type> should be the name of the stonith module to invoke.
- *                the fixed string "NW_RPC100S" for this object
- *      <node> should be the nodename of the machine this stonith device 
- *                is accessible from as reported by sysinfo()
- *                (or uname -n), or * to indicate all nodes (let's say,
- *                if the device was accessible over the network)
- * 
- *      <parameters> are the parameters specific to this type of object
+ *      <info> contains the parameters specific to this type of object
  *
  *         The format of <parameters> for this module is:
  *            <serial device> <remotenode> <outlet> [<remotenode> <outlet>] ...
@@ -527,7 +514,6 @@ RPC_parse_config_info(struct NW_RPC100S* ctx, const char * info)
 {
 	char *copy;
 	char *token;
-	char hostname[128];
 
 	if (ctx->config) {
 		/* The module is already configured. */
@@ -546,41 +532,8 @@ RPC_parse_config_info(struct NW_RPC100S* ctx, const char * info)
 		return S_OOPS;
 	}
 
-	token = strtok (copy, " \t");
-	
-	if (!token || strcmp(token, "stonith")) {
-		/* didn't get "stonith" prefix...  */
-		syslog(LOG_ERR, "%s: expected 'stonith' as first token in line '%s' got %s",
-		       WTIid,info, token ? token : "<NULL>");
-		goto token_error;
-	}
-
-	hostname[0]=0;
-	if (gethostname(hostname, sizeof(hostname)) != 0) {
-		syslog(LOG_ERR, "%s: can't get hostname: %s", WTIid,
-		       strerror(errno));
-		goto token_error; 
-	}
-
-	token = strtok (NULL, " \t");
-	if (!token || strcmp(token, hostname)) {
-		syslog(LOG_ERR, "%s: hostname %s doesn't match expected %s",
-		       WTIid, token, hostname);
-		goto token_error;
-	}
-
-	/* OK, now we know we're on the correct node... 
-	   Check the module name 
-	*/
-	token = strtok (NULL, " \t");
-	if (!token || strcmp(token, WTIid)) {
-		syslog(LOG_ERR, "%s: module name %s doesn't match expected %s",
-		       WTIid, token, WTIid);
-		goto token_error;
-	}
-	
 	/* Grab the serial device */
-	token = strtok (NULL, " \t");
+	token = strtok (copy, " \t");
 	if (!token) {
 		syslog(LOG_ERR, "%s: Can't find serial device on config line '%s'",
 		       WTIid, info);
@@ -873,12 +826,12 @@ st_getinfo(Stonith * s, int reqtype)
 			break;
 
 		case ST_CONF_INFO_SYNTAX:
-			ret = _("stonith <nodename> NW_RPC100S <serial_device> <node>\n"
+			ret = _("<serial_device> <node>\n"
 			"All tokens are white-space delimited.\n");
 			break;
 
 		case ST_CONF_FILE_SYNTAX:
-			ret = _("stonith <nodename> NW_RPC100S <serial_device> <node>\n"
+			ret = _("<serial_device> <node>\n"
 			"All tokens are white-space delimited.\n"
 			"Blank lines and lines beginning with # are ignored");
 			break;
