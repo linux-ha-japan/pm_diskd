@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.16 2003/02/17 15:31:50 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.17 2003/02/17 16:30:46 msoffen Exp $";
 /* 
  * send_arp
  * 
@@ -47,7 +47,7 @@ const static char * _send_arp_c = "$Id: send_arp.c,v 1.16 2003/02/17 15:31:50 al
 int send_arp(LTYPE* l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype);
 
 char print_usage[]={"send_arp: sends out custom ARP packet. packetfactory.net\n\
-\tusage: send_arp dev src_ip_addr src_hw_addr targ_ip_addr tar_hw_addr\n\n"};
+\tusage: send_arp device src_ip_addr src_hw_addr broadcast_ip_addr netmask\n\n"};
 
 void convert_macaddr (u_char *macaddr, u_char enet_src[6]);
 
@@ -86,7 +86,7 @@ main(int argc, char *argv[])
     broadcast = argv[4];
     netmask = argv[5];
     
-#ifdef HAVE_LIBNET_1_0_API
+#if defined(HAVE_LIBNET_1_0_API)
     if ((ip = libnet_name_resolve(argv[2], 1)) == -1UL) {
         syslog(LOG_ERR, "Cannot resolve IP address\n");
         exit(EXIT_FAILURE);
@@ -97,9 +97,7 @@ main(int argc, char *argv[])
         syslog(LOG_ERR, "libnet_open_link_interface: %s\n", errbuf);
         exit(EXIT_FAILURE);
     }
-#endif
-
-#ifdef HAVE_LIBNET_1_1_API
+#elif defined(HAVE_LIBNET_1_1_API)
     if ((l=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
 	syslog(LOG_ERR, "libnet_init failure:");
         exit(EXIT_FAILURE);
@@ -108,6 +106,8 @@ main(int argc, char *argv[])
         syslog(LOG_ERR, "Cannot resolve IP address\n");
         exit(EXIT_FAILURE);
     }
+#else
+    #error "libnet not defined.\n");
 #endif
 
 /*
@@ -228,6 +228,9 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.17  2003/02/17 16:30:46  msoffen
+ * Made it error out if libnet isn't defined at all (no 1.0 or 1.1 version).
+ *
  * Revision 1.16  2003/02/17 15:31:50  alan
  * Fixed a nasty bug where we don't pass the interface to the libnet libraries
  * correctly.  Thanks to Steve Snodgrass for finding it.
