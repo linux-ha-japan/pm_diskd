@@ -25,6 +25,7 @@ else
   if
     [ ! -x $RCDIR/$1 ]
   then
+    ha_log "ERROR: $0: $RCDIR/$1: not executable"
     exit 1
   fi
 fi

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.162 2002/02/11 22:31:34 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.163 2002/02/12 15:22:29 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -256,6 +256,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.162 2002/02/11 22:31
 #include <sys/signal.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include <dirent.h>
 #include <netdb.h>
 #include <ltdl.h>
 #ifdef _POSIX_MEMLOCK
@@ -418,6 +419,8 @@ void	check_rexmit_reqs(void);
 void	mark_node_dead(struct node_info* hip, enum deadreason reason);
 void	change_link_status(struct node_info* hip, struct link *lnk
 ,		const char * new);
+static	void CreateInitialFilter(void);
+static int FilterNotifications(const char * msgtype);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
 long	get_running_hb_pid(void);
 void	make_daemon(void);
@@ -2065,6 +2068,41 @@ init_status_alarm(void)
 	ding_action();
 }
 
+/*
+ * We look at the directory /etc/ha.d/rc.d to see what
+ * scripts are there to avoid trying to run anything
+ * which isn't there.
+ */
+static GHashTable* RCScriptNames = NULL;
+
+static void
+CreateInitialFilter(void)
+{
+	DIR*	dp;
+	struct dirent*	dep;
+	static char foo[] = "bar";
+	RCScriptNames = g_hash_table_new(g_str_hash, g_str_equal);
+	if ((dp = opendir(HEARTBEAT_RC_DIR)) == NULL) {
+		ha_perror("Cannot open directory " HEARTBEAT_RC_DIR);
+		return;
+	}
+	while((dep = readdir(dp)) != NULL) {
+		if (dep->d_name[0] == '.') {
+			continue;
+		}
+		g_hash_table_insert(RCScriptNames, g_strdup(dep->d_name),foo);
+	}
+	closedir(dp);
+}
+static int
+FilterNotifications(const char * msgtype)
+{
+	if (RCScriptNames == NULL) {
+		CreateInitialFilter();
+	}
+	return g_hash_table_lookup(RCScriptNames, msgtype) != NULL;
+}
+
 
 /* Notify the (external) world of an HA event */
 void
@@ -2102,9 +2140,11 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	fp  = ha_msg_value(msg, F_TYPE);
 	ASSERT(fp != NULL && strlen(fp) < STATUSLENG);
 
-	if (fp == NULL || strlen(fp) > STATUSLENG)  {
+	if (fp == NULL || strlen(fp) > STATUSLENG
+	||	 !FilterNotifications(fp)) {
 		return;
 	}
+
 
 	while (*fp) {
 		if (isupper((unsigned int)*fp)) {
@@ -4956,6 +4996,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.163  2002/02/12 15:22:29  alan
+ * Put in code to filter out rc script execution on every possible message,
+ * so that only those scripts that actually exist will we attempt to execute.
+ *
  * Revision 1.162  2002/02/11 22:31:34  alan
  * Added a new option ('l') to make heartbeat run at low priority.
  * Added support for a new capability - to start and stop client
