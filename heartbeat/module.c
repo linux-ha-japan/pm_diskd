@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.3 2000/09/06 15:56:03 marcelo Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.4 2000/09/15 21:12:43 marcelo Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -68,19 +68,19 @@ static int generic_symbol_load(struct symbol_str symbols[], int len, void **hand
 { 
 	int  a;
 
-		for(a = 0; a < len; a++) {
-			struct symbol_str *sym = &symbols[a];
+	for(a = 0; a < len; a++) {
+		struct symbol_str *sym = &symbols[a];
 
-			if((*sym->function = dlsym(*handle, sym->name)) == NULL) {
-				if(sym->mandatory) { 
-					ha_log(LOG_ERR, "%s: Plugin [] does not have [%s] symbol."
-									, __FUNCTION__, sym->name);
-					dlclose(*handle); *handle = NULL;
-					return(HA_FAIL);
-				}
+		if((*sym->function = dlsym(*handle, sym->name)) == NULL) {
+			if(sym->mandatory) { 
+				ha_log(LOG_ERR, "%s: Plugin does not have [%s] symbol."
+								, __FUNCTION__, sym->name);
+				dlclose(*handle); *handle = NULL;
+				return(HA_FAIL);
 			}
-
 		}
+
+	}
 
 	return(HA_OK);
 }
