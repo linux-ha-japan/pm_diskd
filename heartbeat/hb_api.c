@@ -836,8 +836,16 @@ api_flush_msgQ(client_proc_t* client)
 		if (!client->beingremoved) {
 			/* Sometimes they've gone before we know it */
 			/* Then we get ENXIO.  So we ignore those. */
-			if (errno != ENXIO) {
-				ha_perror("api_send_client: can't open %s", fifoname);
+			if (errno != ENXIO && errno != EINTR) {
+				/*
+				 * FIXME:  ???
+				 * It seems like with the O_NDELAY on the
+				 * open we ought not get EINTR.  But on
+				 * rare occasions during tests, we do anyway...
+				 * It's clearly not our fault... ;-)
+				 */
+				ha_perror("api_flush_msgQ: can't open %s"
+				,	fifoname);
 			}
 			api_remove_client(client, "FIFOerr");
 		}
