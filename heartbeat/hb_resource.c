@@ -1851,7 +1851,7 @@ StonithProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslog
 
 	if (signo != 0 || exitcode != 0) {
 		ha_log(LOG_ERR, "STONITH of %s failed.  Retrying..."
-		,	(const char*) p->privatedata);
+		,	h->nodename);
 		Initiate_Reset(config->stonith, h->nodename);
 	}else{
 		/* We need to finish taking over the other side's resources */
@@ -1872,6 +1872,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.25  2003/06/02 12:39:23  lars
+ * Cleaned up a corrupted log message.
+ *
  * Revision 1.24  2003/05/29 06:54:31  ram
  * the managed clients are now killed after all the resource scripts have
  * completed, while shutting down heartbeat.
