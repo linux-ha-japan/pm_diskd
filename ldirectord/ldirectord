@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.45 2002/05/16 09:37:23 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.46 2002/05/22 09:06:59 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -428,6 +428,8 @@ sub init
 	} else {
 		if ($CMD eq "status") {
 			init_error("ldirectord is stopped for $CONFIG");
+			# Clean up
+			ld_exit(0, "Exiting from ldirectord status");
 		} elsif ($CMD ne "start") {
 			init_error("ldirectord is stopped for $CONFIG");
 		}
