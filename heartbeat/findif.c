@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.6 2000/08/13 20:37:49 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.7 2000/08/30 20:32:39 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *	It's really simple to write in C, but hard to write in the shell...
@@ -160,6 +160,7 @@ main(int argc, char ** argv) {
 			|	  (netmask&0x0000ff00UL) <<8
 			|	  (netmask&0x00ff0000UL) >>8
 			|	  (netmask&0xff000000UL) >>24;
+			/* BYTE ORDERING DEPENDENCY PROBLEM! */
 		}
 	}
 
@@ -212,13 +213,14 @@ main(int argc, char ** argv) {
 	/* Did they tell us the broadcast address? */
 
 	if (bcast_arg) {
+		best_netmask = htonl(best_netmask);
 		/* Yes, they gave us a broadcast address */
 		printf("%s\t netmask %d.%d.%d.%d\tbroadcast %s\n"
 		,	best_if
-		,	(int)(best_netmask & 0xff)
-		,	(int)((best_netmask>>8) & 0xff)
-		,	(int)((best_netmask>>16) & 0xff)
-		,	(int)((best_netmask>>24) & 0xff)
+                ,       (int)((best_netmask>>24) & 0xff)
+                ,       (int)((best_netmask>>16) & 0xff)
+                ,       (int)((best_netmask>>8) & 0xff)
+                ,       (int)(best_netmask & 0xff)
 		,	bcast_arg);
 	}else{
 		/* No, we use a common broadcast address convention */
@@ -265,6 +267,9 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
+ * Revision 1.7  2000/08/30 20:32:39  alan
+ * Fixed a byte ordering problem in findif.c.  There's probably another one in the code yet.
+ *
  * Revision 1.6  2000/08/13 20:37:49  alan
  * Fixed a bug related to byte-ordering in findif.c.  Thanks to
  *         Lars Kellogg-Stedman for the fix.  There are probably some
