@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.54 2003/02/19 17:37:20 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.55 2003/02/24 13:35:25 lclaudio Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -535,7 +535,6 @@ install -m 644 rc.config.heartbeat $TEMPL
 @sysconfdir@/ha.d/shellfuncs
 @sysconfdir@/ha.d/rc.d
 @sysconfdir@/ha.d/README.config
-@sysconfdir@/ha.d/conf
 @sysconfdir@/ha.d/cts/CM_fs.py
 @sysconfdir@/ha.d/cts/CM_hb.py
 @sysconfdir@/ha.d/cts/CTS.py
@@ -602,6 +601,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %files ldirectord
 ###########################################################
 %defattr(-,root,root)
+@sysconfdir@/ha.d/conf
 @sbindir@/ldirectord
 @sbindir@/supervise-ldirectord-config
 @sysconfdir@/logrotate.d/ldirectord
