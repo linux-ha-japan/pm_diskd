@@ -1,10 +1,10 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.24 2000/06/12 22:07:59 alan Exp $
+#	$Id: heartbeat.sh,v 1.25 2000/06/21 04:34:48 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
-# Author:       Alan Robertson	<alanr@henge.com>
+# Author:       Alan Robertson	<alanr@suse.com>
 #
 #		it should run under SuSE and Debian also...
 #
@@ -252,6 +252,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.25  2000/06/21 04:34:48  alan
+#  Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
+#
 #  Revision 1.24  2000/06/12 22:07:59  alan
 #  Spelling correction in a comment.
 #

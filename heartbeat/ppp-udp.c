@@ -1,7 +1,7 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.8 2000/05/17 13:39:54 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.9 2000/06/21 04:34:48 alan Exp $";
 /*
  *  This code written by
- *	Alan Robertson <alanr@henge.com> (c) 1999
+ *	Alan Robertson <alanr@suse.com> (c) 1999, 2000
  *	Released under the GNU General Public License
  *
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
@@ -1166,6 +1166,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.9  2000/06/21 04:34:48  alan
+ * Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
+ *
  * Revision 1.8  2000/05/17 13:39:54  alan
  * Added the close-on-exec flag to sockets and tty fds that we open.
  * Thanks to Christoph Jäger for noticing the problem.

@@ -1,8 +1,8 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.7 2000/05/17 13:39:55 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.8 2000/06/21 04:34:48 alan Exp $";
 /*
    About 150 lines of the code in this file borrowed 1999 from Tom Vogt's
 	"Heart" program, and significantly mangled by
-	Alan Robertson <alanr@henge.com> (c) 1999
+	Alan Robertson <alanr@suse.com> (c) 1999, 2000
 	Released under the GNU General Public License
 	
 	Tom's orignal copyright reproduced notice below...
@@ -456,6 +456,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.8  2000/06/21 04:34:48  alan
+ * Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
+ *
  * Revision 1.7  2000/05/17 13:39:55  alan
  * Added the close-on-exec flag to sockets and tty fds that we open.
  * Thanks to Christoph Jäger for noticing the problem.

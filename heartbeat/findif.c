@@ -1,7 +1,7 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.3 2000/01/26 15:16:48 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.4 2000/06/21 04:34:48 alan Exp $";
 /*
  *  This code written by
- *	Alan Robertson <alanr@henge.com> (c) 1999
+ *	Alan Robertson <alanr@suse.com> (c) 1999, 2000
  *	Released under the GNU General Public License
  *
  *	findif.c:	Finds an interface which can route a given address
@@ -249,6 +249,9 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
+ * Revision 1.4  2000/06/21 04:34:48  alan
+ * Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
+ *
  * Revision 1.3  2000/01/26 15:16:48  alan
  * Added code from Michael Moerz <mike@cubit.at> to keep findif from
  * core dumping if /proc/route can't be read.
