@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.4 1999/10/03 03:48:53 alanr Exp $
+#	$Id: Specfile,v 1.5 1999/10/04 03:23:14 alanr Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -33,15 +33,19 @@ It implements the following kinds of heartbeats:
   + Added code to allow the IPaddr takeover script to be given the
 	interface to take over, instead of inferring it.  This was requested
 	by Lars Marowsky-Bree
-  + Mijta Sarp added a new feature to authenticate all heartbeat packets
+  + Mijta Sarp added a new feature to authenticate heartbeat packets
   + Incorporated patch from Guenther Thomsen to implement locking for
 	serial ports used for heartbeats
-  + Incorporated patch from Guenther Thomsen to clean up logging a lot!
+  + Incorporated patch from Guenther Thomsen to clean up logging.
+	(you can now use syslog and/or file logs)
   + You can send a SIGHUP to heartbeat control process to change authentication
 	parameters without restarting
   + Improved FreeBSD compatibility.
   + Changed resource acquisition and FIFO creation to occur in heartbeat itself
-  + More logging cleanups
+	Sped up resource acquisiton on master restart.
+  + Changed resource relinquishment on heartbeat shutdown to occur in heartbeat,
+	instead of in the stop script.  This means you don't *really* have to
+	use the start/stop script if you don't want to.
 
 * Thu Sep 16 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>
