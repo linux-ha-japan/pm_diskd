@@ -917,7 +917,7 @@ api_remove_client_pid(pid_t c_pid, const char * reason)
 	char		cpid[20];
 	client_proc_t* 	client;
 
-	snprintf(cpid, sizeof(c_pid)-1, "%d", c_pid);
+	snprintf(cpid, sizeof(cpid)-1, "%d", c_pid);
 	if ((client = find_client(cpid, NULL)) == NULL) {
 		return 0;
 	}
