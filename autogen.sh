@@ -1,9 +1,12 @@
 #!/bin/sh
 
 #
+#	Copyright 2001 horms <horms@vergenet.net>
+#		(mangled by alanr)
+#
 #	This code is known to work with bash, might have trouble with /bin/sh
 #	on some systems.  Our goal is to not require dragging along anything
-#	more than we need.  So, if this doesn't work on your system,
+#	more than we need.  If this doesn't work on your system,
 #	(i.e., your /bin/sh is broken) send us a patch.
 #
 
@@ -40,14 +43,11 @@ gnu="ftp://ftp.gnu.org/pub/gnu/"
 
 for command in autoconf automake libtoolize
 do
-    case $command in 
-      libtoolize)
-    	  URL=$gnu/libtool/
-          pkg=libtool;;
-
-      *)  URL=$gnu/libtool/$command/
-	  pkg=$command;;
-    esac
+  pkg=$command
+  case $command in 
+    libtoolize)	pkg=libtool;;
+  esac
+  URL=$gnu/$pkg/
   if
     $command --version </dev/null >/dev/null 2>&1
   then
@@ -77,7 +77,7 @@ then
 	!
 fi
 
-#	Is this set in the environment before starting?
+#	Is CC set in the environment before starting?
 case $CC in
   xlc)
     am_opt=--include-deps;;
