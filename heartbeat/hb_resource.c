@@ -330,21 +330,39 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 void
 hb_rsc_recover_dead_resources(struct node_info* hip)
 {
+	gboolean	need_stonith = TRUE;
 	standby_running = zero_longclock;
-	if (hip->nodetype != PINGNODE) {
+
+	if (hip->nodetype == PINGNODE) {
+		takeover_from_node(hip->nodename);
+		return;
+	}
+
+	/*
+	 * If we haven't heard anything from them - they might be holding
+	 * resources - we have no way of knowing.
+	 */
+	if (hip->anypacketsyet) {
 		if (!hip->has_resources
-		||	(nice_failback && other_holds_resources == HB_NO_RSC)) {
-			ha_log(LOG_INFO, "Dead node %s held no resources."
-			,	hip->nodename);
-		}else{
-			/* We have to Zap them before we take the resources */
-			/* This often takes a few seconds. */
-			if (config->stonith) {
-				Initiate_Reset(config->stonith, hip->nodename);
-				/* It will call takeover_from_node() later */
-				return;
-			}
+		||	(nice_failback && other_holds_resources == HB_NO_RSC)){
+			need_stonith = FALSE;
 		}
+	}
+
+	if (need_stonith) {
+		/* We have to Zap them before we take the resources */
+		/* This often takes a few seconds. */
+		if (config->stonith) {
+			Initiate_Reset(config->stonith, hip->nodename);
+			/* It will call takeover_from_node() later */
+			return;
+		}else{
+			ha_log(LOG_WARNING, "No STONITH device configured.");
+			ha_log(LOG_WARNING, "Shared disks are not protected.");
+		}
+	}else{
+		ha_log(LOG_INFO, "Dead node %s held no resources."
+		,	hip->nodename);
 	}
 	/* nice_failback needs us to do this anyway... */
 	takeover_from_node(hip->nodename);
@@ -1696,6 +1714,12 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.5  2002/11/08 15:49:39  alan
+ * Fixed a bug in STONITH for the true cluster partition case.
+ * When we came up, and didn't see the other node, we just took over
+ * resources w/o STONITH.
+ * Now we STONITH the node first, then take the data over.
+ *
  * Revision 1.4  2002/10/30 17:17:40  alan
  * Added some debugging, and changed one message from an ERROR to a WARNING.
  *
