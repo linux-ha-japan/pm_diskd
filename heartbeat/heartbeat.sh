@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.22 2000/06/12 22:03:11 alan Exp $
+#	$Id: heartbeat.sh,v 1.23 2000/06/12 22:06:30 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -198,10 +198,10 @@ StopHA() {
 }
 
 #
-#	Ask heartbeat to stop.  It will *keep* it's resources
+#	Ask heartbeat to restart.  It will *keep* its resources
 #
-StopHA() {
-  echo -n "Stopping High-Availability services: "
+RestartHA() {
+  echo -n "Restarting High-Availability services: "
 
   if
     $HA_BIN/heartbeat -r # Restart, and keep your resources
@@ -252,6 +252,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.23  2000/06/12 22:06:30  alan
+#  Finished updating the code for restart.
+#
 #  Revision 1.22  2000/06/12 22:03:11  alan
 #  Put in a fix to the link status code, to undo something I'd broken, and also to simplify it.
 #  I changed heartbeat.sh so that it uses the -r flag to restart heartbeat instead
