@@ -1,9 +1,0 @@
-#! /bin/sh
-
-set -x
-
-aclocal 
-libtoolize --force --copy --ltdl
-autoheader
-automake --foreign --add-missing --copy
-autoconf
