@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.33 2000/10/06 19:26:20 eric Exp $
+#	$Id: Makefile,v 1.34 2000/11/03 14:12:02 eric Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -115,7 +115,7 @@ PRODUCTS = $(LIBCMDS) $(LIBS)
 
 LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 
-RESOURCECMDS= resource.d/IPaddr resource.d/AudibleAlarm
+RESOURCECMDS= resource.d/IPaddr resource.d/AudibleAlarm resource.d/Raid1 resource.d/Filesystem
 
 RCCMDS = rc.d/ip-request rc.d/ip-request-resp rc.d/status	\
 	rc.d/ns_st rc.d/ifstat
