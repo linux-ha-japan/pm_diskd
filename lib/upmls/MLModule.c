@@ -107,7 +107,7 @@ static void		DelAMLPluginType
 static MLPluginType*	NewMLPluginType
 (	MLPluginUniv*
 ,	const char * typename
-,	void* pieports, void* user_data
+,	const void* pieports, void* user_data
 );
 static void		DelMLPluginType(MLPluginType*);
 /*
@@ -124,7 +124,7 @@ static void		DelAMLPlugin
 static MLPlugin*	NewMLPlugin
 (	MLPluginType*	plugintype
 ,	const char*	pluginname
-,	void *		exports
+,	const void *	exports
 ,	void*		ud_plugin
 );
 static void		DelMLPlugin(MLPlugin*);
@@ -138,7 +138,7 @@ static void close_a_plugin
 );
 
 
-static MLModuleOps ModExports =
+static const MLModuleOps ModExports =
 {	ml_module_version
 ,	ml_module_name
 ,	ml_GetDebugLevel
@@ -146,17 +146,18 @@ static MLModuleOps ModExports =
 ,	ml_close
 };
 
-static ML_rc MLregister_module(MLModule* modinfo, MLModuleOps* commonops);
+static ML_rc MLregister_module(MLModule* modinfo
+,	const MLModuleOps* commonops);
 static ML_rc MLunregister_module(MLModule* modinfo);
 static ML_rc
 MLRegisterAPlugin
 (	MLModule*	modinfo
 ,	const char *	plugintype	/* Type of plugin	*/
 ,	const char *	pluginname	/* Name of plugin	*/
-,	void*		Ops		/* Info (functions) exported
+,	const void*	Ops		/* Info (functions) exported
 					   by this plugin	*/
 ,	void**		pluginid	/* Plugin id 	(OP)	*/
-,	void**		Imports		/* Functions imported by
+,	const void**	Imports		/* Functions imported by
 					 this plugin	(OP)	*/
 ,	void*		ud_plugin	/* plugin user data */
 );
@@ -176,8 +177,9 @@ static MLModuleImports MLModuleImportSet =
 
 static MLPlugin*	pipi_register_plugin(MLPluginType* env
 				,	const char * pluginname
-				,	void * exports, void * ud_plugin
-				,	void** imports);
+				,	const void * exports
+				,	void * ud_plugin
+				,	const void** imports);
 static ML_rc		pipi_unregister_plugin(MLPlugin* plugin);
 static ML_rc		pipi_close_plugin(MLPlugin* plugin
 				,	MLPlugin* pi2);
@@ -193,7 +195,7 @@ static void		pipi_del_while_walk(gpointer key, gpointer value
  *	(The PluginPlugin plugin)
  */
 
-static MLPluginOps  PiExports =
+static const MLPluginOps  PiExports =
 {		pipi_register_plugin
 	,	pipi_unregister_plugin
 	,	pipi_close_plugin
@@ -206,7 +208,7 @@ static int PiModRefCount(MLPlugin*epiinfo,int plusminus);
 static void PiUnloadIfPossible(MLPlugin *epiinfo);
 
 
-static MLPluginImports PIHandlerImports = {
+static const MLPluginImports PIHandlerImports = {
 	PiRefCount,
 	PiModRefCount,
 	PiUnloadIfPossible,
@@ -413,7 +415,7 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	MLModuleType*	modtype;
 	MLPlugin*	piinfo;
 	MLPluginType*	pitype;
-	void*		dontcare;
+	const void*	dontcare;
 	MLModule*	pipi_module;
 	ML_rc		rc;
 
@@ -514,7 +516,7 @@ ml_close (MLModule* module)
 static MLPlugin*
 NewMLPlugin(MLPluginType*	plugintype
 	,	const char*	pluginname
-	,	void *		exports
+	,	const void *	exports
 	,	void*		ud_plugin)
 {
 	MLPlugin*	ret = NULL;
@@ -551,7 +553,7 @@ DelMLPlugin(MLPlugin* pi)
 
 static MLPluginType*
 NewMLPluginType(MLPluginUniv*univ, const char * typename
-,	void* pieports, void* user_data)
+,	const void* pieports, void* user_data)
 {
 	MLPluginType*	pipi_types;
 	MLPlugin*	pipi_ref;
@@ -651,7 +653,7 @@ close_a_plugin
 	MLPlugin*	plugin = vplugin;
 	MLPluginType*	pitype;		/* Our plugin type */
 	MLPlugin*	pipi_ref;	/* Pointer to our plugin handler */
-	MLPluginOps*	exports;	/* PluginPlugin operations  for the
+	const MLPluginOps* exports;	/* PluginPlugin operations  for the
 					 * type of plugin we are
 					 */
 
@@ -676,8 +678,9 @@ close_a_plugin
 /* Register a Plugin Plugin */
 static MLPlugin*
 pipi_register_plugin(MLPluginType* pitype
-	,	const char * pluginname, void * exports, void * user_data
-	,	void**		imports)
+	,	const char * pluginname, const void * exports
+	,	void *		user_data
+	,	const void**	imports)
 {
 	MLPlugin* ret;
 
@@ -789,7 +792,7 @@ PiUnloadIfPossible(MLPlugin *epiinfo)
 }
 
 static ML_rc
-MLregister_module(MLModule* modinfo, MLModuleOps* commonops)
+MLregister_module(MLModule* modinfo, const MLModuleOps* commonops)
 {
 	/*FIXME!*/
 	return ML_OOPS;
@@ -942,10 +945,10 @@ static ML_rc
 MLRegisterAPlugin(MLModule* modinfo
 ,	const char *	plugintype	/* Type of plugin	*/
 ,	const char *	pluginname	/* Name of plugin	*/
-,	void*		Ops		/* Info (functions) exported
+,	const void*	Ops		/* Info (functions) exported
 					   by this plugin	*/
 ,	void**		pluginid	/* Plugin id 	(OP)	*/
-,	void**		Imports		/* Functions imported by
+,	const void**	Imports		/* Functions imported by
 					 this plugin	(OP)	*/
 ,	void*		ud_plugin	/* Optional user_data */
 )
@@ -958,7 +961,7 @@ MLRegisterAPlugin(MLModule* modinfo
 
 	MLPluginType*	pipitype;	/* MLPluginType for PLUGIN_PLUGIN */
 	MLPlugin*	pipiinfo;	/* Plugin info for "plugintype" */
-	MLPluginOps*	piops;		/* Ops vector for PluginPlugin */
+	const MLPluginOps* piops;	/* Ops vector for PluginPlugin */
 					/* of type "plugintype" */
 
 	if (	 modinfo == NULL

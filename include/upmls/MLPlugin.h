@@ -43,7 +43,7 @@ typedef struct MLPluginImports_s	MLPluginImports;
 struct MLPlugin_s {
 	MLPluginType*		plugintype;
 	char *			pluginname;
-	void*			exports;	/* Exported Functions	*/
+	const void*		exports;	/* Exported Functions	*/
 						/* for this plugin	*/
 	void*			ud_plugin;	/* per-plugin user data */
 	int			refcnt;		/* Reference count for module */
@@ -99,9 +99,9 @@ struct MLPluginOps_s{
 
 	/* RegisterPlugin - Returns unique id for plugin or NULL (fail) */
  	MLPlugin* (*RegisterPlugin)(MLPluginType* pienv
-		,	const char * pluginname, void * exports
+		,	const char * pluginname, const void * exports
 		,	void *	ud_plugin
-		,	void**	imports);
+		,	const void**	imports);
 
 	ML_rc	(*UnRegisterPlugin)(MLPlugin*ipiinfo); /* Unregister PI-PI*/
 				/* And destroy MLPlugin object */

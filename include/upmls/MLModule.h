@@ -360,15 +360,16 @@ typedef enum {
  */
 
 struct MLModuleImports_s {
-	ML_rc	(*register_module)(MLModule* modinfo, MLModuleOps* commonops);
+	ML_rc	(*register_module)(MLModule* modinfo
+	,	const MLModuleOps* commonops);
 	ML_rc	(*unregister_module)(MLModule* modinfo);
 	ML_rc	(*register_plugin)(MLModule* modinfo
 	,	const char *	plugintype	/* Type of plugin	*/
 	,	const char *	pluginname	/* Name of plugin	*/
-	,	void*		Ops		/* Info (functions) exported
+	,	const void*	Ops		/* Info (functions) exported
 						   by this plugin	*/
 	,	void**		pluginid	/* Plugin id 	(OP)	*/
-	,	void**		Imports
+	,	const void**	Imports
 	,	void*		ud_plugin);	/* plugin user data */
 
 	ML_rc	(*unregister_plugin)(void* pluginid);
