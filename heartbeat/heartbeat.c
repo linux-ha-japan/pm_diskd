@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.58 2000/06/13 20:34:10 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.59 2000/06/14 06:17:35 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1041,39 +1041,9 @@ master_status_process(void)
 
 
 		if (send_status_now) {
-#if 0
-		/*
-		 * Don't think we need this code at this point in time.
-		 */
-			static int	resources_timer = 0;
-					/* Used to avoid multiple rsrc rqsts */
-			static int 	send_starting_now = 1;
-#endif
 			send_status_now = 0;
 			send_local_status();
 
-
-#if 0
-			if (heartbeat_comm_state == COMM_LINKSUP
-			&&	nice_failback) {
-				if (send_starting_now) {
-					send_local_starting();
-				}
-				if (resources_timer) {
-					/* After 10 secs we can request
-					 * resources again...
-					 */
-					/* Of course, this doesn't measure
-					 * seconds, or anything like them.
-					 * Because it may go around once every
-					 * 5 seconds, or it might be 3 times
-					 * a second, if we have multiple links.
-					 * I think this code is broken.
-					 */
-					resources_timer--;
-				}
-			}
-#endif
 		}
 		if (dump_stats_now) {
 			dump_stats_now = 0;
@@ -1094,6 +1064,7 @@ master_status_process(void)
 			init_status_alarm();
 		}
 
+		/* See if our comm channels are working yet... */
 		check_comm_isup();
 
 		lastnow = now;
@@ -1109,7 +1080,7 @@ master_status_process(void)
 		now = time(NULL);
 		messagetime = times(NULL);
 
-		/* Extract message type, originator, timestamp, auth*/
+		/* Extract message type, originator, timestamp, auth */
 		type = ha_msg_value(msg, F_TYPE);
 		from = ha_msg_value(msg, F_ORIG);
 		ts = ha_msg_value(msg, F_TIME);
@@ -1307,11 +1278,46 @@ master_status_process(void)
  *    Do nothing :)
  *
  */
+/*
+ * About the nice_failback resource takeover model:
+ *
+ * There are two principles that seem to guarantee safety:
+ * 
+ *      1) Take all unclaimed resources if the other side is stable.
+ *              [Once you do this, you are also stable].
+ *
+ *      2) Take only unclaimed local resources when a timer elapses
+ *		without things becoming stable by (1) above.
+ *              [Once this occurs, you're stable].
+ *
+ * Stable means that we have taken the resources we think we ought to, and
+ * won't take any more without another transition ocurring.
+ * 
+ * The other side is stable whenever it says it is (in its RESOURCE
+ * message), or if it is dead.
+ * 
+ * The nice thing about the stable bit in the resources message is that it
+ * enables you to tell if the other side is still messing around, or if
+ * they think they're done messing around.  If they're done, then it's safe
+ * to proceed.  If they're not, then you need to wait until they say
+ * they're done, or until a timeout occurs (because no one has become stable).
+ *
+ * When the timeout occurs, you're both deadlocked each waiting for the
+ * other to become stable.  Then it's safe to take your local resources
+ * (unless, of course, for some unknown reason, the other side has taken
+ * them already).
+ *
+ * If a node dies die, then they'll be marked dead, and its resources will
+ * be marked unclaimed.  In this case, you'll take over everything - whether
+ * local resources through mark_node_dead() or remote resources through
+ * mach_down.
+ */
 
 enum rsc_state {
 	R_INIT,			/* Links not up yet */
 	R_STARTING,		/* Links up, start message issued */
 	R_BOTHSTARTING,		/* Links up, start msg received & issued  */
+				/* BOTHSTARTING now equiv to STARTING (?) */
 	R_RSCRCVD,		/* Resource Message received */
 	R_STABLE		/* Local resources acquired, too... */
 };
@@ -1432,11 +1438,12 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 			const char *	f_stable;
 
-			/* f_stable is NULL when message comes by takeover script */
-			if ((f_stable = ha_msg_value(msg, F_ISSTABLE)) != NULL) {
+			/* f_stable is NULL when message from takeover script */
+			if ((f_stable = ha_msg_value(msg, F_ISSTABLE)) != NULL){
 				if (strcmp(f_stable, "1") == 0) {
 					if (!other_is_stable) {
-						ha_log(LOG_INFO, "remote resource"
+						ha_log(LOG_INFO
+						,	"remote resource"
 						" transition completed.");
 						other_is_stable = 1;
 					}
@@ -1452,7 +1459,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 				,	"local resource transition completed.");
 				req_our_resources();
 				newrstate = R_STABLE;
-				send_resources_held(rsc_msg[i_hold_resources], 1);
+				send_resources_held(rsc_msg[i_hold_resources],1);
 			}
 		}else{
 			const char *	comment = ha_msg_value(msg, F_COMMENT);
@@ -1460,34 +1467,33 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 			 * This T_RESOURCES message is from us.  It might be
 			 * from the "mach_down" script or our own response to
 			 * the other side's T_STARTING message.  The mach_down
-			 * script sets the info (F_COMMENT) field to "mach_down".
+			 * script sets the info (F_COMMENT) field to "mach_down"
 			 *
 			 * We do this so the audits work cleanly AND we can
-			 * avoid a potential race condition.  See the code near
-			 * the message "Fudging i_hold_resources!"
+			 * avoid a potential race condition.
 			 *
 			 * Also, we could now time how long a takeover is
 			 * taking to occur, and complain if it takes "too long"
 			 * 	[ whatever *that* means ]
 			 */
+				/* Probably unnecessary */
 			i_hold_resources = UPD_RSC(i_hold_resources, n);
 
 			if (comment && strcmp(comment, "mach_down") == 0) {
 				ha_log(LOG_INFO
 				,	"mach_down takeover complete.");
 				takeover_in_progress = 0;
+				/* Probably unnecessary */
 				other_is_stable = 1;
 			}
 		}
 	}
 
-	if (!WeAreRestarting) {
-		if (rstate == R_RSCRCVD && now > local_takeover) {
-			newrstate = R_STABLE;
-			req_our_resources();
-			ha_log(LOG_INFO,"local resource transition completed.");
-			send_resources_held(rsc_msg[i_hold_resources], 1);
-		}
+	if (rstate == R_RSCRCVD && now > local_takeover) {
+		newrstate = R_STABLE;
+		req_our_resources();
+		ha_log(LOG_INFO,"local resource transition completed.");
+		send_resources_held(rsc_msg[i_hold_resources], 1);
 	}
 
 	if (rstate != newrstate) {
@@ -1528,16 +1534,12 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	}
 
 	/*
-	 *	Look for orphaned resources...
-	 *
-	 *	This audit may fail for a few seconds after the other machine
-	 *	goes down until we take over their resources.  It seems pretty
-	 *	hard to get this just right.
+	 *	If things are stable, look for orphaned resources...
 	 */
 
 	if (newrstate == R_STABLE && other_is_stable) {
 		/*
-		 *	Does someone own our local resources?
+		 *	Does someone own local resources?
 		 */
 
 		if ((i_hold_resources & LOCAL_RSC) == 0
@@ -1546,7 +1548,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		}
 
 		/*
-		 *	Does someone own the foreign resources?
+		 *	Does someone own foreign resources?
 		 */
 
 		if ((other_holds_resources & LOCAL_RSC) == 0
@@ -2190,9 +2192,10 @@ mark_node_dead(struct node_info *hip)
 			other_is_stable = 1;	/* Not going anywhere */
 			takeover_in_progress = 1;
 			/*
-			 * We MUST do this now, or the other side might come back up
-			 * and think they can own their own resources when they do
-			 * due to receiving an interim T_RESOURCE message from us.
+			 * We MUST do this now, or the other side might come
+			 * back up and think they can own their own resources
+			 * when they do due to receiving an interim
+			 * T_RESOURCE message from us.
 			 */
 			i_hold_resources |= FOREIGN_RSC;
 			/* case 1 - part 1 */
@@ -3433,6 +3436,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.59  2000/06/14 06:17:35  alan
+ * Changed comments quite a bit, and the code a little...
+ *
  * Revision 1.58  2000/06/13 20:34:10  alan
  * Hopefully put the finishing touches on the restart/nice_failback code.
  *
