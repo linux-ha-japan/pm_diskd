@@ -729,11 +729,12 @@ get_iflist(llc_private_t* pi, const char *host)
 
 		sl->next = pi->iflist;
 		pi->iflist = sl;
-		ZAPMSG(reply);
 		if (strcmp(result, API_OK) == 0) {
 			pi->nextif = pi->iflist;
+			ZAPMSG(reply);
 			return(HA_OK);
 		}
+		ZAPMSG(reply);
 	}
 	if (reply != NULL) {
 		zap_iflist(pi);
