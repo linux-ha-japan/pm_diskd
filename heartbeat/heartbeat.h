@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.20 2000/04/12 23:03:49 marcelo Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.21 2000/04/26 22:59:53 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -41,7 +41,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.20 2000/04/12 23:03:
 #define	MAXFIELDS	15		/* Max # of fields in a msg */
 #define HOSTLENG	100		/* Maximum size of "uname -a" return */
 #define STATUSLENG	32		/* Maximum size of status field */
-#define	MAXIFACELEN 30		/* Maximum interface length */
+#define	MAXIFACELEN	30		/* Maximum interface length */
 #define	MAXSERIAL	4
 #define	MAXMEDIA	12
 #define	MAXNODE		100
