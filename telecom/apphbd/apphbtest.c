@@ -53,9 +53,14 @@ main(int argc,char ** argv)
 		case 0:
 			doatest();
 			exit(0);
+			break;
 		case -1:
 			fprintf(stderr, "Can't fork!\n");
+			exit(1);
+			break;
 		default:
+			/* In the parent. */
+			break;
 		}
 	}
 	return(0);
