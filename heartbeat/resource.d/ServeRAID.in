@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.15 2003/05/02 14:13:38 alan Exp $
+# $Id: ServeRAID.in,v 1.16 2003/05/05 11:34:16 alan Exp $
 # 
 # ServeRAID
 #
@@ -101,7 +101,7 @@ usage() {
 	You will need at least version 6 (~April 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.15 2003/05/02 14:13:38 alan Exp $
+	$Id: ServeRAID.in,v 1.16 2003/05/05 11:34:16 alan Exp $
 	!
   exit 1
 }
@@ -260,7 +260,7 @@ ServeRAID_start() {
       : OK All is well!
       targetid=`MergeGroupToSCSI_ID`
       sr_logicaldrivenumber=`expr $targetid + 1`
-      run $IPS SYNCH $sr_adapter DRIVE $sr_logicaldrivenumber &
+      run $IPS SYNCH $sr_adapter $sr_logicaldrivenumber &
       AddSCSI
     else
       return $?
