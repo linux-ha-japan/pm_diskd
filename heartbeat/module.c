@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.2 2000/09/01 22:29:38 marcelo Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.3 2000/09/06 15:56:03 marcelo Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -43,7 +43,13 @@ extern int num_hb_media_types;
 extern struct auth_type** ValidAuths;
 extern int num_auth_types;
 
-int so_select (const struct dirent *dire) { 
+
+static int so_select (const struct dirent *dire);
+static int generic_symbol_load(struct symbol_str symbols[]
+				, int len, void **handle);
+static int comm_module_init(void);
+
+static int so_select (const struct dirent *dire) { 
 
 	const char *end = &dire->d_name[strlen(dire->d_name) - 3];
 
@@ -58,7 +64,7 @@ int so_select (const struct dirent *dire) {
 /* 
  * Generic function to load symbols from a module.
  */
-int generic_symbol_load(struct symbol_str symbols[], int len, void **handle)
+static int generic_symbol_load(struct symbol_str symbols[], int len, void **handle)
 { 
 	int  a;
 
@@ -67,8 +73,8 @@ int generic_symbol_load(struct symbol_str symbols[], int len, void **handle)
 
 			if((*sym->function = dlsym(*handle, sym->name)) == NULL) {
 				if(sym->mandatory) { 
-					ha_log(LOG_ERR, "generic_symbol_load: Plugin [] does not \
-									have [%s] symbol.", sym->name);
+					ha_log(LOG_ERR, "%s: Plugin [] does not have [%s] symbol."
+									, __FUNCTION__, sym->name);
 					dlclose(*handle); *handle = NULL;
 					return(HA_FAIL);
 				}
@@ -79,7 +85,7 @@ int generic_symbol_load(struct symbol_str symbols[], int len, void **handle)
 	return(HA_OK);
 }
 
-int comm_module_init() { 
+static int comm_module_init(void) { 
 
 	struct symbol_str comm_symbols[NR_HB_MEDIA_FNS]; 
 	int a, n;
@@ -118,7 +124,7 @@ int comm_module_init() {
 	n = scandir(COMM_MODULE_DIR, &namelist, &so_select, 0);
 
 	if(n < 0) { 
-		ha_log(LOG_ERR, "comm_module_init: scandir failed.");
+		ha_log(LOG_ERR, "%s: scandir failed.", __FUNCTION__);
 		return (HA_FAIL);
 	}
 
@@ -130,7 +136,7 @@ int comm_module_init() {
 		obj_path = ha_malloc((strlen(COMM_MODULE_DIR) 
 							+ strlen(namelist[a]->d_name) + 1) * sizeof(char));
 		if(!obj_path) { 
-			ha_log(LOG_ERR, "comm_module_init: Failed to alloc object path.");
+			ha_log(LOG_ERR, "%s: Failed to alloc object path.", __FUNCTION__);
 			return(HA_FAIL);
 		}
 
@@ -139,7 +145,7 @@ int comm_module_init() {
 		fns = ha_malloc(sizeof(struct hb_media_fns));
 		
 		if(fns == NULL) { 
-			ha_log(LOG_ERR, "comm_module_init: fns alloc failed.");
+			ha_log(LOG_ERR, "%s: fns alloc failed.", __FUNCTION__);
 			ha_free(obj_path); 
 			for(a=0; a<n; a++) {
 				free(namelist[a]);
@@ -147,8 +153,8 @@ int comm_module_init() {
 			return(HA_FAIL);
 		}
 
-		if((fns->dlhandler = dlopen(obj_path, RTLD_NOW | RTLD_GLOBAL)) == NULL) {
-			ha_log(LOG_ERR, "comm_module_init: dlopen failed.");
+		if((fns->dlhandler = dlopen(obj_path, RTLD_NOW)) == NULL) {
+			ha_log(LOG_ERR, "%s: %s", __FUNCTION__, dlerror());
 			ha_free(obj_path); obj_path = NULL;
 			ha_free(fns); fns = NULL;
 			for(a=0; a<n; a++) {
@@ -160,8 +166,8 @@ int comm_module_init() {
 		hbmedia_types[num_hb_media_types] = ha_malloc(sizeof(struct hb_media_fns *));
 
 		if(hbmedia_types[num_hb_media_types] == NULL) { 
-			ha_log(LOG_ERR, "comm_module_init: hbmedia_types[%d] failed."
-						, num_hb_media_types);
+			ha_log(LOG_ERR, "%s: hbmedia_types[%d] alloc failed"
+						, __FUNCTION__, num_hb_media_types);
 			ha_free(obj_path);
 			ha_free(fns);
 			for(a=0; a<n; a++) {
@@ -213,8 +219,8 @@ int comm_module_init() {
 }
 
 
-int auth_module_init() { 
-
+int auth_module_init() 
+{ 
 	struct symbol_str auth_symbols[NR_AUTH_FNS]; 
 	int a, n;
 	struct dirent **namelist;
@@ -231,7 +237,7 @@ int auth_module_init() {
 	n = scandir(AUTH_MODULE_DIR, &namelist, &so_select, 0);
 
 	if(n < 0) { 
-		ha_log(LOG_ERR, "auth_module_init: scandir failed.");
+		ha_log(LOG_ERR, "%s: scandir failed", __FUNCTION__);
 		return (HA_FAIL);
 	}
 
@@ -243,7 +249,7 @@ int auth_module_init() {
 		obj_path = ha_malloc((strlen(AUTH_MODULE_DIR) 
 							+ strlen(namelist[a]->d_name) + 1) * sizeof(char));
 		if(!obj_path) { 
-			ha_log(LOG_ERR, "auth_module_init: Failed to alloc object path.");
+			ha_log(LOG_ERR, "%s: Failed to alloc object path", __FUNCTION__);
 			for(a=0; a<n; a++) {
 				free(namelist[a]);
 			} 
@@ -255,7 +261,7 @@ int auth_module_init() {
 		auth = ha_malloc(sizeof(struct auth_type));
 
 		if(auth == NULL) { 
-			ha_log(LOG_ERR, "auth_module_init: auth_type alloc failed.");
+			ha_log(LOG_ERR, "%s: auth_type alloc failed", __FUNCTION__);
 			ha_free(obj_path); 
 			for(a=0; a<n; a++) {
 				free(namelist[a]);
@@ -267,8 +273,8 @@ int auth_module_init() {
 		auth_symbols[1].function = (void **)&auth->atype;
 		auth_symbols[2].function = (void **)&auth->needskey;
 
-		if((auth->dlhandler = dlopen(obj_path, RTLD_NOW | RTLD_GLOBAL)) == NULL) {
-			ha_log(LOG_ERR, "auth_module_init: dlopen failed.");
+		if((auth->dlhandler = dlopen(obj_path, RTLD_NOW)) == NULL) {
+			ha_log(LOG_ERR, "%s: dlopen failed", __FUNCTION__);
 			ha_free(obj_path); 
 			ha_free(auth);
 			for(a=0; a<n; a++) {
@@ -280,8 +286,8 @@ int auth_module_init() {
 		ValidAuths[num_auth_types] = ha_malloc(sizeof(struct auth_type *));
 
 		if(ValidAuths[num_auth_types] == NULL) {
-			ha_log(LOG_ERR, "auth_module_init: alloc of ValidAuths[%d] failed."
-						, num_auth_types);
+			ha_log(LOG_ERR, "%s: alloc of ValidAuths[%d] failed."
+						, __FUNCTION__, num_auth_types);
 			for(a=0; a<n; a++) {
 				free(namelist[a]);
 			} 
