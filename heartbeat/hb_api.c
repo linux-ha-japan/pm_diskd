@@ -1526,13 +1526,15 @@ open_reqfifo(client_proc_t* client)
 	 *	This code costs us realtime.
 	 *	To fix it we need to switch to sockets which we only open
 	 *	once when we first start up.  Our socket-based IPC library
-	 *	is nicer, but it will take some work to get there...
+	 *	is lots nicer, but it will take some work to get there...
 	 */
 	fd = open(fifoname, O_RDONLY|O_NDELAY);
 	if (fd < 0) {
 		return(NULL);
 	}
 	if ((ret = fdopen(fd, "r")) != NULL) {
+		/*FIXME!!  WHY DID WE DO THIS? */
+	 	/* FIXME realtime!! */
 		setbuf(ret, NULL);
 	}
 	client->gpfd.fd = fd;
