@@ -1518,7 +1518,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 	}
 
 	if ((hmsg = ha_msg_new(6)) == NULL) {
-		ha_log(LOG_ERR, "no memory for " T_REXMIT);
+		ha_log(LOG_ERR, "no memory for " T_STONITH);
 	}
 
 	if (	hmsg != NULL
@@ -1714,6 +1714,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.9  2003/01/15 19:14:18  alan
+ * fixed an incorrect log message when a STONITH message couldn't be created.
+ *
  * Revision 1.8  2002/11/28 17:10:05  alan
  * We had a problem with local status updates getting all hosed sometimes
  * (depending on timing).  This greatly simplifies the management of
