@@ -1,5 +1,5 @@
 #! /bin/sh
-# postrm script for heartbeat-ldirectord
+# postrm script for ldirectord
 #
 # see: dh_installdeb(1)
 
@@ -18,7 +18,7 @@ set -e
 
 case "$1" in
        purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-	update-rc.d -f heartbeat-ldirectord remove >/dev/null
+	update-rc.d -f ldirectord remove >/dev/null
         ;;
 
     *)

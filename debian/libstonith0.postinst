@@ -1,5 +1,5 @@
 #! /bin/sh
-# postinst script for heartbeat-stonith
+# postinst script for stonith
 #
 # see: dh_installdeb(1)
 

@@ -21,15 +21,16 @@
 MAINTAINERCLEANFILES    = Makefile.in
 
 EXTRA_DIST	        = changelog control copyright dpkg-checkbuild \
-                          heartbeat-ldirectord.conffiles \
-                          heartbeat-ldirectord.files \
-                          heartbeat-ldirectord.postinst \
-                          heartbeat-ldirectord.postrm \
-                          heartbeat-pils.dirs heartbeat-pils.files \
-			  heartbeat-pils-dev.dirs heartbeat-pils-dev.files \
-                          heartbeat-stonith.dirs heartbeat-stonith.files \
-			  heartbeat-stonith-dev.files \
-                          heartbeat-stonith.postinst heartbeat.conffiles \
+                          ldirectord.conffiles \
+                          ldirectord.files \
+                          ldirectord.postinst \
+                          ldirectord.postrm \
+                          libpils0.dirs libpils0.files \
+			  libpils-dev.dirs libpils-dev.files \
+			  stonith.files \
+                          libstonith0.dirs libstonith0.files \
+			  libstonith-dev.dirs libstonith-dev.files \
+                          libstonith0.postinst heartbeat.conffiles \
                           heartbeat.dirs heartbeat.files \
 			  heartbeat-dev.dirs heartbeat-dev.files \
                           heartbeat.postinst heartbeat.postrm \
@@ -38,6 +39,5 @@ EXTRA_DIST	        = changelog control copyright dpkg-checkbuild \
 
 clean-local:
 	rm -f *.substvars *.debhelper files
-	rm -r -f heartbeat heartbeat-dev heartbeat-ldirectord \
-		heartbeat-pils heartbeat-pils-dev \
-		heartbeat-stonith heartbeat-stonith-dev tmp
+	rm -r -f heartbeat heartbeat-dev ldirectord \
+		libpils0 libpils-dev libstonith0 libstonith-dev stonith tmp

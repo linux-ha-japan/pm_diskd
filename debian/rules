@@ -35,9 +35,12 @@ clean:
 	-$(MAKE) distclean MAKE=make
 	dh_clean
 	rm -f build-stamp
-	rm -rf debian/tmp debian/heartbeat debian/heartbeat-ldirectord \
-                debian/heartbeat-stonith
 	rm -f debian/init debian/*.debhelper debian/*.substvars
+	rm -r -f debian/heartbeat debian/heartbeat-dev debian/ldirectord \
+		debian/libpils0 debian/libpils-dev \
+		debian/libstonith0 debian/libstonith-dev debian/stonith \
+		debian/tmp
+
 
 install: build
 	dh_testdir
@@ -51,12 +54,12 @@ install: build
 	find `pwd`/debian/tmp/usr/share/man -type f | xargs gzip -v --best
 	install -c -m 755 heartbeat/init.d/heartbeat \
                 `pwd`/debian/tmp/etc/init.d/heartbeat
-	-mkdir -p `pwd`/debian/tmp/usr/share/doc/heartbeat-ldirectord/
+	-mkdir -p `pwd`/debian/tmp/usr/share/doc/ldirectord/
 	install -c -m 644 ldirectord/ldirectord.cf \
-	  `pwd`/debian/tmp/usr/share/doc/heartbeat-ldirectord/
+	  `pwd`/debian/tmp/usr/share/doc/ldirectord/
 	-mkdir -p `pwd`/debian/tmp/etc/init.d
 	install -c -m 755 ldirectord/init.d/ldirectord \
-		`pwd`/debian/tmp/etc/init.d/heartbeat-ldirectord
+		`pwd`/debian/tmp/etc/init.d/ldirectord
 	cd `pwd`/debian/tmp/etc/ha.d/resource.d \
 	  && ln -s /usr/sbin/ldirectord ldirectord
 

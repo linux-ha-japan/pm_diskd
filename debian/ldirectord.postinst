@@ -1,5 +1,5 @@
 #! /bin/sh
-# postinst script for heartbeat-ldirectord
+# postinst script for ldirectord
 #
 # see: dh_installdeb(1)
 
@@ -24,7 +24,7 @@ set -e
 
 case "$1" in
     configure)
-    	update-rc.d heartbeat-ldirectord defaults >/dev/null
+    	update-rc.d ldirectord defaults >/dev/null
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
