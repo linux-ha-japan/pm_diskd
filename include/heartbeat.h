@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.22 2002/10/21 10:17:18 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.23 2002/10/22 17:41:58 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -52,6 +52,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.22 2002/10/21 10:17:
 #include <stonith/stonith.h>
 #include <clplumbing/cl_log.h>
 #include <clplumbing/longclock.h>
+#include <clplumbing/ipc.h>
+#include <ltdl.h>
 #define index FooIndex
 #define time FooTime
 #include <glib.h>
@@ -290,11 +292,12 @@ struct hb_media {
 	char*		type;		/* Medium type */
 	char*		description;	/* Medium description */
 	const struct hb_media_fns*vf;	/* Virtual Functions */
-	int	wpipe[2];
+	IPC_Channel*	wchan[2];
 		/* Read by the write child processes.
 		 * Written to by control and tty read processes
 		 *	(for status changes and ring passthrough).
 		 */
+	IPC_Channel*	rchan[2];
 };
 
 int parse_authfile(void);

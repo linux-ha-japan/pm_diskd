@@ -20,6 +20,12 @@
  *
  */
 
+/*
+ * NOTE:  This header NOT intended to be included by anything other than
+ * heartbeat.  It is NOT a global header file, and should NOT be installed anywhere
+ * outside the heartbeat tree.
+ */
+
 #ifndef _HB_API_CORE_H
 #	define _HB_API_CORE_H 1
 #include <sys/types.h>

@@ -28,13 +28,26 @@
 logfacility	local0
 #
 #
-#	keepalive: how many seconds between heartbeats
+#	A note on specifying "how long" times below...
+#
+#	The default time unit is seconds
+#		10 means ten seconds
+#
+#	You can also specify them in milliseconds
+#		1500ms means 1.5 seconds
+#
+#
+#	keepalive: how long between heartbeats?
 #
 #keepalive 2
 #
-#	deadtime: seconds-to-declare-host-dead
+#	deadtime: how long-to-declare-host-dead?
 #
 #deadtime 10
+#
+#	warntime: how long before issuing "late heartbeat" warning?
+#
+#warntime 5
 #
 #
 #	Very first dead time (initdead)

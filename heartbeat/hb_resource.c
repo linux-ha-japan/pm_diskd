@@ -2,9 +2,9 @@
 /*
  * hb_resource: Linux-HA heartbeat resource management code
  *
- * Copyright (C) 1999-2002 Alan Robertson <alanr@unix.sh>
  * Copyright (C) 2001-2002 Luis Claudio R. Goncalves
  *				<lclaudio@conectiva.com.br>
+ * Copyright (C) 1999-2002 Alan Robertson <alanr@unix.sh>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -556,7 +556,9 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 			other_holds_resources
 			=	HB_UPD_RSC(other_holds_resources,n);
 
-			if (resourcestate != HB_R_STABLE && other_is_stable) {
+			if ((resourcestate != HB_R_STABLE
+			&&   resourcestate != HB_R_SHUTDOWN)
+			&&	other_is_stable) {
 				ha_log(LOG_INFO
 				,	"remote resource transition completed."
 				);
@@ -1693,3 +1695,18 @@ StonithProcessName(ProcTrack* p)
 	return buf;
 }
 
+/*
+ * $Log: hb_resource.c,v $
+ * Revision 1.3  2002/10/22 17:41:58  alan
+ * Added some documentation about deadtime, etc.
+ * Switched one of the sets of FIFOs to IPC channels.
+ * Added msg_from_IPC to ha_msg.c make that easier.
+ * Fixed a few compile errors that were introduced earlier.
+ * Moved hb_api_core.h out of the global include directory,
+ * and back into a local directory.  I also make sure it doesn't get
+ * installed.  This *shouldn't* cause problems.
+ * Added a ipc_waitin() function to the IPC code to allow you to wait for
+ * input synchronously if you really want to.
+ * Changes the STONITH test to default to enabled.
+ *
+ */

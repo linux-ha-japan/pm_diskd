@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.33 2002/10/21 10:17:18 horms Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.34 2002/10/22 17:41:58 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -33,6 +33,7 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.33 2002/10/21 10:17:18 hor
 #include <ha_msg.h>
 #include <hb_proc.h>
 #include <unistd.h>
+#include <clplumbing/ipc.h>
 
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
@@ -318,6 +319,43 @@ msgfromstream(FILE * f)
 	}
 	return(ret);
 }
+/* Return the next message found in the IPC channel */
+struct ha_msg *
+msgfromIPC(IPC_Channel * ch)
+{
+	int		rc;
+	IPC_Message*	ipcmsg;
+	struct ha_msg*	hmsg;
+
+	rc = ch->ops->waitin(ch);
+
+	switch(rc) {
+		default:
+		case IPC_FAIL:
+			ha_perror("msgfromIPC: waitin failure");
+			return NULL;
+		case IPC_BROKEN:
+			sleep(1);
+			return NULL;
+		case IPC_INTR:
+			return NULL;
+			break;
+
+		case IPC_OK:
+			break;
+	}
+
+
+	rc = ch->ops->recv(ch, &ipcmsg);
+	if (rc != IPC_OK) {
+		return NULL;
+	}
+
+	hmsg = string2msg((char *)ipcmsg->msg_body, ipcmsg->msg_len);
+	ipcmsg->msg_done(ipcmsg);
+
+	return hmsg;
+}
 
 
 /* Writes a message into a stream - used for serial lines */
@@ -465,6 +503,18 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.34  2002/10/22 17:41:58  alan
+ * Added some documentation about deadtime, etc.
+ * Switched one of the sets of FIFOs to IPC channels.
+ * Added msg_from_IPC to ha_msg.c make that easier.
+ * Fixed a few compile errors that were introduced earlier.
+ * Moved hb_api_core.h out of the global include directory,
+ * and back into a local directory.  I also make sure it doesn't get
+ * installed.  This *shouldn't* cause problems.
+ * Added a ipc_waitin() function to the IPC code to allow you to wait for
+ * input synchronously if you really want to.
+ * Changes the STONITH test to default to enabled.
+ *
  * Revision 1.33  2002/10/21 10:17:18  horms
  * hb api clients may now be built outside of the heartbeat tree
  *

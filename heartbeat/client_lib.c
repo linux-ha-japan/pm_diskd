@@ -289,7 +289,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	}
 
 	if (!iscasual && DoLock(HBPREFIX, OurClientID) != 0) {
-		ha_api_log(LOG_ERR, "Cannot lock FIFO for %s", OurClientID);
+		ha_api_perror("Cannot lock FIFO for %s", OurClientID);
 	}
 	pi->iscasual = iscasual;
 	directory = (iscasual ? CASUALCLIENTDIR : NAMEDCLIENTDIR);

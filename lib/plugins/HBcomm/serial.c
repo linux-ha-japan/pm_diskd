@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.20 2002/10/18 07:16:10 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.21 2002/10/22 17:41:58 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -593,6 +593,7 @@ serial_read (struct hb_media*mp)
 			 * I suppose it just becomes an IPC abstraction
 			 * and we issue a "msgput" or some such on it...
 			 */
+#if 0
 			if (DEBUGPKT) {
 				ha_log(LOG_DEBUG
 				,	"serial_read: writing %s"
@@ -600,7 +601,15 @@ serial_read (struct hb_media*mp)
 				,	newmsg, newmsglen
 				,	sp->wpipe[P_WRITEFD]);
 			}
-			write(sp->wpipe[P_WRITEFD], newmsg, newmsglen);
+			/* FIXME!!!!! */
+			/* I think the code as it stands never calls this
+			 * anyway.  It *should* call this, but I don't
+			 * see any way for newmsglen to become nonzero
+			 */
+			write(sp->wchan[P_WRITEFD], newmsg, newmsglen);
+#else
+			;
+#endif
 		}
 	}
 
@@ -646,6 +655,18 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.21  2002/10/22 17:41:58  alan
+ * Added some documentation about deadtime, etc.
+ * Switched one of the sets of FIFOs to IPC channels.
+ * Added msg_from_IPC to ha_msg.c make that easier.
+ * Fixed a few compile errors that were introduced earlier.
+ * Moved hb_api_core.h out of the global include directory,
+ * and back into a local directory.  I also make sure it doesn't get
+ * installed.  This *shouldn't* cause problems.
+ * Added a ipc_waitin() function to the IPC code to allow you to wait for
+ * input synchronously if you really want to.
+ * Changes the STONITH test to default to enabled.
+ *
  * Revision 1.20  2002/10/18 07:16:10  alan
  * Put in Horms big patch plus a patch for the apcmastersnmp code where
  * a macro named MIN returned the MAX instead.  The code actually wanted

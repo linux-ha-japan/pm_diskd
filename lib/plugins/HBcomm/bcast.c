@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.26 2002/10/02 13:40:26 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.27 2002/10/22 17:41:58 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -247,12 +247,11 @@ bcast_new(const char * intf)
 	ret = (struct hb_media*) MALLOC(sizeof(struct hb_media));
 	if (ret != NULL) {
 		char * name;
+		memset(ret, 0, sizeof(*ret));
 		ret->pd = (void*)ipi;
 		name = MALLOC(strlen(intf)+1);
 		strcpy(name, intf);
 		ret->name = name;
-		ret->wpipe[0] = 0;
-		ret->wpipe[1] = 0;
 		if (DEBUGPKT) {
 			PILCallLog(LOG, PIL_DEBUG, "bcast_new: returning ret (%s)", ret->name);
 		}
@@ -779,6 +778,18 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.27  2002/10/22 17:41:58  alan
+ * Added some documentation about deadtime, etc.
+ * Switched one of the sets of FIFOs to IPC channels.
+ * Added msg_from_IPC to ha_msg.c make that easier.
+ * Fixed a few compile errors that were introduced earlier.
+ * Moved hb_api_core.h out of the global include directory,
+ * and back into a local directory.  I also make sure it doesn't get
+ * installed.  This *shouldn't* cause problems.
+ * Added a ipc_waitin() function to the IPC code to allow you to wait for
+ * input synchronously if you really want to.
+ * Changes the STONITH test to default to enabled.
+ *
  * Revision 1.26  2002/10/02 13:40:26  alan
  * Fixed some potential holes pointed out by Nathan Wallwork.
  *

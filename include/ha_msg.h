@@ -22,8 +22,9 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.5 2002/07/08 04:14:12 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.6 2002/10/22 17:41:58 alan Exp $";
 #include <stdio.h>
+#include <clplumbing/ipc.h>
 
 struct ha_msg {
 	int	nfields;
@@ -116,6 +117,9 @@ int		ha_msg_add_nv(struct ha_msg* msg, const char * nvline, const char * bufmax)
 
 /* Return value associated with particular name */
 const char *	ha_msg_value(const struct ha_msg * msg, const char * name);
+
+/* Reads an IPC stream -- converts it into a message */
+struct ha_msg *	msgfromIPC(IPC_Channel * f);
 
 /* Reads a stream -- converts it into a message */
 struct ha_msg *	msgfromstream(FILE * f);

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.227 2002/10/21 14:27:37 msoffen Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.228 2002/10/22 17:41:58 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -657,8 +657,8 @@ initialize_heartbeat()
 	for (j=0; j < nummedia; ++j) {
 		struct hb_media* smj = sysmedia[j];
 
-		if (pipe(smj->wpipe) < 0) {
-			ha_perror("cannot create hb channel pipe");
+		if (ipc_channel_pair(smj->wchan) != IPC_OK) {
+			ha_perror("cannot create hb write channel IPC");
 			return(HA_FAIL);
 		}
 		if (ANYDEBUG) {
@@ -861,11 +861,10 @@ read_child(struct hb_media* mp)
 void
 write_child(struct hb_media* mp)
 {
-	int	ourpipe =	mp->wpipe[P_READFD];
-	FILE *	ourfp		= fdopen(ourpipe, "r");
+	IPC_Channel* ourchan =	mp->wchan[P_READFD];
 
 	if (hb_signal_set_write_child(NULL) < 0) {
-		ha_log(LOG_ERR, "write_child(): hb_signal_set_write_child(): "
+		ha_perror("write_child(): hb_signal_set_write_child(): "
 			"Soldiering on...");
 	}
 
@@ -875,7 +874,7 @@ write_child(struct hb_media* mp)
 	curproc->pstat = RUNNING;
 
 	for (;;) {
-		struct ha_msg * msgp = msgfromstream(ourfp);
+		struct ha_msg * msgp = msgfromIPC(ourchan);
 
 		hb_signal_process_pending();
 		if (msgp == NULL) {
@@ -955,92 +954,53 @@ control_process(FILE * fp, int fifoofd)
 	cleanexit(LSB_EXIT_OK);
 }
 
-/*
- * Control (outbound) packet processing...
- *
- * This is where the reliable multicast protocol is implemented -
- * through the use of process_rexmit(), and add2_xmit_hist().
- * process_rexmit(), and add2_xmit_hist() use msghist to track sent
- * packets so we can retransmit them if they get lost.
- *
- * NOTE: It's our job to dispose of the packet we're given...
- */
-void
-process_control_packet(struct msg_xmit_hist*	msghist
-,		struct ha_msg *	msg)
+static void
+hb_del_ipcmsg(IPC_Message* m)
 {
-	int	statusfd = status_pipe[P_WRITEFD];
+	int	refcnt = GPOINTER_TO_INT(m->msg_private);
 
-	char *		smsg;
-	const char *	type;
-	int		len;
-	const char *	cseq;
-	unsigned long	seqno = -1;
-	const  char *	to;
-	int		IsToUs;
-
-	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, "got msg in process_control_packet");
+	if (refcnt <= 1) {
+		memset(m->msg_body, 0, m->msg_len);
+		ha_free(m->msg_body);
+		memset(m, 0, sizeof(*m));
+		ha_free(m);
+	}else{
+		refcnt--;
+		m->msg_private = GINT_TO_POINTER(refcnt);
 	}
-	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
-		ha_log(LOG_ERR, "process_control_packet: no type in msg.");
-		ha_msg_del(msg);
-		return;
-	}
-	if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
-		if (sscanf(cseq, "%lx", &seqno) != 1
-		||	seqno <= 0) {
-			ha_log(LOG_ERR, "process_control_packet: "
-			"bad sequence number");
-			smsg = NULL;
-			ha_msg_del(msg);
-			return;
-		}
-	}
-
-	to = ha_msg_value(msg, F_TO);
-	IsToUs = (to != NULL) && (strcmp(to, curnode->nodename) == 0);
-
-	/* Is this a request to retransmit a packet? */
-	if (strcasecmp(type, T_REXMIT) == 0 && IsToUs) {
-		/* OK... Process retransmit request */
-		process_rexmit(msghist, msg);
-		ha_msg_del(msg);
-		return;
-	}
-	/* Convert the incoming message to a string */
-	smsg = msg2string(msg);
-
-	/* If it didn't convert, throw original message away */
-	if (smsg == NULL) {
-		ha_msg_del(msg);
-		return;
-	}
-	/* Remember Messages with sequence numbers */
-	if (cseq != NULL) {
-		add2_xmit_hist (msghist, msg, seqno);
-	}
-
-	len = strlen(smsg);
-
-	/* Copy the message to the status process */
-	write(statusfd, smsg, len);
-
-	send_to_all_media(smsg, len);
-	ha_free(smsg);
-
-	/*  Throw away "msg" here if it's not saved above */
-	if (cseq == NULL) {
-		ha_msg_del(msg);
-	}
-	/* That's All Folks... */
 }
+
+static IPC_Message*
+hb_new_ipcmsg(void * data, int len, IPC_Channel* ch, int refcnt)
+{
+	IPC_Message*	hdr;
+	char*	copy;
+	
+	if ((hdr = (IPC_Message*)ha_malloc(sizeof(*hdr)))  == NULL) {
+		return(NULL);
+	}
+	if ((copy = (char*)ha_malloc(len)) == NULL) {
+		ha_free(hdr);
+		return(NULL);
+	}
+	memcpy(copy, data, len);
+	hdr->msg_len = len;
+	hdr->msg_body = copy;
+	hdr->msg_ch = ch;
+	hdr->msg_done = hb_del_ipcmsg;
+	hdr->msg_private = GINT_TO_POINTER(refcnt);
+
+	return hdr;
+}
+
+
 
 /* Send this message to all of our heartbeat media */
 void
 send_to_all_media(char * smsg, int len)
 {
 	int	j;
+	IPC_Message*	outmsg;
 
 	/* Throw away some packets if testing is enabled */
 	if (TESTSEND) {
@@ -1048,20 +1008,24 @@ send_to_all_media(char * smsg, int len)
 			return;
 		}
 	}
+
+	outmsg = hb_new_ipcmsg(smsg, len, NULL, nummedia);
+	if (outmsg == NULL) {
+		ha_log(LOG_ERR, "Out of memory. Shutting down.");
+		hb_force_shutdown();
+	}
+
 	/* Send the message to all our heartbeat interfaces */
 	for (j=0; j < nummedia; ++j) {
+		IPC_Channel*	wch = sysmedia[j]->wchan[P_WRITEFD];
 		int	wrc;
-		alarm(2);
-		wrc=write(sysmedia[j]->wpipe[P_WRITEFD], smsg, len);
-		if (wrc < 0) {
+
+		wrc=wch->ops->send(wch, outmsg);
+		if (wrc != IPC_OK) {
 			ha_perror("Cannot write to media pipe %d"
 			,	j);
 			ha_log(LOG_ERR, "Shutting down.");
 			hb_force_shutdown();
-		}else if (wrc != len) {
-			ha_log(LOG_ERR
-			,	"Short write on media pipe %d [%d vs %d]"
-			,	j, wrc, len);
 		}
 		alarm(0);
 	}
@@ -1659,7 +1623,7 @@ process_clustermsg(FILE * f)
 
 	/*
 	 * FIXME: ALL messages ought to go through a GHashTable
-	 * and get called as functions so it's  easily extensible
+	 * and get called as functions so it's easily extensible
 	 * without messing up this logic.  It would be faster, too!
 	 * parameters to these functions should be:
 	 *	type
@@ -2437,12 +2401,15 @@ send_cluster_msg(struct ha_msg* msg)
 		if ((wrc = write(ffd, smsg, length)) != length
 		&&	(wrc >= 0 || errno != EINTR
 		||	(wrc = write(ffd, smsg, length)) != length)) {
-			ha_perror("cannot write message to FIFO! [rc=%d]"
-			,	wrc);
 			rc = HA_FAIL;
 			close(ffd);
 			ffd = -1;
-                        hb_force_shutdown();
+			if (!(shutdown_in_progress && errno == EPIPE)) {
+				/* Sometimes they're already shut down */
+				ha_perror("cannot write message to FIFO! [rc=%d]"
+				,	wrc);
+                        	hb_force_shutdown();
+			}
 		}
 		if (DEBUGPKTCONT) {
 			ha_log(LOG_DEBUG, "%d bytes written to %s by %d"
@@ -3177,11 +3144,22 @@ should_ring_copy_msg(struct ha_msg *m)
 	return(1);
 }
 
+/*
+ *	From here to the end is protocol code.  It implements our reliable
+ *	multicast protocol.
+ *
+ *	The implementation of this protocol is split between the
+ *	control_process() and the master_status_process().  This is
+ *	unfortunate, and the cause of a little confusion here and there ;-)
+ *
+ *	One of the better reasons to merge the two processes...
+ */
+
 
 /*
- *	Right now, this is a little too simple.  There is no provision for
- *	sequence number wraparounds.  But, it will take a very long
- *	time to wrap around (~ 100 years)
+ *	Right now, this function is a little too simple.  There is no
+ *	provision for sequence number wraparounds.  But, it will take a very
+ *	long time to wrap around (~ 100 years)
  *
  *	I suspect that there are better ways to do this, but this will
  *	do for now...
@@ -3398,6 +3376,89 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	return(DROPIT);
 
 }
+
+/*
+ * Control (inbound) packet processing...
+ * This is part of the control_process() processing.
+ *
+ * This is where the reliable multicast protocol is implemented -
+ * through the use of process_rexmit(), and add2_xmit_hist().
+ * process_rexmit(), and add2_xmit_hist() use msghist to track sent
+ * packets so we can retransmit them if they get lost.
+ *
+ * NOTE: It's our job to dispose of the packet we're given...
+ */
+void
+process_control_packet(struct msg_xmit_hist*	msghist
+,		struct ha_msg *	msg)
+{
+	int	statusfd = status_pipe[P_WRITEFD];
+
+	char *		smsg;
+	const char *	type;
+	int		len;
+	const char *	cseq;
+	unsigned long	seqno = -1;
+	const  char *	to;
+	int		IsToUs;
+
+	if (DEBUGPKTCONT) {
+		ha_log(LOG_DEBUG, "got msg in process_control_packet");
+	}
+	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
+		ha_log(LOG_ERR, "process_control_packet: no type in msg.");
+		ha_msg_del(msg);
+		return;
+	}
+	if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
+		if (sscanf(cseq, "%lx", &seqno) != 1
+		||	seqno <= 0) {
+			ha_log(LOG_ERR, "process_control_packet: "
+			"bad sequence number");
+			smsg = NULL;
+			ha_msg_del(msg);
+			return;
+		}
+	}
+
+	to = ha_msg_value(msg, F_TO);
+	IsToUs = (to != NULL) && (strcmp(to, curnode->nodename) == 0);
+
+	/* Is this a request to retransmit a packet? */
+	if (strcasecmp(type, T_REXMIT) == 0 && IsToUs) {
+		/* OK... Process retransmit request */
+		process_rexmit(msghist, msg);
+		ha_msg_del(msg);
+		return;
+	}
+	/* Convert the incoming message to a string */
+	smsg = msg2string(msg);
+
+	/* If it didn't convert, throw original message away */
+	if (smsg == NULL) {
+		ha_msg_del(msg);
+		return;
+	}
+	/* Remember Messages with sequence numbers */
+	if (cseq != NULL) {
+		add2_xmit_hist (msghist, msg, seqno);
+	}
+
+	len = strlen(smsg);
+
+	/* Copy the message to the status process */
+	write(statusfd, smsg, len);
+
+	send_to_all_media(smsg, len);
+	ha_free(smsg);
+
+	/*  Throw away "msg" here if it's not saved above */
+	if (cseq == NULL) {
+		ha_msg_del(msg);
+	}
+	/* That's All Folks... */
+}
+
 
 /*
  * Is this the sequence number of a lost packet?
@@ -3817,6 +3878,18 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.228  2002/10/22 17:41:58  alan
+ * Added some documentation about deadtime, etc.
+ * Switched one of the sets of FIFOs to IPC channels.
+ * Added msg_from_IPC to ha_msg.c make that easier.
+ * Fixed a few compile errors that were introduced earlier.
+ * Moved hb_api_core.h out of the global include directory,
+ * and back into a local directory.  I also make sure it doesn't get
+ * installed.  This *shouldn't* cause problems.
+ * Added a ipc_waitin() function to the IPC code to allow you to wait for
+ * input synchronously if you really want to.
+ * Changes the STONITH test to default to enabled.
+ *
  * Revision 1.227  2002/10/21 14:27:37  msoffen
  * Added packet Debug information and more error messages (when unable to open
  * a FIFO properly).
