@@ -1,0 +1,75 @@
+#!/bin/sh
+#
+# Startup script for the Audible Alarm
+#
+# author: Kirk Lawson <lklawson@heapy.com> 
+#         Horms <horms@vergenet.net>
+#
+# description: sets an audiable alarm running by beeping at a set interval
+# processname: alarm
+# config: /etc/AudibleAlarm/AudibleAlarm.conf - not yet implemented
+#
+# Licence: GPL
+
+PIDFILE=/var/run/heartbeat-bell
+#For testing
+#PIDFILE=/tmp/heartbeat-bell
+
+# Source function library.
+. /etc/ha.d/shellfuncs
+
+audiablealarm_start () {
+	ha_log "$0: Starting"
+    	if [ -f $PIDFILE ]; then
+        	PID=`head -1 $PIDFILE`
+		ha_log "$0: Appears to already be running, killing [$PID]"
+		kill $PID > /dev/null
+	fi
+	while [ 1 ]; do 
+		sleep 1  #Sleep first, incase we bail out
+		echo -ne "\a" > /dev/console 
+	done&
+	if ! echo $! >  $PIDFILE; then
+		ha_log "$0: Could not write to pid file \"$PIDFILE\", bailing"
+		kill $!
+		exit 1
+	fi
+}
+
+audiablealarm_stop () {
+	ha_log "$0: Shutting down"
+  	if [ -f $PIDFILE ]; then
+		PID=`head -1 $PIDFILE`
+		ha_log "$0: Appears to already be running, killing [$PID]"
+		kill $PID > /dev/null
+		rm $PIDFILE
+	fi
+}
+
+
+# See how we were called.
+case "$1" in
+  start)
+	audiablealarm_start
+	;;
+  stop)
+	audiablealarm_stop
+	;;
+  restart)
+	$0 stop
+	$0 start
+	;;
+  status)
+  	if [ -f $PIDFILE ]; then
+		echo running
+	else
+		echo stopped
+	fi
+	;;
+
+  *)
+	echo "Usage: $0 {start|stop|restart|status}"
+	exit 1
+esac
+
+exit 0
