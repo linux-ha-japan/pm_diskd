@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.11 2000/09/01 21:10:46 marcelo Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.12 2000/09/08 20:15:06 alan Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -320,12 +320,15 @@ HB_make_send_sock(struct hb_media * mp)
  * Set up socket for listening to heartbeats (UDP broadcasts)
  */
 
+#define	MAXBINDTRIES	10
 int
 HB_make_receive_sock(struct hb_media * mp) {
 
 	struct ip_private * ei;
 	struct sockaddr_in my_addr;    /* my address information */
 	int	sockfd;
+	int	bindtries;
+	int	boundyet=0;
 
 	UDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
@@ -361,8 +364,19 @@ HB_make_receive_sock(struct hb_media * mp) {
 	}
 #endif
 
-	if (bind(sockfd, (struct sockaddr *)&my_addr
-	,	sizeof(struct sockaddr)) < 0) {
+	/* Try binding a few times before giving up */
+	/* Sometimes a process with it open is exiting right now */
+
+	for(bindtries=0; !boundyet && bindtries < MAXBINDTRIES; ++bindtries) {
+		if (bind(sockfd, (struct sockaddr *)&my_addr
+		,	sizeof(struct sockaddr)) < 0) {
+			ha_perror("Error binding socket. Retrying");
+			sleep(1);
+		}else{
+			boundyet = 1;
+		}
+	}
+	if (!boundyet) {
 #if !defined(SO_BINDTODEVICE)
 		if (errno == EADDRINUSE) {
 			/* This happens with multiple udp or ppp interfaces */
@@ -374,10 +388,11 @@ HB_make_receive_sock(struct hb_media * mp) {
 			close(sockfd);
 			cleanexit(0);
 		}
-#endif
-		ha_perror("Error binding socket");
+#else
+		ha_perror("Unable to bind socket. Giving up");
 		close(sockfd);
 		return(-1);
+#endif
 	}
 	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
 		ha_perror("Error setting the close-on-exec flag");
@@ -473,6 +488,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.12  2000/09/08 20:15:06  alan
+ * Added code to retry the bind operation several times before giving up.
+ *
  * Revision 1.11  2000/09/01 21:10:46  marcelo
  * Added dynamic module support
  *
