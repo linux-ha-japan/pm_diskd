@@ -41,6 +41,7 @@
 struct MLPlugin_s {
 	MLPluginType*		plugintype;	/* Parent pointer */
 	char *			pluginname;	/* malloced plugin name */
+	MLPlugin*		pimanager;
 	void*			exports;	/* Exported Functions	*/
 						/* for this plugin	*/
 	MLPluginFun		pi_close;	/* Plugin close operation */
@@ -100,8 +101,13 @@ struct MLPluginImports_s {
 		/* Incr/Decr reference count */
 	int (*ModRefCount)(MLPlugin*epiinfo, int plusminus);
 
-		/* Unload module associated with this plugin -- if possible */
-	void (*UnloadIfPossible)(MLPlugin *epiinfo);
+		/* Unregister us as a plugin */
+	void (*ForceUnRegister)(MLPlugin *epiinfo);
+
+		/* Unregister/shut down all our clients*/
+	void (*ForEachClient)(MLPlugin* manangerpi
+	,	void(*f)(MLPlugin* clientpi, void * other)
+	,	void* other);
 
 };
 

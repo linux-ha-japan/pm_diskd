@@ -209,11 +209,15 @@ static MLPluginOps  PiExports =
 static int	PiRefCount(MLPlugin * pih);
 static int	PiModRefCount(MLPlugin*epiinfo,int plusminus);
 static void	PiForceUnregister(MLPlugin *epiinfo);
+static void	PiForEachClient(MLPlugin* manangerpi
+	,	void(*f)(MLPlugin* clientpi, void * other)
+	,	void* other);
 
-static MLPluginImports PIHandlerImports = {
-	PiRefCount,
-	PiModRefCount,
-	PiForceUnregister,
+static MLPluginImports PIHandlerImports =
+{	PiRefCount
+,	PiModRefCount
+,	PiForceUnregister
+,	PiForEachClient
 };
 
 /*****************************************************************************
@@ -523,6 +527,7 @@ NewMLPlugin(MLPluginType*	plugintype
 		ret->exports = exports;
 		ret->ud_plugin = ud_plugin;
 		ret->pluginname = g_strdup(pluginname);
+		ret->pimanager = plugintype->pipi_ref;
 		g_hash_table_insert(plugintype->plugins
 		,	g_strdup(ret->pluginname), ret);
 		ret->pi_close = closefun;
@@ -675,6 +680,56 @@ static void
 PiForceUnregister(MLPlugin *id)
 {
 	RmAMLPlugin(id->pluginname, id, NULL);
+}
+
+struct f_e_c_helper {
+	void(*fun)(MLPlugin* clientpi, void * passalong);
+	void*	passalong;
+};
+
+static void PiForEachClientHelper(gpointer key
+,	gpointer pitype, gpointer helper_v);
+
+static void
+PiForEachClientHelper(gpointer unused, gpointer pitype, gpointer v)
+{
+	struct f_e_c_helper*	s;
+	s = (struct f_e_c_helper*)v;
+	s->fun((MLPlugin*)pitype, s->passalong);
+}
+
+
+static void
+PiForEachClient(MLPlugin* mgrpi
+	,	void(*f)(MLPlugin* clientpi, void * passalong)
+	,	void* passalong)
+{
+	MLPluginType*	mgrt;
+	MLPluginUniv*	u;
+	const char *	piname;
+	MLPluginType*	clientt;
+	struct f_e_c_helper	h;
+		
+
+	if (mgrpi == NULL || (mgrt = mgrpi->plugintype) == NULL
+	||	(u = mgrt->universe) == NULL
+	||	(piname = mgrpi->pluginname) == NULL) {
+		MLLog(ML_WARN, "bad parameters to PiForEachClient");
+		return;
+	}
+
+	if ((clientt = g_hash_table_lookup(u->pitypes, piname)) == NULL) {
+		MLLog(ML_WARN, "cannot find PI type %s", piname);
+		return;
+	};
+	if (clientt->pipi_ref != mgrpi) {
+		MLLog(ML_WARN, "Bad pipi_ref ptr in MLPluginType");
+		return;
+	}
+
+	
+	g_hash_table_foreach(clientt->plugins, PiForEachClientHelper, &h);
+
 }
 
 static ML_rc
