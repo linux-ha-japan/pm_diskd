@@ -21,4 +21,4 @@
 MAINTAINERCLEANFILES    = Makefile.in
 
 ## Subdirectories...
-SUBDIRS			= InterfaceMgr HBauth HBcomm
+SUBDIRS			= InterfaceMgr HBauth HBcomm stonith

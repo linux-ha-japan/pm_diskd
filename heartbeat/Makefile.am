@@ -67,8 +67,7 @@ heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
 			module.c ha_if.h hb_api.h hb_api_core.h \
                         hb_md5.h hb_module.h hb_proc.h hb_sha1.h lock.h \
                         setproctitle.c setproctitle.h test.h
-#heartbeat_LDADD	= $(top_builddir)/lib/stonith/libstonith.la \
-heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
+heartbeat_LDADD		= $(top_builddir)/lib/stonith/libstonith.la \
 			$(top_builddir)/replace/libreplace.la	\
 			$(top_builddir)/lib/pils/libpils.la	\
 			$(top_builddir)/lib/clplumbing/libplumb.la	\

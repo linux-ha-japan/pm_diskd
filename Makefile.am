@@ -62,7 +62,7 @@ MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
 ## proc-ha is left out from SUBDIRS (obsolescent / doesn't work currently)
 
 SUBDIRS                 = libltdl doc debian replace include lib \
-                        @XPERIMENTALDIRS@ ldirectord stonith heartbeat \
+                        @XPERIMENTALDIRS@ ldirectord heartbeat \
                         cts linux-ha membership
 
 rpm:		dist

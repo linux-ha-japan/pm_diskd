@@ -301,6 +301,17 @@ RegisterGenIF(PILInterface* intf,  void** imports)
 		GHashTable*		ifmap = *(ifinfo->ifmap);
 
 		g_hash_table_insert(ifmap, intf->interfacename,intf->exports);
+		if (GenDebugFlag) {
+			GenPIImports->log(PIL_DEBUG
+			, "%s IF manager: Inserted interface [%s] in hash"
+			" table @ 0x%08x"
+			, PIL_PLUGIN_S, intf->interfacename
+			, ifmap);
+			GenPIImports->log(PIL_DEBUG
+			, "%s IF manager: Exports are here: 0x%08x"
+			, PIL_PLUGIN_S
+			, GPOINTER_TO_UINT(intf->exports));
+		}
 
 		if (ifinfo->callback != NULL) {
 			PILInterfaceType*	t = intf->interfacetype;
