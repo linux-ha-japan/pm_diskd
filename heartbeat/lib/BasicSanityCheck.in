@@ -89,7 +89,7 @@ GenerateHaCf() {
 	keepalive 1
 	deadtime 3
 	initdead 10
-	mcast $INTERFACE $MCASTIP 694 2 0
+	mcast $INTERFACE $MCASTIP 694 0 0
 	#bcast $INTERFACE
 	node $LOCALNODE $DUMMYNODE
 	!
