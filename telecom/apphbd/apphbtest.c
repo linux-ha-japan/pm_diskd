@@ -42,6 +42,11 @@ main(int argc,char ** argv)
 		max = atoi(argv[1]);
 	}
 
+	if (max == 1)  {
+		doatest();
+		return 0;
+	}
+
 	for (j=0; j < max; ++j) {
 		switch(fork()){
 

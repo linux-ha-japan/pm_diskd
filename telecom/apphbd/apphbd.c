@@ -50,8 +50,6 @@
  *
  *	- Make it a real production-grade daemon process...
  * 
- *	- change all the fprintfs to logging calls
- *
  *	- Log things in the event log
  *
  *	- Implement plugins for (other) notification mechanisms...
@@ -62,6 +60,7 @@
  * 
  */
 
+#include <syslog.h>
 #include <portability.h>
 #include <signal.h>
 #include <stdio.h>
@@ -151,7 +150,7 @@ static gboolean
 apphb_timer_popped(gpointer data)
 {
 	apphb_client_t*	client = data;
-	fprintf(stderr, "OOPS! client '%s' (pid %d) didn't heartbeat\n"
+	syslog(LOG_WARNING, "OOPS! client '%s' (pid %d) didn't heartbeat"
 	,	client->appname, client->pid);
 	client->missinghb = TRUE;
 	client->timerid = 0;
@@ -164,9 +163,15 @@ apphb_prepare(gpointer Src, GTimeVal*now, gint*timeout, gpointer Client)
 {
 	apphb_client_t*		client  = Client;
 
+	/*
+	 * We set deleteme instead of deleting clients immediately because
+	 * we sometimes send replies back, and the prepare() function is
+	 * a safe time to delete a client.
+	 */
 	if (client->deleteme) {
-		/* It's a good day to die! */
+		/* Today is a good day to die! */
 		apphb_client_remove(client);
+		return FALSE;
 	}
 	return FALSE;
 }
@@ -193,8 +198,9 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 	apphb_client_t*		client  = Client;
 
 	if (src->revents & G_IO_HUP) {
-		fprintf(stderr, "pid: %d: client HUP!\n", getpid());
-		apphb_client_remove(client);
+		syslog(LOG_WARNING, "OOPS! client %s (pid %d) HUP!"
+		,	client->appname, client->pid);
+		client->deleteme = TRUE;
 		return FALSE;
 	}
 
@@ -356,7 +362,7 @@ static int
 apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
 {
 	if (client->missinghb) {
-		fprintf(stderr, "Client '%s' (pid %d) alive again.\n"
+		syslog(LOG_INFO, "Client '%s' (pid %d) alive again."
 		,	client->appname, client->pid);
 		client->missinghb = FALSE;
 	}
@@ -395,7 +401,7 @@ apphb_read_msg(apphb_client_t* client)
 
 
 		case IPC_FAIL:
-		fprintf(stderr, "OOPS! client %s (pid %d) read failure!"
+		syslog(LOG_CRIT, "OOPS! client %s (pid %d) read failure!"
 		,	client->appname, client->pid);
 		break;
 	}
@@ -512,6 +518,7 @@ main(int argc, char ** argv)
 	GPollFD		pollfd;
 	GMainLoop*	mainloop;
 	
+	openlog("apphbd", LOG_NDELAY|LOG_NOWAIT|LOG_PID, LOG_USER);
 	/* Create a "waiting for connection" object */
 
 	wconnattrs = g_hash_table_new(g_str_hash, g_str_equal);
@@ -521,7 +528,7 @@ main(int argc, char ** argv)
 	wconn = ipc_wait_conn_constructor(IPC_ANYTYPE, wconnattrs);
 
 	if (wconn == NULL) {
-		perror("UhOh! No wconn!");
+		syslog(LOG_CRIT, "UhOh! Failed to create wconn!");
 		exit(1);
 	}
 
@@ -539,6 +546,7 @@ main(int argc, char ** argv)
 
 	/* Create the mainloop and run it... */
 	mainloop = g_main_new(FALSE);
+	syslog(LOG_INFO, "Starting %s", argv[0]);
 	g_main_run(mainloop);
 	return 0;
 }
