@@ -321,22 +321,23 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		return HA_FAIL;
 	}
 	
-	/* Make our reply FIFO */
-	if (mkfifo(pi->ReplyFIFOName, 0600) < 0) {
-		ha_perror("hb_api_signon: Can't create fifo %s"
-		,	pi->ReplyFIFOName);
-		ZAPMSG(request);
-		return HA_FAIL;
-	}
+	if (casual) {
+		/* Make our reply FIFO */
+		if (mkfifo(pi->ReplyFIFOName, 0600) < 0) {
+			ha_perror("hb_api_signon: Can't create fifo %s"
+			,	pi->ReplyFIFOName);
+			ZAPMSG(request);
+			return HA_FAIL;
+		}
 
-	/* Make our request FIFO */
-	if (mkfifo(pi->ReqFIFOName, 0600) < 0) {
-		ha_perror("hb_api_signon: Can't create fifo %s"
-		,	pi->ReqFIFOName);
-		ZAPMSG(request);
-		return HA_FAIL;
+		/* Make our request FIFO */
+		if (mkfifo(pi->ReqFIFOName, 0600) < 0) {
+			ha_perror("hb_api_signon: Can't create fifo %s"
+			,	pi->ReqFIFOName);
+			ZAPMSG(request);
+			return HA_FAIL;
+		}
 	}
-
 	/* We open it this way to keep the open from hanging...
 	 * We really only need to read it (see the fdopen below), but if
 	 * we open it only for reading then we'll get an EPIPE until it
