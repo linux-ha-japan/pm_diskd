@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.18 2002/07/08 04:14:12 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.19 2002/10/31 19:10:48 msoffen Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -168,8 +168,13 @@ ConvertBitsToMask (char *mask)
 
 		for (count=0; count < 3; count++) {
 			p=strtok(NULL, ".");
-			i = strlen(p);
-			strncat(maskwithoutdots, p, (i <= 3 ? i : 3));
+			if (p != NULL) {
+				i = strlen(p);
+				strncat(maskwithoutdots, p, (i <= 3 && p != NULL ? i : 3));
+			}
+			else {
+				count = 3;
+			}
 		}
 
 		maskbits = atoi(maskwithoutdots);
@@ -592,6 +597,9 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.19  2002/10/31 19:10:48  msoffen
+ * Corrected the find route with "ROUTE" command handles the default route properly.
+ *
  * Revision 1.18  2002/07/08 04:14:12  alan
  * Updated comments in the front of various files.
  * Removed Matt's Solaris fix (which seems to be illegal on Linux).
