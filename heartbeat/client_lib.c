@@ -235,9 +235,6 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	struct ha_msg*	request;
 	struct ha_msg*	reply;
 	int		fd;
-#if 0
-	static char	ReplyFdBuf[MAXLINE];
-#endif
 	struct utsname	un;
 	int		rc;
 	const char *	result;
@@ -365,12 +362,15 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		return HA_FAIL;
 	}
 
-#if 0
-	/* Probably a bad idea ;-) */
-	setvbuf(pi->ReplyFIFO, ReplyFdBuf, _IOLBF, sizeof(ReplyFdBuf));
-#else
+	/*
+	 * We cannot allow the ReplyFIFO to be buffered or we can get
+	 * get very confused if it has more than one message in it.
+	 * In particular, we have no way to tell if stdio has read in
+	 * a message that we'd like to report to the client via
+	 * msgready().  So, we do this to make msgready() accurate
+	 * (which is hardly an optional property).
+	 */
 	setvbuf(pi->ReplyFIFO, NULL, _IONBF, 0);
-#endif
 
 
 	/* Open up the registration FIFO */
