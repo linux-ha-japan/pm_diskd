@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.80 2003/03/07 01:13:05 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.81 2003/04/30 22:24:22 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -61,6 +61,7 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.80 2003/03/07 01:13:05 
 #define KEY_HOPS	"hopfudge"
 #define KEY_KEEPALIVE	"keepalive"
 #define KEY_DEADTIME	"deadtime"
+#define KEY_DEADPING	"deadping"
 #define KEY_WARNTIME	"warntime"
 #define KEY_INITDEAD	"initdead"
 #define KEY_WATCHDOG	"watchdog"
@@ -80,6 +81,7 @@ static int add_normal_node(const char *);
 static int set_hopfudge(const char *);
 static int set_keepalive_ms(const char *);
 static int set_deadtime_ms(const char *);
+static int set_deadping_ms(const char *);
 static int set_initial_deadtime_ms(const char *);
 static int set_watchdogdev(const char *);
 static int set_baudrate(const char *);
@@ -103,6 +105,7 @@ struct directive {
 ,	{KEY_HOPS,	set_hopfudge}
 ,	{KEY_KEEPALIVE,	set_keepalive_ms}
 ,	{KEY_DEADTIME,	set_deadtime_ms}
+,	{KEY_DEADPING,	set_deadping_ms}
 ,	{KEY_INITDEAD,	set_initial_deadtime_ms}
 ,	{KEY_WARNTIME,	set_warntime_ms}
 ,	{KEY_WATCHDOG,	set_watchdogdev}
@@ -196,6 +199,7 @@ init_config(const char * cfgfile)
 	config->heartbeat_ms = 1000;
 	config->deadtime_ms = 30000;
 	config->initial_deadtime_ms = -1;
+	config->deadping_ms = -1;
 	config->hopfudge = 1;
 	config->log_facility = -1;
 	config->client_children = g_hash_table_new(g_direct_hash
@@ -289,6 +293,14 @@ init_config(const char * cfgfile)
 		ha_log(LOG_INFO
 		, "It should be >= deadtime and >= 10 seconds");
 	}
+	if (config->deadping_ms < 0 ){
+		config->deadping_ms = config->deadtime_ms;
+	}else if (config->deadping_ms <= 2 * config->heartbeat_ms) {
+		ha_log(LOG_ERR
+		,	"Ping dead time [%ld] is too small compared to keeplive [%ld]"
+		,	config->deadping_ms, config->heartbeat_ms);
+		++errcount;
+	}
 
 	if (*(config->logfile) == EOS) {
                  if (config->log_facility > 0) {
@@ -332,6 +344,13 @@ init_config(const char * cfgfile)
 	}
 	for (j=0; j < config->nodecount; ++j) {
 		config->nodes[j].has_resources = DoManageResources;
+		if (config->nodes[j].nodetype == PINGNODE) {
+			config->nodes[j].dead_ticks
+			=	msto_longclock(config->deadping_ms);
+		}else{
+			config->nodes[j].dead_ticks
+			=	msto_longclock(config->deadtime_ms);
+		}
 	}
 	
 	return(errcount ? HA_FAIL : HA_OK);
@@ -740,6 +759,7 @@ add_option(const char *	option, const char * value)
 			,	type, descr, value);
 			PILIncrIFRefCount(PluginLoadingSystem
 			,	HB_COMM_TYPE_S, option, -1);
+			/* Does this come from ha_malloc? FIXME!! */
 			ha_free(descr); descr = NULL;
 			ha_free(type);  type = NULL;
 			return(HA_FAIL);
@@ -837,6 +857,17 @@ set_deadtime_ms(const char * value)
 {
 	config->deadtime_ms = get_msec(value);
 	if (config->deadtime_ms >= 0) {
+		return(HA_OK);
+	}
+	return(HA_FAIL);
+}
+
+/* Set the dead ping timeout */
+static int
+set_deadping_ms(const char * value)
+{
+	config->deadping_ms = get_msec(value);
+	if (config->deadping_ms >= 0) {
 		return(HA_OK);
 	}
 	return(HA_FAIL);
@@ -1362,7 +1393,9 @@ add_client_child(const char * directive)
 	char*			command;
 	struct passwd*		pw;
 
-	ha_log(LOG_INFO, "respawn directive: %s", directive);
+	if (ANYDEBUG) {
+		ha_log(LOG_INFO, "respawn directive: %s", directive);
+	}
 
 	/* Skip over initial white space, so we can get the uid */
 	uidp = directive;
@@ -1430,6 +1463,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.81  2003/04/30 22:24:22  alan
+ * Added the ability to have a ping node have a different timeout
+ * interval than our usual one.
+ *
  * Revision 1.80  2003/03/07 01:13:05  alan
  * Put in code for a time-based generation number option.
  *

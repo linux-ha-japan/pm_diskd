@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.33 2003/04/15 23:09:51 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.34 2003/04/30 22:24:22 alan Exp $";
 
 #ifdef SYSV
 #	include <sys/termio.h>
@@ -242,10 +242,11 @@ struct node_info {
 	int		nlinks;
 	TIME_T		rmt_lastupdate;	/* node's idea of last update time */
 	seqno_t		status_seqno;	/* Seqno of last status update */
+	longclock_t	dead_ticks;	/* # ticks to declare dead */
 	longclock_t	local_lastupdate;/* Date of last update in clock_t time*/
-	int	anypacketsyet;		/* True after reception of 1st pkt */
+	int		anypacketsyet;	 /* True after reception of 1st pkt */
 	struct seqtrack	track;
-	int	has_resources;		/* TRUE if node may have resources */
+	int		has_resources;	/* TRUE if node may have resources */
 };
 
 
@@ -257,10 +258,11 @@ struct sys_config {
 	TIME_T		rsc_time;		/* Timestamp of haresources file */
 	int		format_vers;		/* Version of this info */
 	int		nodecount;		/* Number of nodes in cluster */
-	long		heartbeat_ms;	/* Milliseconds between heartbeats */
-	long		deadtime_ms;	/* Ticks before declaring dead */
+	long		heartbeat_ms;		/* Milliseconds between heartbeats */
+	long		deadtime_ms;		/* Ticks before declaring dead */
+	long		deadping_ms;		/* Ticks before declaring ping nodes */
 	long		initial_deadtime_ms;	/* Ticks before saying dead 1st time*/
-	long		warntime_ms;	/* Ticks before declaring dead */
+	long		warntime_ms;		/* Ticks before issuing warning */
 	int		hopfudge;		/* hops beyond nodecount allowed */
 	int    		log_facility;		/* syslog facility, if any */
 	char		facilityname[PATH_MAX];	/* syslog facility name (if any) */
