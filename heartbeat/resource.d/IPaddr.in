@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.25 2002/08/02 22:50:43 alan Exp $
+#	$Id: IPaddr.in,v 1.26 2002/08/15 16:15:35 msoffen Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -58,15 +58,7 @@ find_interface_solaris() {
     #  This doesn't look right for a box with multiple NICs.
     #  It looks like it always selects the first interface on
     #  a machine.  Yet, we appear to use the results for this case too...
-    case $SYSTYPE in
-      *BSD)
-		echo `echo "$ifname" | sed s'%:%%'`
-		return 0;;
-      SunOS)
-		ifname=`echo "$ifname" | sed s'%:$%%'`
-		;;
-    esac
-
+    ifname=`echo "$ifname" | sed s'%:$%%'`
 
     case $addr in
       addr:$ipaddr)	echo $ifname; return 0;;
@@ -107,11 +99,10 @@ find_interface_generic() {
     #  a machine.  Yet, we appear to use the results for this case too...
     case $SYSTYPE in
       *BSD)
-		echo `echo "$ifname" | sed s'%:%%'`
+		echo `echo "$ifname" | sed s'%:$%%'`
 		return 0;;
-      SunOS)
-		ifname=`echo "$ifname" | sed s'%:$%%'`
-		;;
+      *)
+		continue;;
     esac
 
 
@@ -184,14 +175,26 @@ ifconfig2sendarp() {
 #
 ip_stop() {
   BASEIP=`echo $1 | sed s'%/.*%%'`
-	 	IF=`find_interface $BASEIP`
+  IF=`find_interface $BASEIP`
 
-  if
-    [ -z "$IF" ]
-  then
-    : Requested interface not in use
-    exit 0
-  fi
+  case $SYSTYPE in
+	*BSD)
+		if
+			$IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
+		then
+			continue;
+		else
+			exit 0
+		fi;;
+
+	*)
+		if
+			[ -z "$IF" ]
+  		then
+    		: Requested interface not in use
+    			exit 0
+  		fi;;
+  esac
 
   if
     [ -x $HA_RCDIR/local_giveip ]
@@ -444,13 +447,25 @@ ip_status() {
   BASEIP=`echo $1 | sed -e s'%/.*%%'`
   IF=`find_interface $BASEIP`
 
-  if
-    [ -z "$IF" ]
-  then
-    echo "stopped"
-  else
-    echo "running"
-  fi
+  case $SYSTYPE in
+    *BSD)
+	if
+		$IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
+	then
+		echo "running"
+	else
+		echo "stopped"
+	fi;;
+
+    *)		
+	if
+		[ -z "$IF" ]
+	then
+		echo "stopped"
+	else
+		echo "running"
+	fi;;
+  esac
 }
 
 #
@@ -475,7 +490,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.25 2002/08/02 22:50:43 alan Exp $"
+  echo "$Id: IPaddr.in,v 1.26 2002/08/15 16:15:35 msoffen Exp $"
 }
 
 #
@@ -522,6 +537,10 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.26  2002/08/15 16:15:35  msoffen
+# Corrected so that BSD will properly get the status/etc. since it has
+# a single device for both IP's (not device:n).
+#
 # Revision 1.25  2002/08/02 22:50:43  alan
 # Put in a minor Solaris bug fix for IPaddr.
 # If we get a MAC address that is missing a leading zero, then we add
