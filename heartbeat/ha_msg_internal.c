@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.20 2002/08/02 22:44:00 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.21 2002/08/10 02:10:24 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -454,6 +454,7 @@ ha_msg_loadavg(void)
 {
 	static char	loadavg[64];
 	static int 		fd = -1;
+	char *		nlp;
 
 	/*
 	 * NOTE:  We never close 'fd'
@@ -465,7 +466,6 @@ ha_msg_loadavg(void)
 	 *
 	 * We should probably get this information once every few seconds
 	 * and use that, but this is OK for now...
-	 * get blocked.
 	 */
 
 	if (fd < 0 && (fd=open(LOADAVG, O_RDONLY)) < 0 ) {
@@ -475,7 +475,10 @@ ha_msg_loadavg(void)
 		read(fd, loadavg, sizeof(loadavg));
 		loadavg[sizeof(loadavg)-1] = EOS;
 	}
-	loadavg[strlen(loadavg)-1] = EOS;
+
+	if ((nlp = strchr(loadavg, '\n')) != NULL) {
+		*nlp = EOS;
+	}
 	return(loadavg);
 }
 
@@ -518,6 +521,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.21  2002/08/10 02:10:24  alan
+ * Changed it so that it's impossible to get an extra newline in the output
+ * from /proc/loadavg regardless of what the kernel gives us...
+ *
  * Revision 1.20  2002/08/02 22:44:00  alan
  * Enhanced an error message when we get a name/value (NV) failure.
  *
