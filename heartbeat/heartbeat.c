@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.5 1999/09/29 03:22:09 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.6 1999/09/30 05:40:37 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -410,7 +410,7 @@ init_procinfo()
 #define KEY_WATCHDOG	"watchdog"
 #define	KEY_BAUDRATE	"baud"
 #define	KEY_UDPPORT	"udpport"
-#define	KEY_FACILITY	"facility"
+#define	KEY_FACILITY	"logfacility"
 #define	KEY_LOGFILE	"logfile"
 #define	KEY_DBGFILE	"debugfile"
 
@@ -852,7 +852,7 @@ parse_authfile(void)
 				config->authnum = i;
 				config->authmethod = config->auth_config+i;
 			}
-		}else{
+		}else if (*bp != EOS) {
 			ha_log(LOG_ERR, "Auth line [%s] is invalid."
 			,	buf);
 			rc = HA_FAIL;
@@ -2429,6 +2429,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.6  1999/09/30 05:40:37  alanr
+ * Thomas Hepper's fixes
+ *
  * Revision 1.5  1999/09/29 03:22:09  alanr
  * Added the ability to reread auth config file on SIGHUP
  *
