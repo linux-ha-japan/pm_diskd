@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.38 2001/06/27 23:54:30 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.39 2001/06/28 04:24:14 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -84,7 +84,6 @@ int	num_hb_media_types;
 
 struct hb_media_fns**	hbmedia_types;
 
-struct tms times_buf; /* Needed for times() call */
 
 #ifdef IRIX
 	void setenv(const char *name, const char * value, int);
