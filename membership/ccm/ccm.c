@@ -401,7 +401,7 @@ finallist_init(void)
 static void
 finallist_reset(void)
 {
-	bzero(&finallist_time, sizeof(struct timeval));
+	memset(&finallist_time, 0, sizeof(struct timeval));
 }
 
 static int
@@ -444,7 +444,7 @@ leave_init(void)
 
 	assert(!leave_bitmap);
 	numBytes = bitmap_create(&leave_bitmap, MAXNODE);
-	bzero(leave_bitmap, numBytes);
+	memset(leave_bitmap, 0, numBytes);
 }
 
 static void
@@ -452,7 +452,7 @@ leave_reset(void)
 {
 	int numBytes = bitmap_size(MAXNODE);
 	if(!leave_bitmap) return;
-	bzero(leave_bitmap, numBytes);
+	memset(leave_bitmap, 0, numBytes);
 	return;
 }
 
@@ -3324,7 +3324,7 @@ ccm_initialize()
 
 	hb_fd = ll_cluster_new("heartbeat");
 	
-	fprintf(stderr, "PID=%d\n", (int)getpid());
+	fprintf(stderr, "PID=%ld\n", (long)getpid());
 	fprintf(stderr, "Hostname: %s\n", hname);
 
 	fprintf(stderr, "Signing in with Heartbeat\n");

@@ -82,7 +82,7 @@ typedef struct class_s {
 	oc_ev_callback_t *(*set_callback)(struct class_s *, 
 						oc_ev_callback_t(*));
 	gboolean	 (*handle_event) (struct class_s *);
-	void		 (*activate) (struct class_s *);
+	int		 (*activate) (struct class_s *);
 	void		 (*unregister) (struct class_s *);
 	gboolean	 (*is_my_nodeid) (struct class_s *, const oc_node_t *);
 	void		     *private;

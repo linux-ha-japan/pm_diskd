@@ -91,7 +91,7 @@ void   cookie_destruct(void *);
 
 
 static void
-initialize_llm(mbr_private_t *mem, struct IPC_MESSAGE *msg)
+init_llm(mbr_private_t *mem, struct IPC_MESSAGE *msg)
 {
 	unsigned long len = msg->msg_len;
 	int	numnodes;
@@ -105,6 +105,90 @@ initialize_llm(mbr_private_t *mem, struct IPC_MESSAGE *msg)
 	numnodes = CLLM_GET_NODECOUNT(mem->llm);
 	mem->cookie = NULL;
 	return;
+}
+
+static void
+init_bornon(mbr_private_t *private, 
+		struct IPC_MESSAGE *msg)
+{
+	ccm_born_t *born;
+	int numnodes, i, n;
+	struct born_s *bornon;
+
+	numnodes = CLLM_GET_NODECOUNT(private->llm);
+
+	born = (ccm_born_t *)msg->msg_body;
+
+	n = born->n;
+	//fprintf(stderr,"n=%d, msg->msg_len=%ld\n",n,msg->msg_len);
+	assert(msg->msg_len == sizeof(ccm_born_t)
+			+n*sizeof(struct born_s));
+	bornon = born->born;
+	for (i = 0 ; i < n; i++) {
+		assert(bornon[i].index <= numnodes);
+		g_hash_table_insert(private->bornon, 
+			GINT_TO_POINTER(CLLM_GET_UUID(private->llm, 
+					bornon[i].index)),
+			GINT_TO_POINTER(bornon[i].bornon+1));
+	}
+	return;
+}
+
+
+
+static int
+init_llmborn(mbr_private_t *private)
+{
+	fd_set rset;
+	struct IPC_CHANNEL *ch;
+	int 	sockfd, i=0, ret;
+	struct IPC_MESSAGE *msg;
+	struct timeval tv;
+
+	if(private->llm) return 0;
+
+	ch 	   = private->channel;
+	sockfd = ch->ops->get_recv_select_fd(ch);
+
+	/* receive the initiale low level membership 
+	*  information in the first iteration, and 
+	*  recieve the bornon information in the 
+	*  second iteration 
+	*/
+	while( i < 2) {
+
+		FD_ZERO(&rset);
+		FD_SET(sockfd,&rset);
+		tv.tv_sec = 1;
+		tv.tv_usec = 0;
+
+		if(!ch->ops->is_message_pending(ch) && (select(sockfd + 1, 
+				&rset, NULL,NULL,&tv)) == -1){
+			perror("select");
+			ch->ops->destroy(ch);
+			return -1;
+		}
+		ret = ch->ops->recv(ch,&msg);
+		if(ret == IPC_BROKEN) {
+			printf("connection denied\n");
+			return -1;
+		}
+	 	if(ret == IPC_FAIL){
+			fprintf(stderr,".");
+			sleep(1);
+			continue;
+		}
+
+		switch(i) {
+		case 0: init_llm(private, msg);
+			break;
+		case 1: init_bornon(private, msg);
+			break;
+		}
+		i++;
+		msg->msg_done(msg);
+	}
+	return 0;
 }
 
 
@@ -127,48 +211,6 @@ class_valid(class_t *class)
 }
 
 
-
-static void
-recv_bornon_message(mbr_private_t *private)
-{
-	struct IPC_MESSAGE *msg;
-	struct IPC_CHANNEL *ch;
-	int ret;
-	ccm_born_t *born;
-	int numnodes, i, n;
-	struct born_s *bornon;
-
-
-	ch 	   = private->channel;
-
-	assert(private->bornon);
-	while(!ch->ops->is_message_pending(ch)) {
-		fprintf(stderr,".");
-		sleep(1);
-	}
-
-	ret = ch->ops->recv(ch, &msg);
-	assert(ret==IPC_OK);
-
-	numnodes = CLLM_GET_NODECOUNT(private->llm);
-
-	born = (ccm_born_t *)msg->msg_body;
-
-	n = born->n;
-	//fprintf(stderr,"n=%d, msg->msg_len=%ld\n",n,msg->msg_len);
-	assert(msg->msg_len == sizeof(ccm_born_t)
-			+n*sizeof(struct born_s));
-	bornon = born->born;
-	for (i = 0 ; i < n; i++) {
-		assert(bornon[i].index <= numnodes);
-		g_hash_table_insert(private->bornon, 
-				GINT_TO_POINTER(CLLM_GET_UUID(private->llm, 
-						bornon[i].index)),
-				GINT_TO_POINTER(bornon[i].bornon+1));
-	}
-	msg->msg_done(msg);
-	return;
-}
 
 static gboolean
 already_present(oc_node_t *arr, uint size, oc_node_t node)
@@ -312,17 +354,30 @@ mem_handle_event(class_t *class)
 	int	size;
 	oc_memb_event_t type;
 	void   *cookie;
+	int ret;
 
 	if(!class_valid(class)) return FALSE;
 
 	private = (mbr_private_t *)class->private;
 	ch 	   = private->channel;
 
-	/* recevie the message and call the callback*/
-	while(ch->ops->is_message_pending(ch) && 
-		(ch->ops->recv(ch,&msg) == IPC_OK)){
+	if(init_llmborn(private)){
+		return FALSE;
+	}
 
-		type = ((ccm_meminfo_t *)msg->msg_body)->ev;
+	while(ch->ops->is_message_pending(ch)){
+		/* receive the message and call the callback*/
+		ret=ch->ops->recv(ch,&msg);
+
+		if(ret == IPC_FAIL) {
+			return TRUE;
+		}
+
+		if(ret!=IPC_OK){
+			type = OC_EV_MS_EVICTED;
+		} else {
+			type = ((ccm_meminfo_t *)msg->msg_body)->ev;
+		}
 		if(type==OC_EV_MS_NEW_MEMBERSHIP){
 			size = get_new_membership(private, 
 				(ccm_meminfo_t *)msg->msg_body, 
@@ -364,58 +419,42 @@ mem_handle_event(class_t *class)
 					&(mbr_track->m_mem));
 			}
 		}
-		msg->msg_done(msg);
-	}
 
+		if(ret==IPC_OK) {
+			msg->msg_done(msg);
+		} else {
+			return FALSE;
+		}
+	}
 	return TRUE;
 }
 
 
-static void	 
+static int	 
 mem_activate(class_t *class)
 {
 	mbr_private_t *private;
 	struct IPC_CHANNEL *ch;
-	struct IPC_MESSAGE *msg;
-	fd_set rset;
 	int sockfd;
 
-	if(!class_valid(class)) return;
+	if(!class_valid(class)) return -1;
 
 	/* if already activated */
 
 	private = (mbr_private_t *)class->private;
-	if(private->llm)return;
+	if(private->llm)return -1;
 
 	ch 	   = private->channel;
 
 	if(!ch || ch->ops->initiate_connection(ch) != IPC_OK) {
-		return;
+		return -1;
 	}
 
 	sockfd = ch->ops->get_recv_select_fd(ch);
-	FD_ZERO(&rset);
-	FD_SET(sockfd,&rset);
 
-	/* receive the initiale low level membership information */
-	if(!ch->ops->is_message_pending(ch)){
-		if(select(sockfd + 1, &rset, NULL,NULL,NULL) == -1){
-			perror("select");
-			ch->ops->destroy(ch);
-			return;
-		}
-	}
-	if(ch->ops->recv(ch,&msg) != IPC_OK){
-		printf("connection denied\n");
-		return;
-	}
-	initialize_llm(private, msg);
-	msg->msg_done(msg);
-
-	recv_bornon_message(private);
-
-	return;
+	return sockfd;
 }
+
 
 static void
 mem_unregister(class_t *class)

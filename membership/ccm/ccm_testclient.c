@@ -93,8 +93,6 @@ my_ms_events(oc_ed_t event, void *cookie,
 	oc_ev_callback_done(cookie);
 }
 
-
-
 int
 main(int argc, char *argv[])
 {
@@ -121,7 +119,10 @@ main(int argc, char *argv[])
 			perror("select");
 			return(1);
 		}
-		oc_ev_handle_event(ev_token);
+		if(oc_ev_handle_event(ev_token)){
+			fprintf(stderr,"terminating \n");
+			return(1);
+		}
 	}
 	return 0;
 }

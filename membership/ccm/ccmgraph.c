@@ -366,8 +366,8 @@ graph_init()
 	if((gr = (graph_t *)g_malloc(sizeof(graph_t))) == NULL)
 		return NULL;
 	
-	bzero(gr, sizeof(graph_t));
-	bzero(graph, sizeof(graph));
+	memset(gr, 0, sizeof(graph_t));
+	memset(graph, 0, sizeof(graph));
 	for ( i = 0 ; i < MAXNODE ; i++ ) {
 		gr->graph_node[i] = &graph[i];
 	}
