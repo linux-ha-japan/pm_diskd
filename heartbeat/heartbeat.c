@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.97 2001/03/11 03:16:12 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.98 2001/03/11 06:23:09 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2650,6 +2650,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 		,	"Cannot send reset reply message [%s] for %s", result
 		,	nodename);
 	}
+	exit(0);
 }
 
 void
@@ -2744,7 +2745,7 @@ req_our_resources(int getthemanyway)
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot run command %s", cmd);
-		return;
+		exit(1);
 	}
 
 
@@ -2842,7 +2843,7 @@ giveup_resources(int dummy)
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot run command %s", cmd);
-		return;
+		exit(1);
 	}
 
 	while (fgets(buf, MAXLINE, rkeys) != NULL) {
@@ -3978,6 +3979,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.98  2001/03/11 06:23:09  alan
+ * Fixed the bug of quitting whenever stats needed to be printed.
+ * This bug was reported by Robert_Macaulay@Dell.com.
+ * The underlying problem was that the stonith code didn.t exit after
+ * the child process completed, but returned, and then everything got
+ * a bit sick after that ;-)
+ *
  * Revision 1.97  2001/03/11 03:16:12  alan
  * Fixed the problem with mcast not incrementing nummedia.
  * Installed mcast module in the makefile.
