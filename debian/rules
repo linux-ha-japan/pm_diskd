@@ -39,7 +39,7 @@ install: build
 
 	# Add here commands to install the package into debian/tmp.
 
-	$(MAKE) install BUILD_ROOT=`pwd`/debian/tmp DESTDIR=`pwd`/debian/tmp DOCDIR=`pwd`/debian/tmp/usr/share/doc/heartbeat
+	$(MAKE) install BUILD_ROOT=`pwd`/debian/heartbeat DESTDIR=`pwd`/debian/heartbeat DOCDIR=`pwd`/debian/heartbeat/usr/share/doc/heartbeat
 	cp heartbeat/heartbeat.sh `pwd`/debian/init
 	cp doc/ha.cf `pwd`/debian/heartbeat/etc/ha.d
 	cp doc/haresources `pwd`/debian/heartbeat/etc/ha.d
