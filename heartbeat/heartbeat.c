@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.44 2000/04/28 21:41:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.45 2000/05/03 01:48:28 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -260,9 +260,10 @@ void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 void	init_xmit_hist (struct msg_xmit_hist * hist);
 void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
 void	nak_rexmit(int seqno, const char * reason);
-int	req_our_resources(void);
-int	giveup_resources(void);
+void	req_our_resources(void);
+void	giveup_resources(void);
 void	make_realtime(void);
+void	make_normaltime(void);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -478,7 +479,7 @@ initialize_heartbeat()
 	starttime = time(NULL);
 
 	if (stat(FIFONAME, &buf) < 0 ||	!S_ISFIFO(buf.st_mode)) {
-		ha_log(LOG_ERR, "Creating FIFO %s.", FIFONAME);
+		ha_log(LOG_INFO, "Creating FIFO %s.", FIFONAME);
 		unlink(FIFONAME);
 		if (mkfifo(FIFONAME, FIFOMODE) < 0) {
 			ha_perror("Cannot make fifo %s.", FIFONAME);
@@ -640,7 +641,9 @@ make_realtime()
 	struct sched_param	sp;
 	int			staticp;
 
-	ha_log(LOG_INFO, "Setting process %d to realtime", getpid());
+	if (ANYDEBUG) {
+		ha_log(LOG_INFO, "Setting process %d to realtime", getpid());
+	}
 	if ((staticp=sched_getscheduler(0)) < 0) {
 		ha_log(LOG_ERR, "unable to get scheduler parameters.");
 	}else{
@@ -648,7 +651,7 @@ make_realtime()
 		sp.sched_priority = HB_STATIC_PRIO;
 		if (sched_setscheduler(0, HB_SCHED_POLICY, &sp) < 0) {
 			ha_log(LOG_ERR, "unable to set scheduler parameters.");
-		}else{
+		}else if(ANYDEBUG) {
 			ha_log(LOG_INFO
 			,	"scheduler priority set to %d", HB_STATIC_PRIO);
 		}
@@ -659,12 +662,31 @@ make_realtime()
 #ifdef MCL_FUTURE
 	if (mlockall(MCL_FUTURE) < 0) {
 		ha_log(LOG_ERR, "unable to lock pid %d in memory", getpid());
-	}else{
+	}else if (ANYDEBUG) {
 		ha_log(LOG_INFO, "pid %d locked in memory.", getpid());
 	}
 #endif
 }
 
+void
+make_normaltime()
+{
+#ifdef HB_SCHED_POLICY
+	struct sched_param	sp;
+	memset(&sp, 0, sizeof(sp));
+	sp.sched_priority = 0;
+	if (sched_setscheduler(0, SCHED_OTHER, &sp) < 0) {
+		ha_log(LOG_ERR, "unable to (re)set scheduler parameters.");
+	}else if(ANYDEBUG) {
+		ha_log(LOG_INFO
+		,	"scheduler priority set to %d", 0);
+	}
+#endif
+#ifdef _POSIX_MEMLOCK
+	/* Not strictly necessary. */
+	munlockall();
+#endif
+}
 
 void
 read_child(struct hb_media* mp)
@@ -1212,6 +1234,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 
 		case 0:	{	/* Child */
 				int	j;
+				make_normaltime();
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
 					sprintf(ename, "HA_%s", msg->names[j]);
@@ -1788,7 +1811,7 @@ heartbeat_monitor(struct ha_msg * msg)
 #endif
 }
 
-int
+void
 req_our_resources()
 {
 	FILE *	rkeys;
@@ -1799,13 +1822,25 @@ req_our_resources()
 	int	rc;
 	int	rsc_count = 0;
 
-	
+
+	/* We need to fork so we can make child procs not real time */
+	switch(fork()) {
+
+		case -1:	ha_log(LOG_ERR, "Cannot fork.");
+				/*FALL THROUGH*/
+		default:	return;
+
+		case 0:		/* Child */
+				make_normaltime();
+				break;
+	}
+
 	ha_log(LOG_INFO, "Requesting our resources.");
 	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot run command %s", cmd);
-		return(HA_FAIL);
+		return;
 	}
 
 
@@ -1858,10 +1893,10 @@ req_our_resources()
 		ha_log(LOG_INFO, "%d local resources from [%s]"
 		,	rsc_count, cmd);
 	}
-	return(finalrc);
+	exit(0);
 }
 
-int
+void
 giveup_resources()
 {
 	FILE *	rkeys;
@@ -1869,7 +1904,22 @@ giveup_resources()
 	char	buf[MAXLINE];
 	int	finalrc = HA_OK;
 	int	rc;
+	pid_t	pid;
 
+	/* We need to fork so we can make child procs not real time */
+
+	switch((pid=fork())) {
+
+		case -1:	ha_log(LOG_ERR, "Cannot fork.");
+				return;
+
+		default:	waitpid(pid, NULL, 0);
+				return;
+
+		case 0:		/* Child */
+				make_normaltime();
+				break;
+	}
 	
 	ha_log(LOG_INFO, "Giving up all HA resources.");
 	/*
@@ -1880,7 +1930,7 @@ giveup_resources()
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot run command %s", cmd);
-		return(HA_FAIL);
+		return;
 	}
 
 	while (fgets(buf, MAXLINE, rkeys) != NULL) {
@@ -1895,7 +1945,7 @@ giveup_resources()
 	}
 	pclose(rkeys);
 	ha_log(LOG_INFO, "All HA resources relinquished.");
-	return(finalrc);
+	exit(0);
 }
 
 /*  usage statement */
@@ -2792,6 +2842,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.45  2000/05/03 01:48:28  alan
+ * Added code to make non-heartbeat child processes not run as realtime procs.
+ * Also fixed the message about creating FIFO to not be an error, just info.
+ *
  * Revision 1.44  2000/04/28 21:41:37  alan
  * Added the features to lock things in memory, and set our priority up.
  *
