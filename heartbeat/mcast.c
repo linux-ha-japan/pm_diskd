@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.5 2001/05/17 05:51:54 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.6 2001/05/18 05:59:16 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -101,7 +101,8 @@ extern int	udpport;
 
 #define		UDPASSERT(hbm)
 
-int hb_dev_mtype (char** buffer)
+int
+hb_dev_mtype (char** buffer)
 { 
 	
 	*buffer = ha_malloc((strlen("mcast") * sizeof(char)) + 1);
@@ -335,7 +336,8 @@ int hb_dev_open(struct hb_media* hbm)
 /*
  *	Close UDP/IP multicast heartbeat interface
  */
-int hb_dev_close(struct hb_media* hbm)
+int
+hb_dev_close(struct hb_media* hbm)
 {
 	struct mcast_private * mcp;
 	int	rc = HA_OK;
@@ -391,7 +393,8 @@ hb_dev_read(struct hb_media* hbm)
  * Send a heartbeat packet over multicast UDP/IP interface
  */
 
-int hb_dev_write(struct hb_media* hbm, struct ha_msg * msgptr)
+int
+hb_dev_write(struct hb_media* hbm, struct ha_msg * msgptr)
 {
 	struct mcast_private *	mcp;
 	int			rc;
@@ -566,14 +569,14 @@ new_mcast_private(const char *ifn, const char *mcast, u_short port,
 	strcpy(mcp->interface, ifn);
 
 	/* set up multicast address */
-	if (inet_aton(mcast, &mcp->mcast) == -1) {
+	if ((mcp->mcast.s_addr = inet_addr(mcast)) == INADDR_NONE) {
 		ha_free(mcp->interface);
 		ha_free(mcp);
 		return NULL;
 	}
 
 	
-	bzero(&mcp->addr, sizeof(mcp->addr));	/* zero the struct */
+	memset(&mcp->addr, 0, sizeof(mcp->addr));	/* zero the struct */
 	mcp->addr.sin_family = AF_INET;		/* host byte order */
 	mcp->addr.sin_port = htons(port);	/* short, network byte order */
 	mcp->addr.sin_addr = mcp->mcast;
@@ -610,7 +613,8 @@ static int set_mcast_loop(int sockfd, u_char loop)
  *
  * Returns 0 on success -1 on failure.
  */
-static int set_mcast_ttl(int sockfd, u_char ttl)
+static int
+set_mcast_ttl(int sockfd, u_char ttl)
 {
 	return setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 }
@@ -621,7 +625,8 @@ static int set_mcast_ttl(int sockfd, u_char ttl)
  * If ifname is NULL, then it the OS will assign the interface.
  * Returns 0 on success -1 on faliure.
  */
-static int set_mcast_if(int sockfd, char *ifname)
+static int
+set_mcast_if(int sockfd, char *ifname)
 {
 	int rc;
 	struct ip_mreq mreq;
@@ -632,7 +637,7 @@ static int set_mcast_if(int sockfd, char *ifname)
 	rc = if_getaddr(ifname, &mreq.imr_interface);
 	if (rc == -1)
 		return -1;
-	return setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_IF, &mreq, sizeof(mreq));
+	return setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_IF, (void*)&mreq, sizeof(mreq));
 }
 
 /* join_mcast_group is used to join a multicast group.  the group is
@@ -642,7 +647,8 @@ static int set_mcast_if(int sockfd, char *ifname)
  * interface if ifname is NULL);
  * returns 0 on success, -1 on failure.
  */
-static int join_mcast_group(int sockfd, struct in_addr *addr, char *ifname)
+static int
+join_mcast_group(int sockfd, struct in_addr *addr, char *ifname)
 {
 	struct ip_mreq	mreq_add;
 
@@ -652,7 +658,7 @@ static int join_mcast_group(int sockfd, struct in_addr *addr, char *ifname)
 	if (ifname) {
 		if_getaddr(ifname, &mreq_add.imr_interface);
 	}
-	return setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq_add, sizeof(mreq_add));
+	return setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void*)&mreq_add, sizeof(mreq_add));
 }
 
 /* if_getaddr gets the ip address from an interface
@@ -698,7 +704,8 @@ if_getaddr(const char *ifname, struct in_addr *addr)
 }
 
 /* returns true or false */
-static int is_valid_dev(const char *dev)
+static int
+is_valid_dev(const char *dev)
 {
 	int rc=0;
 	if (dev) {
@@ -710,14 +717,25 @@ static int is_valid_dev(const char *dev)
 }
 
 /* returns true or false */
-static int is_valid_mcast_addr(const char *addr)
+#define MCAST_NET	0xf0000000
+#define MCAST_BASE	0xe0000000
+static int
+is_valid_mcast_addr(const char *addr)
 {
-	/* not implemented yet */
-	return 1;
+	unsigned long mc_addr;
+
+	/* make sure address is in host byte order */
+	mc_addr = ntohl(inet_addr(addr));
+
+	if ((mc_addr & MCAST_NET) == MCAST_BASE)
+		return 1;
+
+	return 0;
 }
 
 /* return port number on success, 0 on failure */
-static int get_port(const char *port, u_short *p)
+static int
+get_port(const char *port, u_short *p)
 {
 	/* not complete yet */
 	*p=(u_short)atoi(port);
@@ -725,7 +743,8 @@ static int get_port(const char *port, u_short *p)
 }
 
 /* returns ttl on succes, -1 on failure */
-static int get_ttl(const char *ttl, u_char *t)
+static int
+get_ttl(const char *ttl, u_char *t)
 {
 	/* not complete yet */
 	*t=(u_char)atoi(ttl);
@@ -733,7 +752,8 @@ static int get_ttl(const char *ttl, u_char *t)
 }
 
 /* returns loop on success, -1 on failure */
-static int get_loop(const char *loop, u_char *l)
+static int
+get_loop(const char *loop, u_char *l)
 {
 	/* not complete yet */
 	*l=(u_char)atoi(loop);
@@ -742,6 +762,10 @@ static int get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.6  2001/05/18 05:59:16  alan
+ * Put in the latest portability and other fixes from Chris Wright, and reformatted
+ * the code so that function names always start on the beginning of a line.
+ *
  * Revision 1.5  2001/05/17 05:51:54  alan
  * Put in the latest multicast fixes from Chris Wright.
  *
