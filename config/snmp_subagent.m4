@@ -95,6 +95,26 @@ AC_DEFUN([LIB_SNMP],
     AC_CHECK_LIB([crypto], [main], [have_libcrypto=yes], 
         [have_libcrypto=no], [])
 
+    dnl find out the mibs_dir
+    AC_MSG_CHECKING(which MIB directory to use)
+    for mibs_dir in /usr/share/snmp/mibs /usr/local/share/snmp/mibs 
+    do 
+    	if test -d $mibs_dir; then
+	    MIBS_DIR=$mibs_dir
+	    AC_MSG_RESULT($MIBS_DIR);
+	fi
+    done
+    AC_ARG_WITH(mibsdir, 
+    		[  --with-mibsdir=DIR      directory for mib files. ],
+		[ MIBS_DIR="$withval" ])
+    if 
+        test "X$MIBS_DIR" = X
+    then
+    	AC_MSG_ERROR(Could not locate mib directory)
+    fi
+    AC_SUBST(MIBS_DIR)
+
+    dnl now start the snmp library dependency checking.
     SNMP_LIBS=""
     SNMP_LIBS_FOUND=no
     dnl check ucd-snmp libraries
