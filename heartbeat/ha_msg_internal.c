@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.7 2001/06/06 23:07:44 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.8 2001/06/06 23:10:10 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -101,6 +101,9 @@ if_msgfromstream(FILE * f, char *iface)
 	return(ret);
 }
 
+/*
+ *	Output string encoding both message and interface it came in on.
+ */
 char *
 msg2if_string(const struct ha_msg *m, const char *iface) 
 {
@@ -463,6 +466,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.8  2001/06/06 23:10:10  alan
+ * Comment clarification as a result of Emily's code audit.
+ *
  * Revision 1.7  2001/06/06 23:07:44  alan
  * Put in some code clarifications suggested by Emily Ratliff.  Thanks Emily!
  *
