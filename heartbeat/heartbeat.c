@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.262 2003/05/22 23:13:26 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.263 2003/05/23 14:55:51 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3328,7 +3328,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 
 	/* Does this looks like a replay attack... */
 	if (gen < t->generation) {
-		cl_log(LOG_DEBUG
+		cl_log(LOG_ERR
 		,	"should_drop_message: attempted replay attack"
 		" [%s]? [curgen = %ld]", thisnode->nodename, t->generation);
 		return DROPIT;
@@ -4083,6 +4083,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.263  2003/05/23 14:55:51  alan
+ * Changed the "probable replay attack" message from a debug to an error message.
+ *
  * Revision 1.262  2003/05/22 23:13:26  alan
  * Changed the code to fix a bug in resource auditing code.
  * We now indicate if an update to the resource set is incremental or full.
