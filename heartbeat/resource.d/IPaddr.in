@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.41 2003/05/21 09:02:32 horms Exp $
+#	$Id: IPaddr.in,v 1.42 2003/07/12 14:27:21 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -23,7 +23,9 @@ export LC_MESSAGES
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
-. @sysconfdir@/ha.d/shellfuncs
+HA_D=@sysconfdir@/ha.d
+CONF_D=@sysconfdir@/ha.d/conf
+. ${HA_D}/shellfuncs
 
 IFCONFIG=@IFCONFIG@
 IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
@@ -581,13 +583,33 @@ ip_start() {
 
   ha_log "info: Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
 
-  for j in 1 2 3 4 5
-  do
-	ha_log "$SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff"
-	$SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff \
-   	||	ha_log "ERROR: Could not send gratuitous arp"
-        sleep 2
-  done &
+  # Had to get rid of the backgrounding -- it can cause a quick transfer
+  # of IP addresses to result in more than one machine serving the IP address.
+  # This behavior has been observed during testing.  It might happen to
+  # you too...
+  #
+  # For this reason, I greatly shortened the time between ARPs
+  #
+  # To make it behave the way you want, set up ${CONF_D}/arp_config
+  # and/or ${CONF_D}/arp_config:${TARGET_INTERFACE}
+  #
+  [ -r ${CONF_D}/arp_config ] && . ${CONF_D}/arp_config
+  [ -r "${CONF_D}/arp_config:${TARGET_INTERFACE}" ] && . "${CONF_D}/arp_config:${TARGET_INTERFACE}"
+
+  # Set default values (can be overridden as described above)
+
+  : ${ARP_INTERVAL_MS=200}	# milliseconds between ARPs
+  : ${ARP_REPEAT=5}		# repeat count
+  : ${ARP_BACKGROUND=no}	# yes to run in background (not recommended)
+  : ${ARP_NETMASK=ffffffffffff}	# netmask for ARP
+  
+
+  ARGS ="-i $ARP_INTERVAL_MS -r $ARP_REPEAT $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ${ARP_NETMASK}"
+  ha_log "$SENDARP $ARGS"
+  case $ARP_BACKGROUND in
+    yes)	($SENDARP $ARGS ||  ha_log "ERROR: Could not send gratuitous arps") &;;
+    *)		 $SENDARP $ARGS ||  ha_log "ERROR: Could not send gratuitous arps");;
+  esac
 }
 
 ip_status() {
@@ -652,7 +674,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.41 2003/05/21 09:02:32 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.42 2003/07/12 14:27:21 alan Exp $"
 }
 
 #
@@ -699,6 +721,12 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.42  2003/07/12 14:27:21  alan
+# Changed IPaddr to not go into background for ARPs, and greatly shortened
+# the inter-ARP-interval by using a new send_arp option.
+# These behaviors be overridden by setting parameters in /etc/ha.d/conf/arp_config
+# and/or /etc/ha.d/conf/arp_config:${TARGET_INTERFACE}
+#
 # Revision 1.41  2003/05/21 09:02:32  horms
 # Free alias search optimisation by Sean Reifschneider
 #
