@@ -6,3 +6,4 @@ Makefile
 *.lo
 .*.swp
 apphbd
+apphbtest
