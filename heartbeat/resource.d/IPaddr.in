@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.2 2001/06/28 20:35:00 alan Exp $
+#	$Id: IPaddr.in,v 1.3 2001/06/29 21:23:47 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -25,6 +25,7 @@ ROUTE=/sbin/route
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
 USAGE="usage: $0 ip-address {start|stop|status|monitor}";
+SYSTYPE="`uname -s`"
 
 #
 #	Find out which alias serves the given IP address
@@ -47,6 +48,14 @@ find_interface() {
       *:*)	;;
       *)	continue;;
     esac
+
+    case $SYSTYPE in
+      FreeBSD)	
+      		ha_log $ifname
+      		echo `echo "$ifname" | sed s'%:%%'`
+      		return 0;;
+    esac
+
     case $addr in
       addr:$ipaddr)	echo $ifname; return 0;;
     esac
@@ -79,34 +88,55 @@ ip_stop() {
 #	and can be inferred from the IP-Aliasing mini-HOWTO
 #
 
-  $ROUTE del -host $BASEIP
-  $IFCONFIG $IF down
-  ha_log "info: IP Address $BASEIP released"
+#
+#	We deliberately ignore the return code from the route
+#	deletion since the ifconfig should knock the route
+#	down anyway.  We're into completeness, though...
+#
+#
+  case $SYSTYPE in
+	FreeBSD)	CMD="$IFCONFIG $IF delete $BASEIP";;
+	*)		CMD="$IFCONFIG $IF down";;
+  esac
+  ha_log "info: $CMD"
+  $CMD
+  case $? in
+    0) ha_log "info: IP Address $BASEIP released";;
+    *) ha_log "WARN: IP Address $BASEIP NOT released";;
+  esac
+
+  case $SYSTYPE in
+	FreeBSD)	CMD="$ROUTE delete $BASEIP";;
+	*)		CMD="$ROUTE del -host $BASEIP";;
+  esac
+  echo "info: $CMD"
+  $CMD
 }
 
 
 #
 #	Find an unused interface/alias name for us to use for new IP alias
 #	The argument is an IP address, and the output
-#	is an aliased interface name (e.g., "eth0:0").
+#	is an aliased interface name (e.g., "eth0:0", "dc0", "le0:0").
 #
 find_free_interface() {
-  ipaddr=$1;
+  BASEIP=`echo $1 | sed s'%/.*%%'`
   if
-    NICINFO=`$FINDIF $ipaddr`
+    NICINFO=`$FINDIF $1`
   then
     : OK
   else
     lrc=$?
-    ha_log "ERROR: unable to find an interface for $ipaddr"
+    ha_log "ERROR: unable to find an interface for $BASEIP"
     return $lrc
   fi
+
   nicname=`echo "$NICINFO" | cut -f1`
   nicinfo=`echo "$NICINFO" | cut -f2-`
   if
     [ $nicname = "" ]
   then
-    ha_log "ERROR: no interface found for $ipaddr"
+    ha_log "ERROR: no interface found for $BASEIP"
     return 1;
   fi
 
@@ -115,16 +145,23 @@ find_free_interface() {
 
   j=0
 
-  while
-    [ $j -lt 512 ]
-  do
-    case $IFLIST in
-      *" "$nicname:$j" "*)	;;
-      *)			echo "$nicname:$j	$nicinfo"
-      				return 0;;
-    esac
-    j=`expr $j + 1`
-  done
+  case $SYSTYPE in
+	FreeBSD)
+		echo $nicname;
+		return 0;;
+
+	*)
+  	while
+    	  [ $j -lt 512 ]
+  	do
+    	    case $IFLIST in
+	      *" "$nicname:$j" "*)	;;
+	      *)			echo "$nicname:$j	$nicinfo"
+					return 0;;
+	    esac
+            j=`expr $j + 1`
+	done;;
+  esac
   return 1
 }
 
@@ -140,11 +177,11 @@ ip_start() {
 #
 #	Do we already service this IP address?
 #
-  if
-    $IFCONFIG | grep "inet addr:$BASEIP " >/dev/null 2>&1
-  then
-    exit 0	# We already own this IP address
-  fi
+  case `ip_status $1` in
+    *unning*)	exit 0;
+  esac
+
+  BASEIP=`echo $1 | sed s'%/.*%%'` 
 
   if
     IFINFO=`find_free_interface $1`
@@ -154,8 +191,12 @@ ip_start() {
     exit 1
   fi
   IF=`echo "$IFINFO" | cut -f1`
-  IFEXTRA=`echo "$IFINFO" | cut -f2-`
-  BASEIP=`echo $1 | sed s'%/.*%%'`
+
+  case $SYSTYPE in
+    FreeBSD)	;;
+    *)		IFEXTRA=`echo "$IFINFO" | cut -f2-`;;
+  esac
+
 
   if
     [ -x $HA_RCDIR/local_takeip ]
@@ -166,10 +207,23 @@ ip_start() {
 #
 #	The remaining code in this function taken from FAKE, by horms
 #
+  case $SYSTYPE in
+    FreeBSD)	CMD="$IFCONFIG $IF inet $BASEIP alias"	;;
+    *)		CMD="$IFCONFIG $IF $BASEIP $IFEXTRA"	;;
+  esac
 
-  ha_log "info: ifconfig $IF $BASEIP $IFEXTRA"
-  $IFCONFIG $IF $BASEIP $IFEXTRA
+  ha_log "info: $CMD"
+  $CMD
+  rc=$?
 
+  case $rc in
+    0)	;;
+    *)	echo "ERROR: $CMD failed."
+	return $rc;;
+  esac
+
+	
+  ha_log "INFO: $ROUTE add -host $BASEIP dev $IF"
   $ROUTE add -host $BASEIP dev $IF
 
   TARGET_INTERFACE=`echo $IF | sed 's%:.*%%'`
@@ -272,6 +326,11 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.3  2001/06/29 21:23:47  alan
+# Put in a modified version of Matt Soffen's patch to make
+# IPaddr work under FreeBSD.
+# Don't know if it works under FreeBSD, but it works on Linux.
+#
 # Revision 1.2  2001/06/28 20:35:00  alan
 # Patch from Juri to install our scripts with paths patched appropriately.
 #
