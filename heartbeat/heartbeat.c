@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.187 2002/04/26 21:49:45 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.188 2002/04/29 07:21:57 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2760,8 +2760,7 @@ debug_sig(int sig)
 			}
 			break;
 	}
- 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL
-	,	debug);
+ 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL , debug);
 	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, getpid());
 	dump_proc_stats(curproc);
 }
@@ -6041,6 +6040,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.188  2002/04/29 07:21:57  alan
+ * Small code reformatting...
+ *
  * Revision 1.187  2002/04/26 21:49:45  alan
  * Put in some debug code so that the plugins we load get
  * the right level of debug turned on in them when we start.
