@@ -183,7 +183,15 @@ shift
 case $cmd in
   cf|conf|configure)		Run ./bootstrap $FLAGS $@;;
   make|build)			Run ./bootstrap $FLAGS $@ && Run $MAKE_CMD;;
-  install)			Run ./bootstrap $FLAGS $@ && Run $MAKE_CMD install;;
+  install)			Run ./bootstrap $FLAGS $@ && \
+  				Run $MAKE_CMD install;;
+  dist)				Run echo ./bootstrap $FLAGS $@ && \
+  				Run $MAKE_CMD dist;;
+  distcheck)			Run ./bootstrap $FLAGS $@ && \
+  				source ./heartbeat/lib/ha_config &&
+  				Run $MAKE_CMD \
+				    DESTDIR="$PWD/heartbeat-$VERSION/=inst" \
+				    distcheck;;
   pkg|package|rpm|deb|dpkg)	Run ./bootstrap $FLAGS $@ && PackageItUp;;
   *)				Usage;;
 esac
