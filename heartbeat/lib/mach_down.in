@@ -47,4 +47,4 @@ case $HA_NICEFAILBACK in
     ;;
 esac
 # The CTS testing code needs to know when this is really done ;-)
-ha_log "info: mach_down takeover complete."
+ha_log "info: mach_down takeover complete for node $mdown."
