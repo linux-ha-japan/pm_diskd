@@ -30,4 +30,5 @@ hard_SCRIPTS	=			\
 			MailTo		\
 			ServeRAID	\
 			Raid1		\
+			WAS		\
 			WinPopup
