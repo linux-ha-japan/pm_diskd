@@ -1,7 +1,7 @@
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H
 
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.3 1999/10/25 15:35:03 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.4 1999/11/22 20:28:23 alan Exp $";
 #include <stdio.h>
 /*
  *	Intracluster message object (struct ha_msg)
@@ -39,8 +39,9 @@ struct ha_msg {
 
 
 #define	T_STATUS	"status"	/* Message type = Status */
-#define	T_REXMIT	"NS_rexmit"	/* Message type = Retransmit request */
 #define	NOSEQ_PREFIX	"NS_"		/* Give no sequence number */
+#define	T_REXMIT	"NS_rexmit"	/* Message type = Retransmit request */
+#define	T_NAKREXMIT	"NS_nak_rexmit"	/* Message type = NAK Re-xmit rqst */
 
 
 /* Allocate new (empty) message */

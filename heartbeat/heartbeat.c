@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.30 1999/11/14 08:23:44 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.31 1999/11/22 20:28:23 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -48,7 +48,9 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.30 1999/11/14 08:23:
  *	the global against the cluster when changing configurations.
  *	Things like serial port assignments may be node-specific...
  *
- *	Oh well, that will have to wait until later...
+ *	This has kind of happened over time.  Haresources and authkeys are
+ *	decidely global, whereas ha.cf has remained more local.
+ *
  */
 
 /*
@@ -85,11 +87,12 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.30 1999/11/14 08:23:
  *
  *	For a system using 2 ttys and UDP, this is 8 processes.
  *
- *	If every second, each node writes out 50 chars of status,
- *	and we have 16 nodes, and the data rate would be about 800 chars/sec.
+ *	If every second, each node writes out 100 chars of status,
+ *	and we have 8 nodes, and the data rate would be about 800 chars/sec.
  *	This would require about 8000 bps.
  *	This seems awfully close to 9600.  Better run faster than that
- *	for such a cluster...
+ *	for such a cluster...  With good UARTs and CTS/RTS, and good cables,
+ *	you should be able to.
  *
  *
  *	Process/Pipe configuration:
@@ -110,8 +113,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.30 1999/11/14 08:23:
  *			copying to tty write pipes (incrementing hop count and
  *				filtering out "ring wraparounds")
  *	Wish List:
- *
- *	Splitting global from local configuration information
  *
  *	Nearest Neighbor heartbeating (? maybe?)
  *		This should replace the current policy of full-ring heartbeats
@@ -232,11 +233,14 @@ void	notify_world(struct ha_msg * msg, const char * ostatus);
 pid_t	get_running_hb_pid(void);
 void	make_daemon(void);
 void	heartbeat_monitor(struct ha_msg * msg);
+void	send_to_all_media(char * smsg, int len);
 void	init_monitor(void);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
 void	init_xmit_hist (struct msg_xmit_hist * hist);
+void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
+void	nak_rexmit(int seqno, const char * reason);
 int	req_our_resources(void);
 int	giveup_resources(void);
 
@@ -286,8 +290,8 @@ init_procinfo()
 	 *
 	 * This is cool because the manual says:
 	 *
-	 *	IPC_RMID    is  used  to mark the segment as destroyed. It
-	 *	will actually  be  destroyed  after  the  last detach.
+	 *	IPC_RMID    is used to mark the segment as destroyed. It
+	 *	will actually be destroyed after the last detach.
 	 */
 	if (shmctl(ipcid, IPC_RMID, NULL) < 0) {
 		ha_perror("Cannot IPC_RMID proc status shared memory id");
@@ -649,16 +653,22 @@ control_process(FILE * fp)
 	for(;;) {
 		struct ha_msg *	msg = controlfifo2msg(fp);
 		char *		smsg;
-		int		j;
+		const char *	type;
 		int		len;
 		const char *	cseq;
 		unsigned long	seqno = -1;
+		const  char *	to;
+		int		IsToUs;
 
 		if (msg == NULL) {
 			ha_log(LOG_ERR, "control_process: NULL message");
 			continue;
 		}
-
+		if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
+			ha_log(LOG_ERR, "control_process: no type in msg.");
+			ha_msg_del(msg);
+			continue;
+		}
 		if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
 			if (sscanf(cseq, "%lx", &seqno) != 1
 			||	seqno <= 0) {
@@ -669,7 +679,17 @@ control_process(FILE * fp)
 				continue;
 			}
 		}
-		/* Convert it to a string and log original msg for re-xmit */
+
+		to = ha_msg_value(msg, F_TO);
+		IsToUs = (to != NULL) && (strcmp(to, curnode->nodename) == 0);
+
+		if (strcasecmp(type, T_REXMIT) == 0
+		&&	IsToUs) {
+			process_rexmit(&msghist, msg);
+			ha_msg_del(msg);
+			continue;
+		}
+		/* Convert it to a string */
 		smsg = msg2string(msg);
 
 		/* If it didn't convert, throw original message away */
@@ -677,7 +697,7 @@ control_process(FILE * fp)
 			ha_msg_del(msg);
 			continue;
 		}
-		/* Remember all messages with sequence numbers */
+		/* Remember Messages with sequence numbers */
 		if (cseq != NULL) {
 			add2_xmit_hist (&msghist, msg, seqno);
 		}
@@ -687,30 +707,39 @@ control_process(FILE * fp)
 		/* Copy the message to the status process */
 		write(statusfd, smsg, len);
 
-		/* And send it to all our heartbeat interfaces */
-		for (j=0; j < nummedia; ++j) {
-			int	wrc;
-			alarm(2);
-			wrc=write(sysmedia[j]->wpipe[P_WRITEFD], smsg, len);
-			if (wrc < 0) {
-				ha_perror("Cannot write to media pipe %d"
-				,	j);
-				ha_log(LOG_ERR, "Shutting down.");
-				signal_all(SIGTERM);
-			}else if (wrc != len) {
-				ha_log(LOG_ERR
-				,	"Short write on media %d [%d vs %d]"
-				,	j, wrc, len);
-			}
-			alarm(0);
-		}
+		send_to_all_media(smsg, len);
 		ha_free(smsg);
-		/* We don't throw away "msg" here if it's saved above */
+
+		/*  Throw away "msg" here if it's not saved above */
 		if (cseq == NULL) {
 			ha_msg_del(msg);
 		}
 	}
 	/* That's All Folks... */
+}
+
+void
+send_to_all_media(char * smsg, int len)
+{
+	int	j;
+
+	/* Send the message to all our heartbeat interfaces */
+	for (j=0; j < nummedia; ++j) {
+		int	wrc;
+		alarm(2);
+		wrc=write(sysmedia[j]->wpipe[P_WRITEFD], smsg, len);
+		if (wrc < 0) {
+			ha_perror("Cannot write to media pipe %d"
+			,	j);
+			ha_log(LOG_ERR, "Shutting down.");
+			signal_all(SIGTERM);
+		}else if (wrc != len) {
+			ha_log(LOG_ERR
+			,	"Short write on media %d [%d vs %d]"
+			,	j, wrc, len);
+		}
+		alarm(0);
+	}
 }
 
 /* The master status process */
@@ -770,6 +799,9 @@ master_status_process(void)
 			ha_log(LOG_DEBUG
 			,       "master_status_process: node [%s]"
 			" failed authentication", from);
+			if (DEBUGPKT) {
+				ha_log_message(msg);
+			}
 			continue;
 		}else if(ANYDEBUG) {
 			ha_log(LOG_DEBUG
@@ -853,9 +885,9 @@ master_status_process(void)
 				tickle_watchdog();
 			}
 		}else if (strcasecmp(type, T_REXMIT) == 0) {
-			ha_log(LOG_DEBUG, "Got an " T_REXMIT ".");
-			if (ANYDEBUG) {
-				ha_log_message(msg);
+			if (thisnode != curnode) {
+				/* Forward to control process */
+				send_cluster_msg(msg);
 			}
 		}else{
 			notify_world(msg, thisnode->status);
@@ -2099,6 +2131,16 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 			if (j == (t->nmissing-1)) {
 				t->nmissing --;
 			}
+
+			/* Swallow up found packets */
+			while (t->nmissing > 0
+			&&	t->seqmissing[t->nmissing-1] == NOSEQUENCE) {	
+				t->nmissing --;
+			}
+			if (t->nmissing == 0) {
+				ha_log(LOG_INFO, "No pkts missing from %s!"
+				,	thisnode->nodename);
+			}
 			return(IsToUs ? KEEPIT : DROPIT);
 		}
 	}
@@ -2186,6 +2228,102 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 	hist->lastmsg = slot;
 }
 
+void
+process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
+{
+	const char *	cfseq;
+	const char *	clseq;
+	int		fseq = 0;
+	int		lseq = 0;
+	int		thisseq;
+	int		firstslot = hist->lastmsg-1;
+
+	if ((cfseq = ha_msg_value(msg, F_FIRSTSEQ)) == NULL
+	||	(clseq = ha_msg_value(msg, F_LASTSEQ)) == NULL
+	||	(fseq=atoi(cfseq)) <= 0 || (lseq=atoi(clseq)) <= 0
+	||	fseq > lseq) {
+		ha_log(LOG_ERR, "Invalid rexmit seqnos");
+		ha_log_message(msg);
+	}
+
+	for (thisseq = lseq; thisseq >= fseq; --thisseq) {
+		int	msgslot;
+		int	foundit = 0;
+		if (thisseq < hist->lowseq) {
+			nak_rexmit(thisseq, "seqno too low");
+			continue;
+		}
+		if (thisseq > hist->hiseq) {
+			nak_rexmit(thisseq, "seqno too high");
+			continue;
+		}
+
+		for (msgslot = firstslot
+		;	!foundit && msgslot != (firstslot+1); --msgslot) {
+			char *	smsg;
+			int	len;
+			if (msgslot < 0) {
+				msgslot = MAXMSGHIST;
+			}
+			if (hist->msgq[msgslot] == NULL) {
+				continue;
+			}
+			if (hist->seqnos[msgslot] != thisseq) {
+				continue;
+			}
+			/* Found it! */
+			firstslot = msgslot -1;
+			foundit=1;
+			ha_log(LOG_INFO, "Retransmitting pkt %d", thisseq);
+			if (DEBUGPKT) {
+				ha_log_message(hist->msgq[msgslot]);
+			}
+			smsg = msg2string(hist->msgq[msgslot]);
+
+			/* If it didn't convert, throw original message away */
+			if (smsg != NULL) {
+				len = strlen(smsg);
+				send_to_all_media(smsg, len);
+			}
+
+		}
+		if (!foundit) {
+			nak_rexmit(thisseq, "seqno not found");
+		}
+	}
+}
+void
+nak_rexmit(int seqno, const char * reason)
+{
+	struct ha_msg*	msg;
+	char	sseqno[32];
+	char *	smsg;
+
+	sprintf(sseqno, "%d", seqno);
+	ha_log(LOG_ERR, "Cannot rexmit pkt %d: %s", seqno, reason);
+
+	if ((msg = ha_msg_new(6)) == NULL) {
+		ha_log(LOG_ERR, "no memory for " T_NAKREXMIT);
+		return;
+	}
+
+	if (ha_msg_add(msg, F_TYPE, T_NAKREXMIT) != HA_OK
+	||	ha_msg_add(msg, F_FIRSTSEQ, sseqno) != HA_OK
+	||	ha_msg_add(msg, F_COMMENT, reason) != HA_OK) {
+		ha_log(LOG_ERR, "cannot create " T_NAKREXMIT, " msg.");
+		ha_msg_del(msg);
+		return;
+	}
+
+
+	if ((smsg = msg2string(msg)) == NULL) {
+		ha_log(LOG_ERR, "cannot create " T_NAKREXMIT, " msg.");
+	}else{
+		send_to_all_media(smsg, strlen(smsg));
+		ha_free(smsg);
+	}
+	ha_msg_del(msg);
+}
 
 #ifdef IRIX
 void
@@ -2198,6 +2336,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.31  1999/11/22 20:28:23  alan
+ * First pass of putting real packet retransmission.
+ * Still need to request missing packets from time to time
+ * in case retransmit requests get lost.
+ *
  * Revision 1.30  1999/11/14 08:23:44  alan
  * Fixed bug in serial code where turning on flow control caused
  * heartbeat to hang.  Also now detect hangs and shutdown automatically.

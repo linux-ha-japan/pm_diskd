@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.8 1999/10/25 15:35:03 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.9 1999/11/22 20:28:23 alan Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -446,6 +446,12 @@ controlfifo2msg(FILE * f)
 			continue;
 		}
 
+		/* Don't put in duplicate values already gotten from other side */
+		if (noseqno && ha_msg_value(ret, defaults[j].name) != NULL) {
+			/* This keeps us from adding another "from" field */
+			continue;
+		}
+
 		if (ha_msg_add(ret, defaults[j].name, defaults[j].value())
 		!=	HA_OK)  {
 			ha_msg_del(ret);
@@ -645,6 +651,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.9  1999/11/22 20:28:23  alan
+ * First pass of putting real packet retransmission.
+ * Still need to request missing packets from time to time
+ * in case retransmit requests get lost.
+ *
  * Revision 1.8  1999/10/25 15:35:03  alan
  * Added code to move a little ways along the path to having error recovery
  * in the heartbeat protocol.
