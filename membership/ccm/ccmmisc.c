@@ -21,6 +21,9 @@
  */
 #include <stdlib.h>
 #include <ccm.h>
+#ifdef HAVE_MALLOC_H
+#       include <malloc.h>
+#endif
 
 //
 // Convert a given string to a bitmap.
