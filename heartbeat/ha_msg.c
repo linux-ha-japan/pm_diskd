@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.30 2002/10/02 13:36:42 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.31 2002/10/08 14:33:18 msoffen Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -438,7 +438,7 @@ ha_log_message (const struct ha_msg *m)
 	ha_log(LOG_INFO, "MSG: Dumping message with %d fields", m->nfields);
 
 	for (j=0; j < m->nfields; ++j) {
-		ha_log(LOG_INFO, "MSG[%d]: [%s=%s]",j, m->names[j], m->values[j]);
+		ha_log(LOG_INFO, "MSG[%d]: [%s=%s]",j, m->names[j] ? m->names[j] : "NULL", m->values[j] ? m->values[j] : "NULL");
 	}
 }
 
@@ -465,6 +465,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.31  2002/10/08 14:33:18  msoffen
+ * Changed ha_log_message to be NULL safe.
+ *
  * Revision 1.30  2002/10/02 13:36:42  alan
  * Put in a fix from Nathan Wallwork for a potential security vulnerability.
  *
