@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ICP.in,v 1.1 2002/04/15 16:01:25 lars Exp $
+# $Id: ICP.in,v 1.2 2002/04/16 14:02:32 lars Exp $
 # 
 # ICP
 #
@@ -14,7 +14,7 @@
 #
 #
 # An example usage in /etc/ha.d/haresources: 
-#       node1  10.0.0.170 LinuxSCSI::0:0 ICP::c0h1 ICP::myvolname
+#       node1  10.0.0.170 LinuxSCSI::0:0 ICP::c0h1::/dev/sdb1 LVM::myvolname
 #
 # Notice that you will need to get the utility "icpclucon" from the ICP
 # support to use this.
@@ -30,6 +30,7 @@ exec_prefix=@exec_prefix@
 #
 ICPCLUCON=/usr/sbin/icpclucon
 #
+BLOCKDEV=@BLOCKDEV@
 #
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
@@ -38,7 +39,7 @@ usage() {
   methods=`ICP_methods | grep -v methods`
   methods=`echo $methods | tr ' ' '|'`
   cat <<-! >&1
-	usage: $0 <ICP cluster drive ID> ($methods)
+	usage: $0 <ICP cluster drive ID> <Device> ($methods)
 	usage: $0 methods
 
 	$0 manages an ICP Vortex clustered host drive.
@@ -49,7 +50,7 @@ usage() {
 	The 'monitor' operation reports whether the host drive is reserved.
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: ICP.in,v 1.1 2002/04/15 16:01:25 lars Exp $
+	$Id: ICP.in,v 1.2 2002/04/16 14:02:32 lars Exp $
 	!
   exit 1
 
@@ -150,6 +151,10 @@ ICP_monitor() {
 
 }
 
+Clear_bufs() {
+    $BLOCKDEV --flushbufs $2
+}
+
 #
 #	Enable ICP host drive
 #
@@ -166,6 +171,8 @@ ICP_start() {
     ICP_status $1
   then
     : OK
+    # A reservation isn't as prompt as it should be
+    sleep 3
     return 0
   else
     ha_log "ERROR: ICP: $1 was not reserved correctly"
@@ -201,15 +208,15 @@ then
   exit $?
 fi
 
-HOSTDRIVE=$1
-
 # What kind of method was invoked?
-case "$2" in
+case "$3" in
 
   start)	ICP_start $1
+		Clear_bufs $2
 		exit $?;;
 
   stop)		ICP_stop $1
+		Clear_bufs $2
 		exit $?;;
 
   status)	ICP_report_status $1
