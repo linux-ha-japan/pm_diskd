@@ -31,10 +31,13 @@ CFLAGS			= @CFLAGS@
 
 halibdir		= $(libdir)/@HEARTBEATPKG@
 plugindir		= $(halibdir)/plugins/HBcomm
-plugin_LTLIBRARIES	= bcast.la mcast.la serial.la ping.la
+plugin_LTLIBRARIES	= bcast.la mcast.la ping.la serial.la ucast.la
 
 bcast_la_SOURCES	= bcast.c
 bcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
+
+ucast_la_SOURCES	= ucast.c
+ucast_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 mcast_la_SOURCES	= mcast.c
 mcast_la_LDFLAGS	= -export-dynamic -module -avoid-version

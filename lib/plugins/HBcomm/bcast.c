@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.14 2002/05/01 23:50:35 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.15 2002/06/16 03:42:53 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -315,7 +315,7 @@ bcast_close(struct hb_media* mp)
 			rc = HA_FAIL;
 		}
 	}
-	ha_log(LOG_NOTICE
+	LOG(PIL_INFO
 	, "UDP Broadcast heartbeat closed on port %d interface %s - Status: %d"
 	,	localudpport, mp->name, rc);
 
@@ -764,6 +764,12 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.15  2002/06/16 03:42:53  alan
+ * Incorporated code from Stéphane Billiart to add a unicast heartbeat capability
+ * to heartbeat.
+ * Fixed a small bug in bcast.c where the "old" logging function was called
+ * instead of the new one.
+ *
  * Revision 1.14  2002/05/01 23:50:35  alan
  * Put in some comments about how the code avoids potential buffer overruns.
  *
