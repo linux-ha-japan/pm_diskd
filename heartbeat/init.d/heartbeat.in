@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.6 2001/10/07 03:58:10 alan Exp $
+#	$Id: heartbeat.in,v 1.7 2001/10/13 09:42:51 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -15,11 +15,9 @@
 # chkconfig: 2345 34 40
 # description: Startup script high-availability services.
 # processname: heartbeat
-# pidfile: /var/run/heartbeat.pid
-# config: /etc/ha.d/ha.cf
+# pidfile: @localstatedir@/run/heartbeat.pid
+# config: @sysconfdir@/ha.d/ha.cf
 
-prefix=@prefix@
-exec_prefix=@exec_prefix@
 HA_DIR=@sysconfdir@/ha.d; export HA_DIR
 CONFIG=$HA_DIR/ha.cf
 . $HA_DIR/shellfuncs
@@ -50,6 +48,10 @@ fi
 
 # exec 2>>/var/log/ha-debug
 
+#	This should probably be it's own autoconf parameter
+#	because RH has moved it from time to time...
+#	and I suspect Conectiva and Mandrake also supply it.
+
 DISTFUNCS=/etc/rc.d/init.d/functions
 PROC_HA=$HA_BIN/ha.o
 SUBSYS=heartbeat
@@ -62,7 +64,7 @@ USE_MODULES=1
 [ -x $HA_BIN/heartbeat ] || exit 0
 
 #
-#	Some distributions like it if we use their functions...
+#	Some environments like it if we use their functions...
 #
 if
   [ ! -x $DISTFUNCS ]
@@ -303,6 +305,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.7  2001/10/13 09:42:51  alan
+#  Incorporated a small patch from Matt Soffen
+#
 #  Revision 1.6  2001/10/07 03:58:10  alan
 #  Fixed up the 'echo' code in rc script so that it's portable.
 #  The 'shellfuncs' function library now have Echo EchoEsc and EchoNoNl functions
