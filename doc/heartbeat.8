@@ -1,4 +1,4 @@
-.TH HEARTBEAT 8 "5 December 2002"
+.TH HEARTBEAT 8 "29 May 2003"
 .SH NAME
 heartbeat \- Heartbeat subsystem for High-Availability Linux
 .SH SYNOPSIS
@@ -27,6 +27,30 @@ Comprehensive documentation on the configuration and running of
 of the code. If this documentation is not installed on your system
 it can be found, with the latest distribution of heartbeat
 on http://www.linux-ha.org/
+.SH OPTIONS
+.TP
+\fB-d\fP
+increment debugging level
+.TP
+\fB-r\fP
+restart heartbeat
+.TP
+\fB-k\fP
+kill (stop) heartbeat
+.TP
+\fB-s\fP
+report heartbeat status
+.TP
+\fB-R\fP
+Heartbeat restart exec flag (internal use only)
+.TP
+\fB-C\fP
+Heartbeat current resource state for restart (internal use only)
+.PP
+Note that most of these options are used for supporting the heartbeat
+\fIinit script\fP, which provides the conventional start,
+stop, status and restart options (among others).
+
 .SH AUTHORS
 .nf
 heartbeat - Alan Robertson <alanr@unix.sh> et al.
