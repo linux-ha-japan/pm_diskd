@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.52 2001/10/09 01:19:08 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.53 2002/01/25 05:29:46 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -50,6 +50,7 @@ const static char * _heartbeat_c_Id = "$Id: config.c,v 1.52 2001/10/09 01:19:08 
 #include <HBcomm.h>
 #include <hb_module.h>
 
+#define	DIRTYALIASKLUDGE
 
 extern const char *			cmdname;
 extern int				parse_only;
@@ -352,6 +353,11 @@ parse_config(const char * cfgfile, char *nodename)
 		dirlength = strcspn(bp, WHITESPACE);
 		strncpy(directive, bp, dirlength);
 		directive[dirlength] = EOS;
+#ifdef DIRTYALIASKLUDGE
+		if (strcmp(directive, "udp")) {
+			strncpy(directive, "bcast", sizeof("bcast"));
+		}
+#endif
 		if (!islegaldirective(directive)) {
 			ha_log(LOG_ERR, "Illegal directive [%s] in %s"
 			,	directive, cfgfile);
@@ -1225,6 +1231,9 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.53  2002/01/25 05:29:46  alan
+ * Put in a dirty alias kludge to make the software recognize udp as well as bcast.
+ *
  * Revision 1.52  2001/10/09 01:19:08  alan
  * Put in fix from Andreas Piesk for detecting / dealing with blank/comment
  * lines properly in config.c
