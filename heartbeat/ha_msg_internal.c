@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.4 2000/08/11 00:30:07 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.5 2000/09/10 03:48:52 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -257,6 +257,10 @@ add_msg_auth(struct ha_msg * m)
 	check_auth_change(config);
 	msgbody[0] = EOS;
 	for (j=0; j < m->nfields; ++j) {
+		/* Skip over any F_AUTH fields we find... */
+		if (strcmp(m->names[j], F_AUTH) == 0) {
+			continue;
+		}
 		strcat(bp, m->names[j]);
 		bp += m->nlens[j];
 		strcat(bp, "=");
@@ -439,6 +443,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.5  2000/09/10 03:48:52  alan
+ * Fixed a couple of bugs.
+ * - packets that were already authenticated didn't get reauthenticated correctly.
+ * - packets that were irretrievably lost didn't get handled correctly.
+ *
  * Revision 1.4  2000/08/11 00:30:07  alan
  * This is some new code that does two things:
  * 	It has pretty good replay attack protection

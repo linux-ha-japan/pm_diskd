@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.89 2000/09/02 23:26:24 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.90 2000/09/10 03:48:52 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -398,6 +398,7 @@ void	heartbeat_monitor(struct ha_msg * msg, int status, const char * iface);
 void	send_to_all_media(char * smsg, int len);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
 				const char *iface);
+int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
 void	healed_cluster_partition(struct node_info* node);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
@@ -405,7 +406,7 @@ void	init_xmit_hist (struct msg_xmit_hist * hist);
 void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
 void	process_clustermsg(FILE * f);
 void	process_registermsg(FILE * f);
-void	nak_rexmit(int seqno, const char * reason);
+void	nak_rexmit(unsigned long seqno, const char * reason);
 void	req_our_resources(int getthemanyway);
 void	giveup_resources(void);
 void	make_realtime(void);
@@ -3289,6 +3290,23 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	/* Some packet types shouldn't have sequence numbers */
 	if (type != NULL && strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1)
 	==	0) {
+		/* Is this a sequence number rexmit NAK? */
+		if (strcasecmp(type, T_NAKREXMIT) == 0) {
+			const char *	cnseq = ha_msg_value(msg, F_FIRSTSEQ);
+			unsigned long	nseq;
+			if (cnseq  == NULL || sscanf(cnseq, "%lx", &nseq) != 1
+			||	nseq <= 0) {
+				ha_log(LOG_ERR
+				, "should_drop_message: bad nak seq number");
+				return(DROPIT);
+			}
+			
+			ha_log(LOG_ERR , "%s: node %s seq %d"
+			,	"Irretrievably lost packet"
+			,	thisnode->nodename, nseq);
+			is_lost_packet(thisnode, nseq);
+			return(DROPIT);
+		}
 		return(KEEPIT);
 	}
 	if (strcasecmp(type, T_STATUS) == 0) {
@@ -3412,27 +3430,8 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	/*
 	 * Is it a (recorded) missing packet?
 	 */
-	for (j=0; j < t->nmissing; ++j) {
-		/* Is this one of our missing packets? */
-		if (seq == t->seqmissing[j]) {
-			/* Yes.  Delete it from the list */
-			t->seqmissing[j] = NOSEQUENCE;
-			/* Did we delete the last one on the list */
-			if (j == (t->nmissing-1)) {
-				t->nmissing --;
-			}
-
-			/* Swallow up found packets */
-			while (t->nmissing > 0
-			&&	t->seqmissing[t->nmissing-1] == NOSEQUENCE) {
-				t->nmissing --;
-			}
-			if (t->nmissing == 0) {
-				ha_log(LOG_INFO, "No pkts missing from %s!"
-				,	thisnode->nodename);
-			}
-			return(IsToUs ? KEEPIT : DROPIT);
-		}
+	if (is_lost_packet(thisnode, seq)) {
+		return(IsToUs ? KEEPIT : DROPIT);
 	}
 
 	if (ishealedpartition || isrestart) {
@@ -3459,6 +3458,41 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	}
 	return(DROPIT);
 
+}
+
+/*
+ * Is this the sequence number of a lost packet?
+ * If so, clean up after it.
+ */
+int
+is_lost_packet(struct node_info * thisnode, unsigned long seq)
+{
+	struct seqtrack *	t = &thisnode->track;
+	int			j;
+
+	for (j=0; j < t->nmissing; ++j) {
+		/* Is this one of our missing packets? */
+		if (seq == t->seqmissing[j]) {
+			/* Yes.  Delete it from the list */
+			t->seqmissing[j] = NOSEQUENCE;
+			/* Did we delete the last one on the list */
+			if (j == (t->nmissing-1)) {
+				t->nmissing --;
+			}
+
+			/* Swallow up found packets */
+			while (t->nmissing > 0
+			&&	t->seqmissing[t->nmissing-1] == NOSEQUENCE) {
+				t->nmissing --;
+			}
+			if (t->nmissing == 0) {
+				ha_log(LOG_INFO, "No pkts missing from %s!"
+				,	thisnode->nodename);
+			}
+			return 1;
+		}
+	}
+        return 0;
 }
 
 void
@@ -3575,9 +3609,9 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 {
 	const char *	cfseq;
 	const char *	clseq;
-	int		fseq = 0;
-	int		lseq = 0;
-	int		thisseq;
+	unsigned long	fseq = 0;
+	unsigned long	lseq = 0;
+	unsigned long	thisseq;
 	int		firstslot = hist->lastmsg-1;
 
 	if ((cfseq = ha_msg_value(msg, F_FIRSTSEQ)) == NULL
@@ -3655,13 +3689,12 @@ NextReXmit:/* Loop again */;
 	}
 }
 void
-nak_rexmit(int seqno, const char * reason)
+nak_rexmit(unsigned long seqno, const char * reason)
 {
 	struct ha_msg*	msg;
 	char	sseqno[32];
-	char *	smsg;
 
-	sprintf(sseqno, "%d", seqno);
+	sprintf(sseqno, "%lx", seqno);
 	ha_log(LOG_ERR, "Cannot rexmit pkt %d: %s", seqno, reason);
 
 	if ((msg = ha_msg_new(6)) == NULL) {
@@ -3676,14 +3709,7 @@ nak_rexmit(int seqno, const char * reason)
 		ha_msg_del(msg);
 		return;
 	}
-
-
-	if ((smsg = msg2string(msg)) == NULL) {
-		ha_log(LOG_ERR, "cannot create " T_NAKREXMIT, " msg.");
-	}else{
-		send_to_all_media(smsg, strlen(smsg));
-		ha_free(smsg);
-	}
+	send_cluster_msg(msg);
 	ha_msg_del(msg);
 }
 
@@ -3788,6 +3814,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.90  2000/09/10 03:48:52  alan
+ * Fixed a couple of bugs.
+ * - packets that were already authenticated didn't get reauthenticated correctly.
+ * - packets that were irretrievably lost didn't get handled correctly.
+ *
  * Revision 1.89  2000/09/02 23:26:24  alan
  * Fixed bugs surrounding detecting cluster partitions, and around
  * restarts.  Also added the unfortunately missing ifstat and ns_stat files...

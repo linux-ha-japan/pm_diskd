@@ -521,6 +521,8 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			"cannot add F_TOID field");
 			return;
 		}
+		ha_log(LOG_INFO, "Sending message below to cluster");
+		ha_log_message(msg);
 
 		/* Mikey likes it! */
 		if (send_cluster_msg(msg) != HA_OK) {
