@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.189 2002/06/06 06:10:03 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.190 2002/06/21 14:52:51 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -503,6 +503,7 @@ int		parse_only = 0;
 int		RestartRequested = 0;
 static int	shutdown_in_progress = 0;
 static int	WeAreRestarting = 0;
+static int	AreWeADaemonYet = 0;
 static sigset_t	CommonSignalSet;
 
 enum comm_state {
@@ -760,16 +761,17 @@ ha_log(int priority, const char * fmt, ...)
 			fp = fopen(fn, "a");
 		}
 
-		if (fp == NULL) {
-			fp = stderr;
-		}
-
-		fprintf(fp, "heartbeat: %s %s: %s\n", ha_timestamp()
-		,	pristr,  buf);
-
-		if (fp != stderr) {
+		if (fp != NULL) {
+			fprintf(fp, "heartbeat: %s %s: %s\n", ha_timestamp()
+			,	pristr,  buf);
 			fclose(fp);
 		}
+
+
+	}
+	if (!AreWeADaemonYet) {
+		fprintf(stderr, "heartbeat: %s %s: %s\n", ha_timestamp()
+		,	pristr,  buf);
 	}
 }
 
@@ -5122,6 +5124,8 @@ make_daemon(void)
 		,	cmdname, PIDFILE);
 		exit(HA_FAILEXIT);
 	}
+
+	AreWeADaemonYet = 1;
 	if (getsid(0) != pid) {
 		if (setsid() < 0) {
 			fprintf(stderr, "%s: setsid() failure.", cmdname);
@@ -6040,6 +6044,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.190  2002/06/21 14:52:51  alan
+ * Put in a fix which should cause configuration errors to go to stderr in
+ * addition to whereever else they might be headed ;-)
+ *
  * Revision 1.189  2002/06/06 06:10:03  alan
  * Fixed some problems running with newer versions of libtool and automake
  * Added first draft of code for apphbd daemon
