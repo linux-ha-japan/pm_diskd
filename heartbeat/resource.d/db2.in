@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.4 2002/03/14 04:27:03 alan Exp $
+# $Id: db2.in,v 1.5 2002/03/23 23:39:42 alan Exp $
 # 
 # db2
 #
@@ -39,7 +39,7 @@ usage() {
 	The 'monitor' operation reports whether the database seems to be working
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: db2.in,v 1.4 2002/03/14 04:27:03 alan Exp $
+	$Id: db2.in,v 1.5 2002/03/23 23:39:42 alan Exp $
 	!
   exit 1
 
@@ -189,7 +189,7 @@ db2_stop() {
 db2_status() {
   # We ignore the instance, the info we need is already in $vars
   pscount=`runasdb2 $db2bin/db2_local_ps | grep ' db2[^ ]*$' | wc -l`
-  test $pscount -ge 6
+  test $pscount -ge 5
 }
 
 db2_dblist() {

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: WAS.in,v 1.4 2002/03/14 04:28:51 alan Exp $
+# $Id: WAS.in,v 1.5 2002/03/23 23:39:42 alan Exp $
 # 
 # WAS
 #
@@ -26,8 +26,14 @@ exec_prefix=@exec_prefix@
 
 #
 WASDIR=/opt/WebSphere/AppServer
+if
+  [ ! -d $WASDIR ]
+then
+  WASDIR=/usr/WebSphere/AppServer
+fi
 STARTTIME=300	#	5 minutes
 WGET=/usr/bin/wget
+DEFAULT_WASPORTS="9080"
 #
 #
 WASBIN=$WASDIR/bin
@@ -35,11 +41,19 @@ DEFAULT=$WASDIR/config/server-cfg.xml
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
+#
+#	Print usage message
+#
 usage() {
   methods=`WAS_methods | grep -v methods`
   methods=`echo $methods | tr ' ' '|'`
   cat <<-! >&1
+	For the single server edition of WAS:
 	usage: $0 <WAS-configuration file> ($methods)
+	usage: $0 methods
+
+	For the advanced edition of WAS:
+	usage: $0 <WAS-(snoop)-port-number> ($methods)
 	usage: $0 methods
 
 	$0 manages a Websphere Application Server (WAS) as an HA resource
@@ -50,6 +64,17 @@ usage() {
 	The 'monitor' operation reports whether the WAS seems to be working
 		(httpd also needs to be working for this case)
 	The 'methods' operation reports on the methods $0 supports
+
+	This is known to work with the Single Server edition of Websphere,
+	and is believed to work with the Advanced edition too.
+	Since the Advanced Edition has no configuration file (it's in a the
+	database) you need to give a port number instead of a
+	configuration file for this config parameter.
+
+	The default configuration file for the single server edition is:
+	$DEFAULT
+
+	The default snoop-port for the advanced edition is: $DEFAULT_WASPORTS
 
 	The start and stop operations must be run as root.
 
@@ -65,7 +90,7 @@ usage() {
 	We run servlet/snoop on the first transport port listed in
 	the config file for the "monitor" operation.
 
-	$Id: WAS.in,v 1.4 2002/03/14 04:28:51 alan Exp $
+	$Id: WAS.in,v 1.5 2002/03/23 23:39:42 alan Exp $
 	!
   exit 1
 
@@ -141,7 +166,10 @@ xmlcat() {
 # port= specification have to be on the same line in the XML config file.
 #
 GetWASPorts() {
-  xmlcat $1 | grep -i 'transports.*applicationserver:HTTPTransport' 	|
+  case $1 in
+    [0-9]*)	echo "$1" | tr ',' '\012';;
+    *)	
+	xmlcat $1 | grep -i 'transports.*applicationserver:HTTPTransport' |
 	grep port= 				|
 	sed -e 's%.*port= *"* *%%'		\
 		-e 's%[^0-9][^0-9]*.*$%%'
@@ -149,6 +177,7 @@ GetWASPorts() {
 	#	white space.
 	# Throw away everything after the first non-digit.
 	# This should leave us the port number all by itself...
+  esac
 }
 
 #
@@ -205,7 +234,7 @@ ps_long() {
 
 
 #
-#	The total set of WAS processes.
+#	The total set of WAS processes (single server only)
 #
 WAS_procs() {
   ps_long | grep -i "config=$1"  | grep -i java | cut -d' ' -f1
@@ -251,15 +280,15 @@ WAS_report_status() {
   PortCount=`echo $PortCount`
   PortsInUse=`CheckWASPortsInUse $WASPorts`
   case $PortsInUse in
-    0)	echo "WAS: $1 is stopped."; false;;
+    0)	echo "WAS: server $1 is stopped."; false;;
     *)
 	pids=`WASPIDs $WASPorts`
 	if
 	  [ $PortsInUse -ge $PortCount ]
 	then
-    	  echo "WAS: $1 is running (pid" $pids "et al)."
+    	  echo "WAS: server $1 is running (pid" $pids "et al)."
 	else
-    	  echo "WAS: $1 is running (pid $pids et al) but not listening on all ports."
+    	  echo "WAS: server $1 is running (pid $pids et al) but not listening on all ports."
         fi
 	true;;
   esac
@@ -318,14 +347,22 @@ WAS_start() {
 #      -noExecute
 #      -help
   if
-    run $WASBIN/startServer.sh -configFile $1
+    [ -x $WASBIN/startServer.sh ]
+  then
+    cmd="$WASBIN/startServer.sh -configFile $1"
+  else
+    cmd="$WASBIN/startupServer.sh"
+  fi
+    
+  if
+    run $cmd
   then
     if
       WAS_wait_4_start $STARTTIME "$@"
     then
       true
     else
-      ha_log "ERROR: WAS: $1 did not start correctly"
+      ha_log "ERROR: WAS server $1 did not start correctly"
     fi
   else
     false
@@ -352,7 +389,7 @@ WAS_wait_4_start() {
     else
       sleep 1
     fi
-    retriex=`expr $retries + 1`
+    retries=`expr $retries + 1`
   done
   WAS_status "$@"
 }
@@ -364,7 +401,14 @@ WAS_wait_4_start() {
 WAS_stop() {
   # They don't return good return codes...
   # And, they seem to allow anyone to stop WAS (!)
-  run $WASBIN/stopServer.sh -configFile $1
+  if
+    [ -x $WASBIN/stopServer.sh ]
+  then
+    run $WASBIN/stopServer.sh -configFile $1
+  else
+    WASPorts=`GetWASPorts $1`
+    kill `WASPIDs $WASPorts`
+  fi
   if
     WAS_status $1
   then
@@ -387,19 +431,32 @@ then
   exit $?
 fi
 
+#
+#	Supply default configuration parameter(s)
+#
+
 if
   [ $# -eq 1 ]
 then
-  set -- "$DEFAULT" "$@"
+  if
+    [ -f $DEFAULT ]
+  then
+    set -- "$DEFAULT" "$@"
+  else
+    set -- "$DEFAULT_WASPORTS" "$@"
+  fi
 fi
 
 
 if
   [ ! -f $1 ]
 then
-  ha_log "ERROR: WAS configuration file $1 does not exist!"
-  usage
-  exit 1
+  case $1 in
+    [0-9]*)	;;	# ignore port numbers...
+    *)		ha_log "ERROR: WAS configuration file $1 does not exist!"
+  		usage
+  		exit 1;;
+  esac
 fi
   
 
