@@ -26,11 +26,13 @@ hadir			= $(sysconfdir)/ha.d
 halibdir		= $(libdir)/@HEARTBEATPKG@
 commmoddir		= $(halibdir)/modules/comm
 havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
+PIDFILE			= $(localstatedir)/run/apphbd/apphbd.pid
 
 COMMONLIBS		= $(top_builddir)/lib/clplumbing/libplumb.la	\
 			$(GLIBLIB)
 
 CFLAGS			= @CFLAGS@	\
+			-DPIDFILE='"$(PIDFILE)"'
 			-DVAR_LIB_D='"$(havarlibdir)"'
 
 ## binary progs

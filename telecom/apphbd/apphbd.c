@@ -48,10 +48,6 @@
  *
  * TODO list:
  *
- *	- Make it a real production-grade daemon process...
- * 
- *	- Log things in the event log
- *
  *	- Implement plugins for (other) notification mechanisms...
  * 
  *	- Consider merging all the timeouts into some kind of single
@@ -64,6 +60,8 @@
 #include <portability.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
@@ -77,6 +75,15 @@
 #include <clplumbing/ipc.h>
 #include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/apphb_cs.h>
+
+#ifndef PIDFILE
+#	define	PIDFILE "/var/run/apphbd.pid"
+#endif
+
+const char *	cmdname = "apphbd";
+int		debug = 0;
+
+
 
 typedef struct apphb_client apphb_client_t;
 
@@ -98,6 +105,21 @@ struct apphb_client {
 	gboolean		deleteme;	/* Delete after next call */
 };
 
+typedef enum apphb_event apphb_event_t;
+enum apphb_event {
+	APPHB_HUP,
+	APPHB_NOHB,
+	APPHB_HBAGAIN
+};
+
+static void apphb_notify(const char * appname, pid_t pid, apphb_event_t event);
+static long get_running_pid(gboolean * anypidfile);
+static void make_daemon(void);
+static int init_start(void);
+static int init_stop(void);
+static int init_status(void);
+static int init_restart(void);
+
 void apphb_client_remove(apphb_client_t* client);
 static void apphb_putrc(apphb_client_t* client, int rc);
 static gboolean	apphb_timer_popped(gpointer data);
@@ -106,6 +128,7 @@ static int apphb_client_register(apphb_client_t* client, void* Msg, int len);
 static void apphb_read_msg(apphb_client_t* client);
 static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
 void apphb_process_msg(apphb_client_t* client, void* msg,  int length);
+void stop_main(int sig);
 
 /* gmainloop "event source" functions for client communication */
 static gboolean apphb_prepare(gpointer src, GTimeVal*now, gint*timeout
@@ -150,8 +173,7 @@ static gboolean
 apphb_timer_popped(gpointer data)
 {
 	apphb_client_t*	client = data;
-	syslog(LOG_WARNING, "OOPS! client '%s' (pid %d) didn't heartbeat"
-	,	client->appname, client->pid);
+	apphb_notify(client->appname, client->pid, APPHB_NOHB);
 	client->missinghb = TRUE;
 	client->timerid = 0;
 	return FALSE;
@@ -198,8 +220,7 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 	apphb_client_t*		client  = Client;
 
 	if (src->revents & G_IO_HUP) {
-		syslog(LOG_WARNING, "OOPS! client %s (pid %d) HUP!"
-		,	client->appname, client->pid);
+		apphb_notify(client->appname, client->pid, APPHB_HUP);
 		client->deleteme = TRUE;
 		return FALSE;
 	}
@@ -362,8 +383,7 @@ static int
 apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
 {
 	if (client->missinghb) {
-		syslog(LOG_INFO, "Client '%s' (pid %d) alive again."
-		,	client->appname, client->pid);
+		apphb_notify(client->appname, client->pid, APPHB_HBAGAIN);
 		client->missinghb = FALSE;
 	}
 		
@@ -501,12 +521,73 @@ apphb_new_dispatch(gpointer Src, GTimeVal*now, gpointer user)
 	return TRUE;
 }
 
+/*
+ * This function is called whenever a heartbeat event occurs.
+ * It could be replaced by a function which called the appropriate
+ * set of plugins to distribute the notification along to whomever
+ * is interested in whatever way is desired.
+ */
+static void
+apphb_notify(const char * appname, pid_t pid, apphb_event_t event)
+{
+	int	logtype = LOG_WARNING;
+	const char *	msg;
+	switch(event) {
+	case	APPHB_HUP:
+		msg = "disconnected";
+		logtype = LOG_ERR;
+		break;
+	case	APPHB_NOHB:
+		msg = "failed to heartbeat";
+		logtype = LOG_WARNING;
+		break;
+	case	APPHB_HBAGAIN:
+		msg = "resumed heartbeats";
+		logtype = LOG_INFO;
+		break;
+	default:
+		return;
+	}
+	syslog(logtype, "client '%s' (pid %d) %s"
+	,	appname, pid, msg);
+	
+}
+
+extern pid_t getsid(pid_t);
 
 /*
  *	Main program for monitoring application heartbeats...
  */
+GMainLoop*	mainloop = NULL;
+
 int
 main(int argc, char ** argv)
+{
+	cmdname = argv[0];
+
+	if (argc < 2) {
+		return init_start();
+	}
+
+	if (strcmp(argv[1], "--start") == 0) {
+		return init_start();
+	}
+	if (strcmp(argv[1], "--stop") == 0) {
+		return init_stop();
+	}
+	if (strcmp(argv[1], "--status") == 0) {
+		return init_status();
+	}
+	if (strcmp(argv[1], "--restart") == 0) {
+		return init_restart();
+	}
+	fprintf(stderr, "usage: %s --(start|stop|status|restart)\n"
+	,	cmdname);
+	exit(1);
+}
+
+static int
+init_start(void)
 {
 	char		path[] = PATH_ATTR;
 	char		commpath[] = APPHBSOCKPATH;
@@ -516,9 +597,10 @@ main(int argc, char ** argv)
 
 	int		wcfd;
 	GPollFD		pollfd;
-	GMainLoop*	mainloop;
 	
 	openlog("apphbd", LOG_NDELAY|LOG_NOWAIT|LOG_PID, LOG_USER);
+
+	make_daemon();
 	/* Create a "waiting for connection" object */
 
 	wconnattrs = g_hash_table_new(g_str_hash, g_str_equal);
@@ -546,7 +628,129 @@ main(int argc, char ** argv)
 
 	/* Create the mainloop and run it... */
 	mainloop = g_main_new(FALSE);
-	syslog(LOG_INFO, "Starting %s", argv[0]);
+	syslog(LOG_INFO, "Starting %s", cmdname);
 	g_main_run(mainloop);
+	wconn->ops->destroy(wconn);
+	unlink(PIDFILE);
 	return 0;
+}
+
+void
+stop_main(int sig)
+{
+	syslog(LOG_INFO, "Shutting down due to signal %d", sig);
+	g_main_quit(mainloop);
+}
+
+static void
+make_daemon(void)
+{
+	int	j;
+	long	pid;
+	FILE *	lockfd;
+
+	if ((pid = get_running_pid(NULL)) > 0) {
+		fprintf(stderr, "%s: already running: [pid %ld].\n"
+		,	cmdname, pid);
+		syslog(LOG_CRIT, "already running: [pid %ld]."
+		,	pid);
+		exit(1);
+	}
+
+	pid = fork();
+
+	if (pid < 0) {
+		fprintf(stderr, "%s: cannot start daemon.\n", cmdname);
+		syslog(LOG_CRIT, "cannot start daemon.\n");
+		exit(1);
+	}else if (pid > 0) {
+		exit(0);
+	}
+
+	lockfd = fopen(PIDFILE, "w");
+	if (lockfd == NULL) {
+		fprintf(stderr,  "%s: cannot create pid file\n" PIDFILE
+		,	cmdname);
+		syslog(LOG_CRIT, "cannot create pid file" PIDFILE);
+		exit(1);
+	}else{
+		pid = getpid();
+		fprintf(lockfd, "%ld\n", pid);
+		fclose(lockfd);
+	}
+
+	umask(022);
+	getsid(0);
+	for (j=0; j < 3; ++j) {
+		close(j);
+	}
+	signal(SIGINT, SIG_IGN);
+	signal(SIGHUP, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+	signal(SIGTERM, stop_main);
+}
+
+static long
+get_running_pid(gboolean* anypidfile)
+{
+	long    pid;
+	FILE *  lockfd;
+	lockfd = fopen(PIDFILE, "r");
+
+	if (anypidfile) {
+		*anypidfile = (lockfd != NULL);
+	}
+
+	if (lockfd != NULL
+	&&      fscanf(lockfd, "%ld", &pid) == 1 && pid > 0) {
+		if (kill((pid_t)pid, 0) >= 0 || errno != ESRCH) {
+			fclose(lockfd);
+			return(pid);
+		}
+	}
+	if (lockfd != NULL) {
+		fclose(lockfd);
+	}
+	return(-1L);
+}
+
+static int
+init_stop(void)
+{
+	long	pid;
+	pid =	get_running_pid(NULL);
+
+	if (pid > 0) {
+		if (kill((pid_t)pid, SIGTERM) < 0) {
+			fprintf(stderr, "Cannot kill pid %ld\n", pid);
+			exit(1);
+		}
+	}
+	return 0;
+}
+static int
+init_restart(void)
+{
+	init_stop();
+	return init_start();
+}
+static int
+init_status(void)
+{
+	gboolean	anypidfile;
+	long	pid =	get_running_pid(&anypidfile);
+
+	if (pid > 0) {
+		fprintf(stderr, "%s is running [pid: %ld]\n"
+		,	cmdname, pid);
+		exit(1);
+		return 0;
+	}
+	if (anypidfile) {
+		fprintf(stderr, "%s is stopped [pidfile exists]\n"
+		,	cmdname);
+		return 1;
+	}
+	fprintf(stderr, "%s is stopped.\n", cmdname);
+	return 3;
 }
