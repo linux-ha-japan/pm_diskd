@@ -288,6 +288,10 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		return;
 	}
 
+	/*
+	 * We really ought to make all these cases separate functions 
+	 * and put them into a table
+	 */
 	/**********************************************************************
 	 * API_SIGNOFF: Sign off as a client
 	 **********************************************************************/
@@ -520,6 +524,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 	ha_log(LOG_ERR, "Unknown API request");
 
 	/* Common error return handling */
+	/* It would be nice to separate this out into a function too! */
 bad_req:
 	ha_log(LOG_ERR, "api_process_request: bad request [%s]"
 	,	reqtype);
@@ -1209,6 +1214,8 @@ open_reqfifo(client_proc_t* client)
 
 #define	PROC	"/proc/"
 
+/* Return the uid of the given pid */
+
 static	uid_t
 pid2uid(pid_t pid)
 {
@@ -1229,7 +1236,7 @@ pid2uid(pid_t pid)
 	return s.st_uid;
 }
 
-/* Compute file descriptor set for select(2) */
+/* Compute the file descriptor set for select(2) */
 int
 compute_msp_fdset(fd_set* set, int fd1, int fd2)
 {
@@ -1264,7 +1271,7 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 	int		fd;
 	client_proc_t*	client;
 
-	/* Loop over the range of file descriptors we have open for our clients */
+	/* Loop over the range of file descriptors open for our clients */
 
 	for (fd=minfd; fd <= maxfd; ++fd) {
 
@@ -1273,7 +1280,7 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 		if ((client = FDclients[fd]) != NULL) {
 			struct ha_msg*	msg;
 
-			/* I'm not sure if this is useful... */
+			/* I'm not sure if this is ever happens ... */
 			if (FD_ISSET(fd, exceptions)) {
 				if (kill(client->pid, 0) < 0
 				&&	errno == ESRCH) {
@@ -1284,6 +1291,7 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 					continue;
 				}
 			}
+			/* Skip if no input for this client */
 			if (!FD_ISSET(fd, inputs)) {
 				continue;
 			}
