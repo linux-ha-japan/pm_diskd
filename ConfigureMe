@@ -38,7 +38,7 @@ ConfigureLinux() {
   then
     distro=SuSE
     PACKAGECMD="make rpm"
-    DFLAGS="--with-ucd-snmp-devel=ucdsnmp"
+    DFLAGS="--with-ucd-snmp-devel=ucdsnmp --with-group-id=90 --with-ccmuser-id=90"
   elif
     [ -f /etc/redhat-release -a -s /etc/redhat-release ] 
   then
