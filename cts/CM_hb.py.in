@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!@PYTHON@
 
 '''CTS: Cluster Testing System: heartbeat dependent modules...
 
@@ -45,18 +45,18 @@ class HeartbeatCM(ClusterManager):
 
     def __init__(self, Environment, randseed=None):
 
-        self.ResourceDirs = ["/etc/ha.d/resource.d", "/etc/rc.d/init.d"]
-        self.ResourceFile = "/etc/ha.d/haresources"
+        self.ResourceDirs = ["@sysconfdir@/ha.d/resource.d", "@sysconfdir@/rc.d/init.d", "@sysconfdir@/rc.d/"]
+        self.ResourceFile = "@sysconfdir@/ha.d/haresources"
         ClusterManager.__init__(self, Environment, randseed=randseed)
         self.update({
             "Name"	     : "heartbeat",
             "DeadTime"	     : 30,
-            "StartCmd"	     : "/usr/lib/heartbeat/heartbeat -d",
-            "StopCmd"	     : "/usr/lib/heartbeat/heartbeat -k",
-            "StatusCmd"	     : "/usr/lib/heartbeat/heartbeat -s",
-            "RereadCmd"	     : "/usr/lib/heartbeat/heartbeat -r",
-            "Standby"	     : "/usr/lib/heartbeat/hb_standby >/dev/null 2>&1",
-            "TestConfigDir"  : "/etc/ha.d/testconfigs",
+            "StartCmd"	     : "@sysconfdir@/rc.d/heartbeat start",
+            "StopCmd"	     : "@sysconfdir@/rc.d/heartbeat stop",
+            "StatusCmd"	     : "@sysconfdir@/rc.d/heartbeat status",
+            "RereadCmd"	     : "@sysconfdir@/rc.d/heartbeat reload",
+            "Standby"	     : "@libdir@/heartbeat/hb_standby >/dev/null 2>&1",
+            "TestConfigDir"  : "@sysconfdir@/ha.d/testconfigs",
             "LogFileName"    : "/var/log/ha-log",
 
             # Patterns to look for in the log files for various occasions...
@@ -67,7 +67,7 @@ class HeartbeatCM(ClusterManager):
             "Pat:All_stopped"      : " (%s) heartbeat.*Heartbeat shutdown complete",
             "Pat:StandbyOK"        : "Standby process done.*primary",
             "Pat:StandbyNONE"      : "No reply to standby request",
-            "Pat:StandbyTRANSIENT" : "standby message.*ignored.* local resources in flux",
+	    "Pat:StandbyTRANSIENT" : "standby message.*ignored.* local resources in flux",
 
             # Bad news Regexes.  Should never occur.
             "BadRegexes"   : (
@@ -92,15 +92,15 @@ class HeartbeatCM(ClusterManager):
         for j in *
         do
           if
-            [ -f "/etc/ha.d/$j" ];
+            [ -f "@sysconfdir@/ha.d/$j" ];
           then
             if
-              cmp $j /etc/ha.d/$j >/dev/null 2>&1;
+              cmp $j @sysconfdir@/ha.d/$j >/dev/null 2>&1;
             then
               : Config file $j is already up to correct.
             else
               echo "Touching $j"
-              cp $j /etc/ha.d/$j
+              cp $j @sysconfdir@/ha.d/$j
             fi
           fi
         done

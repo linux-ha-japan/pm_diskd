@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!@PYTHON@
 
 '''CTS: Cluster Testing System: Failsafe dependent modules...
 

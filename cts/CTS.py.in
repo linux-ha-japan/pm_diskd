@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!@PYTHON@
 
 '''CTS: Cluster Testing System: Main module
 
@@ -47,9 +47,9 @@ class RemoteExec:
 
     def __init__(self):
         #	-n: no stdin, -x: no X11
-        self.Command = "/usr/bin/ssh -l root -n -x"
+        self.Command = "@SSH@ -l root -n -x"
 	#	-B: batch mode, -q: no stats (quiet)
-        self.CpCommand = "/usr/bin/scp -B -q"
+        self.CpCommand = "@SCP@ -B -q"
 
     def setcmd(self, rshcommand):
 
@@ -233,7 +233,7 @@ class ClusterManager(UserDict):
         self.data = {
             "up"	     : "up",	# Status meaning up
             "down"	     : "down",  # Status meaning down
-            "StonithCmd"     : "/usr/sbin/stonith -t baytech -p '10.10.10.100 admin admin' %s",
+            "StonithCmd"     : "@sbindir@/stonith -t baytech -p '10.10.10.100 admin admin' %s",
             "DeadTime"	     : 30,	# Max time to detect dead node...
             "StartTime"	     : 90,	# Max time to start up
     #
@@ -483,8 +483,10 @@ class Resource:
         return None
 
     def __repr__(self):
-        return "{" + self.ResourceType + "::" + self.Instance + "}"
-
+	if (self.Instance and len(self.Instance) > 1):
+		return "{" + self.ResourceType + "::" + self.Instance + "}"
+	else:
+		return "{" + self.ResourceType + "}"
 
 class ScenarioComponent:
 
@@ -584,7 +586,7 @@ as they might have been rebooted or crashed for some reason beforehand.
 
     def _IsNodeBooted(self, node):
 	'''Return TRUE if the given node is booted (responds to pings'''
-        return os.system("ping -nq -c1 -w1 %s >/dev/null 2>&1" % node) == 0
+        return os.system("@PING@ -nq -c1 @PING_TIMEOUT_OPT@ %s >/dev/null 2>&1" % node) == 0
 
 
     def _WaitForNodeToComeUp(self, node, Timeout=300):

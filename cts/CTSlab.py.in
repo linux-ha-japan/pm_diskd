@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!@PYTHON@
 
 '''CTS: Cluster Testing System: Lab environment module
 
@@ -37,7 +37,7 @@ class ResetMechanism:
 
 class Stonith(ResetMechanism):
     def __init__(self, sttype="ssh", parm="foobar"
-    ,	path="/usr/sbin/stonith"):
+    ,	path="@sbindir@/stonith"):
         self.pathname=path
         self.configstring=parm
         self.stonithtype=sttype
@@ -301,7 +301,6 @@ if __name__ == '__main__':
 
     cm = Environment['CMclass'](Environment)
 
-    cm.log("Hi There")
     cm.log(">>>>>>>>>>>>>>>> BEGINNING TESTS")
 
     Audits = AuditList(cm)
