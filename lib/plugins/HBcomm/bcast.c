@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.1 2001/08/10 17:16:44 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.2 2001/08/11 01:40:54 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -238,7 +238,6 @@ bcast_new(const char * intf)
 		name = ha_malloc(strlen(intf)+1);
 		strcpy(name, intf);
 		ret->name = name;
-
 	}else{
 		ha_free(ipi->interface);
 		ha_free(ipi);
@@ -670,6 +669,10 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.2  2001/08/11 01:40:54  alan
+ * Removed the old copy of the heartbeat.h file, and removed a
+ * blank line from a file... ;-)
+ *
  * Revision 1.1  2001/08/10 17:16:44  alan
  * New code for the new plugin loading system.
  *
