@@ -20,6 +20,9 @@ PIDFILE=@localstatedir@/run/heartbeat-bell
 # Source function library.
 . @sysconfdir@/ha.d/shellfuncs
 
+# What host are we running on?
+us=`uname -n`
+
 audiablealarm_start () {
 	ha_log "info: $0: Starting"
     	if [ -f $PIDFILE ]; then
@@ -30,6 +33,9 @@ audiablealarm_start () {
 	while [ 1 ]; do 
 		sleep 1  #Sleep first, incase we bail out
 		echo -ne "\a" > /dev/console 
+		# Uncomment this line to cause floppy drive light
+		# to flash (requires fdutils package).
+		# /usr/bin/floppycontrol --pollstate > /dev/null
 	done&
 	if ! echo $$ >  $PIDFILE; then
 		ha_log "info: $0: Could not write to pid file \"$PIDFILE\", bailing"
@@ -48,10 +54,24 @@ audiablealarm_stop () {
 	fi
 }
 
+# Get last argument we are passed.
+for arg in "$@"
+  do
+    lastarg=$arg
+  done
+
 
 # See how we were called.
-case "$1" in
-  start)
+case "$lastarg" in
+   start)
+	for arg in "$@"
+ 	  do
+	    if [ "$us" = "$arg" ]; then
+	      # We should not start because we are on a host
+	      # listed in our argument list.
+
+	    fi
+	  done
 	audiablealarm_start
 	;;
   stop)
@@ -71,7 +91,10 @@ case "$1" in
 
   *)
 	echo "Usage: $0 {start|stop|restart|status}"
-	echo "$Id: AudibleAlarm.in,v 1.4 2002/03/14 04:28:51 alan Exp $";
+	echo "       $0 [node1 node2 ... ] {start|stop|restart|status}"
+	echo "       $0 The node list is an optional space delimited"
+	echo "       $0 list of hosts that should never sound the alarm."
+	echo "$Id: AudibleAlarm.in,v 1.5 2002/07/27 06:14:58 horms Exp $";
 	exit 1
 esac
 
