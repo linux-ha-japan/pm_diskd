@@ -1,4 +1,4 @@
-const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.4 2001/10/11 14:25:14 alan Exp $";
+const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.5 2003/01/17 08:31:52 msoffen Exp $";
 
 /*
  * setproctitle.c
@@ -55,6 +55,10 @@ const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.4 2001/10/11 1
  * the source code for OpenSSL in the source distribution.
  */
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -66,10 +70,6 @@ const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.4 2001/10/11 1
 #define PF_ARGV_WRITEABLE       2
 #define PF_ARGV_PSTAT           3
 #define PF_ARGV_PSSTRINGS       4
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 
 #if PF_ARGV_TYPE == PF_ARGV_PSTAT
 #	include <pstat.h>
@@ -85,7 +85,8 @@ extern char **environ;
   extern char *__progname, *__progname_full;
 #endif /* HAVE___PROGNAME */
 
-void init_set_proc_title(int argc, char *argv[], char *envp[])
+void 
+init_set_proc_title(int argc, char *argv[], char *envp[])
 {
   int i, envpsize;
   char **p;
@@ -148,23 +149,35 @@ void set_proc_title(const char *fmt,...)
 #if PF_ARGV_TYPE == PF_ARGV_PSTAT
    union pstun pst;
 #endif /* PF_ARGV_PSTAT */
-  int i;
-#if PF_ARGV_TYPE == PF_ARGV_WRITEABLE
-  int maxlen = (LastArgv - Argv[0]) - 2;
+  int i,maxlen = (LastArgv - Argv[0]) - 2;
   char *p;
-#endif
 #endif /* HAVE_SETPROCTITLE */
 
   va_start(msg,fmt);
 
   memset(statbuf, 0, sizeof(statbuf));
-  vsnprintf(statbuf, sizeof(statbuf), fmt, msg);
+
 
 #ifdef HAVE_SETPROCTITLE
-  /* On systems with setproctitle(), v*printf are used on the arguments.
-   * Prevent any possible format attacks.
-   */
+# if __FreeBSD__ >= 4 && !defined(FREEBSD4_0) && !defined(FREEBSD4_1)
+  /* FreeBSD's setproctitle() automatically prepends the process name. */
+  vsnprintf(statbuf, sizeof(statbuf), fmt, msg);
+
+# else /* FREEBSD4 */
+  /* Manually append the process name for non-FreeBSD platforms. */
+  snprintf(statbuf, sizeof(statbuf), "%s", "heartbeat: ");
+  vsnprintf(statbuf + strlen(statbuf), sizeof(statbuf) - strlen(statbuf),
+    fmt, msg);
+
+# endif /* FREEBSD4 */
   setproctitle("%s", statbuf);
+
+#else /* HAVE_SETPROCTITLE */
+  /* Manually append the process name for non-setproctitle() platforms. */
+  snprintf(statbuf, sizeof(statbuf), "%s", "heartbeat: ");
+  vsnprintf(statbuf + strlen(statbuf), sizeof(statbuf) - strlen(statbuf),
+    fmt, msg);
+
 #endif /* HAVE_SETPROCTITLE */
 
   va_end(msg);

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.236 2003/01/16 00:49:46 msoffen Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.237 2003/01/17 08:31:52 msoffen Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2634,7 +2634,7 @@ usage(void)
 
 extern int	optind;
 int
-main(int argc, char * argv[], char * envp[])
+main(int argc, char * argv[], char **envp)
 {
 	int		flag;
 	int		argerrs = 0;
@@ -3890,6 +3890,10 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.237  2003/01/17 08:31:52  msoffen
+ * Updated to match current procftpd (in an attempt to get
+ * setproctitle working on Solaris).
+ *
  * Revision 1.236  2003/01/16 00:49:46  msoffen
  * Created static variable instead of "run time" allocation for config variable
  * becuase on Solaris the variable wasn't being created with proper memory
