@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.37 1999/12/25 08:44:17 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.38 1999/12/25 19:00:48 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -793,6 +793,7 @@ master_status_process(void)
 		/* Check for clock jumps */
 		if (now < lastnow) {
 			ha_log(LOG_INFO, "Clock jumped backwards. Compensating.");
+			send_local_status();
 			init_status_alarm();
 		}
 		lastnow = now;
@@ -2499,6 +2500,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.38  1999/12/25 19:00:48  alan
+ * I now send local status unconditionally every time the clock jumps backwards.
+ *
  * Revision 1.37  1999/12/25 08:44:17  alan
  * Updated to new version stamp
  * Added Lars Marowsky-Bree's suggestion to make the code almost completely
