@@ -75,7 +75,20 @@
 #include <hb_api_core.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
+
+/* 
+ * Just incase we are on an out of date system 
+ */
+#ifndef CLOCKS_PER_SEC
+#  ifndef CLK_TCK
+#    error Neither CLOCKS_PER_SEC nor CLK_TCK (obsolete) are defined
+#  endif /* CLK_TCK */
+#  define CLOCKS_PER_SEC CLK_TCK
+#endif /* CLOCKS_PER_SEC */
+
+
 
 static int api_ping_iflist(const struct ha_msg* msg, struct node_info * node
 ,	struct ha_msg* resp
@@ -205,7 +218,7 @@ api_audit_clients(void)
 	}
 
 	lastnow = now;
-	audittime = now + (CLK_TCK * 10); /* Every 10 seconds */
+	audittime = now + (CLOCKS_PER_SEC * 10); /* Every 10 seconds */
 
 	for (client=client_list; client != NULL; client=nextclient) {
 		nextclient=client->next;

@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/time.h>
 #include <sys/times.h>
 #ifdef _POSIX_PRIORITY_SCHEDULING
@@ -47,6 +48,17 @@
 #ifndef EOS
 #	define	EOS '\0'
 #endif
+
+
+/* 
+ * Just incase we are on an out of date system 
+ */
+#ifndef CLOCKS_PER_SEC
+#  ifndef CLK_TCK
+#    error Neither CLOCKS_PER_SEC nor CLK_TCK (obsolete) are defined
+#  endif /* CLK_TCK */
+#  define CLOCKS_PER_SEC CLK_TCK
+#endif /* CLOCKS_PER_SEC */
 
 
 /*
@@ -61,7 +73,7 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 	clock_t		starttime;
 	clock_t		endtime;
 	int		wraparound=0;
-	int		tickstousec = (1000000/CLK_TCK);
+	int		tickstousec = (1000000/CLOCKS_PER_SEC);
 	clock_t		now;
 	clock_t		ticks;
 	int		nchars = 1; /* reserve space for an EOS */
@@ -72,7 +84,7 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 	/* Figure out when to give up.  Handle lbolt wraparound */
 
 	starttime = times(NULL);
-	ticks = (to_secs*CLK_TCK);
+	ticks = (to_secs*CLOCKS_PER_SEC);
 	endtime = starttime + ticks;
 
 	if (endtime < starttime) {
@@ -99,8 +111,8 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 
 		timeleft = endtime - now;
 
-		tv.tv_sec = timeleft / CLK_TCK;
-		tv.tv_usec = (timeleft % CLK_TCK) * tickstousec;
+		tv.tv_sec = timeleft / CLOCKS_PER_SEC;
+		tv.tv_usec = (timeleft % CLOCKS_PER_SEC) * tickstousec;
 
 		if (tv.tv_sec == 0 && tv.tv_usec < tickstousec) {
 			/* Give 'em a little chance */
