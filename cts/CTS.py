@@ -767,6 +767,12 @@ random for the selected number of iterations.
         BadNews.setwatch()
         testcount=1
 
+	# This makes sure everything is stabilized before starting...
+        for audit in self.Audits:
+            if not audit():
+                self.CM.log("Audit " + audit.name() + " Failed.")
+                test.incr("auditfail")
+                self.incr("auditfail")
         while testcount <= max:
             test = self.Env.RandomGen.choice(self.Tests)
 
