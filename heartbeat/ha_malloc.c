@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.1 1999/10/10 19:39:11 alanr Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.2 1999/10/10 20:11:51 alanr Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,12 +23,6 @@ struct ha_bucket {
 };
 
 
-struct ha_memstats {
-	int		numalloc;
-	unsigned long	nbytes_req;
-	unsigned long	nbytes_alloc;
-};
-struct ha_memstats	memstats;
 
 #define	NUMBUCKS	8
 #define	NOBUCKET	(NUMBUCKS)
@@ -82,10 +76,13 @@ ha_malloc(size_t size)
 			ha_malloc_buckets[numbuck] = buckptr->next;
 			buckptr->hdr.reqsize = size;
 			ret = (((char*)buckptr)+ha_malloc_hdr_offset);
-			memstats.nbytes_req += size;
+			curproc->nbytes_req += size;
 			
 		}
 	MALLOC_END_CRITICAL();
+	if (ret && curproc) {
+		curproc->numalloc++;
+	}
 	return(ret);
 }
 
@@ -110,8 +107,8 @@ ha_new_mem(size_t size, int numbuck)
 	hdrret->hdr.bucket = numbuck;
 	hdrret->hdr.magic = HA_MALLOC_MAGIC;
 
-	memstats.nbytes_alloc += allocsize;
-	memstats.nbytes_req += size;
+	curproc->nbytes_alloc += allocsize;
+	curproc->nbytes_req += size;
 	return(((char*)hdrret)+ha_malloc_hdr_offset);
 }
 
@@ -156,21 +153,29 @@ ha_free(void *ptr)
 	}
 	bucket = bhdr->hdr.bucket;
 	if (bucket >= NUMBUCKS) {
-		memstats.nbytes_alloc -= bhdr->hdr.reqsize;
-		memstats.nbytes_req   -= bhdr->hdr.reqsize;
+		curproc->nbytes_alloc -= bhdr->hdr.reqsize;
+		curproc->nbytes_req   -= bhdr->hdr.reqsize;
 		MALLOC_BEGIN_CRITICAL();
 			free(bhdr);
 		MALLOC_END_CRITICAL();
 	}else{
 		ASSERT(bhdr->hdr.reqsize <= ha_bucket_sizes[bucket]);
-		memstats.nbytes_req   -= bhdr->hdr.reqsize;
+		curproc->nbytes_req   -= bhdr->hdr.reqsize;
 		MALLOC_BEGIN_CRITICAL();
 			bhdr->next = ha_malloc_buckets[bucket];
 			ha_malloc_buckets[bucket] = bhdr;
 		MALLOC_END_CRITICAL();
 	}
+	if (curproc) {
+		curproc->numfree++;
+	}
 }
 
+void
+ha_malloc_report()
+{
+
+}
 static void
 ha_malloc_init()
 {

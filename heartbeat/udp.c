@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.5 1999/10/06 05:37:24 alanr Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.6 1999/10/10 20:12:58 alanr Exp $";
 /*
    About 150 lines of the code in this file borrowed 1999 from Tom Vogt's
 	"Heart" program, and significantly mangled by
@@ -113,13 +113,13 @@ udp_new(const char * intf)
 	if (ret != NULL) {
 		char * name;
 		ret->pd = (void*)ipi;
-		name = malloc(strlen(intf)+1);
+		name = ha_malloc(strlen(intf)+1);
 		strcpy(name, intf);
 		ret->name = name;
 		ret->vf = &ip_media_fns;
 
 	}else{
-		free(ipi);
+		ha_free(ipi);
 	}
 	return(ret);
 }
@@ -227,7 +227,7 @@ udp_write(struct hb_media* mp, struct ha_msg * msgptr)
 	,	(struct sockaddr *)&ei->addr
 	,	sizeof(struct sockaddr))) != size) {
 		ha_perror("Error sending packet");
-		free(pkt);
+		ha_free(pkt);
 		return(HA_FAIL);
 	}
 
@@ -238,7 +238,7 @@ udp_write(struct hb_media* mp, struct ha_msg * msgptr)
 	if (DEBUGPKTCONT) {
 		ha_log(LOG_DEBUG, pkt);
    	}
-	free(pkt);
+	ha_free(pkt);
 	return(HA_OK);
 }
 
@@ -425,16 +425,16 @@ new_ip_interface(const char * ifn, int port)
 
 	ep->bcast = *he;
 
-	ep->interface = (char *)malloc(strlen(ifn)+1);
+	ep->interface = (char *)ha_malloc(strlen(ifn)+1);
 	if(ep->interface == NULL) {
-		free(ep);
+		ha_free(ep);
 		return(NULL);
 	}
 	strcpy(ep->interface, ifn);
-	ep->bcast_addr = malloc(strlen(bp)+1);
+	ep->bcast_addr = ha_malloc(strlen(bp)+1);
 	if(ep->bcast_addr == NULL) {
-		free(ep->interface);
-		free(ep);
+		ha_free(ep->interface);
+		ha_free(ep);
 		return(NULL);
 	}
 	strcpy(ep->bcast_addr, bp);
@@ -449,6 +449,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.6  1999/10/10 20:12:58  alanr
+ * New malloc/free (untested)
+ *
  * Revision 1.5  1999/10/06 05:37:24  alanr
  * FreeBSD port - getting broadcast address
  *

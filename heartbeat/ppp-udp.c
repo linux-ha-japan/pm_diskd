@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.4 1999/10/05 16:11:53 alanr Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.5 1999/10/10 20:12:47 alanr Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -180,7 +180,7 @@ ppp_udp_new(const char* tty, const char* ipaddr)
 	bzero(ipi, sizeof(*ipi));
 
 
-	ipi->ipaddr = malloc(strlen(ipaddr)+1);
+	ipi->ipaddr = ha_malloc(strlen(ipaddr)+1);
 	strcpy(ipi->ipaddr, ipaddr);
 
         ipi->port = udpport;
@@ -189,9 +189,9 @@ ppp_udp_new(const char* tty, const char* ipaddr)
 	if (ret != NULL) {
 		char *	name;
 		ret->pd = (void*)ipi;
-		name = malloc(strlen(tty)+1);
+		name = ha_malloc(strlen(tty)+1);
 		if (name == NULL)  {
-			free(ret);
+			ha_free(ret);
 			ret=NULL;
 			return(ret);
 		}
@@ -203,7 +203,7 @@ ppp_udp_new(const char* tty, const char* ipaddr)
 		ipi->rsocket = ipi->wsocket = -1;
 	}else{
 		ha_error("Out of memory.");
-		free(ipi);
+		ha_free(ipi);
 	}
 	return(ret);
 }
@@ -323,11 +323,11 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 		}
 		if (fgets(line, MAXLINE-1, fp) != NULL) {
 			if (ei->far_addr != NULL)  {
-				free(ei->far_addr);
+				ha_free(ei->far_addr);
 				ei->far_addr = NULL;
 			}
 			line[strlen(line)-1] = EOS;
-			ei->far_addr = malloc(strlen(line)+1);
+			ei->far_addr = ha_malloc(strlen(line)+1);
 			strcpy(ei->far_addr, line);
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG, "addr=%s", line);
@@ -335,11 +335,11 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 		}
 		if (fgets(line, MAXLINE-1, fp) != NULL) {
 			if (ei->interface != NULL)  {
-				free(ei->interface);
+				ha_free(ei->interface);
 				ei->interface = NULL;
 			}
 			line[strlen(line)-1] = EOS;
-			ei->interface = malloc(strlen(line)+1);
+			ei->interface = ha_malloc(strlen(line)+1);
 			strcpy(ei->interface, line);
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG, "if=%s", ei->interface);
@@ -737,7 +737,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 	/* Can't write to socket yet... */
 	if (ei->wsocket < 0) {
 		/* Pretend we wrote the packet without error */
-		free(pkt);
+		ha_free(pkt);
 		return(HA_OK);
 	}
 
@@ -778,7 +778,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 			/* Hopefully far end heartbeats will start up soon... */
 			/* If not, we'll keep getting connection refused and */
 			/* eventually restart PPPd (in case it's us) */
-			free(pkt);
+			ha_free(pkt);
 			return(HA_OK);
 		}
 		ha_log(LOG_WARNING
@@ -786,7 +786,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 		,	inet_ntoa(ei->addr.sin_addr));
 		/* This will cause PPPd to restart */
 		ppp_udp_close(mp);
-		free(pkt);
+		ha_free(pkt);
 		return(HA_FAIL);
 	}else{
 		/* Account for pppd weirdness */
@@ -800,7 +800,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 	if (DEBUGPKTCONT) {
 		ha_log(LOG_DEBUG, pkt);
    	}
-	free(pkt);
+	ha_free(pkt);
 	return(HA_OK);
 }
 
@@ -1153,6 +1153,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.5  1999/10/10 20:12:47  alanr
+ * New malloc/free (untested)
+ *
  * Revision 1.4  1999/10/05 16:11:53  alanr
  * First attempt at restarting everything with -R/-r flags
  *

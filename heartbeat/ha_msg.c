@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.6 1999/10/05 06:00:55 alanr Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.7 1999/10/10 20:11:56 alanr Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,10 +30,10 @@ ha_msg_new(nfields)
 	if (ret) {
 		ret->nfields = 0;
 		ret->nalloc	= MINFIELDS;
-		ret->names	= (char **)malloc(sizeof(char *)*MINFIELDS);
-		ret->nlens	= (int *)malloc(sizeof(int)*MINFIELDS);
-		ret->values	= (char **)malloc(sizeof(char *)*MINFIELDS);
-		ret->vlens	= (int *)malloc(sizeof(int)*MINFIELDS);
+		ret->names	= (char **)ha_malloc(sizeof(char *)*MINFIELDS);
+		ret->nlens	= (int *)ha_malloc(sizeof(int)*MINFIELDS);
+		ret->values	= (char **)ha_malloc(sizeof(char *)*MINFIELDS);
+		ret->vlens	= (int *)ha_malloc(sizeof(int)*MINFIELDS);
 		ret->stringlen	= sizeof(MSG_START)+sizeof(MSG_END)-1;
 		if (ret->names == NULL || ret->values == NULL
 		||	ret->nlens == NULL || ret->vlens == NULL) {
@@ -61,33 +61,33 @@ ha_msg_del(struct ha_msg *msg)
 		if (msg->names) {
 			for (j=0; j < msg->nfields; ++j) {
 				if (msg->names[j]) {
-					free(msg->names[j]);
+					ha_free(msg->names[j]);
 				}
 			}
-			free(msg->names);
+			ha_free(msg->names);
 			msg->names = NULL;
 		}
 		if (msg->values) {
 			for (j=0; j < msg->nfields; ++j) {
 				if (msg->values[j]) {
-					free(msg->values[j]);
+					ha_free(msg->values[j]);
 				}
 			}
-			free(msg->values);
+			ha_free(msg->values);
 			msg->values = NULL;
 		}
 		if (msg->nlens) {
-			free(msg->nlens);
+			ha_free(msg->nlens);
 			msg->nlens = NULL;
 		}
 		if (msg->vlens) {
-			free(msg->vlens);
+			ha_free(msg->vlens);
 			msg->vlens = NULL;
 		}
 		msg->nfields = -1;
 		msg->nalloc = -1;
 		msg->stringlen = -1;
-		free(msg);
+		ha_free(msg);
 	}
 }
 
@@ -126,12 +126,12 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 	}
 		
 
-	if ((cpname = malloc(namelen+1)) == NULL) {
+	if ((cpname = ha_malloc(namelen+1)) == NULL) {
 		ha_error("ha_msg_nadd: no memory for string (name)");
 		return(HA_FAIL);
 	}
-	if ((cpvalue = malloc(vallen+1)) == NULL) {
-		free(cpname);
+	if ((cpvalue = ha_malloc(vallen+1)) == NULL) {
+		ha_free(cpname);
 		ha_error("ha_msg_nadd: no memory for string (value)");
 		return(HA_FAIL);
 	}
@@ -202,12 +202,12 @@ ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 	int	j;
 	for (j=0; j < msg->nfields; ++j) {
 		if (strcmp(name, msg->names[j]) == 0) {
-			char *	newv = malloc(strlen(value)+1);
+			char *	newv = ha_malloc(strlen(value)+1);
 			if (newv == NULL) {
 				ha_error("ha_msg_mod: out of memory");
 				return(HA_FAIL);
 			}
-			free(msg->values[j]);
+			ha_free(msg->values[j]);
 			msg->values[j] = newv;
 			strcpy(newv, value);
 			return(HA_OK);
@@ -263,7 +263,7 @@ msg2stream(struct ha_msg* m, FILE * f)
 	if (s != NULL) {
 		fputs(s, f);
 		fflush(f);
-		free(s);
+		ha_free(s);
 		return(HA_OK);
 	}else{
 		return(HA_FAIL);
@@ -331,7 +331,7 @@ msg2string(const struct ha_msg *m)
 		return(NULL);
 	}
 
-	buf = malloc(m->stringlen);
+	buf = ha_malloc(m->stringlen);
 
 	if (buf == NULL) {
 		ha_error("msg2string: no memory for string");
@@ -620,6 +620,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.7  1999/10/10 20:11:56  alanr
+ * New malloc/free (untested)
+ *
  * Revision 1.6  1999/10/05 06:00:55  alanr
  * Added RPM Cflags to Makefiles
  *

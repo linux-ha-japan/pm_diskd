@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.7 1999/10/03 03:14:01 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.8 1999/10/10 20:12:34 alanr Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -107,7 +107,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.7 1999/10/03 03:14:0
 #define RESOURCE_CFG		HA_D "/haresources"
 
 #define	STATIC		/* static */
-#define	MALLOCT(t)	((t *)(malloc(sizeof(t))))
+#define	MALLOCT(t)	((t *)(ha_malloc(sizeof(t))))
 
 /* You may need to change this for your compiler */
 #define	ASSERT(X)	{if(!(X)) ha_assert(__STRING(X), __LINE__, __FILE__);}
@@ -226,6 +226,10 @@ struct process_info {
 	pid_t			pid;
 	unsigned long		totalmsgs;
 	unsigned long		allocmsgs;
+	unsigned long		numalloc;	/* # of ha_malloc calls */
+	unsigned long		numfree;	/* # of ha_free calls */
+	unsigned long		nbytes_req;	/* # malloc bytes req'd */
+	unsigned long		nbytes_alloc;	/* # bytes allocated  */
 	time_t			lastmsg;
 };
 
@@ -267,4 +271,8 @@ extern void		(*localdie)(void);
 extern int		should_ring_copy_msg(struct ha_msg* m);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
 struct auth_type *	findauth(const char * type);
-#endif
+void*		ha_malloc(size_t size);
+void*		ha_calloc(size_t nmemb, size_t size);
+void		ha_free(void *ptr);
+void		ha_malloc_report(void);
+#endif _HEARTBEAT_H

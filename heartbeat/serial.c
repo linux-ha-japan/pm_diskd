@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.4 1999/10/05 06:17:30 alanr Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.5 1999/10/10 20:12:54 alanr Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -119,13 +119,13 @@ serial_new(const char * port)
 		if (sp != NULL)  {
 			sp->next = lastserialport;
 			lastserialport=ret;
-			sp->ttyname = (char *)malloc(strlen(port)+1);
+			sp->ttyname = (char *)ha_malloc(strlen(port)+1);
 			strcpy(sp->ttyname, port);
 			ret->name = sp->ttyname;
 			ret->vf = &serial_media_fns;
 			ret->pd = sp;
 		}else{
-			free(ret);
+			ha_free(ret);
 			ret = NULL;
 			ha_error("Out of memory (private serial data)");
 		}
@@ -353,7 +353,7 @@ serial_write(struct hb_media*mp, struct ha_msg*m)
 		,	mp->name, wrc, size);
 		ha_perror(msg);
 	}
-	free(str);
+	ha_free(str);
 	return(HA_OK);
 }
 
@@ -433,7 +433,7 @@ serial_read(struct hb_media*mp)
 			}
 			write(sp->wpipe[P_WRITEFD], newmsg, msglen);
 		}
-		free(newmsg);
+		ha_free(newmsg);
 	}
 	return(ret);
 }
@@ -467,6 +467,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.5  1999/10/10 20:12:54  alanr
+ * New malloc/free (untested)
+ *
  * Revision 1.4  1999/10/05 06:17:30  alanr
  * Fixed various uninitialized variables
  *

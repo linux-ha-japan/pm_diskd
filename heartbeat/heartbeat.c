@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.16 1999/10/05 18:47:52 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.17 1999/10/10 20:12:08 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -316,7 +316,7 @@ init_config(const char * cfgfile)
  *	'Twould be good to move this to a shared memory segment
  *	Then we could share this information with others
  */
-	config = (struct sys_config *)calloc(1, sizeof(struct sys_config));
+	config = (struct sys_config *)ha_calloc(1, sizeof(struct sys_config));
 	config->format_vers = 100;
 	config->heartbeat_interval = 2;
 	config->deadtime_interval = 5;
@@ -785,7 +785,7 @@ parse_authfile(void)
 	config->authmethod = NULL;
 	for (j=0; j < MAXAUTH; ++j) {
 		if (config->auth_config[j].key != NULL) {
-			free(config->auth_config[j].key);
+			ha_free(config->auth_config[j].key);
 			config->auth_config[j].key=NULL;
 		}
 		if (config->auth_config[j].auth != NULL) {
@@ -850,7 +850,7 @@ parse_authfile(void)
 				rc = HA_FAIL;
 			}
 
-			cpkey =	malloc(strlen(key)+1);
+			cpkey =	ha_malloc(strlen(key)+1);
 			if (cpkey == NULL) {
 				ha_log(LOG_ERR, "Out of memory for authkey");
 				fclose(f);
@@ -919,7 +919,7 @@ set_watchdogdev(const char * value)
 		,	cmdname);
 		return(HA_FAIL);
 	}
-	if ((watchdogdev = (char *)malloc(strlen(value)+1)) == NULL) {
+	if ((watchdogdev = (char *)ha_malloc(strlen(value)+1)) == NULL) {
 		fprintf(stderr, "%s: Out of memory for watchdog device\n"
 		,	cmdname);
 		return(HA_FAIL);
@@ -1335,7 +1335,7 @@ read_child(struct hb_media* mp)
 					,	"to status pipe");
 				}
 			}
-			free(sm);
+			ha_free(sm);
 		}
 		ha_msg_del(m);
 	}
@@ -1405,7 +1405,7 @@ control_process(FILE * fp)
 		for (j=0; j < nummedia; ++j) {
 			write(sysmedia[j]->wpipe[P_WRITEFD], smsg, len);
 		}
-		free(smsg);
+		ha_free(smsg);
 	}
 	/* That's All Folks... */
 }
@@ -1681,6 +1681,10 @@ debug_sig(int sig)
 		ha_log(LOG_DEBUG, "MSG info: %ld/%ld age %ld [pid%d/%s]"
 		,	curproc->allocmsgs, curproc->totalmsgs
 		,	time(NULL) - curproc->lastmsg, curproc->pid, ct);
+		ha_log(LOG_DEBUG, "MALLOC info: %lu/%lu  %lu/%lu [pid%d/%s]"
+		,	curproc->numalloc, curproc->numfree
+		,	curproc->nbytes_alloc, curproc->nbytes_req
+		,	curproc->pid, ct);
 	}
 }
 
@@ -1871,7 +1875,7 @@ send_cluster_msg(struct ha_msg* msg)
 		int	length;
 
 		if (ffd < 0) {
-			free(smsg);
+			ha_free(smsg);
 			return(HA_FAIL);
 		}
 
@@ -1879,7 +1883,7 @@ send_cluster_msg(struct ha_msg* msg)
 		write(ffd, smsg, length);
 		close(ffd);
 	}
-	free(smsg);
+	ha_free(smsg);
 
 	return(HA_OK);
 }
@@ -2537,7 +2541,7 @@ dump_msg(const struct ha_msg *msg)
 {
 	char *	s = msg2string(msg);
 	ha_log(LOG_DEBUG, "Message dump: %s", s);
-	free(s);
+	ha_free(s);
 }
 
 /*
@@ -2754,6 +2758,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.17  1999/10/10 20:12:08  alanr
+ * New malloc/free (untested)
+ *
  * Revision 1.16  1999/10/05 18:47:52  alanr
  * restart code (-r flag) now works as I think it should
  *
