@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.12 2002/10/05 19:45:10 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.13 2002/10/18 07:16:10 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -65,7 +65,6 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.12 2002/10/05 19:45:10 alan Exp 
 
 #include <netinet/ip_icmp.h>
 #include <netdb.h>
-#include <signal.h>
 #include <heartbeat.h>
 #include <HBcomm.h>
 

@@ -20,6 +20,7 @@
  *
  */
 #include <ccm.h>
+#include <clplumbing/cl_signal.h>
 
 #define SECOND   1000
 #define OPTARGS  "dv"
@@ -209,9 +210,9 @@ main(int argc, char **argv)
 	}
 
 
-	signal(SIGUSR1, ccm_debug);
-	signal(SIGUSR2, ccm_debug);
-	IGNORESIG(SIGPIPE);
+	CL_SIGNAL(SIGUSR1, ccm_debug);
+	CL_SIGNAL(SIGUSR2, ccm_debug);
+	CL_IGNORE_SIG(SIGPIPE);
 
 	/* initialize the client tracking system */
 	client_init();

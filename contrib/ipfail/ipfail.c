@@ -50,7 +50,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
-#include <signal.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/time.h>
@@ -60,6 +59,7 @@
 #include <ha_msg.h>
 #include <hb_api.h>
 #include <clplumbing/cl_log.h>
+#include <clplumbing/cl_signal.h>
 
 void NodeStatus(const char *node, const char *status, void *private);
 void LinkStatus(const char *node, const char *, const char *, void *);
@@ -385,8 +385,8 @@ main(int argc, char **argv)
 		exit(8);
 	}
 
-	siginterrupt(SIGINT, 1);
-	signal(SIGINT, gotsig);
+	CL_SIGINTERRUPT(SIGINT, 1);
+	CL_SIGNAL(SIGINT, gotsig);
 
 	cl_log(LOG_DEBUG, "Setting message signal");
 	if (hb->llc_ops->setmsgsignal(hb, 0) != HA_OK) {

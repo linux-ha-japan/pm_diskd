@@ -28,6 +28,7 @@
 #include <glib.h>
 #include <string.h>
 #include <ipc.h>
+#include <sys/time.h>
 
 #ifdef __CCM_LIBRARY__
 #include <ocf/oc_event.h>

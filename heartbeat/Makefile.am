@@ -37,7 +37,6 @@ apireg			= $(havarlibdir)/register
 apigid			= @APIGID@
 gliblib			= @GLIBLIB@
 
-
 LIBRT 			= @LIBRT@
 CFLAGS			= @CFLAGS@ $(AM_CFLAGS)	\
 -DVAR_RUN_D='"$(havarrundir)"'	\
@@ -56,21 +55,22 @@ include_HEADERS		= hb_api.h
 
 lib_LTLIBRARIES		= libhbclient.la 
 
-libhbclient_la_SOURCES	= ha_msg.c lock.c client_lib.c
+libhbclient_la_SOURCES	= client_lib.c lock.c ha_msg.c
 libhbclient_la_LDFLAGS	= -version-info 0:0:0
 
 ## binary progs
 halib_PROGRAMS		= heartbeat send_arp findif api_test get_hw_addr
 
 ## SOURCES
-heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
-			ha_malloc.c ha_msg.c ha_msg_internal.c lock.c \
-			module.c hb_api.h hb_api_core.h \
-                        hb_module.h hb_proc.h lock.h \
-                        setproctitle.c setproctitle.h test.h
-heartbeat_LDADD		= $(top_builddir)/lib/stonith/libstonith.la \
-			$(top_builddir)/replace/libreplace.la	\
-			$(top_builddir)/lib/pils/libpils.la	\
+heartbeat_SOURCES	= heartbeat.c heartbeat_private.h auth.c config.c \
+			hb_api.c ha_malloc.c ha_msg.c ha_msg_internal.c	\
+			lock.c module.c hb_api.h hb_api_core.h 		\
+                        hb_module.h hb_proc.h lock.h hb_signal.c	\
+                        hb_signal.h setproctitle.c setproctitle.h test.h
+
+heartbeat_LDADD		= $(top_builddir)/lib/stonith/libstonith.la	\
+			$(top_builddir)/replace/libreplace.la		\
+			$(top_builddir)/lib/pils/libpils.la		\
 			$(top_builddir)/lib/clplumbing/libplumb.la	\
 			$(top_builddir)/libltdl/libltdlc.la $(gliblib) $(LIBRT)
 

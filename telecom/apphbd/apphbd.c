@@ -85,8 +85,7 @@
 #include <pils/generic.h>
 #include <pils/plugin.h>
 
-#define __USE_UNIX98
-#include <signal.h>
+#include <clplumbing/cl_signal.h>
 
 #ifndef PIDFILE
 #	define	PIDFILE "/var/run/apphbd.pid"
@@ -203,7 +202,6 @@ apphb_putrc(apphb_client_t* client, int rc)
 	if (client->ch->ops->send(client->ch, &client->rcmsg) != IPC_OK) {
 		client->deleteme = TRUE;
 	}
-	
 }
 
 /* Oops!  Client heartbeat timer expired! -- Bad client! */
@@ -657,7 +655,7 @@ main(int argc, char ** argv)
 			break;
 
 			case 'l':		/* low priority */
-			disable_realtime();
+			cl_disable_realtime();
 			break;
 
 			case 'n':		/* Notification Plugin */
@@ -677,7 +675,7 @@ static void
 shutdown(int nsig)
 {
 	static int	shuttingdown = 0;
-	signal(nsig, shutdown);
+	CL_SIGNAL(nsig, shutdown);
 
 	if (!shuttingdown) {
 		/* Let the watchdog get us if we can't shut down */
@@ -727,7 +725,7 @@ init_start(const char * watchdogdev)
 	if (watchdogfd >= 0) {
 		Gmain_timeout_add(1000, tickle_watchdog_timer, NULL);
 	}
-	make_realtime(SCHED_RR, 100, 64);
+	cl_make_realtime(SCHED_RR, 100, 64);
 	if (watchdogdev) {
 		open_watchdog(watchdogdev);
 	}
@@ -780,9 +778,9 @@ make_daemon(void)
 		(void)open("/dev/null", j == 0 ? O_RDONLY : O_RDONLY);
 	}
 
-	IGNORESIG(SIGINT);
-	IGNORESIG(SIGHUP);
-	signal(SIGTERM, shutdown);
+	CL_IGNORE_SIG(SIGINT);
+	CL_IGNORE_SIG(SIGHUP);
+	CL_SIGNAL(SIGTERM, shutdown);
 }
 
 static long

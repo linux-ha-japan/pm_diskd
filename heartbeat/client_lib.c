@@ -52,7 +52,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
-#include <signal.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/time.h>

@@ -25,7 +25,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
-#include <signal.h>
+#include <clplumbing/cl_signal.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/time.h>
@@ -153,8 +153,8 @@ main(int argc, char ** argv)
 		exit(8);
 	}
 
-	siginterrupt(SIGINT, 1);
-	signal(SIGINT, gotsig);
+	CL_SIGINTERRUPT(SIGINT, 1);
+	CL_SIGNAL(SIGINT, gotsig);
 
 #if 0
 	/* This is not necessary either ;-) */

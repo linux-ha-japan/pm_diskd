@@ -131,12 +131,4 @@ inet_pton(int af, const char *src, void *dst);
 #	define USE_GNU
 #endif
 
-#define __USE_UNIX98
-#include <signal.h>
-#ifdef HAVE_SIGIGNORE
-#	define	IGNORESIG(s)	sigignore(s)
-#else
-#	define	IGNORESIG(s)	signal((s), SIG_IGN)
-#endif
-
 #endif /* !PORTABILITY_H */

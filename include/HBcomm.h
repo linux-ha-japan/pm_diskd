@@ -49,7 +49,6 @@ struct hb_media_imports {
 	int		(*StrToBaud)(const char *);	/* Convert baudrate */
 	void		(*RegisterCleanup)(void(*)(void));
 	void		(*CheckForEvents)(void);	/* Check for signals */
-							/* etc.		     */
 	/* Actually there are lots of other dependencies that ought to
 	 * be handled, but this is a start ;-)
 	 */

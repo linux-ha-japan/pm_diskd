@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <signal.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -10,6 +9,7 @@
 #include <ctype.h>
 #include <lock.h>
 #include <heartbeat.h>
+#include<clplumbing/cl_signal.h>
 
 #ifndef TTY_LOCK_D
 #	define TTY_LOCK_D	"/var/lock"
@@ -141,7 +141,8 @@ DoLock(const char * prefix, const char *lockname)
 			if (sscanf(buf, "%lu", &pid) < 1) {
 				/* lockfile screwed up -> rm it and go on */
 			} else {
-				if (kill((pid_t)pid, 0) < 0 && errno != ESRCH) {
+				if (CL_KILL((pid_t)pid, 0) < 0 
+				&&	errno != ESRCH) {
 					/* tty is locked by existing (not
 					 * necessarily running) process
 					 * -> give up */

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.69 2002/09/20 02:09:50 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.70 2002/10/18 07:16:08 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -30,7 +30,6 @@ const static char * _heartbeat_c_Id = "$Id: config.c,v 1.69 2002/09/20 02:09:50 
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <signal.h>
 #include <errno.h>
 #include <time.h>
 #include <sys/time.h>
@@ -42,7 +41,6 @@ const static char * _heartbeat_c_Id = "$Id: config.c,v 1.69 2002/09/20 02:09:50 
 #include <netdb.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
-#include <sys/signal.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
 
@@ -1399,6 +1397,13 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.70  2002/10/18 07:16:08  alan
+ * Put in Horms big patch plus a patch for the apcmastersnmp code where
+ * a macro named MIN returned the MAX instead.  The code actually wanted
+ * the MAX, so when the #define for MIN was surrounded by a #ifndef, then
+ * it no longer worked...  This fix courtesy of Martin Bene.
+ * There was also a missing #include needed on older Linux systems.
+ *
  * Revision 1.69  2002/09/20 02:09:50  alan
  * Switched heartbeat to do everything with longclock_t instead of clock_t.
  * Switched heartbeat to be configured fundamentally from millisecond times.

@@ -20,6 +20,7 @@
  *
  */
 #include <ccm.h>
+#include <clplumbing/cl_signal.h>
 
 
 extern int global_verbose;
@@ -3369,7 +3370,7 @@ ccm_initialize()
 		return NULL;
 	}
 
-	siginterrupt(SIGTERM, 1);
+	CL_SIGINTERRUPT(SIGTERM, 1);
 
 	ccm_control_init(global_info);
 

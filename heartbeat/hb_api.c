@@ -72,7 +72,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <errno.h>
 #include <string.h>
 #include <limits.h>
@@ -84,6 +83,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <clplumbing/cl_poll.h>
+#include <clplumbing/cl_signal.h>
 
 
 static int api_ping_iflist(const struct ha_msg* msg, struct node_info * node
@@ -209,7 +209,7 @@ api_audit_clients(gpointer p)
 	for (client=client_list; client != NULL; client=nextclient) {
 		nextclient=client->next;
 
-		if (kill(client->pid, 0) < 0 && errno == ESRCH) {
+		if (CL_KILL(client->pid, 0) < 0 && errno == ESRCH) {
 			ha_log(LOG_INFO, "api_audit_clients: client %ld died"
 			,	(long) client->pid);
 			client->removereason = NULL;

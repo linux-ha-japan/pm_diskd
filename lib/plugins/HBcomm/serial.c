@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.19 2002/06/16 06:11:26 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.20 2002/10/18 07:16:10 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -33,17 +33,17 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.19 2002/06/16 06:11:26 ala
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <signal.h>
 #include <time.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
-#include <sys/signal.h>
 #include <sys/stat.h>
 #include <sys/param.h>
 
 #include <heartbeat.h>
 #include <HBcomm.h>
+#include <clplumbing/longclock.h>
+#include <clplumbing/timers.h>
 
 #define PIL_PLUGINTYPE		HB_COMM_TYPE
 #define PIL_PLUGINTYPE_S	HB_COMM_TYPE_S
@@ -418,15 +418,20 @@ serial_localdie(void)
 static int
 serial_write (struct hb_media*mp, struct ha_msg*m)
 {
-	char *		str;
+	char *			str;
 
-	int		wrc;
-	int		size;
-	int		ourtty;
-	static TIME_T	last_norts;
+	int			wrc;
+	int			size;
+	int			ourtty;
+	static gboolean		warnyet=FALSE;
+	static longclock_t	warninterval;
+	static longclock_t	lastwarn;
 
 	TTYASSERT(mp);
 
+	if (!warnyet) {
+		warninterval = msto_longclock(RTS_WARNTIME*1000L);
+	}
 	ourmedia = mp;	/* Only used for the "localdie" function */
 	OurImports->RegisterCleanup(serial_localdie);
 	ourtty = ((struct serial_private*)(mp->pd))->ttyfd;
@@ -442,19 +447,27 @@ serial_write (struct hb_media*mp, struct ha_msg*m)
 	if (DEBUGPKTCONT) {
 		LOG(PIL_DEBUG, str);
 	}
-	alarm(1);
+	setmsalarm(500);
 	wrc = write(ourtty, str, size);
-	alarm(0);
+	cancelmstimer();
 	if (DEBUGPKTCONT) {
-		LOG(PIL_DEBUG, "write returned %d", wrc);
+		LOG(PIL_DEBUG, "serial write returned %d", wrc);
 	}
 
-	if (wrc < 0) {
-		if (errno == EINTR) {
-			TIME_T	now = time(NULL);
+	if (wrc < 0 || wrc != size) {
+		if (DEBUGPKTCONT && wrc < 0) {
+			LOG(PIL_DEBUG, "serial write errno was %d", errno);
+		}
+		if (wrc > 0 || (wrc < 0 && errno == EINTR)) {
+			longclock_t	now = time_longclock();
 			tcflush(ourtty, TCIOFLUSH);
-			if ((now - last_norts) > RTS_WARNTIME) {
-				last_norts = now;
+
+			if (!warnyet
+			||	cmp_longclock(sub_longclock(now, lastwarn)
+			,		warninterval) >= 0) {
+
+				lastwarn = now;
+				warnyet = TRUE;
 				LOG(LOG_ERR
 				,	"TTY write timeout on [%s]"
 				" (no connection or bad cable"
@@ -633,6 +646,13 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.20  2002/10/18 07:16:10  alan
+ * Put in Horms big patch plus a patch for the apcmastersnmp code where
+ * a macro named MIN returned the MAX instead.  The code actually wanted
+ * the MAX, so when the #define for MIN was surrounded by a #ifndef, then
+ * it no longer worked...  This fix courtesy of Martin Bene.
+ * There was also a missing #include needed on older Linux systems.
+ *
  * Revision 1.19  2002/06/16 06:11:26  alan
  * Put in a couple of changes to the PILS interfaces
  *  - exported license information (name, URL)

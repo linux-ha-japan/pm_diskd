@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.221 2002/10/15 13:41:30 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.222 2002/10/18 07:16:08 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -227,7 +227,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.221 2002/10/15 13:41
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <signal.h>
 #include <errno.h>
 #include <time.h>
 #include <sys/time.h>
@@ -235,7 +234,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.221 2002/10/15 13:41
 #include <sys/wait.h>
 #include <sys/utsname.h>
 #include <fcntl.h>
-#include <sys/signal.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
 #include <dirent.h>
@@ -266,6 +264,8 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.221 2002/10/15 13:41
 #include <pils/plugin.h>
 #include <hb_module.h>
 #include <HBcomm.h>
+#include <heartbeat_private.h>
+#include <hb_signal.h>
 
 #include "setproctitle.h"
 
@@ -278,27 +278,12 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.221 2002/10/15 13:41
 #define	PRI_APIREGISTER	(G_PRIORITY_LOW-1)
 #define	PRI_CLUSTERMSG	G_PRIORITY_DEFAULT
 
-/*
- *	Note that the _RSC defines below are bit fields!
- */
-#define NO_RESOURCES		"none"
-#define NO_RSC			0
-
-#define LOCAL_RESOURCES		"local"
-#define LOCAL_RSC		1
-
-#define FOREIGN_RESOURCES	"foreign"
-#define	FOREIGN_RSC		2
-
-#define ALL_RSC			(LOCAL_RSC|FOREIGN_RSC)
-#define ALL_RESOURCES		"all"
-
 enum standby { NOT, ME, OTHER, DONE };
 enum standby going_standby = NOT;
 longclock_t  standby_running = 0L;
 
-const char *		rsc_msg[] =	{NO_RESOURCES, LOCAL_RESOURCES,
-					FOREIGN_RESOURCES, ALL_RESOURCES};
+const char *	rsc_msg[] =	{HB_NO_RESOURCES, HB_LOCAL_RESOURCES
+,	HB_FOREIGN_RESOURCES, HB_ALL_RESOURCES};
 int		verbose = 0;
 
 static char hbname []= "heartbeat";
@@ -306,7 +291,7 @@ char *	cmdname = hbname;
 int		Argc = -1;
 int		debug = 0;
 int 		nice_failback = 0;
-int		other_holds_resources = NO_RSC;
+int		other_holds_resources = HB_NO_RSC;
 int		other_is_stable = 0; /* F_ISSTABLE */
 int		takeover_in_progress = 0;
 int		killrunninghb = 0;
@@ -342,12 +327,12 @@ const char *ha_log_priority[8] = {
 
 #define REAPER_SIG			0x0001UL
 #define TERM_SIG			0x0002UL
-#define PARENT_DEBUG_USR1_SIG		0x0004UL
-#define PARENT_DEBUG_USR2_SIG		0x0008UL
-#define REREAD_CONFIG_SIG		0x0010UL
-#define FALSE_ALARM_SIG			0x0020UL
-
-volatile unsigned long pending_handlers = 0;
+#define DEBUG_USR1_SIG			0x0004UL
+#define DEBUG_USR2_SIG			0x0008UL
+#define PARENT_DEBUG_USR1_SIG		0x0010UL
+#define PARENT_DEBUG_USR2_SIG		0x0020UL
+#define REREAD_CONFIG_SIG		0x0040UL
+#define FALSE_ALARM_SIG			0x0080UL
 
 struct sys_config *	config = NULL;
 struct node_info *	curnode = NULL;
@@ -359,27 +344,9 @@ volatile struct process_info *	m_s_proc = NULL;
 int	countbystatus(const char * status, int matchornot);
 int	setline(int fd);
 void	cleanexit(int rc);
-void    reaper_sig(int sig);
-void    reaper_action(int waitflags);
-void    term_sig(int sig);
-void    term_cleanexit(int sig);
-void    term_action(void);
-void	debug_sig(int sig);
-void	signal_all(int sig);
 void	force_shutdown(void);
 void	emergency_shutdown(void);
-void	signal_action(void);
-void	parent_debug_usr1_sig(int sig);
-void	parent_debug_usr1_action(void);
-void	parent_debug_usr2_sig(int sig);
-void	parent_debug_usr2_action(void);
-void	reread_config_sig(int sig);
-void	reread_config_action(void);
-void	ignore_signal(int sig);
-void	false_alarm_sig(int sig);
-void	false_alarm_action(void);
-void    process_pending_handlers(void);
-void	trigger_restart(int quickrestart);
+void	debug_usr1_action(void);
 void	restart_heartbeat(void);
 int	parse_config(const char * cfgfile);
 int	parse_ha_resources(const char * cfgfile);
@@ -388,14 +355,10 @@ char *	ha_timestamp(void);
 int	add_option(const char *	option, const char * value);
 int   	parse_authfile(void);
 int 	encode_resources(const char *p);
-void	init_watchdog(void);
-void	tickle_watchdog(void);
-void	close_watchdog(void);
 void	usage(void);
 int	init_config(const char * cfgfile);
 void	init_procinfo(void);
 int	initialize_heartbeat(void);
-void	ha_versioninfo(void);
 static	const char * core_proc_name(enum process_type t);
 
 static	void CoreProcessRegistered(ProcTrack* p);
@@ -421,13 +384,10 @@ static	void	ManagedChildRegistered(ProcTrack* p);
 static	void	ManagedChildDied(ProcTrack* p, int status
 ,	int signo, int exitcode, int waslogged);
 static	const char * ManagedChildName(ProcTrack* p);
-void	KillTrackedProcess(ProcTrack* p, void * data);
 static	void FinalCPShutdown(void);
 
-void	dump_proc_stats(volatile struct process_info * proc);
 void	check_for_timeouts(void);
 void	check_comm_isup(void);
-int	send_resources_held(const char *str, int stable, const char * comment);
 int	send_standby_msg(enum standby state);
 int	send_local_starting(void);
 int	send_local_status(const char *);
@@ -463,7 +423,6 @@ void	process_clustermsg(FILE * f);
 void	process_registermsg(FILE * f);
 void	nak_rexmit(unsigned long seqno, const char * reason);
 void	req_our_resources(int getthemanyway);
-void	giveup_resources(void);
 void	go_standby(enum standby who);
 int	IncrGeneration(unsigned long * generation);
 void	ask_for_resources(struct ha_msg *msg);
@@ -485,9 +444,8 @@ pid_t		processes[MAXPROCS];
 pid_t		master_status_pid;
 int		parse_only = 0;
 int		RestartRequested = 0;
-static int	shutdown_in_progress = 0;
+int		shutdown_in_progress = 0;
 static int	WeAreRestarting = 0;
-static sigset_t	CommonSignalSet;
 long		hb_pid_in_file = 0L;
 
 enum comm_state {
@@ -496,16 +454,7 @@ enum comm_state {
 };
 enum comm_state	heartbeat_comm_state = COMM_STARTING;
 
-enum rsc_state {
-	R_INIT,			/* Links not up yet */
-	R_STARTING,		/* Links up, start message issued */
-	R_BOTHSTARTING,		/* Links up, start msg received & issued  */
-				/* BOTHSTARTING now equiv to STARTING (?) */
-	R_RSCRCVD,		/* Resource Message received */
-	R_STABLE,		/* Local resources acquired, too... */
-	R_SHUTDOWN,		/* We're in shutdown... */
-};
-static enum rsc_state	resourcestate = R_INIT;
+enum hb_rsc_state resourcestate = HB_R_INIT;
 
 static ProcTrack_ops CoreProcessTrackOps = {
 	CoreProcessDied,
@@ -514,7 +463,7 @@ static ProcTrack_ops CoreProcessTrackOps = {
 };
 int CoreProcessCount = 0;
 
-static ProcTrack_ops RscMgmtProcessTrackOps = {
+ProcTrack_ops RscMgmtProcessTrackOps = {
 	RscMgmtProcessDied,
 	RscMgmtProcessRegistered,
 	RscMgmtProcessName
@@ -527,7 +476,7 @@ static ProcTrack_ops StonithProcessTrackOps = {
 	StonithProcessName
 };
 
-static ProcTrack_ops ManagedChildTrackOps = {
+ProcTrack_ops ManagedChildTrackOps = {
 	ManagedChildDied,
 	ManagedChildRegistered,
 	ManagedChildName
@@ -537,21 +486,6 @@ int	managed_child_count= 0;
 int	ResourceMgmt_child_count = 0;
 int	UseOurOwnPoll = FALSE;
 
-/*
- * A helper to allow us to pass things into the anonproc
- * environment without any warnings about passing const strings
- * being passed into a plain old (non-const) gpointer.
- */
-struct const_string {
-	const char * str;
-};
-
-#define	RSCMGMTPROC(p, s)						\
-	 {							\
-	 	static struct const_string cstr = {(s)};		\
-		NewTrackedProc((p), 1, PT_LOGNORMAL		\
-		,	&cstr, &RscMgmtProcessTrackOps);		\
-	}
 
 void
 init_procinfo()
@@ -561,7 +495,9 @@ init_procinfo()
 
 	(void)_heartbeat_c_Id;
 	(void)_heartbeat_h_Id;
+	(void)_heartbeat_private_h_Id;
 	(void)_ha_msg_h_Id;
+	(void)_hb_signal_h_Id;
 	(void)_setproctitle_h_Id;
 
 	if ((ipcid = shmget(IPC_PRIVATE, sizeof(*procinfo), 0666)) < 0) {
@@ -599,11 +535,11 @@ init_procinfo()
 		ha_perror("Cannot IPC_RMID proc status shared memory id");
 	}
 	procinfo->giveup_resources = 1;
-	procinfo->i_hold_resources = NO_RSC;
+	procinfo->i_hold_resources = HB_NO_RSC;
 }
 
 void
-ha_versioninfo(void)
+hb_versioninfo(void)
 {
 	static int	everprinted=0;
 
@@ -819,6 +755,8 @@ initialize_heartbeat()
 	,	&CoreProcessTrackOps);
 	curproc->pstat = RUNNING;
 
+	/* We need to at least ignore SIGINTs early on */
+	hb_signal_set_common(NULL);
 
 	/* Now the fun begins... */
 /*
@@ -932,19 +870,23 @@ read_child(struct hb_media* mp)
 	int	rc;
 	int	statusfd = status_pipe[P_WRITEFD];
 
-	make_realtime(-1, -1, 32);
+	if (hb_signal_set_read_child(NULL) < 0) {
+		ha_log(LOG_ERR, "read_child(): hb_signal_set_read_child(): "
+			"Soldiering on...");
+	}
+
+	cl_make_realtime(-1, -1, 32);
 	curproc->pstat = RUNNING;
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
 	drop_privs(0, 0);	/* Become nobody */
 
-	process_pending_handlers();
+	hb_signal_process_pending();
+
 	for (;;) {
 		struct	ha_msg*	m = mp->vf->read(mp);
 		char *		sm;
 
-		if (pending_handlers) {
-			process_pending_handlers();
-		}
+		hb_signal_process_pending();
 
 		if (m == NULL) {
 			continue;
@@ -963,9 +905,7 @@ read_child(struct hb_media* mp)
 			}
 
 			if ((rc=write(statusfd, sm, msglen)) != msglen)  {
-				if (pending_handlers) {
-					process_pending_handlers();
-				}
+				hb_signal_process_pending();
 				/* Try one extra time if we got EINTR */
 				if (errno != EINTR
 				||	(rc=write(statusfd, sm, msglen))
@@ -977,9 +917,7 @@ read_child(struct hb_media* mp)
 				}
 			}
 			ha_free(sm);
-			if (pending_handlers) {
-				process_pending_handlers();
-			}
+			hb_signal_process_pending();
 		}
 		ha_msg_del(m);
 	}
@@ -993,9 +931,12 @@ write_child(struct hb_media* mp)
 	int	ourpipe =	mp->wpipe[P_READFD];
 	FILE *	ourfp		= fdopen(ourpipe, "r");
 
-	make_realtime(-1, -1, 32);
-	siginterrupt(SIGALRM, 1);
-	signal(SIGALRM, ignore_signal);
+	if (hb_signal_set_write_child(NULL) < 0) {
+		ha_log(LOG_ERR, "write_child(): hb_signal_set_write_child(): "
+			"Soldiering on...");
+	}
+
+	cl_make_realtime(-1, -1, 32);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
 	drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
@@ -1003,9 +944,7 @@ write_child(struct hb_media* mp)
 	for (;;) {
 		struct ha_msg * msgp = msgfromstream(ourfp);
 
-		if (pending_handlers) {
-			process_pending_handlers();
-		}
+		hb_signal_process_pending();
 		if (msgp == NULL) {
 			continue;
 		}
@@ -1014,9 +953,7 @@ write_child(struct hb_media* mp)
 			,	mp->type, mp->name);
 		}
 		ha_msg_del(msgp); msgp = NULL;
-		if (pending_handlers) {
-			process_pending_handlers();
-		}
+		hb_signal_process_pending();
 	}
 }
 
@@ -1030,20 +967,13 @@ control_process(FILE * fp, int fifoofd)
 
 	init_xmit_hist (&msghist);
 
-	/* Catch and propagate debugging level signals... */
-	signal(SIGUSR1, parent_debug_usr1_sig);
-	signal(SIGUSR2, parent_debug_usr2_sig);
-	signal(SIGQUIT, signal_all); /* From Master Status Process */
-	signal(SIGTERM, signal_all); /* Shutdown signal - from anyone... */
-	siginterrupt(SIGALRM, 1);
-	siginterrupt(SIGTERM, 1);
-	siginterrupt(SIGUSR1, 1);
-	siginterrupt(SIGUSR2, 1);
-	siginterrupt(SIGQUIT, 1);
+	if (hb_signal_set_control_process(NULL) < 0) {
+		ha_log(LOG_ERR, "control_process(): "
+			"hb_signal_set_control_process(): Soldiering on...");
+	}
 
+	cl_make_realtime(-1, -1, 32);
 	set_proc_title("%s: control process", cmdname);
-	make_realtime(-1, -1, 32);
-
 //	setmsrepeattimer(10);
 	/*
 	 * Wait until the master status process is ready to go
@@ -1058,7 +988,7 @@ control_process(FILE * fp, int fifoofd)
 		struct ha_msg *	msg;
 
 		/* Process pending signals */
-		process_pending_handlers();
+		hb_signal_process_pending();
 		msg = controlfifo2msg(fp);
 
 		if (msg) {
@@ -1086,7 +1016,7 @@ control_process(FILE * fp, int fifoofd)
 	 * Sometimes kernels forget to deliver one or more of our
 	 * SIGCHLDs to us. So we just wait for them to exit...
 	 */
-	reaper_action(0);
+	hb_signal_reaper_action(0);
 
 	/* That's All Folks...  -- NOTREACHED*/
 	cleanexit(LSB_EXIT_OK);
@@ -1194,7 +1124,7 @@ send_to_all_media(char * smsg, int len)
 			ha_perror("Cannot write to media pipe %d"
 			,	j);
 			ha_log(LOG_ERR, "Shutting down.");
-			force_shutdown();
+			hb_force_shutdown();
 		}else if (wrc != len) {
 			ha_log(LOG_ERR
 			,	"Short write on media pipe %d [%d vs %d]"
@@ -1262,10 +1192,12 @@ void LookForClockJumps(void);
 
 static int			ClockJustJumped = 0;
 
-static gboolean MSPFinalShutdown(gpointer p);
-static gboolean SendLocalStatus(gpointer p);
-static gboolean DumpAllProcStats(gpointer p);
-static gboolean EmergencyShutdown(gpointer p);
+static gboolean
+Gmain_hb_signal_process_pending(void *data)
+{
+	hb_signal_process_pending();
+	return(TRUE);
+}
 
 /* The master status process */
 void
@@ -1281,11 +1213,15 @@ master_status_process(void)
 	GFDSource*		APIRegistrationGFD;
 	GMainLoop*		mainloop;
 
-	init_watchdog();
-	siginterrupt(SIGTERM, 1);
-	signal(SIGTERM, term_sig);
+	hb_init_watchdog();
 
-	make_realtime(-1, -1, 64);
+	if (hb_signal_set_master_status_process(NULL) < 0) {
+		ha_log(LOG_ERR, "master_status_process(): "
+			"hb_signal_set_master_status_process(): "
+			"Soldiering on...");
+	}
+
+	cl_make_realtime(-1, -1, 64);
 	send_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
 	set_proc_title("%s: master status process", cmdname);
@@ -1367,11 +1303,11 @@ master_status_process(void)
 
 		/* Send out local status periodically... */
 	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
-	,	SendLocalStatus, NULL, NULL);
+	,	hb_send_local_status, NULL, NULL);
 
 		/* Dump out memory stats periodically... */
 	Gmain_timeout_add_full(PRI_DUMPSTATS, ONEDAY*1000
-	,	DumpAllProcStats, NULL, NULL);
+	,	hb_dump_all_proc_stats, NULL, NULL);
 
 		/* Audit clients for liveness periodically */
 	Gmain_timeout_add_full(PRI_AUDITCLIENT, 10*1000
@@ -1383,6 +1319,10 @@ master_status_process(void)
 		hip= &config->nodes[j];
 		hip->local_lastupdate = time_longclock();
 	}
+
+	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
+	,       Gmain_hb_signal_process_pending, NULL, NULL);
+
 
 	setmsrepeattimer(100);
 	if (UseOurOwnPoll) {
@@ -1433,7 +1373,7 @@ polled_input_prepare(gpointer source_data, GTimeVal* current_time
 	}
 	LookForClockJumps();
 
-	return (pending_handlers != 0)
+	return (hb_signal_pending() != 0)
 	||	ClockJustJumped;
 }
 
@@ -1473,10 +1413,7 @@ polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 
 	LookForClockJumps();
 
-	if (pending_handlers) {
-		process_pending_handlers();
-	}
-
+	hb_signal_process_pending();
 
 	/* Scan nodes and links to see if any have timed out */
 	if (!ClockJustJumped) {
@@ -1498,12 +1435,12 @@ polled_input_dispatch(gpointer source_data, GTimeVal* current_time
 	}
 
 	/* Check for "time to take over local resources */
-	if (nice_failback && resourcestate == R_RSCRCVD
+	if (nice_failback && resourcestate == HB_R_RSCRCVD
 	&&	cmp_longclock(now, local_takeover_time) > 0) {
-		resourcestate = R_STABLE;
+		resourcestate = HB_R_STABLE;
 		req_our_resources(0);
 		ha_log(LOG_INFO,"local resource transition completed.");
-		send_resources_held(rsc_msg[procinfo->i_hold_resources]
+		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
 		,	1, NULL);
 		AuditResources();
 	}
@@ -1583,9 +1520,13 @@ APIregistration_input_dispatch(int fd,	gpointer user_data)
 }
 
 
-static gboolean
-MSPFinalShutdown(gpointer p)
+gboolean
+hb_msp_final_shutdown(gpointer p)
 {
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "hb_msp_final_shutdown()");
+	}
+
 	if (procinfo->restart_after_shutdown) {
 		if (procinfo->giveup_resources) {
 			ha_log(LOG_INFO, "Resource shutdown completed"
@@ -1855,7 +1796,7 @@ process_clustermsg(FILE * f)
 
 		/* Did we get a status update on ourselves? */
 		if (thisnode == curnode) {
-			tickle_watchdog();
+			hb_tickle_watchdog();
 		}
 
 		thisnode->rmt_lastupdate = msgtime;
@@ -1884,11 +1825,11 @@ process_clustermsg(FILE * f)
 				,	"Received T_SHUTDONE from ourselves.");
 		    	}
 			/* Trigger final shutdown in a second */
-			Gmain_timeout_add(1000, MSPFinalShutdown, NULL);
+			Gmain_timeout_add(1000, hb_msp_final_shutdown, NULL);
 		}else{
 			thisnode->has_resources = FALSE;
 			other_is_stable = 0;
-			other_holds_resources= NO_RSC;
+			other_holds_resources= HB_NO_RSC;
 
 		    	ha_log(LOG_INFO
 			,	"Received shutdown notice from '%s'."
@@ -2021,14 +1962,14 @@ process_registermsg(FILE *regfifo)
  * mach_down.
  */
 
-#define	UPD_RSC(cur, up)	((up == NO_RSC) ? NO_RSC : ((up)|(cur)))
+#define	HB_UPD_RSC(cur, up)	((up == HB_NO_RSC) ? HB_NO_RSC : ((up)|(cur)))
 
 void
 process_resources(const char * type, struct ha_msg* msg, struct node_info * thisnode)
 {
 	static int		resources_requested_yet = 0;
 
-	enum rsc_state		newrstate = resourcestate;
+	enum hb_rsc_state	newrstate = resourcestate;
 	int			first_time = 1;
 
 	if (!DoManageResources || heartbeat_comm_state != COMM_LINKSUP) {
@@ -2049,7 +1990,7 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 	/* This first_time switch looks buggy -- FIXME */
 
 	if (first_time && WeAreRestarting) {
-		resourcestate = newrstate = R_STABLE;
+		resourcestate = newrstate = HB_R_STABLE;
 	}
 
 
@@ -2064,12 +2005,12 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 
 		switch(resourcestate) {
 
-		case R_RSCRCVD:
-		case R_STABLE:
-		case R_SHUTDOWN:
+		case HB_R_RSCRCVD:
+		case HB_R_STABLE:
+		case HB_R_SHUTDOWN:
 			break;
-		case R_STARTING:
-			newrstate = R_BOTHSTARTING;
+		case HB_R_STARTING:
+			newrstate = HB_R_BOTHSTARTING;
 			/* ??? req_our_resources(); ??? */
 			break;
 
@@ -2088,8 +2029,8 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 			ha_log(LOG_WARNING
 			,	"T_STARTING received during takeover.");
 		}
-		send_resources_held(rsc_msg[procinfo->i_hold_resources]
-		,	resourcestate == R_STABLE, NULL);
+		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
+		,	resourcestate == HB_R_STABLE, NULL);
 	}
 
 	/* Manage resource related messages... */
@@ -2100,10 +2041,10 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 		/*
 		 * There are four possible resource answers:
 		 *
-		 * "I don't hold any resources"			NO_RSC
-		 * "I hold only LOCAL resources"		LOCAL_RSC
-		 * "I hold only FOREIGN resources"		FOREIGN_RSC
-		 * "I hold ALL resources" (local+foreign)	ALL_RSC
+		 * "I don't hold any resources"			HB_NO_RSC
+		 * "I hold only LOCAL resources"		HB_LOCAL_RSC
+		 * "I hold only FOREIGN resources"		HB_FOREIGN_RSC
+		 * "I hold ALL resources" (local+foreign)	HB_ALL_RSC
 		 */
 
 		p=ha_msg_value(msg, F_RESOURCES);
@@ -2116,11 +2057,11 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 
 		switch (resourcestate) {
 
-		case R_BOTHSTARTING:
-		case R_STARTING:	newrstate = R_RSCRCVD;
-		case R_RSCRCVD:
-		case R_STABLE:
-		case R_SHUTDOWN:
+		case HB_R_BOTHSTARTING:
+		case HB_R_STARTING:	newrstate = HB_R_RSCRCVD;
+		case HB_R_RSCRCVD:
+		case HB_R_STABLE:
+		case HB_R_SHUTDOWN:
 					break;
 
 		default:		ha_log(LOG_ERR,	T_RESOURCES
@@ -2158,15 +2099,15 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 			}
 
 			other_holds_resources
-			=	UPD_RSC(other_holds_resources,n);
+			=	HB_UPD_RSC(other_holds_resources,n);
 
-			if (resourcestate != R_STABLE && other_is_stable) {
+			if (resourcestate != HB_R_STABLE && other_is_stable) {
 				ha_log(LOG_INFO
 				,	"remote resource transition completed."
 				);
 				req_our_resources(0);
-				newrstate = R_STABLE;
-				send_resources_held
+				newrstate = HB_R_STABLE;
+				hb_send_resources_held
 				(	rsc_msg[procinfo->i_hold_resources]
 				,	1, NULL);
 			}
@@ -2189,7 +2130,7 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 			 */
 				/* Probably unnecessary */
 			procinfo->i_hold_resources
-			=	UPD_RSC(procinfo->i_hold_resources, n);
+			=	HB_UPD_RSC(procinfo->i_hold_resources, n);
 
 			if (comment) {
 				if (strcmp(comment, "mach_down") == 0) {
@@ -2198,7 +2139,7 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 					takeover_in_progress = 0;
 					/* FYI: This also got noted earlier */
 					procinfo->i_hold_resources
-					|=	FOREIGN_RSC;
+					|=	HB_FOREIGN_RSC;
 					other_is_stable = 1;
 					if (ANYDEBUG) {
 						ha_log(LOG_DEBUG
@@ -2206,7 +2147,7 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 						, " other now stable");
 					}
 				}else if (strcmp(comment, "shutdown") == 0) {
-					resourcestate = newrstate = R_SHUTDOWN;
+					resourcestate = newrstate = HB_R_SHUTDOWN;
 				}
 			}
 		}
@@ -2214,14 +2155,14 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 	if (strcasecmp(type, T_SHUTDONE) == 0) {
 		if (thisnode != curnode) {
 			other_is_stable = 0;
-			other_holds_resources = NO_RSC;
+			other_holds_resources = HB_NO_RSC;
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG
 				, "process_resources(4): %s"
 				, " other now stable - T_SHUTDONE");
 			}
 		}else{
-			resourcestate = newrstate = R_SHUTDOWN;
+			resourcestate = newrstate = HB_R_SHUTDOWN;
 			procinfo->i_hold_resources = 0;
 		}
 	}
@@ -2235,7 +2176,7 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 
 	resourcestate = newrstate;
 
-	if (resourcestate == R_RSCRCVD && local_takeover_time == 0L) {
+	if (resourcestate == HB_R_RSCRCVD && local_takeover_time == 0L) {
 		local_takeover_time =	add_longclock(time_longclock()
 		,	secsto_longclock(RQSTDELAY));
 	}
@@ -2258,8 +2199,8 @@ AuditResources(void)
 	 *	Do both nodes own our local resources?
 	 */
 
-	if ((procinfo->i_hold_resources & LOCAL_RSC) != 0
-	&&	(other_holds_resources & FOREIGN_RSC) != 0) {
+	if ((procinfo->i_hold_resources & HB_LOCAL_RSC) != 0
+	&&	(other_holds_resources & HB_FOREIGN_RSC) != 0) {
 		ha_log(LOG_ERR, "Both machines own our resources!");
 	}
 
@@ -2267,8 +2208,8 @@ AuditResources(void)
 	 *	Do both nodes own foreign resources?
 	 */
 
-	if ((other_holds_resources & LOCAL_RSC) != 0
-	&&	(procinfo->i_hold_resources & FOREIGN_RSC) != 0) {
+	if ((other_holds_resources & HB_LOCAL_RSC) != 0
+	&&	(procinfo->i_hold_resources & HB_FOREIGN_RSC) != 0) {
 		ha_log(LOG_ERR, "Both machines own foreign resources!");
 	}
 
@@ -2276,14 +2217,14 @@ AuditResources(void)
 	 *	If things are stable, look for orphaned resources...
 	 */
 
-	if (resourcestate == R_STABLE && other_is_stable
+	if (resourcestate == HB_R_STABLE && other_is_stable
 	&&	!shutdown_in_progress) {
 		/*
 		 *	Does someone own local resources?
 		 */
 
-		if ((procinfo->i_hold_resources & LOCAL_RSC) == 0
-		&&	(other_holds_resources & FOREIGN_RSC) == 0) {
+		if ((procinfo->i_hold_resources & HB_LOCAL_RSC) == 0
+		&&	(other_holds_resources & HB_FOREIGN_RSC) == 0) {
 			ha_log(LOG_ERR, "No one owns our local resources!");
 		}
 
@@ -2291,8 +2232,8 @@ AuditResources(void)
 		 *	Does someone own foreign resources?
 		 */
 
-		if ((other_holds_resources & LOCAL_RSC) == 0
-		&&	(procinfo->i_hold_resources & FOREIGN_RSC) == 0) {
+		if ((other_holds_resources & HB_LOCAL_RSC) == 0
+		&&	(procinfo->i_hold_resources & HB_FOREIGN_RSC) == 0) {
 			ha_log(LOG_ERR, "No one owns foreign resources!");
 		}
 	}
@@ -2308,7 +2249,7 @@ check_auth_change(struct sys_config *conf)
 			/* OOPS.  Sayonara. */
 			ha_log(LOG_ERR
 			,	"Authentication reparsing error, exiting.");
-			force_shutdown();
+			hb_force_shutdown();
 			cleanexit(1);
 		}
 		return_to_dropped_privs();
@@ -2431,14 +2372,14 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 
 		case 0:	{	/* Child */
 				int	j;
-				make_normaltime();
+				cl_make_normaltime();
 				set_proc_title("%s: notify_world()", cmdname);
 				setpgid(0,0);
-				sigaction(SIGCHLD, NULL, &sa);
+				CL_SIGACTION(SIGCHLD, NULL, &sa);
 				if (sa.sa_handler != SIG_DFL) {
 					ha_log(LOG_DEBUG
 					,	"notify_world: setting SIGCHLD Handler to SIG_DFL");
-					signal(SIGCHLD,SIG_DFL);
+					CL_SIGNAL(SIGCHLD,SIG_DFL);
 				}
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
@@ -2473,7 +2414,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				 * for managing such a process...
 				 */
 				/* We no longer need the "hook" parameter */
-				RSCMGMTPROC(pid, "notify world");
+				HB_RSCMGMTPROC(pid, "notify world");
 
 #if WAITFORCOMMANDS
 				waitpid(pid, &status, 0);
@@ -2483,61 +2424,6 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	}
 }
 
-void
-debug_sig(int sig)
-{
-	switch(sig) {
-		case SIGUSR1:
-			++debug;
-			break;
-
-		case SIGUSR2:
-			if (debug > 0) {
-				--debug;
-			}else{
-				debug=0;
-			}
-			break;
-	}
- 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL , debug);
-}
-
-/* Signal handler to use with SIGCHLD to free the
- * resources of any exited children using wait3(2).
- * This stops zombie processes from hanging around
- */
-
-void
-reaper_sig(int sig)
-{
-	signal(sig, reaper_sig);
-	pending_handlers|=REAPER_SIG;
-}
-
-/*
- *	We need to handle the case of the exiting process is one of our
- *	client children that we spawn as requested when we started up.
- */
-void
-reaper_action(int waitflags)
-{
-	int status;
-	pid_t	pid;
-
-	while((pid=wait3(&status, waitflags, NULL)) > 0
-	||	(pid == -1 && errno == EINTR)) {
-
-		if (pid > 0) {
-#if 0
-			/* If they're in the API client table, remove them... */
-			api_remove_client_pid(pid, "died");
-#endif
-
-			ReportProcHasDied(pid, status);
-		}
-
-	}/*endwhile*/
-}
 /***********************************************************************
  * Track the core heartbeat processes
  ***********************************************************************/
@@ -2576,7 +2462,7 @@ CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged
 	/* UhOh... */
 	ha_log(LOG_ERR
 	,	"Core heartbeat process died! Restarting.");
-	trigger_restart(FALSE);
+	hb_trigger_restart(FALSE);
 	/*NOTREACHED*/
 	p->privatedata = NULL;
 	return;
@@ -2601,7 +2487,7 @@ FinalCPShutdown(void)
 	if (procinfo->restart_after_shutdown) {
 		restart_heartbeat();
 	}
-	IGNORESIG(SIGTERM);
+	CL_IGNORE_SIG(SIGTERM);
 	return_to_orig_privs();
 	/* Kill any lingering processes, etc.*/
 	kill(-getpid(), SIGTERM);
@@ -2674,7 +2560,7 @@ ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode
 	if (managed_child_count == 0 && shutdown_in_progress
 	&&	! procinfo->giveup_resources) {
 
-		Gmain_timeout_add(1000, MSPFinalShutdown, NULL);
+		Gmain_timeout_add(1000, hb_msp_final_shutdown, NULL);
 	}
 }
 
@@ -2705,7 +2591,7 @@ RscMgmtProcessDied(ProcTrack* p, int status, int signo, int exitcode
 static const char *
 RscMgmtProcessName(ProcTrack* p)
 {
-	struct const_string * s = p->privatedata;
+	struct hb_const_string * s = p->privatedata;
 
 	return (s && s->str ? s->str : "heartbeat child");
 }
@@ -2832,9 +2718,8 @@ PerformQueuedNotifyWorld(GHook* hook)
 }
 
 
-
 void
-KillTrackedProcess(ProcTrack* p, void * data)
+hb_kill_tracked_process(ProcTrack* p, void * data)
 {
 	int	nsig = GPOINTER_TO_INT(data);
 	int	pid = p->pid;
@@ -2858,6 +2743,7 @@ KillTrackedProcess(ProcTrack* p, void * data)
 	kill(pid, nsig);
 	return_to_dropped_privs();
 }
+
 
 struct StonithProcHelper {
 	char *		nodename;
@@ -2934,7 +2820,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	}
 
 	/* Child process:  start the managed child */
-	make_normaltime();
+	cl_make_normaltime();
 	setpgid(0,0);
 
 	/* Limit peak resource usage, maximize success chances */
@@ -2949,7 +2835,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 
 	if (	setgid(centry->g_runas) < 0
 	||	setuid(centry->u_runas) < 0
-	||	siginterrupt(SIGALRM, 0) < 0) {
+	||	CL_SIGINTERRUPT(SIGALRM, 0) < 0) {
 
 		ha_perror("Cannot setup child process %s"
 		,	centry->command);
@@ -2957,9 +2843,9 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		const char *	devnull = "/dev/null";
 		int	j;
 		struct rlimit		oflimits;
-		signal(SIGCHLD,SIG_DFL);
+		CL_SIGNAL(SIGCHLD, SIG_DFL);
 		alarm(0);
-		IGNORESIG(SIGALRM);
+		CL_IGNORE_SIG(SIGALRM);
 
 		/* A precautionary measure */
 		getrlimit(RLIMIT_NOFILE, &oflimits);
@@ -2978,50 +2864,6 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 	exit(100);
 }
 
-void
-term_sig(int sig)
-{
-	signal(sig, term_sig);
-	pending_handlers |= TERM_SIG;
-}
-
-void
-term_cleanexit(int sig)
-{
-	cleanexit(100+sig);
-}
-
-void
-term_action(void)
-{
-	IGNORESIG(SIGTERM);
-	return_to_orig_privs();
-	make_normaltime();
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Process %d processing SIGTERM", (int) getpid());
-	}
-	if (curproc->type == PROC_MST_STATUS) {
-		if (procinfo->giveup_resources) {
-			giveup_resources();
-		}else{
-			shutdown_in_progress = 1;
-			DisableProcLogging();	/* We're shutting down */
-			/* Kill our managed children... */
-			ForEachProc(&ManagedChildTrackOps, KillTrackedProcess
-			,	GINT_TO_POINTER(SIGTERM));
-			ForEachProc(&RscMgmtProcessTrackOps, KillTrackedProcess
-			,	GINT_TO_POINTER(SIGKILL));
-			/* Trigger final shutdown in a second */
-			Gmain_timeout_add(1000, MSPFinalShutdown, NULL);
-		}
-		
-	}else if (curproc->type == PROC_CONTROL) {
-		signal_all(SIGTERM);
-	}else{
-		cleanexit(100+SIGTERM);
-	}
-}
-
 static const char *
 core_proc_name(enum process_type t)
 {
@@ -3038,7 +2880,7 @@ core_proc_name(enum process_type t)
 	return ct;
 }
 void
-dump_proc_stats(volatile struct process_info * proc)
+hb_dump_proc_stats(volatile struct process_info * proc)
 {
 	const char *	ct;
 	unsigned long	curralloc;
@@ -3068,49 +2910,8 @@ dump_proc_stats(volatile struct process_info * proc)
 }
 
 
-static void
-__parent_debug_action(int sig)
-{
-	int	olddebug = debug;
-
-	debug_sig(sig);
-	signal_all(sig);
-
-	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, (int) getpid());
-	if (debug == 1 && olddebug == 0) {
-		ha_versioninfo();
-		dump_proc_stats(curproc);
-	}
-}
-
 void
-parent_debug_usr1_sig(int sig)
-{
-	signal(sig, parent_debug_usr1_sig);
-	pending_handlers|=PARENT_DEBUG_USR1_SIG;
-}
-
-void
-parent_debug_usr1_action(void)
-{
-	__parent_debug_action(SIGUSR1);
-}
-
-void
-parent_debug_usr2_sig(int sig)
-{
-	signal(sig, parent_debug_usr2_sig);
-	pending_handlers|=PARENT_DEBUG_USR2_SIG;
-}
-
-void
-parent_debug_usr2_action(void)
-{
-	__parent_debug_action(SIGUSR2);
-}
-
-void
-trigger_restart(int quickrestart)
+hb_trigger_restart(int quickrestart)
 {
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Triggering Restart (%d)", quickrestart);
@@ -3126,8 +2927,8 @@ trigger_restart(int quickrestart)
 		return;
 	}
 	/* We stay in the high privilege state */
-	ha_perror("MSP signal failed (trigger_restart)");
-	emergency_shutdown();
+	ha_perror("MSP signal failed (hb_trigger_restart)");
+	hb_emergency_shutdown();
 	/*NOTREACHED*/
 	return;
 }
@@ -3145,7 +2946,7 @@ restart_heartbeat(void)
 	int			quickrestart;
 
 	shutdown_in_progress = 1;
-	close_watchdog();
+	hb_close_watchdog();
 	return_to_orig_privs();
 	send_local_status(NULL);
 	/*
@@ -3159,14 +2960,14 @@ restart_heartbeat(void)
 	 *
 	 *	re-exec ourselves with the -R option
 	 */
-	make_normaltime();
+	cl_make_normaltime();
 	return_to_orig_privs();	/* Remain privileged 'til the end */
 	ha_log(LOG_INFO, "Restarting heartbeat.");
 	quickrestart = (procinfo->giveup_resources ? FALSE : TRUE);
 
 
 	/* They'll try and make sure everyone gets it - even us ;-) */
-	IGNORESIG(SIGTERM);
+	CL_IGNORE_SIG(SIGTERM);
 
 	/* Kill our child processes */
 	for (j=0; j < procinfo->nprocs; ++j) {
@@ -3212,145 +3013,6 @@ restart_heartbeat(void)
 	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat");
 	ha_log(LOG_ERR, "Shutting down...");
 	kill(curpid, SIGTERM);
-}
-
-void
-reread_config_sig(int sig)
-{
-	signal(sig, reread_config_sig);
-	pending_handlers|=REREAD_CONFIG_SIG;
-}
-
-void
-reread_config_action(void)
-{
-	int	j;
-	int	signal_children = 0;
-
-	/* If we're the control process, tell our children */
-	if (curproc->type == PROC_CONTROL) {
-		struct	stat	buf;
-		if (stat(CONFIG_NAME, &buf) < 0) {
-			ha_perror("Cannot stat " CONFIG_NAME);
-			return;
-		}
-		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG
-			,	"stat of %s: %lu versus old %lu"
-			,	CONFIG_NAME
-			,	(unsigned long)buf.st_mtime
-			,	(unsigned long)config->cfg_time);
-		}
-		if (buf.st_mtime != config->cfg_time) {
-			trigger_restart(TRUE);
-			/* We'll wait for the SIGQUIT */
-			return;
-		}
-		if (stat(KEYFILE, &buf) < 0) {
-			ha_perror("Cannot stat " KEYFILE);
-		}else if (buf.st_mtime != config->auth_time) {
-			config->rereadauth = 1;
-			ha_log(LOG_INFO, "Rereading authentication file.");
-			signal_children = 1;
-		}else{
-			ha_log(LOG_INFO, "Configuration unchanged.");
-		}
-	}else{
-		/*
-		 * We are not the control process, and we received a SIGHUP
-		 * signal.  This means the authentication file has changed.
-		 */
-		return_to_orig_privs();
-		if (parse_authfile() != HA_OK) {
-			/* OOPS.  Sayonara. */
-			ha_log(LOG_ERR
-			,	"Authentication reparsing error, exiting.");
-			force_shutdown();
-			cleanexit(1);
-		}
-		return_to_dropped_privs();
-
-	}
-
-	if (ParseTestOpts() && curproc->type == PROC_CONTROL) {
-		signal_children = 1;
-	}
-	if (signal_children) {
-		return_to_orig_privs();
-		for (j=0; j < procinfo->nprocs; ++j) {
-			if (procinfo->info+j != curproc) {
-				kill(procinfo->info[j].pid, SIGHUP);
-			}
-		}
-		return_to_dropped_privs();
-	}
-}
-
-
-void
-ignore_signal(int sig)
-{
-	signal(sig, ignore_signal);
-}
-
-void
-false_alarm_sig(int sig)
-{
-	signal(sig, false_alarm_sig);
-	pending_handlers|=FALSE_ALARM_SIG;
-}
-
-void
-false_alarm_action(void)
-{
-	ha_log(LOG_ERR, "Unexpected alarm in process %d", (int) getpid());
-}
-
-
-void
-process_pending_handlers(void)
-{
-	
-
-	while (pending_handlers) {
-		unsigned long	handlers;
-
-		/* Block signals */
-		if (sigprocmask(SIG_BLOCK, &CommonSignalSet, NULL) < 0) {
-			ha_log(LOG_ERR, "Could not block signals");
-		}
-			handlers = pending_handlers;
-			pending_handlers=0;
-
-		/* Allow signals */
-		if (sigprocmask(SIG_UNBLOCK, &CommonSignalSet, NULL) < 0) {
-			ha_log(LOG_ERR, "Could not unblock signals");
-		}
-
-		if (handlers&TERM_SIG) {
-			term_action();
-		}
-
-		if (handlers&PARENT_DEBUG_USR1_SIG) {
-			parent_debug_usr1_action();
-		}
-
-		if (handlers&PARENT_DEBUG_USR2_SIG) {
-			parent_debug_usr2_action();
-		}
-
-		if (handlers&REREAD_CONFIG_SIG) {
-			reread_config_action();
-		}
-
-		if (handlers&FALSE_ALARM_SIG) {
-			false_alarm_action();
-		}
-
-		if (handlers&REAPER_SIG) {
-			reaper_action(WNOHANG);
-		}
-	}
 }
 
 /* See if any nodes or links have timed out */
@@ -3521,7 +3183,7 @@ send_cluster_msg(struct ha_msg* msg)
 			rc = HA_FAIL;
 			close(ffd);
 			ffd = -1;
-                        force_shutdown();
+                        hb_force_shutdown();
 		}
 		if (DEBUGPKTCONT) {
 			ha_log(LOG_DEBUG, "%d bytes written to %s by %d"
@@ -3561,7 +3223,7 @@ encode_resources(const char *p)
 
 /* Send the "I hold resources" or "I don't hold" resource messages */
 int
-send_resources_held(const char *str, int stable, const char * comment)
+hb_send_resources_held(const char *str, int stable, const char * comment)
 {
 	struct ha_msg * m;
 	int		rc = HA_OK;
@@ -3584,7 +3246,7 @@ send_resources_held(const char *str, int stable, const char * comment)
 	if ((ha_msg_add(m, F_TYPE, T_RESOURCES) != HA_OK)
 	||  (ha_msg_add(m, F_RESOURCES, str) != HA_OK)
 	||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) != HA_OK)) {
-		ha_log(LOG_ERR, "send_resources_held: Cannot create local msg");
+		ha_log(LOG_ERR, "hb_send_resources_held: Cannot create local msg");
 		rc = HA_FAIL;
 	}else if (comment) {
 		rc = ha_msg_add(m, F_COMMENT, comment);
@@ -3657,7 +3319,7 @@ send_local_starting(void)
 	}
 
 	ha_msg_del(m);
-	resourcestate = R_STARTING;
+	resourcestate = HB_R_STARTING;
 	return(rc);
 }
 
@@ -3702,20 +3364,20 @@ send_local_status(const char * st)
 	ha_msg_del(m);
 	return(rc);
 }
-static gboolean
-SendLocalStatus(gpointer p)
+gboolean
+hb_send_local_status(gpointer p)
 {
 	send_local_status(NULL);
 	return TRUE;
 }
-static gboolean
-DumpAllProcStats(gpointer p)
+gboolean
+hb_dump_all_proc_stats(gpointer p)
 {
 	int	j;
 
 	cl_log(LOG_INFO, "Daily informational memory statistics");
 	for (j=0; j < procinfo->nprocs; ++j) {
-		dump_proc_stats(procinfo->info+j);
+		hb_dump_proc_stats(procinfo->info+j);
 	}
 	cl_log(LOG_INFO, "These are nothing to worry about.");
 	return TRUE;
@@ -3724,7 +3386,7 @@ DumpAllProcStats(gpointer p)
 static gboolean
 EmergencyShutdown(gpointer p)
 {
-	emergency_shutdown();
+	hb_emergency_shutdown();
 	return TRUE;	/* Shouldn't get called twice, but... */
 }
 
@@ -3766,11 +3428,11 @@ mark_node_dead(struct node_info *hip)
 	if (hip == curnode) {
 		/* We may die too soon for this to actually be received */
 		/* But, we tried ;-) */
-		send_resources_held(NO_RESOURCES, 1, NULL);
+		hb_send_resources_held(HB_NO_RESOURCES, 1, NULL);
 		/* Uh, oh... we're dead! */
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		/* Bump up debug level */
-		debug_sig(SIGUSR1);
+		hb_signal_debug_usr1_action();
 		return_to_orig_privs();	/* And we stay this way... */
 		kill(procinfo->info[0].pid, SIGUSR1);
 
@@ -3778,7 +3440,7 @@ mark_node_dead(struct node_info *hip)
 			if (kill(procinfo->info[0].pid, SIGTERM) < 0) {
 				ha_perror("Cannot signal CP (pid %ld)"
 				,	(long)procinfo->info[0].pid);
-				emergency_shutdown();
+				hb_emergency_shutdown();
 			}
 #if 0
 			/* Or should we do this... ? */
@@ -3796,7 +3458,7 @@ mark_node_dead(struct node_info *hip)
 	standby_running = zero_longclock;
 	if (hip->nodetype != PINGNODE) {
 		if (!hip->has_resources
-		||	(nice_failback && other_holds_resources == NO_RSC)) {
+		||	(nice_failback && other_holds_resources == HB_NO_RSC)) {
 			ha_log(LOG_INFO, "Dead node %s held no resources."
 			,	hip->nodename);
 		}else{
@@ -3870,9 +3532,9 @@ takeover_from_node(const char * nodename)
 
 		/* mach_down is out there acquiring foreign resources */
 		/* So, make a note of it... */
-		procinfo->i_hold_resources |= FOREIGN_RSC;
+		procinfo->i_hold_resources |= HB_FOREIGN_RSC;
 
-		other_holds_resources = NO_RSC;
+		other_holds_resources = HB_NO_RSC;
 		other_is_stable = 1;	/* Not going anywhere */
 		takeover_in_progress = 1;
 		if (ANYDEBUG) {
@@ -3888,7 +3550,7 @@ takeover_from_node(const char * nodename)
 		/* case 1 - part 1 */
 		/* part 2 is done by the mach_down script... */
 		req_our_resources(0);
-		/* req_our_resources turns on the LOCAL_RSC bit */
+		/* req_our_resources turns on the HB_LOCAL_RSC bit */
 
 	}
 	hip->anypacketsyet = 1;
@@ -3924,10 +3586,10 @@ Initiate_Reset(Stonith* s, const char * nodename)
 
 	}
 	/* Guard against possibly hanging Stonith code... */
-	make_normaltime();
+	cl_make_normaltime();
 	setpgid(0,0);
 	set_proc_title("%s: Initiate_Reset()", cmdname);
-	signal(SIGCHLD,SIG_DFL);
+	CL_SIGNAL(SIGCHLD,SIG_DFL);
 
 	ha_log(LOG_INFO
 	,	"Resetting node %s with [%s]"
@@ -3988,7 +3650,7 @@ cause_shutdown_restart(struct node_info *t)
 
 	procinfo->restart_after_shutdown = 1;
 	procinfo->giveup_resources = 1;
-	giveup_resources();
+	hb_giveup_resources();
 }
 
 struct fieldname_map {
@@ -4038,8 +3700,8 @@ req_our_resources(int getthemanyway)
 
 	if (nice_failback) {
 
-		if (((other_holds_resources & FOREIGN_RSC) != 0
-		||	(procinfo->i_hold_resources & LOCAL_RSC) != 0)
+		if (((other_holds_resources & HB_FOREIGN_RSC) != 0
+		||	(procinfo->i_hold_resources & HB_LOCAL_RSC) != 0)
 		&&	!getthemanyway) {
 
 			if (going_standby == NOT) {
@@ -4056,7 +3718,7 @@ req_our_resources(int getthemanyway)
 		 * can have our resources, due to an interim T_RESOURCE
 		 * message
 		 */
-		procinfo->i_hold_resources |= LOCAL_RSC;
+		procinfo->i_hold_resources |= HB_LOCAL_RSC;
 	}
 
 	/* We need to fork so we can make child procs not real time */
@@ -4065,20 +3727,20 @@ req_our_resources(int getthemanyway)
 		case -1:	ha_log(LOG_ERR, "Cannot fork.");
 				return;
 		default:
-				RSCMGMTPROC(pid, "req_our_resources");
+				HB_RSCMGMTPROC(pid, "req_our_resources");
 				return;
 
 		case 0:		/* Child */
 				break;
 	}
 
-	make_normaltime();
+	cl_make_normaltime();
 	set_proc_title("%s: req_our_resources()", cmdname);
 	setpgid(0,0);
-	signal(SIGCHLD, SIG_DFL);
+	CL_SIGNAL(SIGCHLD, SIG_DFL);
 	alarm(0);
-	IGNORESIG(SIGALRM);
-	siginterrupt(SIGALRM, 0);
+	CL_IGNORE_SIG(SIGALRM);
+	CL_SIGINTERRUPT(SIGALRM, 0);
 	if (nice_failback) {
 		setenv(HANICEFAILBACK, "yes", 1);
 	}
@@ -4135,7 +3797,7 @@ req_our_resources(int getthemanyway)
 			,	rsc_count, cmd);
 		}
 	}
-	send_resources_held(rsc_msg[procinfo->i_hold_resources], 1
+	hb_send_resources_held(rsc_msg[procinfo->i_hold_resources], 1
 	,	"req_our_resources()");
 	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
@@ -4174,9 +3836,9 @@ go_standby(enum standby who)
 				 */
 		default:	
 				if (who == ME) {
-					RSCMGMTPROC(pid, "go_standby");
+					HB_RSCMGMTPROC(pid, "go_standby");
 				}else{
-					RSCMGMTPROC(pid, "go_standby");
+					HB_RSCMGMTPROC(pid, "go_standby");
 				}
 				/* waitpid(pid, NULL, 0); */
 				return;
@@ -4185,12 +3847,12 @@ go_standby(enum standby who)
 				break;
 	}
 
-	make_normaltime();
+	cl_make_normaltime();
 	setpgid(0,0);
-	signal(SIGCHLD, SIG_DFL);
+	CL_SIGNAL(SIGCHLD, SIG_DFL);
 
 	if (who == ME) {
-		procinfo->i_hold_resources = NO_RSC;
+		procinfo->i_hold_resources = HB_NO_RSC;
 		/* Make sure they know what we're doing and that we're
 		 * not done yet (not stable)
 		 * Since heartbeat doesn't guarantee message ordering
@@ -4198,7 +3860,7 @@ go_standby(enum standby who)
 		 * happens if it gets out of order is that we get
 		 * a funky warning message (or maybe two).
 		 */
-		send_resources_held(rsc_msg[procinfo->i_hold_resources], 0, "standby");
+		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources], 0, "standby");
 	}
 	/*
 	 *	We could do this ourselves fairly easily...
@@ -4238,7 +3900,7 @@ go_standby(enum standby who)
 	if (who == ME) {
 		ha_log(LOG_INFO, "All HA resources relinquished (standby).");
 	}else if (who == OTHER) {
-		procinfo->i_hold_resources |= FOREIGN_RSC;
+		procinfo->i_hold_resources |= HB_FOREIGN_RSC;
 		ha_log(LOG_INFO, "All resources acquired (standby).");
 	}
 	send_standby_msg(DONE);
@@ -4247,7 +3909,7 @@ go_standby(enum standby who)
 }
 
 void
-giveup_resources(void)
+hb_giveup_resources(void)
 {
 	FILE *		rkeys;
 	char		cmd[MAXLINE];
@@ -4257,31 +3919,39 @@ giveup_resources(void)
 	pid_t		pid;
 	struct ha_msg *	m;
 
+	extern int shutdown_in_progress;
+	extern ProcTrack_ops ManagedChildTrackOps;
+	extern ProcTrack_ops RscMgmtProcessTrackOps;
+	extern enum hb_rsc_state resourcestate;
+	extern int nice_failback;
+	extern const char *rsc_msg[];
+	extern char *cmdname;
 
 	if (shutdown_in_progress) {
 		ha_log(LOG_INFO, "Heartbeat shutdown already underway.");
 		return;
 	}
 	if (ANYDEBUG) {
-		ha_log(LOG_INFO, "giveup_resources: current status: %s"
-		,	curnode->status);
+		ha_log(LOG_INFO, "hb_signal_giveup_resources(): "
+			"current status: %s", curnode->status);
 	}
-	shutdown_in_progress = 1;
-	close_watchdog();
+	shutdown_in_progress =1;
+	hb_close_watchdog();
 	DisableProcLogging();	/* We're shutting down */
 	/* Kill all our managed children... */
-	ForEachProc(&ManagedChildTrackOps, KillTrackedProcess
+	ForEachProc(&ManagedChildTrackOps, hb_kill_tracked_process
 	,	GINT_TO_POINTER(SIGTERM));
-	ForEachProc(&RscMgmtProcessTrackOps, KillTrackedProcess
+	ForEachProc(&RscMgmtProcessTrackOps, hb_kill_tracked_process
 	,	GINT_TO_POINTER(SIGKILL));
-	procinfo->i_hold_resources = NO_RSC ;
-	resourcestate = R_SHUTDOWN; /* or we'll get a whiny little comment
+	procinfo->i_hold_resources = HB_NO_RSC ;
+	resourcestate = HB_R_SHUTDOWN; /* or we'll get a whiny little comment
 				out of the resource management code */
 	if (nice_failback) {
-		send_resources_held(rsc_msg[procinfo->i_hold_resources]
+		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
 		,	0, "shutdown");
 	}
-	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)", (int) getpid());
+	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)"
+	,	(int) getpid());
 
 	/* We need to fork so we can make child procs not real time */
 
@@ -4291,28 +3961,29 @@ giveup_resources(void)
 				return;
 
 		default:
-				RSCMGMTPROC(pid, "giveup_resources");
+				HB_RSCMGMTPROC(pid
+				,	"hb_signal_giveup_resources");
 				return;
 
 		case 0:		/* Child */
 				break;
 	}
 
-	make_normaltime();
+	cl_make_normaltime();
 	setpgid(0,0);
-	set_proc_title("%s: giveup_resources()", cmdname);
+	set_proc_title("%s: hb_signal_giveup_resources()", cmdname);
 
 	/* We don't want to be interrupted while shutting down */
 
-	signal(SIGCHLD, SIG_DFL);
-	siginterrupt(SIGCHLD, 0);
+	CL_SIGNAL(SIGCHLD, SIG_DFL);
+	CL_SIGINTERRUPT(SIGCHLD, 0);
 
 	alarm(0);
-	IGNORESIG(SIGALRM);
-	siginterrupt(SIGALRM, 0);
+	CL_IGNORE_SIG(SIGALRM);
+	CL_SIGINTERRUPT(SIGALRM, 0);
 
-	IGNORESIG(SIGTERM);
-	siginterrupt(SIGTERM, 0);
+	CL_IGNORE_SIG(SIGTERM);
+	/* CL_SIGINTERRUPT(SIGTERM, 0); */
 
 	ha_log(LOG_INFO, "Giving up all HA resources.");
 	/*
@@ -4345,7 +4016,8 @@ giveup_resources(void)
 	}
 	if ((ha_msg_add(m, F_TYPE, T_SHUTDONE) != HA_OK
 	||	ha_msg_add(m, F_STATUS, DEADSTATUS) != HA_OK)) {
-		ha_log(LOG_ERR, "giveup_resources: Cannot create local msg");
+		ha_log(LOG_ERR, "hb_signal_giveup_resources: "
+			"Cannot create local msg");
 	}else{
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "Sending T_SHUTDONE.");
@@ -4356,6 +4028,7 @@ giveup_resources(void)
 	ha_msg_del(m);
 	exit(0);
 }
+
 
 /*  usage statement */
 void
@@ -4455,7 +4128,7 @@ main(int argc, char * argv[], char * envp[])
 				generic_error = LSB_STATUS_UNKNOWN;
 				break;
 			case 'l':
-				disable_realtime();
+				cl_disable_realtime();
 				break;
 
 			case 'v':
@@ -4583,9 +4256,9 @@ main(int argc, char * argv[], char * envp[])
 
 			if (CurrentStatus == NULL) {
 				/* From !nice_failback to nice_failback */
-				procinfo->i_hold_resources = LOCAL_RSC;
-				send_resources_held(rsc_msg[LOCAL_RSC],1, NULL);
-				ha_log(LOG_INFO, "restart: assuming LOCAL_RSC");
+				procinfo->i_hold_resources = HB_LOCAL_RSC;
+				hb_send_resources_held(rsc_msg[HB_LOCAL_RSC],1, NULL);
+				ha_log(LOG_INFO, "restart: assuming HB_LOCAL_RSC");
 			}else{
 				/* From nice_failback to nice_failback */
 				/* Cool. Nothing special to do. */;
@@ -4598,7 +4271,7 @@ main(int argc, char * argv[], char * envp[])
 				/* Cool. Nothing special to do. */ ;
 			}else{
 				/* From nice_failback to not nice_failback */
-				if ((procinfo->i_hold_resources & LOCAL_RSC)) {
+				if ((procinfo->i_hold_resources & HB_LOCAL_RSC)) {
 					/* We expect to have those */
 					ha_log(LOG_INFO, "restart: acquiring"
 					" local resources.");
@@ -4665,7 +4338,7 @@ StartHeartbeat:
 			setenv(LOGFACILITY, facility, 1);
 		}
 		ParseTestOpts();
-		ha_versioninfo();
+		hb_versioninfo();
 		if (initialize_heartbeat() != HA_OK) {
 			cleanexit((errno == EPERM || errno == EACCES)
 			?	LSB_EXIT_EPERM
@@ -4687,7 +4360,7 @@ void
 cleanexit(rc)
 	int	rc;
 {
-	close_watchdog();
+	hb_close_watchdog();
 	if (localdie) {
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "Calling localdie() function");
@@ -4705,7 +4378,7 @@ cleanexit(rc)
 }
 
 void
-force_shutdown(void)
+hb_force_shutdown(void)
 {
 	ha_log(LOG_ERR, "Beginning forced shutdown.");
 	if (ANYDEBUG) {
@@ -4715,7 +4388,7 @@ force_shutdown(void)
 
 	return_to_orig_privs();
 	if (curproc->pid == processes[0]) {
-		signal_all(SIGTERM);
+		hb_signal_signal_all(SIGTERM);
 		return_to_dropped_privs();
 		return;
 	}else if (kill(processes[0], SIGTERM >= 0)) {
@@ -4724,93 +4397,24 @@ force_shutdown(void)
 		return;
 	}
 	ha_perror("Could not signal Control Process");
-	emergency_shutdown();
+	hb_emergency_shutdown();
 
 }
 
 void
-emergency_shutdown(void)
+hb_emergency_shutdown(void)
 {
-	make_normaltime();
+	cl_make_normaltime();
 	return_to_orig_privs();
-	IGNORESIG(SIGTERM);
-	ha_log(LOG_ERR
-	,	"Emergency Shutdown"
-	": Attempting to kill everything ourselves.\n");
+	CL_IGNORE_SIG(SIGTERM);
+	ha_log(LOG_ERR, "Emergency Shutdown: "
+			"Attempting to kill everything ourselves");
 	kill(-getpgrp(), SIGTERM);
 	sleep(2);
 	kill(-getpgrp(), SIGKILL);
 	/*NOTREACHED*/
 	cleanexit(100);
 }
-
-void
-signal_all(int sig)
-{
-	int us = getpid();
-	int j;
-
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "pid %d: received signal %d", us, sig);
-		if (curproc) {
-			ha_log(LOG_DEBUG, "pid %d: type is %d", us
-			,	curproc->type);
-		}
-	}
-
-	if (sig == SIGTERM) {
-		IGNORESIG(SIGTERM);
-		make_normaltime();
-	}
-
-	/* We're going to wait for the master status process to shut down */
-	if (curproc && curproc->type == PROC_CONTROL) {
-		DisableProcLogging();
-		shutdown_in_progress++;
-		if (sig == SIGTERM) {
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG, "sending SIGTERM to MSP: %d"
-				,	(int) master_status_pid);
-			}
-			if (kill(master_status_pid, SIGTERM) >= 0) {
-				/* Tell master status proc to shut down */
-				/* He'll send us a SIGQUIT when done */
-				/* Meanwhile, we'll just go on... */
-				return;
-			}
-			ha_perror("MSP signal failed");
-			emergency_shutdown();
-			/*NOTREACHED*/
-			return;
-		}else if (sig == SIGQUIT) {
-			/* All Resources are now released.  Shut down. */
-			ha_log(LOG_INFO, "control process Received SIGQUIT");
-			sig = SIGTERM;
-		}
-	}
-
-	for (j=0; j < procinfo->nprocs; ++j) {
-		if (processes[j] != us && processes[j] != 0) {
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				,	"%d: Signalling process %d [%d]"
-				,	us, (int) processes[j], (int) sig);
-			}
-			return_to_orig_privs();
-			kill(processes[j], sig);
-			return_to_dropped_privs();
-		}
-	}
-	switch (sig) {
-		case SIGTERM:
-			if (curproc && curproc->type == PROC_CONTROL) {
-				return;
-			}
-			cleanexit(1);
-			break;
-	}
-}
-
 
 long
 get_running_hb_pid()
@@ -4831,47 +4435,16 @@ get_running_hb_pid()
 	return(-1L);
 }
 
-struct signalfoo {
-	int	signo;
-	void	(*handler)(int);
-};
 
 extern pid_t getsid(pid_t);
+
 
 void
 make_daemon(void)
 {
 	long			pid;
 	FILE *			lockfd;
-	int			j;
-	sigset_t		oursigset;
-	struct sigaction	commonaction;
 	const char *	devnull = "/dev/null";
-
-	static const struct signalfoo siglist [] =
-	{	{SIGHUP,	reread_config_sig}
-	,	{SIGTERM,	term_sig}
-	,	{SIGALRM,	false_alarm_sig}
-	,	{SIGUSR1,	debug_sig}
-	,	{SIGUSR2,	debug_sig}
-	,	{SIGCHLD,	reaper_sig}
-	};
-	static int ignoresigs[] = {
-				SIGINT,
-				SIGQUIT,
-				SIGPIPE,
-#ifdef	SIGTTOU
-				SIGTTOU,
-#endif
-#ifdef	SIGTTIN
-				SIGTTIN,
-#endif
-
-#ifdef	SIGSTP
-				SIGSTP,
-#endif
-	};
-
 
 	/* See if heartbeat is already running... */
 
@@ -4912,38 +4485,6 @@ make_daemon(void)
 		}
 	}
 
-	sigemptyset(&CommonSignalSet);
-	for (j=0; j < DIMOF(siglist); ++j) {
-		sigaddset(&CommonSignalSet, siglist[j].signo);
-	}
-	if (sigprocmask(SIG_UNBLOCK, &CommonSignalSet, NULL) < 0) {
-		fprintf(stderr
-		,	"%s: could not unblock signals!\n"
-		,	cmdname);
-	}
-	for (j=0; j < DIMOF(siglist); ++j) {
-		commonaction.sa_handler = siglist[j].handler;
-		commonaction.sa_mask = CommonSignalSet;
-		commonaction.sa_flags = SA_NOCLDSTOP;
-		sigaction(siglist[j].signo,  &commonaction, NULL);
-		siginterrupt(siglist[j].signo, 1);
-	}
-	for (j=0; j < DIMOF(ignoresigs);  ++j) {
-		IGNORESIG(ignoresigs[j]);
-	}
-	/*
-	 * This signal is generated by our ttys in order to cause output
-	 * flushing, but we don't want to see it in our software.
-         */
-	siginterrupt(SIGINT, 0);
-	sigemptyset(&oursigset);
-	sigaddset(&oursigset, SIGINT);
-	if (sigprocmask(SIG_BLOCK, &oursigset, NULL) < 0) {
-		fprintf(stderr
-		,	"%s: could not block SIGINT signals\n"
-		,	cmdname);
-	}
-
 	umask(022);
 	close(FD_STDIN);
 	(void)open(devnull, O_RDONLY);		/* Stdin:  fd 0 */
@@ -4954,10 +4495,12 @@ make_daemon(void)
 		(void)open(devnull, O_WRONLY);	/* Stderr: fd 2 */
 	}
 	chdir(HA_D);
+	/* We need to at least ignore SIGINTs early on */
+	hb_signal_set_common(NULL);
 }
 
 void
-init_watchdog(void)
+hb_init_watchdog(void)
 {
 	if (watchdogfd < 0 && watchdogdev != NULL) {
 		watchdogfd = open(watchdogdev, O_WRONLY);
@@ -4968,7 +4511,7 @@ init_watchdog(void)
 			}
 			ha_log(LOG_NOTICE, "Using watchdog device: %s"
 			,	watchdogdev);
-			tickle_watchdog();
+			hb_tickle_watchdog();
 		}else{
 			ha_log(LOG_ERR, "Cannot open watchdog device: %s"
 			,	watchdogdev);
@@ -4977,20 +4520,20 @@ init_watchdog(void)
 }
 
 void
-tickle_watchdog(void)
+hb_tickle_watchdog(void)
 {
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "", 1) != 1) {
 			ha_perror("Watchdog write failure: closing %s!\n"
 			,	watchdogdev);
-			close_watchdog();
+			hb_close_watchdog();
 			watchdogfd=-1;
 		}
 	}
 }
 
 void
-close_watchdog(void)
+hb_close_watchdog(void)
 {
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "V", 1) != 1) {
@@ -5672,7 +5215,7 @@ IncrGeneration(unsigned long * generation)
 }
 
 #define	STANDBY_INIT_TO_MS	10000L		/* ms timeout for initial reply */
-#define	STANDBY_RSC_TO_MS	1200000L	/* resource handling timeout (ms)*/
+#define	HB_STANDBY_RSC_TO_MS	1200000L	/* resource handling timeout (ms)*/
 
 void
 ask_for_resources(struct ha_msg *msg)
@@ -5684,7 +5227,7 @@ ask_for_resources(struct ha_msg *msg)
 	longclock_t 	now = time_longclock();
 	int		message_ignored = 0;
 	const enum standby	orig_standby = going_standby;
-	longclock_t	standby_rsc_to = msto_longclock(STANDBY_RSC_TO_MS);
+	longclock_t	standby_rsc_to = msto_longclock(HB_STANDBY_RSC_TO_MS);
 
 	if (!nice_failback) {
 		ha_log(LOG_INFO
@@ -5731,7 +5274,7 @@ ask_for_resources(struct ha_msg *msg)
 			" ignored.  Other side is in flux.", info, from);
 			return;
 		}
-		if (resourcestate != R_STABLE) {
+		if (resourcestate != HB_R_STABLE) {
 			ha_log(LOG_WARNING, "standby message [%s] from %s"
 			" ignored.  local resources in flux.", info, from);
 			return;
@@ -5791,7 +5334,7 @@ ask_for_resources(struct ha_msg *msg)
 			ha_log(LOG_INFO
 			,	"Standby process finished. /Me secondary");
 			going_standby = DONE;
-			procinfo->i_hold_resources = NO_RSC;
+			procinfo->i_hold_resources = HB_NO_RSC;
 			standby_running = add_longclock(now, standby_rsc_to);
 		}else{
 			message_ignored = 1;
@@ -5827,13 +5370,13 @@ ask_for_resources(struct ha_msg *msg)
 			if (msgfromme) {
 				ha_log(LOG_INFO
 				,	"Standby process done. /Me primary");
-				procinfo->i_hold_resources = ALL_RSC;
+				procinfo->i_hold_resources = HB_ALL_RSC;
 			}else{
 				ha_log(LOG_INFO
 				,	"Other node completed standby"
 				" takeover.");
 			}
-			send_resources_held(rsc_msg[procinfo->i_hold_resources], 1, NULL);
+			hb_send_resources_held(rsc_msg[procinfo->i_hold_resources], 1, NULL);
 			going_standby = NOT;
 		}else{
 			message_ignored = 1;
@@ -5879,6 +5422,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.222  2002/10/18 07:16:08  alan
+ * Put in Horms big patch plus a patch for the apcmastersnmp code where
+ * a macro named MIN returned the MAX instead.  The code actually wanted
+ * the MAX, so when the #define for MIN was surrounded by a #ifndef, then
+ * it no longer worked...  This fix courtesy of Martin Bene.
+ * There was also a missing #include needed on older Linux systems.
+ *
  * Revision 1.221  2002/10/15 13:41:30  alan
  * Switched heartbeat over to use the GSource library functions.
  * Added the standby capability to the heartbeat init script
@@ -6050,7 +5600,7 @@ setenv(const char *name, const char * value, int why)
  *
  * Revision 1.194  2002/07/30 01:30:13  alan
  * The process tracking code had incorrect/invalid
- * logging levels specified for process tracking.  Depending
+ ig logging levels specified for process tracking.  Depending
  * on the values of certain system headers it could cause heartbeat
  * to exit.  It did so quite repeatedly for STONITH processes.
  *
@@ -6624,7 +6174,7 @@ setenv(const char *name, const char * value, int why)
  * Added David Lee's change to work without the LOG_PRI macro in config.h
  *
  * Revision 1.106  2001/05/20 04:37:35  alan
- * Fixed a bug in the ha_versioninfo() function where a variable
+ * Fixed a bug in the hb_versioninfo() function where a variable
  * was supposed to be static, but wasn't...
  *
  * Revision 1.105  2001/05/15 19:52:50  alan

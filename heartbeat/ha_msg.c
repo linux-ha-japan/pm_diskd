@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.31 2002/10/08 14:33:18 msoffen Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.32 2002/10/18 07:16:08 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -33,7 +33,6 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.31 2002/10/08 14:33:18 mso
 #include <ha_msg.h>
 #include <hb_proc.h>
 #include <unistd.h>
-#include <signal.h>
 
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
@@ -465,6 +464,13 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.32  2002/10/18 07:16:08  alan
+ * Put in Horms big patch plus a patch for the apcmastersnmp code where
+ * a macro named MIN returned the MAX instead.  The code actually wanted
+ * the MAX, so when the #define for MIN was surrounded by a #ifndef, then
+ * it no longer worked...  This fix courtesy of Martin Bene.
+ * There was also a missing #include needed on older Linux systems.
+ *
  * Revision 1.31  2002/10/08 14:33:18  msoffen
  * Changed ha_log_message to be NULL safe.
  *

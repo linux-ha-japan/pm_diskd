@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.4 2002/10/02 13:40:26 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.5 2002/10/18 07:16:10 alan Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -108,7 +108,6 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.4 2002/10/02 13:40:26 ala
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
-#include <signal.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -1043,8 +1042,8 @@ save_ppp_info(struct hb_media * mp)
 		}
 	}
 	ppp_countdown = PPPCOUNT;
-	signal(SIGALRM, check_ppp_info);
-	siginterrupt(SIGALRM, 1);
+	CL_SIGNAL(SIGALRM, check_ppp_info);
+	CL_SIGINTERRUPT(SIGALRM, 1);
 	alarm(ALARMCNT);
 }
 
@@ -1212,6 +1211,13 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.5  2002/10/18 07:16:10  alan
+ * Put in Horms big patch plus a patch for the apcmastersnmp code where
+ * a macro named MIN returned the MAX instead.  The code actually wanted
+ * the MAX, so when the #define for MIN was surrounded by a #ifndef, then
+ * it no longer worked...  This fix courtesy of Martin Bene.
+ * There was also a missing #include needed on older Linux systems.
+ *
  * Revision 1.4  2002/10/02 13:40:26  alan
  * Fixed some potential holes pointed out by Nathan Wallwork.
  *
