@@ -1,37 +1,15 @@
-# Should you intend to compile heartbeat with autoconf 2.53 instead
-# of autoconf 2.52, please apply this patch before running 
-# ConfigureMe or any of the autoconf tools directly.
-#
-# Lars Marowsky-Brée <lmb@suse.de>
-#
-Index: configure.in
-===================================================================
-RCS file: /home/cvs/linux-ha/linux-ha/configure.in,v
-retrieving revision 1.107
-diff -u -r1.107 configure.in
---- configure.in	16 Jul 2002 02:35:17 -0000	1.107
-+++ configure.in	16 Jul 2002 09:46:51 -0000
-@@ -4,6 +4,9 @@
- dnl automake stuff 
- dnl     added by Michael Moerz <e9625136@stud3.tuwien.ac.at> February 2001
- 
-+dnl Some changes are no longer compatible with older autoconf releases
-+AC_PREREQ(2.53)
-+
- dnl Initialiase, with sanity check of a unique file in the hierarchy
- AC_INIT(heartbeat.spec.in)
- AC_CONFIG_AUX_DIR(.)
-@@ -840,10 +843,9 @@
- 
- dnl for libtool to work LTLIBOJS is needed (currently bug of autoconf)
- Xsed="sed -e s/^X//"
--dnl This line breaks on every single version other than the newest Suse (United Linux)
--dnl Commented out per converstion with Alan.
--dnl  LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+--- configure.in	Mon Oct  7 15:31:58 2002
++++ configure.out	Mon Oct  7 15:38:59 2002
+@@ -981,8 +981,10 @@
+ dnl do not change this line #1!
+ dnl do not change this line #2!
+ dnl do not change this line #3!
+-dnl LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 -LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
-+dnl the @&t@ token is the officially recommended ugly work-around for
-+dnl autoconf 2.53 and up no longer allowing the LIBOBJS token to occur.
++dnl This version is this incompatible with older versions of autoconf
++AC_PREREQ(2.53)
 +LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
- AC_SUBST(LTLIBOBJS)
- 
- AC_SUBST(LIBADD_DL)	dnl extra flags for dynamic linking libraries
++dnl LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+ dnl do not change this line #4!
+ dnl do not change this line #5!
+ dnl do not change this line #6!
