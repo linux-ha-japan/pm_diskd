@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.10 2002/03/25 23:19:36 horms Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.11 2002/03/25 23:54:52 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -76,8 +76,8 @@ static struct ip_private *
 static int		bcast_descr(char** buffer);
 static int		bcast_mtype(char** buffer);
 static int		bcast_isping(void);
+static int		localudpport = -1;
 
-extern int		udpport;
 
 int if_get_broadaddr(const char *ifn, struct in_addr *broadaddr);
 
@@ -193,11 +193,11 @@ bcast_init(void)
 
 	g_assert(OurImports != NULL);
 
-	if (udpport <= 0) {
+	if (localudpport <= 0) {
 		const char *	chport;
-		if ((chport  = OurImports->ParamValue("port")) != NULL) {
-			sscanf(chport, "%d", &udpport);
-			if (udpport <= 0) {
+		if ((chport  = OurImports->ParamValue("udpport")) != NULL) {
+			sscanf(chport, "%d", &localudpport);
+			if (localudpport <= 0) {
 				LOG(PIL_CRIT, "bad port number");
 				return HA_FAIL;
 			}
@@ -206,12 +206,12 @@ bcast_init(void)
 
 	/* No port specified in the configuration... */
 
-	if (udpport <= 0) {
+	if (localudpport <= 0) {
 		/* If our service name is in /etc/services, then use it */
 		if ((service=getservbyname(HA_SERVICENAME, "udp")) != NULL){
-			udpport = ntohs(service->s_port);
+			localudpport = ntohs(service->s_port);
 		}else{
-			udpport = UDPPORT;
+			localudpport = UDPPORT;
 		}
 	}
 	return(HA_OK);
@@ -228,9 +228,10 @@ bcast_new(const char * intf)
 	struct hb_media *	ret;
 
 	bcast_init();
-	ipi = new_ip_interface(intf, udpport);
+	ipi = new_ip_interface(intf, localudpport);
 	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "bcast_new: attempting to open %s:%d", intf, udpport);
+		ha_log(LOG_DEBUG, "bcast_new: attempting to open %s:%d", intf
+		,	localudpport);
 	}
 
 	if (ipi == NULL) {
@@ -280,7 +281,7 @@ bcast_open(struct hb_media* mp)
 	}
 	ha_log(LOG_INFO
 	,	"UDP Broadcast heartbeat started on port %d (%d) interface %s"
-	,	udpport, ei->port, mp->name);
+	,	localudpport, ei->port, mp->name);
 
 	if (DEBUGPKT) {
 		ha_log(LOG_DEBUG
@@ -314,8 +315,9 @@ bcast_close(struct hb_media* mp)
 			rc = HA_FAIL;
 		}
 	}
-	ha_log(LOG_NOTICE, "UDP Broadcast heartbeat closed on port %d interface %s - Status: %d"
-	,	udpport, mp->name, rc);
+	ha_log(LOG_NOTICE
+	, "UDP Broadcast heartbeat closed on port %d interface %s - Status: %d"
+	,	localudpport, mp->name, rc);
 
 	return(rc);
 }
@@ -756,6 +758,10 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.11  2002/03/25 23:54:52  alan
+ * Put in fixes to two bugs noted by Gamid Isayev of netzilla networks.
+ * One of the two fixes is also due to him.
+ *
  * Revision 1.10  2002/03/25 23:19:36  horms
  * Patches from Gamid Isayev to
  *

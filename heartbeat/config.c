@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.59 2002/03/25 23:19:36 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.60 2002/03/25 23:54:52 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -81,7 +81,6 @@ int     set_logfile(const char * value);
 int     set_dbgfile(const char * value);
 int	StringToBaud(const char * baudstr);
 
-int	udpport = -1;
 int	baudrate;
 int	serial_baud;
 
@@ -900,7 +899,8 @@ set_udpport(const char * value)
 		}
 	}
 	endservent();
-	udpport = port;
+
+	SetParameterValue("udpport", value);
 	return(HA_OK);
 }
 
@@ -1323,6 +1323,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.60  2002/03/25 23:54:52  alan
+ * Put in fixes to two bugs noted by Gamid Isayev of netzilla networks.
+ * One of the two fixes is also due to him.
+ *
  * Revision 1.59  2002/03/25 23:19:36  horms
  * Patches from Gamid Isayev to
  *
