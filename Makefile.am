@@ -65,3 +65,9 @@ SUBDIRS                 = libltdl doc debian replace include lib \
 
 rpm:		dist
 		$(RPM) $(RPMFLAGS) $(TARFILE);
+
+clean:	am_config_clean
+am_config_clean:
+		rm -fr $(PACKAGE)-*.tar.gz
+
+.PHONY: rpm
