@@ -1,0 +1,59 @@
+Date: Mon, 22 May 2000 14:54:47 -0300 (BRST)
+From: Luis Claudio R. Goncalves <lclaudio@conectiva.com.br>
+To: Alan Robertson <alanr@suse.com>
+Subject: Re: Patch
+
+
+Hi!
+
+   I've read you comments about the patch and figured out a possible
+mistake I did. Well, let me explain a bit about the way this patch works:
+
+   Let's imagine the possible starting conditions:
+
+1) Node 1 is starting and node 2 is down (or vice-versa):
+   Take the resources. (If the primary is dead, do that via
+mark_node_dead(). Else do that via req_our_resources())
+
+2) Node 1 and node two are starting at the same time:
+   Let's make both machine req_our_resources(). The primary (defined
+in /etc/ha.d/haresources) will get his resources. If both machines
+have resources defined in the file, each one will hold his own resources.
+
+3) Node 1 is starting and node 2 has no resources:
+   Just like the above (#2).
+
+4) Node 1 is starting and node 2 has (his) local resources:
+   Let's ask for our local resources. (req_our_resources()).
+
+5) Node 1 is starting and node 2 has both local and foreign (all) resources:
+   Do nothing. :)
+
+   Note that if you have more than two nodes, this may work. But as I
+said before, this is just to use before the API is ready. :)
+
+   The possible resources_held messages are: "I don't hold resources",
+"I hold local resources", "I hold foreign resources" and "I hold all
+resources". I don't create lists of resources anymore. Just what kind
+of resources I hold, if so.
+
+   I agree with you about the sequence number in the messages. But if
+a message take long to be retransmitted, it may confuse the
+cluster. Anyway as this stuff is used only for the starting process,
+it doesn't hurt anything.
+
+   The mistake I found relates to resources_timer. It may fit in the
+same place but may not be related to send_starting_now that happens in
+the first ten seconds (only while ((now - starttime) <
+RQSTDELAY) ). To fix it I've splitted the if into two ifs. :)
+
+   That's the way the new stuff works. I sent it to you to have a more
+experienced oppinion. Thanks again! :)
+
+							Luis
+
+[ Luis Claudio R. Goncalves                  lclaudio@conectiva.com.br ]
+[ BSc in Computer Science -- MSc coming soon -- Gospel User -- Linuxer ]
+[ Fault Tolerance - Real-Time - Distributed Systems - IECLB - IS 40:31 ]
+[ LateNite Programmer --  Jesus Is The Solid Rock On Which I Stand  -- ]
+
