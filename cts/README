@@ -42,6 +42,13 @@ exerciser...   The exerciser doesn't have to be the same OS as the others
 but it needs to be one that supports a lot of the other things
 (like ssh and remote syslog logging).
 
+You may want to configure the cluster machines to boot into run level 3,
+that is without Xdm logins - particularly if they're behind a KVM switch.
+Some distros refuse to boot correctly without knowing what kind of mouse
+is present, and the kvm switch will likely make it impossible to figure
+out without manual intervention.  And since some of the tests cause the
+machine to reboot without manual intervention this would be a problem.
+
 Configure syslog on the cluster machines accordingly.
 	(see the mini-HOWTOs at the end for more details)
 
