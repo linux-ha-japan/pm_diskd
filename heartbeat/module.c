@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.45 2002/10/18 07:16:09 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.46 2002/11/22 07:04:39 horms Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -48,6 +48,7 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.45 2002/10/18 07:16:09 al
 #include <pils/generic.h>
 #include "../libltdl/config.h"
 #include <HBcomm.h>
+#include <hb_config.h>
 #include "lock.h"
 
 #ifndef RTLD_NOW
@@ -67,7 +68,6 @@ static GHashTable*	Parameters = NULL;
 static void		RegisterNewMedium(struct hb_media* mp);
 static const char *	GetParameterValue(const char * name);
 static void		RegisterCleanup(void(*)(void));
-extern int		StringToBaud(const char *);
 struct hb_media_imports	CommImports =
 {	GetParameterValue
 ,	RegisterNewMedium
@@ -102,6 +102,7 @@ module_init(void)
 	(void)_module_c_Id;
 	(void)_heartbeat_h_Id;
 	(void)_hb_signal_h_Id;
+	(void)_hb_config_h_Id;
 	(void)_ha_msg_h_Id;
 
 	/* Perform the init only once */

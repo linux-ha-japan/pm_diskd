@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.230 2002/11/09 16:44:04 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.231 2002/11/22 07:04:39 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -269,6 +269,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.230 2002/11/09 16:44
 #include <heartbeat_private.h>
 #include <hb_signal.h>
 #include <ha_config.h>
+#include <hb_config.h>
 #include <hb_resource.h>
 
 #include "setproctitle.h"
@@ -283,22 +284,18 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.230 2002/11/09 16:44
 #define	PRI_CLUSTERMSG	G_PRIORITY_DEFAULT
 
 
-int		verbose = 0;
+static int		verbose = 0;
 
-static char hbname []= "heartbeat";
+static char 	hbname []= "heartbeat";
 const char *	cmdname = hbname;
-int		Argc = -1;
+static int	Argc = -1;
 int		debug = 0;
 
-int		killrunninghb = 0;
-int		rpt_hb_status = 0;
-int		childpid = -1;
+static int	killrunninghb = 0;
+static int	rpt_hb_status = 0;
 char *		watchdogdev = NULL;
-int		watchdogfd = -1;
+static int	watchdogfd = -1;
 void		(*localdie)(void);
-void		cl_glib_msg_handler(const gchar *log_domain
-,			GLogLevelFlags log_level, const gchar *message
-,			gpointer user_data);
 
 
 struct hb_media*		sysmedia[MAXMEDIA];
@@ -306,7 +303,8 @@ extern struct hb_media_fns**	hbmedia_types;
 extern int			num_hb_media_types;
 extern PILPluginUniv*		PluginLoadingSystem;
 int				nummedia = 0;
-int				status_pipe[2];	/* The Master status pipe */
+static int			status_pipe[2];	/* The Master status pipe */
+
 
 
 #define REAPER_SIG			0x0001UL
@@ -321,25 +319,14 @@ int				status_pipe[2];	/* The Master status pipe */
 struct sys_config *	config = NULL;
 struct node_info *	curnode = NULL;
 
-volatile struct pstat_shm *	procinfo = NULL;
-volatile struct process_info *	curproc = NULL;
-volatile struct process_info *	m_s_proc = NULL;
+volatile struct pstat_shm *		procinfo = NULL;
+volatile struct process_info *		curproc = NULL;
+static volatile struct process_info *	m_s_proc = NULL;
 
-int	setline(int fd);
-void	cleanexit(int rc);
-void	force_shutdown(void);
-void	emergency_shutdown(void);
-void	debug_usr1_action(void);
-void	restart_heartbeat(void);
-int	parse_config(const char * cfgfile);
-void	dump_config(void);
-char *	ha_timestamp(void);
-int	add_option(const char *	option, const char * value);
-int   	parse_authfile(void);
-void	usage(void);
-int	init_config(const char * cfgfile);
-void	init_procinfo(void);
-int	initialize_heartbeat(void);
+static void	restart_heartbeat(void);
+static void	usage(void);
+static void	init_procinfo(void);
+static int	initialize_heartbeat(void);
 static	const char * core_proc_name(enum process_type t);
 
 static	void CoreProcessRegistered(ProcTrack* p);
@@ -353,48 +340,51 @@ static	void	ManagedChildDied(ProcTrack* p, int status
 ,	int signo, int exitcode, int waslogged);
 static	const char * ManagedChildName(ProcTrack* p);
 static	void FinalCPShutdown(void);
-void	check_for_timeouts(void);
-void	check_comm_isup(void);
+static void	check_for_timeouts(void);
+static void	check_comm_isup(void);
 
 
 
-int	send_local_status(const char *);
-int	set_local_status(const char * status);
-void	request_msg_rexmit(struct node_info *, unsigned long lowseq
+
+static int	send_local_status(const char *);
+#ifdef ACTUALLY_USE_SET_LOCAL_STATUS
+static int	set_local_status(const char * status);
+#endif /* ACTUALLY_USE_SET_LOCAL_STATUS */
+static void	request_msg_rexmit(struct node_info *, unsigned long lowseq
 ,		unsigned long hiseq);
-void	check_rexmit_reqs(void);
-void	mark_node_dead(struct node_info* hip);
-void	change_link_status(struct node_info* hip, struct link *lnk
+static void	check_rexmit_reqs(void);
+static void	mark_node_dead(struct node_info* hip);
+static void	change_link_status(struct node_info* hip, struct link *lnk
 ,		const char * new);
 static	void comm_now_up(void);
-long	get_running_hb_pid(void);
-void	make_daemon(void);
-void	send_to_all_media(char * smsg, int len);
-int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
-				const char *iface);
-int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
-void	cause_shutdown_restart(void);
-gboolean CauseShutdownRestart(gpointer p);
-void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
+static long	get_running_hb_pid(void);
+static void	make_daemon(void);
+static void hb_del_ipcmsg(IPC_Message* m);
+static IPC_Message* hb_new_ipcmsg(const void* data, int len, IPC_Channel* ch
+,		int refcnt);
+static void	send_to_all_media(const char * smsg, int len);
+static int	should_drop_message(struct node_info* node
+,		const struct ha_msg* msg, const char *iface);
+static int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
+static void	cause_shutdown_restart(void);
+static gboolean	CauseShutdownRestart(gpointer p);
+static void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
-void	init_xmit_hist (struct msg_xmit_hist * hist);
-void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
-void	process_clustermsg(FILE * f);
-void	process_registermsg(FILE * f);
-void	nak_rexmit(unsigned long seqno, const char * reason);
-int	IncrGeneration(unsigned long * generation);
-void	process_control_packet(struct msg_xmit_hist* msghist
+static void	init_xmit_hist (struct msg_xmit_hist * hist);
+static void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
+static void	process_clustermsg(FILE * f);
+static void	process_registermsg(FILE * f);
+static void	nak_rexmit(unsigned long seqno, const char * reason);
+static int	IncrGeneration(unsigned long * generation);
+static void	process_control_packet(struct msg_xmit_hist* msghist
 ,	struct ha_msg * msg);
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
 
 /* The biggies */
-void control_process(FILE * f, int ofd);
-void read_child(struct hb_media* mp);
-void write_child(struct hb_media* mp);
-void master_status_process(void);		/* The real biggie */
-
-
-
+static void control_process(FILE * fp, int fifoofd);
+static void read_child(struct hb_media* mp);
+static void write_child(struct hb_media* mp);
+static void master_status_process(void);		/* The real biggie */
 
 pid_t		processes[MAXPROCS];
 pid_t		master_status_pid;
@@ -402,7 +392,7 @@ int		parse_only = 0;
 int		RestartRequested = 0;
 int		shutdown_in_progress = 0;
 int		WeAreRestarting = 0;
-long		hb_pid_in_file = 0L;
+static long	hb_pid_in_file = 0L;
 
 enum comm_state {
 	COMM_STARTING,
@@ -416,7 +406,7 @@ static ProcTrack_ops CoreProcessTrackOps = {
 	CoreProcessRegistered,
 	CoreProcessName
 };
-int CoreProcessCount = 0;
+static int CoreProcessCount = 0;
 
 
 ProcTrack_ops ManagedChildTrackOps = {
@@ -425,11 +415,11 @@ ProcTrack_ops ManagedChildTrackOps = {
 	ManagedChildName
 };
 
-int	managed_child_count= 0;
-int	UseOurOwnPoll = FALSE;
+static int	managed_child_count= 0;
+int		UseOurOwnPoll = FALSE;
 
 
-void
+static void
 init_procinfo()
 {
 	int	ipcid;
@@ -440,6 +430,7 @@ init_procinfo()
 	(void)_heartbeat_private_h_Id;
 	(void)_ha_msg_h_Id;
 	(void)_hb_signal_h_Id;
+	(void)_hb_config_h_Id;
 	(void)_setproctitle_h_Id;
 
 	if ((ipcid = shmget(IPC_PRIVATE, sizeof(*procinfo), 0666)) < 0) {
@@ -556,28 +547,12 @@ lookup_node(const char * h)
 	}
 	return(NULL);
 }
-char *
-ha_timestamp(void)
-{
-	static char ts[64];
-	struct tm*	ttm;
-	TIME_T		now;
-
-	now = time(NULL);
-	ttm = localtime(&now);
-
-	snprintf(ts, sizeof(ts), "%04d/%02d/%02d_%02d:%02d:%02d"
-	,	ttm->tm_year+1900, ttm->tm_mon+1, ttm->tm_mday
-	,	ttm->tm_hour, ttm->tm_min, ttm->tm_sec);
-	return(ts);
-}
-
 
 /*
  *	This routine starts everything up and kicks off the heartbeat
  *	process.
  */
-int
+static int
 initialize_heartbeat()
 {
 /*
@@ -861,7 +836,7 @@ read_child(struct hb_media* mp)
 
 
 /* Create a write child process (to write messages to hb medium) */
-void
+static void
 write_child(struct hb_media* mp)
 {
 	IPC_Channel* ourchan =	mp->wchan[P_READFD];
@@ -895,7 +870,7 @@ write_child(struct hb_media* mp)
 
 /* The master control process -- reads control fifo, sends msgs to cluster */
 /* Not a lot to this one, eh? */
-void
+static void
 control_process(FILE * fp, int fifoofd)
 {
 	struct msg_xmit_hist	msghist;
@@ -984,7 +959,7 @@ hb_del_ipcmsg(IPC_Message* m)
 }
 
 static IPC_Message*
-hb_new_ipcmsg(void * data, int len, IPC_Channel* ch, int refcnt)
+hb_new_ipcmsg(const void* data, int len, IPC_Channel* ch, int refcnt)
 {
 	IPC_Message*	hdr;
 	char*	copy;
@@ -1013,8 +988,8 @@ hb_new_ipcmsg(void * data, int len, IPC_Channel* ch, int refcnt)
 
 
 /* Send this message to all of our heartbeat media */
-void
-send_to_all_media(char * smsg, int len)
+static void
+send_to_all_media(const char * smsg, int len)
 {
 	int	j;
 	IPC_Message*	outmsg;
@@ -1102,7 +1077,7 @@ static gboolean clustermsg_input_dispatch(int fd, gpointer user_data);
  */
 static gboolean APIregistration_input_dispatch(int fd, gpointer user_data);
 
-void LookForClockJumps(void);
+static void LookForClockJumps(void);
 
 static int			ClockJustJumped = 0;
 
@@ -1114,7 +1089,7 @@ Gmain_hb_signal_process_pending(void *data)
 }
 
 /* The master status process */
-void
+static void
 master_status_process(void)
 {
 	FILE *			f;
@@ -1256,7 +1231,7 @@ master_status_process(void)
  *	Timing out on heartbeats from other nodes (timed low priority)
  */
 
-void
+static void
 LookForClockJumps(void)
 {
 	static TIME_T	lastnow = 0L;
@@ -1465,7 +1440,7 @@ hb_msp_final_shutdown(gpointer p)
 /*
  * Process a message coming in from our status FIFO
  */
-void
+static void
 process_clustermsg(FILE * f)
 {
 	struct node_info *	thisnode = NULL;
@@ -1801,7 +1776,7 @@ psm_done:
 }
 
 /* Process a registration request from a potential client */
-void
+static void
 process_registermsg(FILE *regfifo)
 {
 	struct ha_msg *		msg = NULL;
@@ -2178,7 +2153,7 @@ hb_trigger_restart(int quickrestart)
 /*
  *	Restart heartbeat - we never return from this...
  */
-void
+static void
 restart_heartbeat(void)
 {
 	int			j;
@@ -2259,7 +2234,7 @@ restart_heartbeat(void)
 }
 
 /* See if any nodes or links have timed out */
-void
+static void
 check_for_timeouts(void)
 {
 	longclock_t		now = time_longclock();
@@ -2330,7 +2305,7 @@ check_for_timeouts(void)
  * status packet.
  */
 
-void
+static void
 check_comm_isup(void)
 {
 	struct node_info *	hip;
@@ -2354,8 +2329,16 @@ check_comm_isup(void)
 	}
 }
 
+#ifdef ACTUALLY_USE_SET_LOCAL_STATUS
+/* NB: This function isn't used at the moment, because
+ *     it can create a loop when the status is sent,
+ *     recieved by another node, and then sent back.
+ *     Status updates about the local node from remote hosts
+ *     should probably be ignored. But for the moment,
+ *     leave things as is.
+ */
 /* Set our local status to the given value, and send it out */
-int
+static int
 set_local_status(const char * newstatus)
 {
 	if (strcmp(newstatus, curnode->status) != 0
@@ -2374,6 +2357,7 @@ set_local_status(const char * newstatus)
 	ha_log(LOG_INFO, "Unable to set local status to: %s", newstatus);
 	return(HA_FAIL);
 }
+#endif /* ACTUALLY_USE_SET_LOCAL_STATUS */
 
 int
 send_cluster_msg(struct ha_msg* msg)
@@ -2499,12 +2483,14 @@ send_local_status(const char * st)
 	ha_msg_del(m);
 	return(rc);
 }
+
 gboolean
 hb_send_local_status(gpointer p)
 {
 	send_local_status(NULL);
 	return TRUE;
 }
+
 gboolean
 hb_dump_all_proc_stats(gpointer p)
 {
@@ -2526,8 +2512,9 @@ EmergencyShutdown(gpointer p)
 }
 
 /* Mark the given link dead */
-void
-change_link_status(struct node_info *hip, struct link *lnk, const char * newstat)
+static void
+change_link_status(struct node_info *hip, struct link *lnk
+,	const char * newstat)
 {
 	struct ha_msg *	lmsg;
 
@@ -2554,7 +2541,7 @@ change_link_status(struct node_info *hip, struct link *lnk, const char * newstat
 }
 
 /* Mark the given node dead */
-void
+static void
 mark_node_dead(struct node_info *hip)
 {
 	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
@@ -2594,14 +2581,14 @@ mark_node_dead(struct node_info *hip)
 }
 
 
-gboolean
+static gboolean
 CauseShutdownRestart(gpointer p)
 {
 	cause_shutdown_restart();
 	return FALSE;
 }
 
-void
+static void
 cause_shutdown_restart()
 {
 	/* Give up our resources, and restart ourselves */
@@ -2628,7 +2615,7 @@ heartbeat_monitor(struct ha_msg * msg, int msgtype, const char * iface)
 
 
 /*  usage statement */
-void
+static void
 usage(void)
 {
 	const char *	optionargs = OPTARGS;
@@ -3014,7 +3001,7 @@ hb_emergency_shutdown(void)
 	cleanexit(100);
 }
 
-long
+static long
 get_running_hb_pid()
 {
 	long	pid;
@@ -3037,7 +3024,7 @@ get_running_hb_pid()
 extern pid_t getsid(pid_t);
 
 
-void
+static void
 make_daemon(void)
 {
 	long			pid;
@@ -3203,7 +3190,7 @@ should_ring_copy_msg(struct ha_msg *m)
 /*
  *	Should we ignore this packet, or pay attention to it?
  */
-int
+static int
 should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 					const char *iface)
 {
@@ -3500,7 +3487,7 @@ process_control_packet(struct msg_xmit_hist*	msghist
  * Is this the sequence number of a lost packet?
  * If so, clean up after it.
  */
-int
+static int
 is_lost_packet(struct node_info * thisnode, unsigned long seq)
 {
 	struct seqtrack *	t = &thisnode->track;
@@ -3531,7 +3518,7 @@ is_lost_packet(struct node_info * thisnode, unsigned long seq)
 	return 0;
 }
 
-void
+static void
 request_msg_rexmit(struct node_info *node, unsigned long lowseq
 ,	unsigned long hiseq)
 {
@@ -3565,7 +3552,7 @@ request_msg_rexmit(struct node_info *node, unsigned long lowseq
 
 #define REXMIT_MS	1000
 
-void
+static void
 check_rexmit_reqs(void)
 {
 	longclock_t	minrexmit = 0L;
@@ -3612,7 +3599,7 @@ check_rexmit_reqs(void)
 }
 
 /* Initialize the transmit history */
-void
+static void
 init_xmit_hist (struct msg_xmit_hist * hist)
 {
 	int	j;
@@ -3627,7 +3614,7 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 }
 
 /* Add a packet to a channel's transmit history */
-void
+static void
 add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,	unsigned long seq)
 {
@@ -3655,7 +3642,7 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 }
 
 #define	MAX_REXMIT_BATCH	10
-void
+static void
 process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 {
 	const char *	cfseq;
@@ -3764,7 +3751,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 NextReXmit:/* Loop again */;
 	}
 }
-void
+static void
 nak_rexmit(unsigned long seqno, const char * reason)
 {
 	struct ha_msg*	msg;
@@ -3855,7 +3842,7 @@ ParseTestOpts()
 #	define O_SYNC 0
 #endif
 
-int
+static int
 IncrGeneration(unsigned long * generation)
 {
 	char		buf[GENLEN+1];
@@ -3914,6 +3901,9 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.231  2002/11/22 07:04:39  horms
+ * make lots of symbols static
+ *
  * Revision 1.230  2002/11/09 16:44:04  alan
  * Added supplementary groups to the 'respawn'ed clients.
  *

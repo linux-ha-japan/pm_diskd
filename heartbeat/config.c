@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.71 2002/11/21 15:46:03 lars Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.72 2002/11/22 07:04:39 horms Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -49,14 +49,77 @@ const static char * _heartbeat_c_Id = "$Id: config.c,v 1.71 2002/11/21 15:46:03 
 #include <pils/plugin.h>
 #include <HBcomm.h>
 #include <hb_module.h>
+#include <hb_config.h>
 
 #define	DIRTYALIASKLUDGE
+
+#define	KEY_HOST	"node"
+#define KEY_HOPS	"hopfudge"
+#define KEY_KEEPALIVE	"keepalive"
+#define KEY_DEADTIME	"deadtime"
+#define KEY_WARNTIME	"warntime"
+#define KEY_INITDEAD	"initdead"
+#define KEY_WATCHDOG	"watchdog"
+#define	KEY_BAUDRATE	"baud"
+#define	KEY_UDPPORT	"udpport"
+#define	KEY_FACILITY	"logfacility"
+#define	KEY_LOGFILE	"logfile"
+#define	KEY_DBGFILE	"debugfile"
+#define KEY_FAILBACK	"nice_failback"
+#define KEY_STONITH	"stonith"
+#define KEY_STONITHHOST "stonith_host"
+#define KEY_CLIENT_CHILD "respawn"
+
+static int add_normal_node(const char *);
+static int set_hopfudge(const char *);
+static int set_keepalive_ms(const char *);
+static int set_deadtime_ms(const char *);
+static int set_initial_deadtime_ms(const char *);
+static int set_watchdogdev(const char *);
+static int set_baudrate(const char *);
+static int set_udpport(const char *);
+static int set_facility(const char *);
+static int set_logfile(const char *);
+static int set_dbgfile(const char *);
+static int set_nice_failback(const char *);
+static int set_warntime_ms(const char *);
+static int set_stonith_info(const char *);
+static int set_stonith_host_info(const char *);
+static int add_client_child(const char *);
+
+struct directive {
+	const char * name;
+	int (*add_func) (const char *);
+}Directives[] =
+{	{KEY_HOST,	add_normal_node}
+,	{KEY_HOPS,	set_hopfudge}
+,	{KEY_KEEPALIVE,	set_keepalive_ms}
+,	{KEY_DEADTIME,	set_deadtime_ms}
+,	{KEY_INITDEAD,	set_initial_deadtime_ms}
+,	{KEY_WARNTIME,	set_warntime_ms}
+,	{KEY_WATCHDOG,	set_watchdogdev}
+,	{KEY_BAUDRATE,	set_baudrate}
+,	{KEY_UDPPORT,	set_udpport}
+,	{KEY_FACILITY,  set_facility}
+,	{KEY_LOGFILE,   set_logfile}
+,	{KEY_DBGFILE,   set_dbgfile}
+,	{KEY_FAILBACK,  set_nice_failback}
+};
+
+static const struct WholeLineDirective {
+	const char * type;
+	int (*parse) (const char *line);
+}WLdirectives[] =
+{
+	{KEY_STONITH,  	   set_stonith_info},
+	{KEY_STONITHHOST,  set_stonith_host_info}
+,	{KEY_CLIENT_CHILD,  add_client_child}
+};
 
 extern const char *			cmdname;
 extern int				parse_only;
 extern struct hb_media*			sysmedia[MAXMEDIA];
 extern struct sys_config *		config;
-extern struct node_info *		curnode;
 extern int				verbose;
 extern volatile struct pstat_shm *	procinfo;
 extern volatile struct process_info *	curproc;
@@ -66,19 +129,12 @@ extern int                              nice_failback;
 extern int				DoManageResources;
 extern PILPluginUniv*			PluginLoadingSystem;
 extern GHashTable*			CommFunctions;
+struct node_info *   			curnode;
 
-int	islegaldirective(const char *directive);
-int     parse_config(const char * cfgfile, char *nodename);
-int	parse_ha_resources(const char * cfgfile);
-static long get_msec(const char * input);
-void	dump_config(void);
-int	add_option(const char *	option, const char * value);
-int	add_node(const char * value, int nodetype);
-int   	parse_authfile(void);
-int	init_config(const char * cfgfile);
-int     set_logfile(const char * value);
-int     set_dbgfile(const char * value);
-int	StringToBaud(const char * baudstr);
+static int	islegaldirective(const char *directive);
+static int	parse_config(const char * cfgfile, char *nodename);
+static long	get_msec(const char * input);
+static int	add_option(const char *	option, const char * value);
 
 int	baudrate;
 int	serial_baud;
@@ -107,7 +163,8 @@ init_config(const char * cfgfile)
 	int	err;
 
 	/* This may be dumb.  I'll decide later */
-	(void)_heartbeat_c_Id;	/* Make warning go away */
+	(void)_hb_config_h_Id;	/* Make warning go away */
+	(void)_hb_config_c_Id;	/* ditto */
 	(void)_heartbeat_h_Id;	/* ditto */
 	(void)_ha_msg_h_Id;	/* ditto */
 /*
@@ -268,73 +325,10 @@ init_config(const char * cfgfile)
 }
 
 
-#define	KEY_HOST	"node"
-#define KEY_HOPS	"hopfudge"
-#define KEY_KEEPALIVE	"keepalive"
-#define KEY_DEADTIME	"deadtime"
-#define KEY_WARNTIME	"warntime"
-#define KEY_INITDEAD	"initdead"
-#define KEY_WATCHDOG	"watchdog"
-#define	KEY_BAUDRATE	"baud"
-#define	KEY_UDPPORT	"udpport"
-#define	KEY_FACILITY	"logfacility"
-#define	KEY_LOGFILE	"logfile"
-#define	KEY_DBGFILE	"debugfile"
-#define KEY_FAILBACK	"nice_failback"
-#define KEY_STONITH	"stonith"
-#define KEY_STONITHHOST "stonith_host"
-#define KEY_CLIENT_CHILD "respawn"
-
-int add_normal_node(const char *);
-int set_hopfudge(const char *);
-int set_keepalive_ms(const char *);
-int set_deadtime_ms(const char *);
-int set_initial_deadtime_ms(const char *);
-int set_watchdogdev(const char *);
-int set_baudrate(const char *);
-int set_udpport(const char *);
-int set_facility(const char *);
-int set_logfile(const char *);
-int set_dbgfile(const char *);
-int set_nice_failback(const char *);
-int set_warntime_ms(const char *);
-int set_stonith_info(const char *);
-int set_stonith_host_info(const char *);
-int add_client_child(const char *);
-
-struct directive {
-	const char * name;
-	int (*add_func) (const char *);
-}Directives[] =
-{	{KEY_HOST,	add_normal_node}
-,	{KEY_HOPS,	set_hopfudge}
-,	{KEY_KEEPALIVE,	set_keepalive_ms}
-,	{KEY_DEADTIME,	set_deadtime_ms}
-,	{KEY_INITDEAD,	set_initial_deadtime_ms}
-,	{KEY_WARNTIME,	set_warntime_ms}
-,	{KEY_WATCHDOG,	set_watchdogdev}
-,	{KEY_BAUDRATE,	set_baudrate}
-,	{KEY_UDPPORT,	set_udpport}
-,	{KEY_FACILITY,  set_facility}
-,	{KEY_LOGFILE,   set_logfile}
-,	{KEY_DBGFILE,   set_dbgfile}
-,	{KEY_FAILBACK,  set_nice_failback}
-};
-
-static const struct WholeLineDirective {
-	const char * type;
-	int (*parse) (const char *line);
-}WLdirectives[] =
-{
-	{KEY_STONITH,  	   set_stonith_info},
-	{KEY_STONITHHOST,  set_stonith_host_info}
-,	{KEY_CLIENT_CHILD,  add_client_child}
-};
-
 /*
  *	Parse the configuration file and stash away the data
  */
-int
+static int
 parse_config(const char * cfgfile, char *nodename)
 {
 	FILE	*	f;
@@ -646,7 +640,7 @@ parse_ha_resources(const char * cfgfile)
 /*
  *	Is this a legal directive name?
  */
-int
+static int
 islegaldirective(const char *directive)
 {
 	int	j;
@@ -697,7 +691,7 @@ islegaldirective(const char *directive)
 /*
  *	Add the given option/value pair to the configuration
  */
-int
+static int
 add_option(const char *	option, const char * value)
 {
 	int	j;
@@ -791,7 +785,7 @@ add_node(const char * value, int nodetype)
 }
 
 /* Process a node declaration */
-int
+static int
 add_normal_node(const char * value)
 {
 	return add_node(value, NORMALNODE);
@@ -800,7 +794,7 @@ add_normal_node(const char * value)
 
 
 /* Set the hopfudge variable */
-int
+static int
 set_hopfudge(const char * value)
 {
 	config->hopfudge = atoi(value);
@@ -812,7 +806,7 @@ set_hopfudge(const char * value)
 }
 
 /* Set the keepalive time */
-int
+static int
 set_keepalive_ms(const char * value)
 {
 	config->heartbeat_ms = get_msec(value);
@@ -825,7 +819,7 @@ set_keepalive_ms(const char * value)
 }
 
 /* Set the dead timeout */
-int
+static int
 set_deadtime_ms(const char * value)
 {
 	config->deadtime_ms = get_msec(value);
@@ -836,7 +830,7 @@ set_deadtime_ms(const char * value)
 }
 
 /* Set the initial dead timeout */
-int
+static int
 set_initial_deadtime_ms(const char * value)
 {
 	config->initial_deadtime_ms = get_msec(value);
@@ -847,7 +841,7 @@ set_initial_deadtime_ms(const char * value)
 }
 
 /* Set the watchdog device */
-int
+static int
 set_watchdogdev(const char * value)
 {
 
@@ -893,7 +887,7 @@ StringToBaud(const char * baudstr)
 	}
 }
 
-int
+static int
 set_baudrate(const char * value)
 {
 	static int	baudset = 0;
@@ -912,7 +906,7 @@ set_baudrate(const char * value)
 	return(HA_OK);
 }
 
-int
+static int
 set_udpport(const char * value)
 {
 	int		port = atoi(value);
@@ -1398,6 +1392,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.72  2002/11/22 07:04:39  horms
+ * make lots of symbols static
+ *
  * Revision 1.71  2002/11/21 15:46:03  lars
  * Fix for ucast.c suggested by Sam O'Connor.
  *

@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.25 2002/10/30 21:30:30 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.26 2002/11/22 07:04:41 horms Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -328,7 +328,6 @@ int api_remove_client_pid(pid_t c_pid, const char * reason);
 
 
 extern struct sys_config *	config;
-extern struct node_info *	curnode;
 extern int			verbose;
 extern int			debug;
 extern int			udpport;
@@ -352,6 +351,8 @@ extern void		cleanexit(int exitcode);
 extern void		check_auth_change(struct sys_config *);
 extern void		(*localdie)(void);
 extern int		should_ring_copy_msg(struct ha_msg* m);
+extern int 		controlipc2msg(IPC_Channel * channel
+, 			struct ha_msg **);
 extern int		add_msg_auth(struct ha_msg * msg);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
 struct node_info *	lookup_node(const char *);

@@ -48,6 +48,7 @@ CFLAGS			= @CFLAGS@ $(AM_CFLAGS)	\
 SUBDIRS			= init.d lib logrotate.d rc.d resource.d
 
 noinst_HEADERS		=	hb_api_core.h		\
+				hb_config.h		\
 				hb_module.h		\
 				hb_proc.h		\
 				hb_resource.h		\

@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.35 2002/10/30 17:17:40 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.36 2002/11/22 07:04:39 horms Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -360,7 +360,9 @@ msgfromIPC(IPC_Channel * ch)
 	}
 
 	hmsg = string2msg((char *)ipcmsg->msg_body, ipcmsg->msg_len);
-	ipcmsg->msg_done(ipcmsg);
+	if(ipcmsg->msg_done) {
+		ipcmsg->msg_done(ipcmsg);
+	}
 
 	return hmsg;
 }
@@ -388,7 +390,7 @@ msg2stream(struct ha_msg* m, FILE * f)
 	}
 }
 
-/* Converts a string (perhaps gotten via UDP) into a message */
+/* Converts a string (perhaps received via UDP) into a message */
 struct ha_msg *
 string2msg(const char * s, size_t length)
 {
@@ -511,6 +513,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.36  2002/11/22 07:04:39  horms
+ * make lots of symbols static
+ *
  * Revision 1.35  2002/10/30 17:17:40  alan
  * Added some debugging, and changed one message from an ERROR to a WARNING.
  *

@@ -434,6 +434,8 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 
 #define	HB_UPD_RSC(cur, up)	((up == HB_NO_RSC) ? HB_NO_RSC : ((up)|(cur)))
 
+extern struct node_info *      curnode;
+
 void
 process_resources(const char * type, struct ha_msg* msg, struct node_info * thisnode)
 {
@@ -1712,6 +1714,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.7  2002/11/22 07:04:39  horms
+ * make lots of symbols static
+ *
  * Revision 1.6  2002/11/19 19:23:48  lclaudio
  * Variable going_standby was declared twice in this file. Fixed.
  *

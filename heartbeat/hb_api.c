@@ -103,6 +103,7 @@ extern int	UseOurOwnPoll;
 int		debug_client_count = 0;
 int		total_client_count = 0;
 client_proc_t*	client_list = NULL;	/* List of all our API clients */
+struct node_info *curnode;
 
 void api_process_request(client_proc_t* client, struct ha_msg *msg);
 static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);

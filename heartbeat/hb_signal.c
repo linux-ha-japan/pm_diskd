@@ -22,7 +22,7 @@
  *
  */
 
-static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.3 2002/10/21 02:00:35 horms Exp $";
+static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.4 2002/11/22 07:04:39 horms Exp $";
 
 
 #define _USE_BSD
@@ -38,6 +38,7 @@ static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.3 2002/10/21 02:00:3
 #include <unistd.h>
 #include <stdlib.h>
 
+#include <hb_config.h>
 #include <hb_signal.h>
 #include <clplumbing/proctrack.h>
 #include <clplumbing/Gmain_timeout.h>
@@ -155,6 +156,7 @@ hb_signal_signal_all(int sig)
 		(void)_ha_msg_h_Id;
 		(void)_hb_signal_h_Id;
 		(void)_hb_signal_c_Id;
+		(void)_hb_config_h_Id;
 		(void)_heartbeat_private_h_Id;
 		(void)_setproctitle_h_Id;
 	}
