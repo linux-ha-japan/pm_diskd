@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.66 2003/05/09 07:59:58 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.67 2003/05/21 02:10:14 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -204,11 +204,11 @@ activated. Default is I<negotiate>.
 
 B<service = ftp>|B<smtp>|B<http>|B<pop>|B<nntp>|B<imap>|B<ldap>|B<https>|B<none>
 
-The type of service to monitor. None denotes a service that will not be
-monitored. If the port specfied for the virtual server is 21, 25, 80, 
-110, 119, 143, 389 or 443, the default B<ftp>, B<smtp>, B<http>, B<pop>, 
-B<nntp>, B<imap>, B<ldap>or B<https> respectivly. Otherwise the default
-service is B<none>.
+The type of service to monitor when using checktype=negotiate. None denotes
+a service that will not be monitored. If the port specfied for the virtual
+server is 21, 25, 80, 110, 119, 143, 389 or 443, the default B<ftp>,
+B<smtp>, B<http>, B<pop>, B<nntp>, B<imap>, B<ldap>or B<https> respectivly.
+Otherwise the default service is B<none>.
 
 B<checkport = >I<n>
 
@@ -243,9 +243,11 @@ ldirectord\@<hostname>, where hostname is the environment variable
 HOSTNAME evaluated at run time.
 
 
-B<scheduler = rr>|B<wrr>|B<lc>|B<wlc>|B<lblc>|B<lblcr>
+B<scheduler = rr>|B<wrr>|B<lc>|B<wlc>|B<lblc>|B<lblcr>|B<sed>|B<nq>
 
-Scheduler to be used for loadbalance. Default is "wrr".
+Scheduler to be used by LVS for loadbalancing. Default is "wrr".
+For an explanation of the sehedulers please see
+the ipvsadm(8) man page.
 
 B<persistent => I<n>
 
