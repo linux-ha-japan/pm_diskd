@@ -2,6 +2,25 @@
 #	This is a list of resources that move from machine to machine as
 #	nodes go down and come up in the cluster.  Do not include
 #	"administrative" or fixed IP addresses in this file.
+#
+# <VERY IMPORTANT NOTE>
+#	The haresources files MUST BE IDENTICAL on all nodes of the cluster.
+#
+#	The node names listed in front of the resource group information
+#	is the name of the preferred node to run the service.  It is
+#	not necessarily the name of the current machine.  If you are running
+#	auto_failback ON (or legacy), then these services will be started
+#	up on the preferred nodes - any time they're up.
+#
+#	If you are running with auto_failback OFF, then the node information
+#	will be used in the case of a simultaneous start-up, or when using
+#	the hb_standby {foreign,local} command.
+#
+#	BUT FOR ALL OF THESE CASES, the haresources files MUST BE IDENTICAL.
+#	If your files are different then almost certainly something
+#	won't work right.
+# </VERY IMPORTANT NOTE>
+#
 #	
 #	We refer to this file when we're coming up, and when a machine is being
 #	taken over after going down.
