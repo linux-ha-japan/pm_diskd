@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.10 1999/10/25 15:35:03 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.11 1999/10/27 02:56:19 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -74,7 +74,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.10 1999/10/25 15:35:
 #define	EOS		'\0'
 #define	COMMENTCHAR	'#'
 #define	STATUS		"STATUS"
-#define	INITSTATUS	"unknown"
+#define	INITSTATUS	"up"
 #define	DEADSTATUS	"dead"
 #define	LOADAVG		"/proc/loadavg"
 #define	PIDFILE		VAR_RUN_D "/heartbeat.pid"
