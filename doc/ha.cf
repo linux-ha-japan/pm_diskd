@@ -43,12 +43,12 @@ logfacility	local0
 #
 #	deadtime: how long-to-declare-host-dead?
 #
-#deadtime 10
+#deadtime 30
 #
 #	warntime: how long before issuing "late heartbeat" warning?
 #	See the FAQ for how to use warntime to tune deadtime.
 #
-#warntime 5
+#warntime 10
 #
 #
 #	Very first dead time (initdead)
