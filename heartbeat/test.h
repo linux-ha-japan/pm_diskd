@@ -36,7 +36,11 @@ struct TestParms *	TestOpts;
 #define	TESTSEND	(TestOpts && TestOpts->enable_send_pkt_loss)
 #define	TESTRCV		(TestOpts && TestOpts->enable_rcv_pkt_loss)
 
-#define RandThresh(p) ((double)rand() <= ((((double)RAND_MAX) * ((double)p))))
+#ifdef  __GNUC__
+#define RandThresh(p) ((1.0*rand()) <= ((((double)RAND_MAX) * ((double)p))))
+#else
+#define RandThresh(p) ((double)(rand()) <= ((((double)RAND_MAX) * ((double)p))))
+#endif
 
 #define TestRand(field)	(TestOpts && RandThresh(TestOpts->field))
 int ParseTestOpts(void);
