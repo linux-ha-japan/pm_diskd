@@ -1,0 +1,135 @@
+#
+# ConfigureMe: apply appropriate default local configuration options
+#
+# (c) 2001 Alan Robertson <alanr@unix.sh>
+#	Licensed under the GNU GPL
+#
+Usage() {
+  cat <<-!
+
+	Usage: $0 [configure|make|install|package]
+
+	$0 configures the system with options that match common conventions
+	associated with this machine (i.e. $CFENV)
+
+	It will also build, make, install or create packages for the
+	build environment.
+
+	$0 does not know how to create packages for every environment,
+	nor is the information on "common conventions" necessarily correct.
+	Patches to this process are solicited -- especially in these areas.
+	!
+  exit 1
+}
+#
+#	The vast majority of cases here have not been tested yet...
+#	If you don't think the treatment of your favorite OS is right,
+#	then submit a patch.  Some of these conventions were wild guesses...
+#
+
+
+PACKAGECMD=""
+
+ConfigureLinux() {
+  if
+    [ -f /etc/SuSE-release -a -s /etc/SuSE-release ]
+  then
+    distro=SuSE
+    PACKAGECMD="make rpm"
+  else
+    distro="Generic"
+  fi
+  CFENV="$distro Linux"
+  FLAGS="--prefix=/usr --sysconfdir=/etc --localstatedir=/var"
+}
+
+ConfigureAIX() {
+  CFENV="AIX (freeware toolbox)"
+  FLAGS="--prefix /opt/freeware"
+}
+
+ConfigureFreeBSD() {
+  FLAGS="--prefix=/usr/local --sysconfdir=/usr/local/etc --localstatedir=/usr/local/var"
+  CFENV="FreeBSD"
+}
+
+ConfigureOpenBSD() {
+  FLAGS="--prefix=/usr/local --sysconfdir=/usr/local/etc --localstatedir=/usr/local/var"
+  CFENV="OpenBSD"
+}
+
+ConfigureNetBSD() {
+  FLAGS="--prefix=/usr/local --sysconfdir=/usr/local/etc --localstatedir=/usr/local/var"
+  CFENV="NetBSD"
+}
+
+ConfigureGenericBSD() {
+  FLAGS="--prefix=/usr/local --sysconfdir=/usr/local/etc --localstatedir=/usr/local/var"
+  CFENV="Generic BSD"
+}
+
+ConfigureSolaris() {
+  FLAGS="--prefix=/opt --sysconfdir=/opt/etc --localstatedir=/opt/var"
+  CFENV="Solaris"
+}
+
+ConfigureGenericUNIX() {
+  echo "Configuring for generic UNIX system"
+  FLAGS="--prefix=/usr --sysconfdir=/etc --localstatedir=/var"
+  CFENV="Generic UNIX"
+}
+
+lcase() {
+  #  Convert to lower-case in a portable way
+  if
+    [ "`echo A | dd conv=lcase 2>/dev/null`" = Xa ]
+  then
+    dd conv=lcase 2>/dev/null
+  else
+    tr 'A-Z' 'a-z'
+  fi
+}
+
+GetConfigureFLAGS() {
+  case `uname -s | lcase` in
+    linux)	ConfigureLinux;;
+    aix)	ConfigureAIX;;
+    freebsd)	ConfigureFreeBSD;;
+    openbsd)	ConfigureOpenBSD;;
+    netbsd)	ConfigureOpenBSD;;
+    *bsd)	ConfigureGenericBSD;;
+    sunos)	ConfigureSolaris;;
+    *)		ConfigureGenericUNIX;;
+  esac
+}
+
+Run() {
+  echo "Running $@"
+  "$@"
+}
+
+PackageItUp() {
+  if
+    [ X"$PACKAGECMD" = X ]
+  then
+    echo "Do not know how to build a package for $CFENV" >&2
+    return 1
+  else
+    Run $PACKAGECMD
+  fi
+}
+
+
+GetConfigureFLAGS
+echo ""
+echo "Configure flags for $CFENV: $FLAGS"
+
+cmd=`echo $1 | lcase`
+
+case $cmd in
+  cf|conf|configure)		Run ./bootstrap $FLAGS;;
+  make|build)			Run ./bootstrap $FLAGS && Run gmake;;
+  install)			Run ./bootstrap $FLAGS && Run gmake install;;
+  pkg|package|rpm|deb|dpkg)	Run ./bootstrap $FLAGS && PackageItUp;;
+  *)				Usage;;
+esac
