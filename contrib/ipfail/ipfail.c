@@ -56,7 +56,7 @@
 #include <sys/stat.h>
 #include <stdarg.h>
 #include <heartbeat.h>
-#include <hb_api_core.h>
+#include <ha_msg.h>
 #include <hb_api.h>
 
 void NodeStatus(const char *node, const char *status, void *private);
@@ -74,7 +74,9 @@ void wake_up(ll_cluster_t *);
 char node_name[200];	/* The node we are connected to */
 char other_node[200];	/* The remote node in the pair */
 
-void NodeStatus(const char *node, const char *status, void *private) {
+void
+NodeStatus(const char *node, const char *status, void *private)
+{
 	/* Callback for node status changes */
 
 	fprintf(stderr, "Status update: Node %s now has status %s\n"
@@ -94,8 +96,10 @@ void NodeStatus(const char *node, const char *status, void *private) {
 	}
 }
 
-void LinkStatus(const char *node, const char *lnk, const char *status,
-		void *private) {
+void
+LinkStatus(const char *node, const char *lnk, const char *status,
+		void *private)
+{
 	/* Callback for Link status changes */
 
 	int num_ping=0;
@@ -116,7 +120,9 @@ void LinkStatus(const char *node, const char *lnk, const char *status,
 	}
 }
 
-int ping_node_status(ll_cluster_t *hb) {
+int
+ping_node_status(ll_cluster_t *hb)
+{
 	/* ping_node_status: Takes the hearbeat cluster as input, 
 	 * returns number of ping nodes found to be in the cluster, 
 	 * and therefore alive.
@@ -146,7 +152,9 @@ int ping_node_status(ll_cluster_t *hb) {
 	return found;
 }
 
-void giveup(ll_cluster_t *hb) {
+void
+giveup(ll_cluster_t *hb)
+{
 	/* Giveup: Takes the heartbeat cluster as input, returns nothing.
 	 * Forces the local node to go to standby.
 	 */
@@ -167,7 +175,9 @@ void giveup(ll_cluster_t *hb) {
 	ha_msg_del(msg);
 }
 
-void ask_ping_nodes(ll_cluster_t *hb, int num_ping) {
+void
+ask_ping_nodes(ll_cluster_t *hb, int num_ping)
+{
 	/* ask_ping_nodes: Takes the heartbeat cluster and the number of
 	 * ping nodes we can see alive as input, returning nothing.
 	 * It asks the other node for the number of ping nodes it can see.
@@ -192,7 +202,9 @@ void ask_ping_nodes(ll_cluster_t *hb, int num_ping) {
 	ha_msg_del(msg);
 }
 
-void msg_ping_nodes(const struct ha_msg *msg, void *private) {
+void
+msg_ping_nodes(const struct ha_msg *msg, void *private)
+{
 	/* msg_ping_nodes: Takes the message and the heartbeat cluster as input;
 	 * returns nothing.  Callback for the num_ping_nodes message.
 	 */
@@ -203,7 +215,9 @@ void msg_ping_nodes(const struct ha_msg *msg, void *private) {
 	}
 }
 
-void you_are_dead(ll_cluster_t *hb) {
+void
+you_are_dead(ll_cluster_t *hb)
+{
 	/* you_are_dead: Takes the heartbeat cluster as input; returns nothing.
 	 * Sends the you_are_dead message to the dead node.
 	 */
@@ -224,9 +238,11 @@ void you_are_dead(ll_cluster_t *hb) {
 	ha_msg_del(msg);
 }
 
-void i_am_dead(const struct ha_msg *msg, void *private) {
-	/* i_am_dead: Takes the you_are_dead message and the heartbeat cluster as
-	 * input; returns nothing.
+void
+i_am_dead(const struct ha_msg *msg, void *private)
+{
+	/* i_am_dead: Takes the you_are_dead message and the heartbeat cluster
+	 * as input; returns nothing.
 	 * Callback for the you_are_dead message.
 	 */
 
@@ -234,7 +250,9 @@ void i_am_dead(const struct ha_msg *msg, void *private) {
 	giveup(private);
 }
 
-void wake_up(ll_cluster_t *hb) {
+void
+wake_up(ll_cluster_t *hb)
+{
 	/* wake_up: Takes the heartbeat cluster as input; returns nothing.
 	 * Used for initial syncing of cluster names.  Sending this message 
 	 * forces the other side to see your node name.
@@ -249,7 +267,9 @@ void wake_up(ll_cluster_t *hb) {
 }
 
 int quitnow = 0;
-void gotsig(int nsig)
+
+void
+gotsig(int nsig)
 {
 	(void)nsig;
 	quitnow = 1;

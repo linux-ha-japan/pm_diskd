@@ -59,11 +59,11 @@ AUTOMAKE_OPTIONS	= foreign
 MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
                         DRF/stamp-h.in 
 
-## proc-ha is left out from SUBDIRS (obsolescent / doesn't work currently)
+## proc-ha is left out from SUBDIRS (completely obsolete)
 
 SUBDIRS                 = libltdl doc debian replace include lib \
-                        @XPERIMENTALDIRS@ ldirectord heartbeat \
-                        cts linux-ha membership
+                        telecom ldirectord heartbeat \
+                        cts linux-ha membership contrib
 
 rpm:		dist
 		$(RPM) $(RPMFLAGS) $(TARFILE) </dev/null;
