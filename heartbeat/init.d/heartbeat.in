@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.19 2002/10/09 18:35:54 msoffen Exp $
+#	$Id: heartbeat.in,v 1.20 2002/10/09 18:37:07 msoffen Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -228,12 +228,6 @@ StartHA() {
 StopHA() {
   EchoNoNl "Stopping High-Availability services: "
 
-  # Run pre-shutdown script if it exists
-  if
-    [  -f $HA_DIR/resource.d/startstop ]
-  then
-    $HA_DIR/resource.d/startstop stop
-  fi
   if
     $HA_BIN/heartbeat -k &> /dev/null	# Kill it
   then
@@ -332,6 +326,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.20  2002/10/09 18:37:07  msoffen
+#  Left call directly to startstop script instead of the wrapper function.
+#
 #  Revision 1.19  2002/10/09 18:35:54  msoffen
 #  Created pre-start, pre-stop, post-stop, and pre-stop constructs in startstop and
 #  moved startstop to documents (to not override).
