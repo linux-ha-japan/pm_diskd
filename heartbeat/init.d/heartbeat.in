@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.27 2003/02/21 13:41:01 alan Exp $
+#	$Id: heartbeat.in,v 1.28 2003/04/30 19:24:49 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -367,7 +367,7 @@ case "$1" in
         sleeptime=`ha_parameter deadtime`
 	StopHA
 	Echo
-	EchoNoNl Waiting to allow resource takover to complete:
+	EchoNoNl Waiting to allow resource takeover to complete:
 	sleep $sleeptime
 	sleep 10 # allow resource takeover to complete (hopefully).
 	echo_success
@@ -391,6 +391,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.28  2003/04/30 19:24:49  alan
+#  Fixed a spelling error pointed out by Ozan Eren Bilgen <mavi@gsu.linux.org.tr>
+#
 #  Revision 1.27  2003/02/21 13:41:01  alan
 #  Minor comment changes to the heartbeat init script.
 #
