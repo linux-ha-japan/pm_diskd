@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details 
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.12 2000/07/06 07:55:19 jacob Exp $
+# $Id: ldirectord,v 1.13 2000/07/06 10:06:01 jacob Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -785,7 +785,7 @@ sub check_http
 	my $req = new HTTP::Request(GET=>"$$r{url}");
 	my $res = $ua->request($req);
 	my $recstr = $$v{receive};
-	if ($res->is_success && (!($recstr =~ /.+/) || $res->content =~ /$recstr}/)) {
+	if ($res->is_success && (!($recstr =~ /.+/) || $res->content =~ /$recstr/)) {
 		service_set($v, $r, "up");
 	} else {
 		service_set($v, $r, "down");
