@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.29 2003/05/08 19:46:32 alan Exp $
+#	$Id: heartbeat.in,v 1.30 2003/06/16 03:50:48 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -37,8 +37,8 @@
 # Short-Description: High-availability services.
 # Required-Start: $network $time $syslog
 # Required-Stop: $network $time $syslog
-# Default-Start: 2 3 4 5
-# Default-Stop: 0 1 6
+# Default-Start: 3 5
+# Default-Stop: 0 6
 ### END INIT INFO
 
 
@@ -391,6 +391,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.30  2003/06/16 03:50:48  alan
+#  Fixed up the default start/stop levels for heartbeat
+#
 #  Revision 1.29  2003/05/08 19:46:32  alan
 #  Fixed an init script incompatibility with current SuSE releases pointed out by
 #  Markus Markert <mma@suchtreffer.de>.
