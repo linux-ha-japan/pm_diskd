@@ -22,4 +22,4 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 include_HEADERS	        = apphb.h HBauth.h HBcomm.h ha_msg.h heartbeat.h
 
-SUBDIRS                 = clplumbing pils stonith
+SUBDIRS                 = clplumbing ocf pils stonith
