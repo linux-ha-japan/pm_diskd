@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.251 2003/04/18 06:09:46 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.252 2003/04/18 07:39:25 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3445,7 +3445,6 @@ process_outbound_packet(struct msg_xmit_hist*	msghist
 
 	char *		smsg;
 	const char *	type;
-	int		len;
 	const char *	cseq;
 	seqno_t		seqno = -1;
 	const  char *	to;
@@ -3490,8 +3489,7 @@ process_outbound_packet(struct msg_xmit_hist*	msghist
 	/* Direct message to "loopback" processing */
 	process_clustermsg(msg, NULL);
 
-	len = msg->stringlen - 1;
-	send_to_all_media(smsg, len);
+	send_to_all_media(smsg, msg->stringlen);
 	ha_free(smsg);
 
 	/*  Throw away "msg" here if it's not saved above */
@@ -3803,7 +3801,6 @@ process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 		for (msgslot = firstslot
 		;	!foundit && msgslot != (firstslot+1); --msgslot) {
 			char *		smsg;
-			int		len;
 			longclock_t	now = time_longclock();
 			longclock_t	last_rexmit;
 			if (msgslot < 0) {
@@ -3855,8 +3852,7 @@ process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 			/* If it didn't convert, throw original message away */
 			if (smsg != NULL) {
 				hist->lastrexmit[msgslot] = now;
-				len = msg->stringlen-1;
-				send_to_all_media(smsg, len);
+				send_to_all_media(smsg, msg->stringlen);
 			}
 
 		}
@@ -4024,6 +4020,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.252  2003/04/18 07:39:25  alan
+ * Fixed an 'oops' from previous change where I wrote messages to write processes without a terminating 0 byte.
+ *
  * Revision 1.251  2003/04/18 06:09:46  alan
  * Fixed an off-by-one error in writing messages to the FIFO.
  * Also got rid of some now-unused functions, and fixed a minor glitch in BasicSanitCheck.
