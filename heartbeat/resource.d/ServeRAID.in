@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.11 2003/04/15 23:06:53 alan Exp $
+# $Id: ServeRAID.in,v 1.12 2003/04/16 13:41:00 alan Exp $
 # 
 # ServeRAID
 #
@@ -87,7 +87,7 @@ usage() {
 	You will need at least version 5.10 (~July 2002 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.11 2003/04/15 23:06:53 alan Exp $
+	$Id: ServeRAID.in,v 1.12 2003/04/16 13:41:00 alan Exp $
 	!
   exit 1
 }
@@ -95,6 +95,7 @@ usage() {
 prefix=@prefix@
 exec_prefix=@exec_prefix@
 . @sysconfdir@/ha.d/shellfuncs
+
 
 ServeRAID_methods() {
   cat <<-!
@@ -117,14 +118,16 @@ parseinst() {
   sr_mergegroup=error
   hostid=error
   sr_logicaldrivenumber=error
-  targetid=error
   if
     [ $# -ne 2 ]
   then
     echo "Invalid ServeRAID instance: $*" >&2
     return 1
   fi
-  hostid=`expr $1 - 1`
+  # Get the list of host ids of the ServeRAID host adapters
+  hostlist=`perl -ne 'next unless /^Host/; $_ .= <>.<>; print "$1 " if /SERVERAID/ and /Proces/ and /scsi(\d+)/' <$proc_scsi`
+  # Figure the host id of the desired ServeRAID adapter
+  hostid=`echo $hostlist | cut -d' ' -f$1`
   if
     [ ! -f $ServeRAIDSCSI/$hostid ]
   then
@@ -141,8 +144,6 @@ parseinst() {
   esac
   sr_adapter=$1
   sr_mergegroup=$2
-  targetid=`MergeGroupToSCSI_ID`
-  sr_logicaldrivenumber=`expr $targetid + 1`
   return 0
 }
 
@@ -206,10 +207,12 @@ MergeGroupRaidLevel() {
 }
 
 ReleaseSCSI() {
+  targetid=`MergeGroupToSCSI_ID`
   echo "${SCSI}remove-single-device $hostid 0 $targetid 0" > $proc_scsi
 }
 
 AddSCSI() {
+  targetid=`MergeGroupToSCSI_ID`
   echo "${SCSI}add-single-device $hostid 0 $targetid 0" > $proc_scsi
 }
 
@@ -236,6 +239,8 @@ ServeRAID_start() {
       fi
     then
       : OK All is well!
+      targetid=`MergeGroupToSCSI_ID`
+      sr_logicaldrivenumber=`expr $targetid + 1`
       run $IPS SYNCH $sr_adapter DRIVE $sr_logicaldrivenumber &
       AddSCSI
     else
