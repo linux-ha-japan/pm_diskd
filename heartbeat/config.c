@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.43 2001/07/18 21:13:43 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.44 2001/08/10 17:35:37 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -46,6 +46,8 @@ const static char * _heartbeat_c_Id = "$Id: config.c,v 1.43 2001/07/18 21:13:43 
 
 #include <heartbeat.h>
 #include <ha_msg.h>
+#include <pils/plugin.h>
+#include <HBcomm.h>
 #include <hb_module.h>
 
 
@@ -61,6 +63,8 @@ extern char *				watchdogdev;
 extern int				nummedia;
 extern int                              nice_failback;
 extern clock_t				hb_warn_ticks;
+extern PILPluginUniv*			PluginLoadingSystem;
+extern GHashTable*			CommFunctions;
 
 int	islegaldirective(const char *directive);
 int     parse_config(const char * cfgfile, char *nodename);
@@ -320,6 +324,7 @@ parse_config(const char * cfgfile, char *nodename)
 	while (fgets(buf, MAXLINE, f) != NULL) {
 		char *  bp = buf; 
 		int	IsOptionDirective=1;
+		struct hb_media_fns*	funs = NULL;
 
 		/* Skip over white space */
 		bp += strspn(bp, WHITESPACE);
@@ -350,24 +355,43 @@ parse_config(const char * cfgfile, char *nodename)
 		/* Skip over Delimiters */
 		bp += strspn(bp, DELIMS);
 
-		/* Check first for whole line media-type  directives */
-
-		for (j=0; j < num_hb_media_types; ++j) {
-			if (hbmedia_types[j]->parse == NULL)  {
-				continue;
-			}
-			if (strcmp(directive, hbmedia_types[j]->type) == 0) {
-				int num_save = nummedia;
-				IsOptionDirective=0;
-				if (hbmedia_types[j]->parse(bp) != HA_OK) {
-					errcount++;
-					*bp = EOS;	/* Stop parsing now */
+		/* Load the medium plugin if its not already loaded... */
+		if ((funs=g_hash_table_lookup(CommFunctions, directive))
+		==	NULL) {
+			if (PILPluginExists(PluginLoadingSystem
+			,	HB_COMM_TYPE_S, directive) == PIL_OK) {
+				PIL_rc rc;
+				if ((rc = PILLoadPlugin(PluginLoadingSystem
+				,	HB_COMM_TYPE_S, directive, NULL))
+				!=	PIL_OK) {
+					ha_log(LOG_ERR, "Cannot load comm"
+					" plugin %s [%s]", directive
+					,	PIL_strerror(rc));
 					continue;
 				}
-				sysmedia[num_save]->vf = hbmedia_types[j];
-				hbmedia_types[j]->ref++;
-				*bp = EOS;
+				
+				funs=g_hash_table_lookup(CommFunctions
+				,	directive);
 			}
+		}else{
+			PILIncrIFRefCount(PluginLoadingSystem
+			,	HB_COMM_TYPE_S, directive, +1);
+		}
+
+
+		/* Check first for whole line media-type  directives */
+		if (funs && funs->parse)  {
+			int num_save = nummedia;
+			IsOptionDirective=0;
+			if (funs->parse(bp) != HA_OK) {
+				PILIncrIFRefCount(PluginLoadingSystem
+				,	HB_COMM_TYPE_S, directive, -1);
+				errcount++;
+				*bp = EOS;	/* Stop parsing now */
+				continue;
+			}
+			sysmedia[num_save]->vf = funs;
+			*bp = EOS;
 		}
 
 		/* Check for "parse" type (whole line) directives */
@@ -460,14 +484,14 @@ dump_config(void)
 	,	u.nodename);
 
 	for(j=0; j < nummedia; ++j) {
-		if (sysmedia[j]->vf->type != last_media) {
+		if (sysmedia[j]->type != last_media) {
 			if (last_media != NULL) {
 				puts("\n");
 			}
 			printf("# %s heartbeat channel -------------\n"
-			,	sysmedia[j]->vf->description);
-			printf(" %s", sysmedia[j]->vf->type);
-			last_media = sysmedia[j]->vf->type;
+			,	sysmedia[j]->description);
+			printf(" %s", sysmedia[j]->type);
+			last_media = sysmedia[j]->type;
 		}
 		printf(" %s", sysmedia[j]->name);
 	}
@@ -565,6 +589,21 @@ islegaldirective(const char *directive)
 {
 	int	j;
 
+	/*
+	 * We have four kinds of directives to deal with:
+	 *
+	 *	1) Builtin directives which are keyword value value value...
+	 *		"Directives[]"
+	 *	2) Builtin directives which are one per line...
+	 *		WLdirectives[]
+	 *	3) media declarations which are media value value value
+	 *		These are dynamically loaded plugins...
+	 *		of type HBcomm
+	 *	4) media declarations which are media rest-of-line
+	 *		These are dynamically loaded plugins...
+	 *		of type HBcomm
+	 *
+	 */
 	for (j=0; j < DIMOF(Directives); ++j) {
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG
@@ -573,16 +612,6 @@ islegaldirective(const char *directive)
 		}
 
 		if (strcmp(directive, Directives[j].name) == 0) {
-			return(HA_OK);
-		}
-	}
-	for (j=0; j < num_hb_media_types; ++j) {
-		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG
-			,	"Comparing directive [%s] against media [%s]"
-			,	 directive, hbmedia_types[j]->type);
-		}
-		if (strcmp(directive, hbmedia_types[j]->type) == 0) {
 			return(HA_OK);
 		}
 	}
@@ -596,6 +625,10 @@ islegaldirective(const char *directive)
 			return(HA_OK);
 		}
 	}
+	if (PILPluginExists(PluginLoadingSystem,  HB_COMM_TYPE_S, directive)
+	== PIL_OK){
+		return HA_OK;
+	}
 	return(HA_FAIL);
 }
 
@@ -606,6 +639,7 @@ int
 add_option(const char *	option, const char * value)
 {
 	int	j;
+	struct hb_media_fns*	funs = NULL;
 
 	for (j=0; j < DIMOF(Directives); ++j) {
 		if (strcmp(option, Directives[j].name) == 0) {
@@ -613,21 +647,29 @@ add_option(const char *	option, const char * value)
 		}
 	}
 
-	for (j=0; j < num_hb_media_types; ++j) {
-		if (strcmp(option, hbmedia_types[j]->type) == 0
-		&&	hbmedia_types[j]->new != NULL) {
-			struct hb_media* mp = hbmedia_types[j]->new(value);
-			sysmedia[nummedia] = mp;
-			if (mp == NULL) {
-				ha_log(LOG_ERR, "Illegal %s [%s] in config file"
-				,	hbmedia_types[j]->description, value);
-				return(HA_FAIL);
-			}else{
-				mp->vf = hbmedia_types[j];
-				hbmedia_types[j]->ref++;
-				++nummedia;
-				return(HA_OK);
-			}
+	if ((funs=g_hash_table_lookup(CommFunctions, option)) != NULL
+		&&	funs->new != NULL) {
+		struct hb_media* mp = funs->new(value);
+		char*		type;
+		char*		descr;
+		funs->mtype(&type);
+		funs->descr(&descr);
+
+		sysmedia[nummedia] = mp;
+		if (mp == NULL) {
+			ha_log(LOG_ERR, "Illegal %s [%s] in config file [%s]"
+			,	type, descr, value);
+			PILIncrIFRefCount(PluginLoadingSystem
+			,	HB_COMM_TYPE_S, option, -1);
+			ha_free(descr); descr = NULL;
+			ha_free(type);  type = NULL;
+			return(HA_FAIL);
+		}else{
+			mp->type = type;
+			mp->description = descr;
+			mp->vf = funs;
+			++nummedia;
+			return(HA_OK);
 		}
 	}
 	ha_log(LOG_ERR, "Illegal configuration directive [%s]", option);
@@ -1145,6 +1187,11 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.44  2001/08/10 17:35:37  alan
+ * Removed some files for comm plugins
+ * Moved the rest of the software over to use the new plugin system for comm
+ * plugins.
+ *
  * Revision 1.43  2001/07/18 21:13:43  alan
  * Put in Emily Ratliff's patch for checking for out of memory in config.c
  *

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.126 2001/08/02 06:09:19 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.127 2001/08/10 17:35:38 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -270,7 +270,9 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.126 2001/08/02 06:09
 #include <hb_api_core.h>
 #include <test.h>
 #include <hb_proc.h>
+#include <pils/plugin.h>
 #include <hb_module.h>
+#include <HBcomm.h>
 
 #define OPTARGS		"dkMrRsvC:"
 
@@ -317,11 +319,12 @@ TIME_T		next_statsdump = 0L;
 void		(*localdie)(void);
 
 
-struct hb_media*	sysmedia[MAXMEDIA];
-extern struct hb_media_fns** hbmedia_types;
-extern int	num_hb_media_types;
-int			nummedia = 0;
-int			status_pipe[2];	/* The Master status pipe */
+struct hb_media*		sysmedia[MAXMEDIA];
+extern struct hb_media_fns**	hbmedia_types;
+extern int			num_hb_media_types;
+extern PILPluginUniv*		PluginLoadingSystem;
+int				nummedia = 0;
+int				status_pipe[2];	/* The Master status pipe */
 
 
 const char *ha_log_priority[8] = {
@@ -737,18 +740,18 @@ initialize_heartbeat()
 			return(HA_FAIL);
 		}
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "opening %s %s", smj->vf->type
+			ha_log(LOG_DEBUG, "opening %s %s", smj->type
 			,	smj->name);
 		}
 		if (smj->vf->open(smj) != HA_OK) {
 			ha_log(LOG_ERR, "cannot open %s %s"
-			,	smj->vf->type
+			,	smj->type
 			,	smj->name);
 			return(HA_FAIL);
 		}
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "%s channel %s now open..."
-			,	smj->vf->type, smj->name);
+			,	smj->type, smj->name);
 		}
 	}
 
@@ -983,7 +986,7 @@ write_child(struct hb_media* mp)
 		}
 		if (mp->vf->write(mp, msgp) != HA_OK) {
 			ha_perror("write failure on %s %s."
-			,	mp->vf->type, mp->name);
+			,	mp->type, mp->name);
 		}
 		ha_msg_del(msgp);
 	}
@@ -1946,6 +1949,8 @@ debug_sig(int sig)
 			}
 			break;
 	}
+ 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL
+			,	debug);
 	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, getpid());
 	dump_proc_stats(curproc);
 }
@@ -2891,7 +2896,6 @@ main(int argc, char * argv[])
 {
 	int		flag;
 	int		argerrs = 0;
-	int		j;
 	char *		CurrentStatus=NULL;
 	long		running_hb_pid = get_running_hb_pid();
 
@@ -2969,16 +2973,6 @@ main(int argc, char * argv[])
 	if(module_init() == HA_FAIL) { 
 		ha_log(LOG_ERR, "Heartbeat not started: error reading modules.");
 		return(HA_FAIL);
-	}
-
-	/* Perform static initialization for all our heartbeat medium types */
-	for (j=0; j < num_hb_media_types; ++j) {
-		if (hbmedia_types[j]->init() != HA_OK) {
-			ha_log(LOG_ERR
-			,	"Initialization failure for %s channel"
-			,	hbmedia_types[j]->type);
-			return(HA_FAIL);
-		}
 	}
 
 	/*
@@ -3965,6 +3959,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.127  2001/08/10 17:35:38  alan
+ * Removed some files for comm plugins
+ * Moved the rest of the software over to use the new plugin system for comm
+ * plugins.
+ *
  * Revision 1.126  2001/08/02 06:09:19  alan
  * Put in fix inspired by pubz@free.fr (aka erwan@mandrakesoft.com ?)
  * to fix recovery after a cluster partition.

@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.12 2001/07/17 15:00:04 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.13 2001/08/10 17:35:37 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -97,17 +97,19 @@ ConvertQuadToInt (char *dest)
 	unsigned long int intdest = 0;
 
 	/*
-	Convert a dotted quad into a value
+	 * Convert a dotted quad into a value
+ 	 * 
+ 	 * 	ex.  192.168.123.1 would be converted to
+ 	 * 	1.123.168.192
+ 	 * 	1.7B.A8.C0
+ 	 * 	17BA8C0
+ 	 * 	24881344
+ 	 *
+	 */
 
-	ex.  192.168.123.1 would be converted to
-		1.123.168.192
-		1.7B.A8.C0
-		17BA8C0
-		24881344
-
-	*/
-
-	while (strstr (dest, ".")) { *strstr(dest, ".") = ' '; }
+	while (strstr (dest, ".")) {
+		*strstr(dest, ".") = ' ';
+	}
 	sscanf (dest, "%d%d%d%d", &ipquad[3], &ipquad[2], &ipquad[1], &ipquad[0]);
 	intdest = (ipquad[0] * 0x1000000) + (ipquad[1] * 0x10000) + (ipquad[2] * 0x100) + ipquad[3];
 	sprintf (dest, "%ld", intdest);
@@ -237,8 +239,11 @@ SearchForRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 		}
 	}
 
-	/* Check to see if mask isn't available.  It may not bereturned if multiple IP's are defined.
-	use 255.255.255.255 for mask then */
+	/*
+	 * Check to see if mask isn't available.  It may not be
+	 *	returned if multiple IP's are defined.
+	 *	use 255.255.255.255 for mask then
+	 */
 	if (!strlen(mask)) strcpy (mask, "255.255.255.255");
 	ConvertQuadToInt  (dest);
 	ConvertBitsToMask (mask);
@@ -508,6 +513,11 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.13  2001/08/10 17:35:37  alan
+ * Removed some files for comm plugins
+ * Moved the rest of the software over to use the new plugin system for comm
+ * plugins.
+ *
  * Revision 1.12  2001/07/17 15:00:04  alan
  * Put in Matt's changes for findif, and committed my changes for the new module loader.
  * You now have to have glib.

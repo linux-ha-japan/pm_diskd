@@ -62,7 +62,7 @@ libhbclient_la_LDFLAGS	= -version-info 0:0:0
 halib_PROGRAMS		= heartbeat send_arp findif api_test
 
 ## SOURCES
-heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c ha_if.c \
+heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
 			ha_malloc.c ha_msg.c ha_msg_internal.c lock.c \
 			module.c
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
@@ -72,11 +72,7 @@ heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
 
 heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \
-			-dlopen self \
-			-dlopen ping.la \
-			-dlopen serial.la \
-			-dlopen udp.la \
-			-dlopen mcast.la
+			-dlopen self
 
 send_arp_SOURCES	= send_arp.c
 
@@ -85,27 +81,6 @@ findif_LDADD		=$(top_builddir)/replace/libreplace.la
 
 api_test_SOURCES	= api_test.c
 api_test_LDADD		= libhbclient.la
-
-## binary modules
-
-## communication modules
-commmod_LTLIBRARIES	= ping.la serial.la udp.la mcast.la
-# ppp_udp.la
-
-ping_la_SOURCES		= ping.c
-ping_la_LDFLAGS		= -export-dynamic -module -avoid-version
-
-serial_la_SOURCES	= serial.c
-serial_la_LDFLAGS	= -export-dynamic -module -avoid-version
-
-#ppp_udp_la_SOURCES	= ppp-udp.c
-#ppp_udp_la_LDFLAGS	= -export-dynamic -module -avoid-version
-
-udp_la_SOURCES		= udp.c
-udp_la_LDFLAGS		= -export-dynamic -module -avoid-version
-
-mcast_la_SOURCES	= mcast.c
-mcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 ## SCRIPTS/DATA
 ha_DATA			= shellfuncs README.config

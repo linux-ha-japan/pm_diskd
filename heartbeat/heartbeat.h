@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.58 2001/07/19 16:34:02 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.59 2001/08/10 17:35:38 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -264,6 +264,8 @@ struct sys_config {
 
 struct hb_media {
 	void *			pd;	/* Private Data */
+	const char *		type;	/* medium type */
+	const char *		description;	/* medium description */
 	const char *		name;	/* Unique medium name */
 	const struct hb_media_fns*vf;	/* Virtual Functions */
 	int	wpipe[2];
@@ -274,27 +276,6 @@ struct hb_media {
 };
 
 int parse_authfile(void);
-
-struct hb_media_fns {
-	int	ref;
-	char *	type;		/* Medium type */
-	int	type_len;
-	char *	description;	/* Longer Description */
-	int	desc_len;
-	int		(*init)(void);
-	struct hb_media*(*new)(const char * token);
-	int		(*parse)(const char * options);
-	int		(*open)(struct hb_media *mp);
-	int		(*close)(struct hb_media *mp);
-	struct ha_msg*	(*read)(struct hb_media *mp);
-	int		(*write)(struct hb_media *mp, struct ha_msg*msg);
-	int		(*mtype)(char **buffer);
-	int		(*descr)(char **buffer);
-	int		(*isping)(void);
-	lt_dlhandle	dlhandler;
-};
-
-#define NR_HB_MEDIA_FNS 10 /* number of functions in hb_media_fns struct */
 
 #define	MAXMSGHIST	100
 struct msg_xmit_hist {
