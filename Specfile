@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.39 2000/04/27 13:42:52 alan Exp $
+#	$Id: Specfile,v 1.40 2000/04/28 21:34:58 horms Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -245,6 +245,7 @@ pushd $RPM_BUILD_ROOT/etc/ha.d/resource.d
 ln -s ../../../sbin/ldirectord .
 popd
 %files
+%defattr(-,root,root)
 %dir %HADIR%
 %HADIR%/harc
 %HADIR%/shellfuncs
