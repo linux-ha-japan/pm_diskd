@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.60 2003/03/24 10:03:08 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.61 2003/04/22 10:16:32 horms Exp $
 
 # Workaround for a change in RPM 4.1.x; needs proper fixing soon!
 %define _unpackaged_files_terminate_build 0
@@ -15,7 +15,7 @@ Source: http://linux-ha.org/download/@HB_PKG@-@VERSION@.tar.gz
 Buildroot: /var/tmp/@HB_PKG@-root
 BuildPrereq: glib-devel, lynx, @UCDSNMPDEVEL@, perl, iputils, /usr/bin/ssh, openssl-devel, libnet
 # libnet available from www.ultramonkey.org and others
-Requires: sysklogd
+Requires: sysklogd, heartbeat-stonith = %{version}-%{release}, heartbeat-pils = %{version}-%{release}
 
 %package ldirectord
 Summary: Monitor daemon for maintaining high availability resources
@@ -26,7 +26,7 @@ Requires: perl, perl-libwww-perl perl-Net-SSLeay, ipvsadm, perl-HTML-Parser, per
 
 
 %package stonith
-Requires: telnet
+Requires: telnet, heartbeat-pils = %{version}-%{release}
 Summary: Provides an interface to Shoot The Other Node In The Head 
 Group: Utilities
 
@@ -572,6 +572,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 @libdir@/libccmclient.*
 @libdir@/libplumb.*
 @libdir@/libapphb.*
+@libdir@/librecoverymgr.*
 @base_includedir@/heartbeat
 @base_includedir@/clplumbing
 @base_includedir@/ocf
