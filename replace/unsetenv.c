@@ -18,8 +18,17 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <stdlib.h>
+
+#include <sys/types.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define __environ       environ
+#ifndef HAVE_ENVIRON_DECL
+extern char **environ;
+#endif
+
 
 void unsetenv(const char *name);
 
@@ -31,7 +40,8 @@ unsetenv (const char *name)
 
 	for (ep = __environ; *ep; ++ep) {
 		if (!strncmp (*ep, name, len) && (*ep)[len] == '=') {
-			/* Found it.  Remove this pointer by moving later ones back.  */
+			/* Found it.  */
+			/* Remove this pointer by moving later ones back.  */
 			char **dp = ep;
 			do
 				dp[0] = dp[1];
