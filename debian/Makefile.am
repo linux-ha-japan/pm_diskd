@@ -34,8 +34,7 @@ EXTRA_DIST	        = changelog control copyright dpkg-checkbuild \
                           heartbeat.dirs heartbeat.files \
 			  heartbeat-dev.dirs heartbeat-dev.files \
                           heartbeat.postinst heartbeat.postrm \
-			  rules \
-			  undocumented.7
+			  rules
 
 clean-local:
 	rm -f *.substvars *.debhelper files
