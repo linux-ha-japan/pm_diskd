@@ -42,7 +42,7 @@ ccmreqfifo		= $(havarlibdir)/api/ccm.req
 ccmresfifo		= $(havarlibdir)/api/ccm.rsp
 
 
-CFLAGS			= @CFLAGS@	\
+AM_CFLAGS			= @CFLAGS@	\
 -DVAR_RUN_D='"$(havarrundir)"'	\
 -DVAR_LIB_D='"$(havarlibdir)"'		\
 -DHA_D='"$(hadir)"'			\

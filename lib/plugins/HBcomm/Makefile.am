@@ -25,7 +25,7 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 			-I$(top_builddir)/lib/upmls -I$(top_srcdir)/lib/upmls \
 			-I$(top_builddir) -I$(top_srcdir)
 
-CFLAGS			= @CFLAGS@
+AM_CFLAGS			= @CFLAGS@
 
 ## libraries
 

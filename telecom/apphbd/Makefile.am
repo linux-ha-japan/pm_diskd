@@ -33,7 +33,7 @@ COMMONLIBS		= $(top_builddir)/lib/clplumbing/libplumb.la	\
 			$(GLIBLIB)
 
 LIBRT 			= @LIBRT@
-CFLAGS			= @CFLAGS@	\
+AM_CFLAGS			= @CFLAGS@	\
 			-DPIDFILE='"$(PIDFILE)"'
 
 

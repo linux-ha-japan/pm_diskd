@@ -38,7 +38,7 @@ apigid			= @HA_APIGID@
 gliblib			= @GLIBLIB@
 
 LIBRT 			= @LIBRT@
-CFLAGS			= @CFLAGS@ $(AM_CFLAGS)	\
+AM_CFLAGS			= @CFLAGS@ $(AM_CFLAGS)	\
 -DVAR_RUN_D='"$(havarrundir)"'	\
 -DVAR_LIB_D='"$(havarlibdir)"'		\
 -DHA_D='"$(hadir)"'			\
@@ -84,7 +84,7 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \
 			-dlopen self
 
-heartbeat_CFLAGS	= $(CFLAGS)
+heartbeat_CFLAGS	= $(AM_CFLAGS)
 
 send_arp_SOURCES	= send_arp.c
 send_arp_CFLAGS		= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
