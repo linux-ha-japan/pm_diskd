@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.17 2001/02/22 10:29:44 lars Exp $
+#	$Id: Makefile,v 1.18 2001/02/22 13:43:39 eric Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -65,7 +65,8 @@ SHLIB  = libstonith.so
 
 S_OBJLIST =	stonith.o
 
-MODULES = null.o apcsmart.o meatware.o rps10.o nw_rpc100s.o baytech.o
+
+MODULES = null.o apcsmart.o meatware.o baytech.o rps10.o nw_rpc100s.o
 
 S_HDRS    =	expect.h stonith.h
 
@@ -86,25 +87,14 @@ LIBFILES = $(ARFILE) $(SHLIB)
 # If you want the VA Linux Cluster stonith module (VACM) installed, 
 # uncomment the following line.  You must have the vacmclient library 
 #VACM_STONITH = vacm_stonith.so 
-PRODUCTS = $(BINCMDS) $(LIBS) baytech.so meatware.so rps10.so nw_rpc100s.so $(VACM_STONITH)
+PRODUCTS = $(BINCMDS) $(LIBS) $(VACM_STONITH)
+
 
 INCFILES = stonith.h
 
 SPECSRC = Specfile
 
 all: $(PRODUCTS)
-
-baytech.so:	baytech.o expect.o
-	$(CC) -shared -o $@ $^
-
-rps10.so:	rps10.o expect.o
-	$(CC) -shared -o $@ $^
-
-nw_rpc100s.so:	nw_rpc100s.o expect.o
-	$(CC) -shared -o $@ $^
-
-meatware.so:	meatware.o expect.o
-	$(CC) -shared -o $@ $^
 
 vacm_stonith.so: vacm_stonith.o
 	$(CC) -shared -o $@ $^ -lvacmclient
@@ -133,10 +123,10 @@ install_bin: all
 	$(INSTALL) -cm 755 $(BINCMDS) $(BINDIR)
 	ls -l $(BINDIR)/$(BINCMDS)
 
-install_lib: $(LIBFILES) $(MODULES) baytech.so rps10.so nw_rpc100s.so $(VACM_STONITH)
+install_lib: $(LIBFILES) $(MODULES) $(VACM_STONITH)
 	$(INSTALL) -cm 755 $(LIBFILES) $(LIBDIR)
 	mkdir -p $(MODDIR)
-	$(INSTALL) -cm 755 $(MODULES:.o=.so) baytech.so rps10.so nw_rpc100s.so $(VACM_STONITH) $(MODDIR)
+	$(INSTALL) -cm 755 $(MODULES:.o=.so) $(VACM_STONITH) $(MODDIR)
 
 install_inc:
 	if [ ! -d $(INCDIR) ]; then mkdir $(INCDIR); fi
