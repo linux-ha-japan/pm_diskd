@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.42 2000/06/12 06:11:09 alan Exp $
+#	$Id: Specfile,v 1.43 2000/06/12 06:29:03 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -35,7 +35,7 @@ It implements the following kinds of heartbeats:
   + Made the order of resource takeover more rational:  Takeover is now
     left-to-right, and giveup is right-to-left
   + Changed the default port number to our official IANA port number (694)
-  + Regularized more messages, eliminated som redundant ones.
+  + Regularized more messages, eliminated some redundant ones.
   + Print the version of heartbeat when starting.
   + Hosts now have 3 statuses {down, up, active} active means that it knows
 	that all its links are operational, and it's safe to send cluster
