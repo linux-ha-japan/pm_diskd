@@ -873,28 +873,30 @@ takeover_from_node(const char * nodename)
 	/*
 	 * STONITH has already successfully completed, or wasn't needed...
 	 */
-	if (nice_failback && hip->nodetype != PINGNODE) {
+	if (hip->nodetype != PINGNODE) {
+		if (nice_failback) {
 
-		/* mach_down is out there acquiring foreign resources */
-		/* So, make a note of it... */
-		procinfo->i_hold_resources |= HB_FOREIGN_RSC;
+			/* mach_down is out there acquiring foreign resources */
+			/* So, make a note of it... */
+			procinfo->i_hold_resources |= HB_FOREIGN_RSC;
 
-		other_holds_resources = HB_NO_RSC;
-		other_is_stable = 1;	/* Not going anywhere */
-		takeover_in_progress = 1;
-		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG
-			,	"mark_node_dead: other now stable");
+			other_holds_resources = HB_NO_RSC;
+			other_is_stable = 1;	/* Not going anywhere */
+			takeover_in_progress = 1;
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"takeover_from_node: other now stable");
+			}
+			/*
+			 * We MUST do this now, or the other side might come
+			 * back up and think they can own their own resources
+			 * when we do due to receiving an interim
+			 * T_RESOURCE message from us.
+			 */
+			/* case 1 - part 1 */
+			/* part 2 is done by the mach_down script... */
 		}
-		/*
-		 * We MUST do this now, or the other side might come
-		 * back up and think they can own their own resources
-		 * when we do due to receiving an interim
-		 * T_RESOURCE message from us.
-		 */
-		/* case 1 - part 1 */
-		/* part 2 is done by the mach_down script... */
-		req_our_resources(FALSE);
+		req_our_resources(TRUE);
 		/* req_our_resources turns on the HB_LOCAL_RSC bit */
 
 	}
@@ -1753,6 +1755,13 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.18  2003/04/16 22:31:22  alan
+ * Fixed a timing window bug for resource acquisition with !nice_failback.
+ * Sometimes if the other node goes down just as the current node is coming up,
+ * we can fail to take over our own resources because we sent the "mother may
+ * I" query to the other side, but it died before answering.
+ * Then, we'll never bring our own resources up because we'll wait forever.
+ *
  * Revision 1.17  2003/04/15 23:06:53  alan
  * Lots of new code to support the semi-massive process restructuriing.
  *
