@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.17 2002/09/10 15:54:57 msoffen Exp $
+#	$Id: heartbeat.in,v 1.18 2002/09/20 02:13:20 horms Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -301,13 +301,18 @@ case "$1" in
   restart)
         sleeptime=`ha_parameter deadtime`
 	StopHA
-        sleep $sleeptime
-        sleep 10 # allow resource takeover to complete (hopefully).
+	Echo
+	EchoNoNl Waiting to allow resource takover to complete:
+	sleep $sleeptime
+	sleep 10 # allow resource takeover to complete (hopefully).
+	echo_success
 	StartHA
+	Echo
 	;;
 
   force-reload|reload)
 	ReloadHA
+	Echo
 	RC=$?
 	;;
 
@@ -320,6 +325,11 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.18  2002/09/20 02:13:20  horms
+#  Tidied up the output for the restart and reload targets.
+#  This follows what is done for start and stop.
+#  Works fine on RedHat 7.2. Hopefully it won't break anything/much else.
+#
 #  Revision 1.17  2002/09/10 15:54:57  msoffen
 #  Added call on startup (if startstop scrip exists) to startstop script (not
 #  resource based - heartbeat startup/shutdown based).
