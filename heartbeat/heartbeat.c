@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.61 2000/06/14 22:08:29 lclaudio Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.62 2000/06/15 05:51:41 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -366,6 +366,7 @@ int	init_config(const char * cfgfile);
 void	init_procinfo(void);
 int	initialize_heartbeat(void);
 void	init_status_alarm(void);
+void	ha_versioninfo(void);
 void	ding(int sig);
 void	AlarmUhOh(int sig);
 void	dump_proc_stats(volatile struct process_info * proc);
@@ -457,6 +458,49 @@ init_procinfo()
 	 */
 	if (shmctl(ipcid, IPC_RMID, NULL) < 0) {
 		ha_perror("Cannot IPC_RMID proc status shared memory id");
+	}
+}
+
+void
+ha_versioninfo(void)
+{
+	int	everprinted=0;
+
+	ha_log(LOG_INFO, "%s: version %s", cmdname, VERSION);
+
+	/*
+	 * The reason why we only do this once is that we are doing it with our
+	 * priority which could hang the machine, and forking could possibly 
+	 * cause us to miss a heartbeat if this is done under load.
+	 */
+	if (ANYDEBUG && !everprinted) {
+		char	cmdline[MAXLINE];
+		char	buf[MAXLINE];
+		FILE *	f;
+
+		/*
+		 * Do a 'strings' on ourselves, and look for version info...
+		 */
+
+		/* This command had better be well-behaved! */
+
+		snprintf(cmdline, MAXLINE
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.62 2000/06/15 05:51:41 alan Exp $$' | sort -u"
+		,	HALIB, cmdname);
+
+
+		if ((f = popen(cmdline, "r")) == NULL) {
+			ha_perror("Cannot run: %s", cmdline);
+			return;
+		}
+		while (fgets(buf, MAXLINE, f)) {
+			++everprinted;
+			if (buf[strlen(buf)-1] == '\n') {
+				buf[strlen(buf)-1] = EOS;
+			}
+			ha_log(LOG_INFO, "%s", buf);
+		}
+		pclose(f);
 	}
 }
 
@@ -1739,8 +1783,15 @@ dump_all_proc_stats()
 void
 parent_debug_sig(int sig)
 {
+	int	olddebug = debug;
+
 	debug_sig(sig);
 	signal_all(sig);
+
+	if (debug == 1 && olddebug == 0) {
+		ha_versioninfo();
+	}
+
 }
 
 void
@@ -2745,6 +2796,7 @@ main(int argc, const char ** argv)
 			setenv(LOGFACILITY, facility, 1);
 		}
 		ParseTestOpts();
+		ha_versioninfo();
 		initialize_heartbeat();
 	}else{
 		ha_log(LOG_ERR, "Configuration error, heartbeat not started.");
@@ -3442,6 +3494,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.62  2000/06/15 05:51:41  alan
+ * Added a little more version info when debugging is turned on.
+ *
  * Revision 1.61  2000/06/14 22:08:29  lclaudio
  * *** empty log message ***
  *
