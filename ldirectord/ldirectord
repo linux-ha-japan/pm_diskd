@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.15 2000/07/20 18:13:40 horms Exp $
+# $Id: ldirectord,v 1.16 2000/07/21 01:33:23 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -109,6 +109,9 @@ the server onto which a webservice is redirected if all real
 servers are down. Typically this would be 127.0.0.1 with
 an emergency page.
 
+This directive may also appear within a virtual server, in which 
+case it will overide the global fallback server, if set.
+
 
 B<logfile = ">I</path/to/logfile>B<">
 
@@ -163,8 +166,17 @@ B<receive = ">I<string to compare>B<">
 If the requested result contains this I<string to compare>, the real server
 is declared alive. The string must be inside quotes. Note that this string
 may be overridden by an optional per real-server based receive-string.
-This string is ignored for ftp services. Ftp service only checks if the
-file exists.
+
+B<login = ">I<username>B<">
+
+Username to use to login to FTP server. Default is anonymous.
+
+
+B<passwd = ">I<password>B<">
+
+Password to use to login to FTP server. Default is ldirectord\@<hostname>,
+where hostname is the environment variable HOSTNAME evaluated at run time.
+
 
 B<scheduler = rr>|B<wrr>|B<lc>|B<wlc>
 
@@ -326,10 +338,7 @@ sub init
 			init_error("ldirector could not fork: $!");
 		}
 	}
-	open(LOGFILE, ">>$LDIRLOG");
-	my $now = localtime()."|$CONFIG";
-	print LOGFILE "[$now] Starting Linux Director Daemon\n";
-	close(LOGFILE);
+	&ldirectord_log("Starting Linux Director Daemon");
 }
 
 
@@ -338,9 +347,7 @@ sub init_error
 	my $msg = shift;
 	chomp($msg);
 	if (defined $opt_d) {
-		open(LOGFILE, ">>$LDIRLOG");
-		print LOGFILE "$msg\n";
-		close(LOGFILE);
+		&ldirectord_log("$msg");
 	} else {
 		print STDERR "$msg\n";
 	}
@@ -351,10 +358,7 @@ sub init_error
 sub ld_term
 {
 	ld_stop();
-	open(LOGFILE, ">>$LDIRLOG");
-	my $now = localtime()."|$CONFIG";
-	print LOGFILE "[$now] Linux Director Daemon terminated\n";
-	close(LOGFILE);
+	&ldirectord_log("Linux Director Daemon terminated\n");
 	&system_wrapper("/bin/rm -f $RUNPID.$CONFIG.pid");
 	exit 0;
 }
@@ -362,10 +366,7 @@ sub ld_term
 
 sub ld_hup
 {
-	open(LOGFILE, ">>$LDIRLOG");
-	my $now = localtime()."|$CONFIG";
-	print LOGFILE "[$now] Reloading Linux Director Daemon config\n";
-	close(LOGFILE);
+	&ldirectord_log("Reloading Linux Director Daemon config");
 	@OLDVIRTUAL = @VIRTUAL;
 	eval {
 		read_config();
@@ -393,6 +394,7 @@ sub read_config
 	my $line = 0;
 	while(<CFGFILE>) {
 		$line++;
+		outer_loop:
 		if ($_ =~ /^virtual\s*=\s*(.*)/) {
 			$1 =~ /(\d+\.\d+\.\d+\.\d+):(\d+|\d+)/
 			    or config_error($line, "invalid address for virtual server");
@@ -433,7 +435,10 @@ sub read_config
 			while(<CFGFILE>) {
 				$line++;
 				$_ =~ s/\t/    /g;
-				last if !($_ =~ /^ {4,}(.*)/);
+				unless ($_ =~ /^ {4,}(.*)/) {
+				  #Arggh a goto :(
+				  goto outer_loop;
+				}
 				my $rcmd = $1;
 				next if ($rcmd =~ /^#/);
 				if ($rcmd =~ /^real\s*=\s*(.*)/) {
@@ -471,8 +476,8 @@ sub read_config
 				} elsif ($rcmd =~ /^load\s*=\s*\"(.*)\"/) {
 					$1 =~ /(\w+)/ or config_error($line, "invalid string for load testing");
 					$vsrv{load} = $1;
-				} elsif ($rcmd =~ /^scheduler\s*=\s*(.*)/) {
 					lc($1);
+				} elsif ($rcmd =~ /^scheduler\s*=\s*(.*)/) {
 					$1 =~ /(\w+)/ && ($1 eq "rr" || $1 eq "wrr" || $1 eq "lc" || $1 eq "wlc")
 					    or config_error($line, "scheduler must be rr, wrr, lc or wlc");
 					$vsrv{scheduler} = $1;
@@ -507,6 +512,11 @@ sub read_config
 				} elsif ($rcmd =~ /^sitename\s*=\s*(.*)/) {
 					$1 =~ /(\w+)/ or config_error($line, "invalid sitename");
 					$vsrv{sitename} = $1;
+				} elsif ($rcmd =~ /^fallback\s*=\s*(.*)/) {    # Allow specification of a virtual-specific fallback host
+					my $tmp = $1;
+					($tmp =~ /(\d+\.\d+\.\d+\.\d+:\d+)/ || $tmp =~ /(\d+\.\d+\.\d+\.\d+)/) && $1
+			    			or config_error($line, "invalid address for fallback server");
+					$vsrv{fallback} = $tmp
 				} else {
 					config_error($line, "Unknown command $_");
 				}
@@ -531,12 +541,11 @@ sub read_config
 		} elsif ($_ =~ /^callback\s*=\s*\"(.*)\"/) {
 			$CALLBACK = $1;
 		} elsif ($_ =~ /^logfile\s*=\s*\"(.*)\"/) {
-			if (open(LOGFILE, ">>$1")) {
-				print LOGFILE "Reading file conf/$CONFIG\n";
-				close(LOGFILE);
-				$LDIRLOG = $1;
-			} else {
+			my $tmpLDIRLOG = $LDIRLOG;
+			$LDIRLOG = $1;
+			if (&ldirectord_log("Reading file conf/$CONFIG")) {
 				config_error($line, "unable to open logfile: $1");
+				$LDIRLOG=$tmpLDIRLOG;
 			}
 		} else {
 			if ($_ =~ /^timeout\s*=\s*(.*)/) {
@@ -622,13 +631,11 @@ sub config_error
 			print STDERR "Error: $msg\n";
 		}
 	} else {
-		open(LOGFILE, ">>$LDIRLOG");
 		if ($line>0) {
-			print LOGFILE "Error reading file conf/$CONFIG at line $line: $msg\n";
+			&ldirectord_log("Error reading file conf/$CONFIG at line $line: $msg");
 		} else {
-			print LOGFILE "Error: $msg\n";
+			 &ldirectord_log("Error: $msg\n");
 		}
-		close(LOGFILE);
 	}
 	if ($initializing) {
 		&system_wrapper("/bin/rm -f $RUNPID.$CONFIG.pid");
@@ -693,7 +700,6 @@ sub ld_setup
 
 sub ld_start
 {
-	open(LOGFILE, ">>$LDIRLOG");
 	# read status of current ipvsadm -L -n
 	open(IPVS, "$IPVSADM -L -n |");
 	$_ = <IPVS>; $_ = <IPVS>; $_ = <IPVS>;
@@ -725,7 +731,7 @@ sub ld_start
 	close(IPVS);
 
 	# modify service, if changed
-	my $now = localtime()."|$CONFIG";
+
 	foreach $nv (@VIRTUAL) {
 		my $nreal = $$nv{real};
 		$$nv{status} = 0;
@@ -733,7 +739,7 @@ sub ld_start
 		if (exists($oldsrv{"$real_service"})) {
 			# service exists, modify it
 			&system_wrapper("$IPVSADM -E $$nv{flags}");
-			print LOGFILE "[$now] Changing virtual server: $$nv{server}:$$nv{port}\n";
+			&ldirectord_log("Changing virtual server: $$nv{server}:$$nv{port}");
 			my $ov = $oldsrv{"$$nv{server}:$$nv{port} $$nv{protocol}"};
 			my $or = $$ov{real};
 			foreach $nr (@$nreal) {
@@ -741,7 +747,7 @@ sub ld_start
 					&system_wrapper("$IPVSADM -e $$nv{proto} $$nv{server}:$$nv{port} -R $$nr{server}:$$nr{port} $$nr{forw} $$nr{wght}");
 					$$nr{status} = 1;
 					$$nv{status}++;
-					print LOGFILE "[$now] Changing real server: $$nr{server}:$$nr{port} ($$nv{status}*$$nv{server}:$$nv{port})\n";
+					 &ldirectord_log("Changing real server: $$nr{server}:$$nr{port} ($$nv{server}:$$nv{port})\n");
 					delete($$or{"$$nr{server}:$$nr{port}"});
 				} else {
 					$$nr{status} = 0;
@@ -750,7 +756,7 @@ sub ld_start
 			# remove remaining entries for real servers
 			foreach $k (keys %$or) {
 				&system_wrapper("$IPVSADM -d $$nv{proto} $$nv{server}:$$nv{port} -R $k");
-				print LOGFILE "[$now] Removing real server: $$nr{server}:$$nr{port} ($$nv{status}*$$nv{server}:$$nv{port})\n";
+				print ("Removing real server: $$nr{server}:$$nr{port} ($$nv{status}*$$nv{server}:$$nv{port})\n");
 			}
 			delete $oldsrv{"$$nv{server}:$$nv{port} $$nv{protocol}"};
 		} else {
@@ -759,14 +765,10 @@ sub ld_start
 			foreach $nr (@$nreal) {
 				$$nr{status} = 0;
 			}
-			print LOGFILE "[$now] Adding virtual server: $$nv{server}:$$nv{port}\n";
+			&ldirectord_log("Adding virtual server: $$nv{server}:$$nv{port}\n");
 		}
 
-		if (defined $FALLBACK && $$nv{status}==0) {
-			# turn on fallback service
-			&system_wrapper("$IPVSADM -a $$nv{proto} $$nv{server}:$$nv{port} -R $FALLBACK");
-			print LOGFILE "[$now] Starting fallback server for: $$nv{server}:$$nv{port}\n";
-		}
+		&fallback_on($nv);
 	}
 
 	# remove remaining entries for virtual servers
@@ -774,17 +776,14 @@ sub ld_start
 		if (exists($oldsrv{"$$nv{server}:$$nv{port} $$nv{protocol}"})) {
 			# service still exists, remove it
 			&system_wrapper("$IPVSADM -D $$nv{proto} $$nv{server}:$$nv{port}");
-			print LOGFILE "[$now] Removing virtual server: $$nv{server}:$$nv{port}\n";
+			&ldirectord_log("Removing virtual server: $$nv{server}:$$nv{port}\n");
 		}
 	}
-	close(LOGFILE);
 }
 
 
 sub ld_stop
 {
-	open(LOGFILE, ">>$LDIRLOG");
-	my $now = localtime()."|$CONFIG";
 	foreach $v (@VIRTUAL) {
 		my $real = $$v{real};
 		foreach $r (@$real) {
@@ -792,13 +791,12 @@ sub ld_stop
 				&system_wrapper("$IPVSADM -d $$v{proto} $$v{server}:$$v{port} -R $$r{server}:$$r{port}");
 				$$r{status} = 0;
 				$$v{status}--;
-				print LOGFILE "[$now] Removing real server: $$r{server}:$$r{port} ($$v{status}*$$v{server}:$$v{port})\n";
+				&ldirectord_log("Removing real server: $$r{server}:$$r{port} ($$v{status}*$$v{server}:$$v{port})");
 			}
 		}
 		&system_wrapper("$IPVSADM -D $$v{proto} $$v{server}:$$v{port}");
-		print LOGFILE "[$now] Removing virtual server: $$v{server}:$$v{port}\n";
+		&ldirectord_log("Removing virtual server: $$v{server}:$$v{port}");
 	}
-	close(LOGFILE);
 }
 
 
@@ -806,7 +804,6 @@ sub ld_main
 {
 	# Main failover checking code
 	while (1) {
-		open(LOGFILE, ">>$LDIRLOG");
 		my @real_checked;
 		foreach $v (@VIRTUAL) {
 			my $real = $$v{real};
@@ -831,7 +828,7 @@ sub ld_main
 						} elsif ($$v{service} eq "ftp") {
 							check_ftp($v, $r);
 						} else {
-							check_server($v, $r);
+							check_none($v, $r);
 						}
 					} elsif ($$v{checktype} eq "connect") {
 						print "DEBUG2: Checking connect: server=$$r{server}\n" if ($DEBUG >=2);
@@ -843,7 +840,6 @@ sub ld_main
 			# $ua->wait($$v{checktimeout});
 		}
 		check_cfgfile();
-		close(LOGFILE);
 		sleep $CHECKINTERVAL;
 	}
 }
@@ -941,34 +937,73 @@ sub check_ftp
 {
 	use Net::FTP;
 	my ($v, $r) = @_;
-	my $TMPFILE = "/tmp/ldirectord.recvftp";
-	my $ftp = Net::FTP->new("$$r{server}:$$r{port}", Timeout=>$$v{checktimeout});
+	my $ftp;
+        local *READ_FH;
+	local *WRITE_FH;
+
+	pipe(\*READ_FH, \*WRITE_FH);
+	select(\*WRITE_FH); $| = 1; select(STDERR);
+
+	unless ($ftp = Net::FTP->new("$$r{server}:$$r{port}", Timeout=>$$v{checktimeout})) {
+		service_set($v, $r, "down");
+		return;
+	}
 	$ftp->login($$v{login}, $$v{passwd});
 	$ftp->cwd("/");
 	$ftp->binary();
-	my $localfile = $ftp->get("$$r{request}", $TMPFILE);
+	$ftp->get("$$r{request}", \*WRITE_FH);
 	$ftp->quit();
-	if ($localfile eq $TMPFILE) {
-		service_set($v, $r, "up");
-	} else {
-		service_set($v, $r, "down");
+	close(\*WRITE_FH);
+	while(<READ_FH>) {
+		if (/$$r{receive}/) {
+	 		service_set($v, $r, "up");
+			close(\*READ_FH);
+			return;
+		}
 	}
+	close(\*READ_FH);
+
+	service_set($v, $r, "down");
 }
 
 
-sub check_server
-# dummy function for unknown services
+# check_none
+# Dummy function to check service if service type is none.
+# Just activates the real server
+
+sub check_none
 {
 	my ($v, $r) = @_;
 	service_set($v, $r, "up");
 }
 
 
+# service_set
+# Used to bring up and down real servers.
+# This is the function you should call if you want to bring a real server up or down.
+# This funtion is safe to call regrdless of the current state of a real server.
+# Do _not_ call _service_up or _service_down directly.
+# pre: v: virtual that the real service belongs to
+#         Only used to determine the protocol of the service
+#      r: real server to take down
+#      state: up or down
+#             up to bring the real service up
+#             down to bring the real service up
+# post: The real server is brough up or down for each virtual service
+#       it belongs to.
+# return: none
+
 sub service_set()
 {
 	my ($v, $r, $state) = @_;
 
 	my ($real, $virtual, $virt);
+
+        # Return if the real server is already in the desired state
+	return if ($$r{status}!=0 and $state=~/up/i);
+	return if ($$r{status}!=1 and $state=~/down/i);
+
+        # Find the real server in @REAL
 	foreach $real (@REAL) {
 		if($real->{"real"} eq "$$v{protocol}:$$r{server}:$$r{port}"){
 			$virtual = $real->{"virtual"};
@@ -976,8 +1011,9 @@ sub service_set()
 		}
 	}
 	return unless (defined($virtual));
-	return if ($$r{status}!=0 and $state=~/up/i);
-	return if ($$r{status}!=1 and $state=~/down/i);
+	
+	# Check each virtual service for the real server and make
+	# changes as neccessary
 	foreach $v (@VIRTUAL){
 		if (grep(/^$$v{protocol}:$$v{server}:$$v{port}$/, @$virtual)) {
 			if ($state=~/up/i) {
@@ -994,6 +1030,18 @@ sub service_set()
 }
 
 
+# _service_up
+# Bring a real service up if it is down
+# Should be called by set_service only
+# I.e. If you want to change the state of a real server call set_service.
+#      If you call this function directly then ldirectord will lose track 
+#      of the state of real servers.
+# pre: v: reference to virtual service to with the real server belongs
+#      r: refernece to the real server to take down
+# post: real service is taken up from the respective virtual service
+#       if it is inactive
+# return: none   
+
 sub _service_up
 {
 	my ($v, $r) = @_;
@@ -1001,16 +1049,23 @@ sub _service_up
 		&system_wrapper("$IPVSADM -a $$v{proto} $$v{server}:$$v{port} -R $$r{server}:$$r{port} $$r{forw} $$r{wght}");
 		$$r{status} = 1;
 		$$v{status}++;
-		my $now = localtime()."|$CONFIG";
-		print LOGFILE "[$now] Adding real server: $$r{server}:$$r{port} ($$v{status}*$$v{server}:$$v{port})\n";
-		if ($$v{status}==1 && defined $FALLBACK) {
-			# turn off fallback service
-			&system_wrapper("$IPVSADM -d $$v{proto} $$v{server}:$$v{port} -R $FALLBACK");
-			print LOGFILE "[$now] Turning off fallback server for: $$v{server}:$$v{port}\n";
-		}
+		&ldirectord_log("Adding real server: $$r{server}:$$r{port} ($$v{server}:$$v{port})");
+		&fallback_off($v);
 	}
 }
 
+
+# _service_down
+# Bring a real service down if it is up
+# Should be called by set_service only
+# I.e. if you want to change the state of a real server call set_service.
+#      If you call this function directly then ldirectord will lose track 
+#      of the state of real servers.
+# pre: v: reference to virtual service to with the real server belongs
+#      r: refernece to the real server to take down
+# post: real service is taken down from the respective virtual service
+#       if it is active
+# return: none   
 
 sub _service_down
 {
@@ -1019,16 +1074,68 @@ sub _service_down
 		&system_wrapper("$IPVSADM -d $$v{proto} $$v{server}:$$v{port} -R $$r{server}:$$r{port}");
 		$$r{status} = 0;
 		$$v{status}--;
-		my $now = localtime()."|$CONFIG";
-		print LOGFILE "[$now] Removing real server: $$r{server}:$$r{port} ($$v{status}*$$v{server}:$$v{port})\n";
-		if ($$v{status}==0 && defined $FALLBACK) {
-			# turn on fallback service
-			&system_wrapper("$IPVSADM -a $$v{proto} $$v{server}:$$v{port} -R $FALLBACK");
-			print LOGFILE "[$now] Starting fallback server for: $$v{server}:$$v{port}\n";
-		}
+		&ldirectord_log("Removing real server: $$r{server}:$$r{port} ($$v{server}:$$v{port})");
+		&fallback_on($v);
 	}
 }
 
+
+# fallback_on
+# Turn on the fallback server for a virtual service if it is inactive
+# pre: virtaual: virtual to turn fallback service on for
+# post: fallback server is turned on if it was inactive
+# return: none
+
+sub fallback_on {
+	my ($virtual) = (@_);
+
+	my $fallback=&fallback_find($virtual);
+	if (defined $fallback && $$virtual{status}==0) {
+		# turn on fallback service
+		&system_wrapper("$IPVSADM -a $$virtual{proto} $$virtual{server}:$$virtual{port} -R $fallback");
+		&ldirectord_log("Starting fallback server for: $$virtual{server}:$$virtual{port} ($fallback)");
+	}
+}
+
+
+# fallback_off
+# Turn off the fallback server for a virtual service if it is active
+# pre: virtaual: virtual to turn fallback service off for
+# post: fallback server is turned off if it was active
+# return: none
+
+sub fallback_off {
+	my ($virtual) = (@_);
+
+	my $fallback=&fallback_find($virtual);
+	if ($$v{status}==1 && defined $fallback) {
+		# turn off fallback service
+		&system_wrapper("$IPVSADM -d $$virtual{proto} $$virtual{server}:$$virtual{port} -R $fallback");
+		&ldirectord_log("Turning off fallback server for: $$virtual{server}:$$virtual{port} ($fallback)");
+	}
+}
+
+
+# fallback_find
+# Determine the fallback for a virtual service
+# pre: virtual: reference to a virtual service
+# post: none
+# return: $virtual->{"fallback"} if defined
+#         else $FALLBACK if defined
+#         else undef
+
+sub fallback_find {
+	my ($virtual) = (@_);
+
+	if( defined $virtual->{"fallback"} ) {
+		return($virtual->{"fallback"});
+	} elsif ( defined($FALLBACK) ) {
+		return($FALLBACK);
+	}
+
+	return;
+}
+  
 
 sub check_cfgfile
 {
@@ -1043,10 +1150,9 @@ sub check_cfgfile
 	}
 	close(CFGFILE);
 	if (defined $checksum && $chs!=$checksum) {
-		my $now = localtime()."|$CONFIG";
-		print LOGFILE "[$now] Configuration file '/etc/ha.d/conf/$CONFIG' has changed on disk";
+		&ldirectord_log("Configuration file '/etc/ha.d/conf/$CONFIG' has changed on disk");
 		if ($AUTOCHECK eq "yes") {
-			print LOGFILE " - reread new configuration\n";
+			&ldirectord_log(" - reread new configuration");
 			@OLDVIRTUAL = @VIRTUAL;
 			eval {
 				read_config();
@@ -1058,15 +1164,44 @@ sub check_cfgfile
 			}
 			undef @OLDVIRTUAL;
 		} else {
-			print LOGFILE " - ignore new configuration\n";
+			&ldirectord_log(" - ignore new configuration\n");
 		}
 		if (-x $CALLBACK) {
 			my $rc = system("$CALLBACK $CONFIG");
-			print LOGFILE "[$now] Callback: $CALLBACK returned code: $rc\n";
+			&ldirectord_log("Callback: $CALLBACK returned code: $rc");
 		}
 	}
 	$checksum = $chs;
 }
+
+
+# ldirectord_log
+# Log a message to a file.
+# File is opened and closed again as a primative means to
+# make log rotation work
+# pre: message: Message to write
+# post: message and simetsamp is written to log file
+# return: 0 on success
+#         1 on error
+
+sub ldirectord_log 
+{
+	my ($message) = (@_);
+
+        my $now = localtime()."|$CONFIG";
+
+        if ($DEBUG >=2) {
+	  print "DEBUG$DEBUG: $message\n" || return(1);
+	}
+
+        open(LOGFILE, ">>$LDIRLOG") || return(1);
+	chomp $message;
+        print LOGFILE "[$now] $message\n" || return(1);
+        close(LOGFILE) || return(1);;
+
+	return(0);
+}
+
 
 
 # system_wrapper
@@ -1079,8 +1214,7 @@ sub system_wrapper
 {
 	my (@args)=(@_);
 
-	my $now = localtime() . "|$CONFIG";
-	system(@_) == 0 or print LOGFILE  "[$now] system(@args) failed\n"
+	system(@_) == 0 or &ldirectord_log("system(@args) failed");
 }
 
 
@@ -1089,13 +1223,14 @@ sub system_wrapper
 # post: 1 if the alleged_octet is an octet
 #       0 otherwise
 
-sub is_octet {
-  my ($alleged_octet)=(@_);
+sub is_octet 
+{
+	  my ($alleged_octet)=(@_);
 
-  if($alleged_octet<0){ return 0; }
-  if($alleged_octet>255){ return 0; }
+	  if($alleged_octet<0){ return 0; }
+	  if($alleged_octet>255){ return 0; }
 
-  return(1);
+	  return(1);
 }
 
 
@@ -1105,19 +1240,20 @@ sub is_octet {
 # post: 1 if alleged_ip is a valid ip address
 #       0 otherwise
 
-sub is_ip {
-  my ($alleged_ip)=(@_);
+sub is_ip 
+{
+	  my ($alleged_ip)=(@_);
 
-  #If we don't have four, . delimited numbers then we have no hope
-  unless($alleged_ip=~m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) { return 0; }
+	  #If we don't have four, . delimited numbers then we have no hope
+	  unless($alleged_ip=~m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) { return 0; }
 
-  #Each octet mist be >=0 and <=255
-  unless(&is_octet($1)){ return 0; }
-  unless(&is_octet($2)){ return 0; }
-  unless(&is_octet($3)){ return 0; }
-  unless(&is_octet($4)){ return 0; }
+	  #Each octet mist be >=0 and <=255
+	  unless(&is_octet($1)){ return 0; }
+	  unless(&is_octet($2)){ return 0; }
+	  unless(&is_octet($3)){ return 0; }
+	  unless(&is_octet($4)){ return 0; }
 
-  return(1);
+	  return(1);
 }
 
 
@@ -1127,13 +1263,14 @@ sub is_ip {
 # post: -1 if an error occurs
 #       decimal representation of IP address otherwise
 
-sub ip_to_decimal {
-  my ($ip_address)=(@_);
+sub ip_to_decimal 
+{
+	  my ($ip_address)=(@_);
 
-    unless(&is_ip($ip_address)){ return(-1); }
-    unless($ip_address=~m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/){ return(-1); }
+	  unless(&is_ip($ip_address)){ return(-1); }
+	  unless($ip_address=~m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/){ return(-1); }
 
-    return(((((($1<<8)+$2)<<8)+$3)<<8)+$4);
+	  return(((((($1<<8)+$2)<<8)+$3)<<8)+$4);
 }
 
 # decimal_to_ip
@@ -1142,23 +1279,26 @@ sub ip_to_decimal {
 # post: -1 if an error occurs
 #       decimal representation of IP address otherwise
 
-sub decimal_to_ip {
-  my ($ip_address)=(@_);
+sub decimal_to_ip 
+{
+	my ($ip_address)=(@_);
 
-    my $result="";
+	my $result="";
 
-    return(sprintf(
-      "%d.%d.%d.%d",
-      ($ip_address>>24)&255,
-      ($ip_address>>16)&255,
-      ($ip_address>>8)&255,
-      $ip_address&255
-    ));
+	return(sprintf(
+		"%d.%d.%d.%d",
+		($ip_address>>24)&255,
+		($ip_address>>16)&255,
+		($ip_address>>8)&255,
+		$ip_address&255
+	));
 }
 
 
+
+
 # Added by Peter Skliarouk 
-# Used if connecttype = connect
+# Used if checktype = connect
 sub OpenSocket ($ $)
 {
 	# Make a Berkeley socket connection between this program and a TCP port
