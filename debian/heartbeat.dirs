@@ -1,4 +1,5 @@
 etc/ha.d
+etc/ha.d/cts
 etc/ha.d/conf
 etc/ha.d/rc.d
 etc/ha.d/resource.d

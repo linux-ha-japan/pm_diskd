@@ -1,6 +1,12 @@
 /etc/logrotate.d/heartbeat
 /etc/init.d/heartbeat
 /etc/ha.d/README.config
+/etc/ha.d/cts/CM_fs.py
+/etc/ha.d/cts/CM_hb.py
+/etc/ha.d/cts/CTS.py
+/etc/ha.d/cts/CTSaudits.py
+/etc/ha.d/cts/CTSlab.py
+/etc/ha.d/cts/CTStests.py
 /etc/ha.d/rc.d/ip-request
 /etc/ha.d/rc.d/ip-request-resp
 /etc/ha.d/rc.d/ask_resources
@@ -19,4 +25,6 @@
 /etc/ha.d/resource.d/WinPopup
 /etc/ha.d/resource.d/apache
 /etc/ha.d/resource.d/db2
+/etc/ha.d/resource.d/Delay
 /etc/ha.d/shellfuncs
+/etc/ha.d/harc

@@ -48,6 +48,11 @@ install: build
 	  DESTDIR=`pwd`/debian/tmp \
 	  docdir=/usr/share/doc/heartbeat \
 	  MAKE=make
+	mkdir -p `pwd`/debian/tmp/usr/share/man/man8
+	install -c -m 644 `pwd`/debian/undocumented.7 \
+	    `pwd`/debian/tmp/usr/share/man/man8/supervise-ldirectord-config.8
+	install -c -m 644 `pwd`/debian/undocumented.7 \
+	    `pwd`/debian/tmp/usr/share/man/man8/meatclient.8
 	find `pwd`/debian/tmp/usr/share/man -type f | xargs gzip -v --best
 	install -c -m 755 heartbeat/init.d/heartbeat \
                 `pwd`/debian/tmp/etc/init.d/heartbeat

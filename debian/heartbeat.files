@@ -1,4 +1,10 @@
 etc/ha.d/README.config
+/etc/ha.d/cts/CM_fs.py
+/etc/ha.d/cts/CM_hb.py
+/etc/ha.d/cts/CTS.py
+/etc/ha.d/cts/CTSaudits.py
+/etc/ha.d/cts/CTSlab.py
+/etc/ha.d/cts/CTStests.py
 etc/ha.d/rc.d/ip-request
 etc/ha.d/rc.d/ip-request-resp
 etc/ha.d/rc.d/ask_resources
@@ -17,7 +23,9 @@ etc/ha.d/resource.d/WAS
 etc/ha.d/resource.d/WinPopup
 etc/ha.d/resource.d/apache
 etc/ha.d/resource.d/db2
+etc/ha.d/resource.d/Delay
 etc/ha.d/shellfuncs
+etc/ha.d/harc
 usr/share/doc/heartbeat/AUTHORS
 usr/share/doc/heartbeat/ChangeLog
 usr/share/doc/heartbeat/GettingStarted.txt
@@ -27,11 +35,12 @@ usr/share/doc/heartbeat/HardwareGuide.html
 usr/share/doc/heartbeat/README
 usr/share/doc/heartbeat/Requirements.txt
 usr/share/doc/heartbeat/Requirements.html
+usr/share/doc/heartbeat/apphbd.cf
+usr/share/doc/heartbeat/authkeys
 usr/share/doc/heartbeat/faqntips.html
 usr/share/doc/heartbeat/faqntips.txt
 usr/share/doc/heartbeat/rsync.html
 usr/share/doc/heartbeat/rsync.txt
-usr/share/doc/heartbeat/authkeys
 usr/share/doc/heartbeat/ha.cf
 usr/share/doc/heartbeat/haresources
 usr/share/doc/heartbeat/startstop
@@ -48,6 +57,7 @@ usr/share/doc/heartbeat/startstop
 /usr/lib/heartbeat/hb_standby
 /usr/lib/heartbeat/heartbeat
 /usr/lib/heartbeat/ipfail
+/usr/lib/heartbeat/ipctest
 /usr/lib/heartbeat/mach_down
 usr/lib/heartbeat/plugins/HBauth/crc.so
 usr/lib/heartbeat/plugins/HBauth/md5.so
@@ -69,5 +79,6 @@ usr/lib/libplumb.so.0.0.0
 usr/lib/libapphb.so.0
 usr/lib/libapphb.so.0.0.0
 usr/share/man/man8/heartbeat.8.gz
+usr/share/man/man8/apphbd.8.gz
 etc/init.d/heartbeat
 etc/logrotate.d/heartbeat
