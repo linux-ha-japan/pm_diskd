@@ -50,8 +50,6 @@ AM_CFLAGS			= @CFLAGS@	\
 
 noinst_HEADERS		= ccm.h ccmlib.h
 
-include_HEADERS		= ccm.h ccmlib.h
-
 ## libraries
 
 lib_LTLIBRARIES		= libccmclient.la

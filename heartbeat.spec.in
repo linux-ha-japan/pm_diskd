@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.56 2003/03/24 08:17:04 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.57 2003/03/24 09:00:51 horms Exp $
 
 # Workaround for a change in RPM 4.1.x; needs proper fixing soon!
 %define _unpackaged_files_terminate_build 0
@@ -574,8 +574,6 @@ install -m 644 rc.config.heartbeat $TEMPL
 @base_includedir@/heartbeat
 @base_includedir@/clplumbing
 @base_includedir@/ocf
-@base_includedir@/ccm.h
-@base_includedir@/ccmlib.h
 @sysconfdir@/ha.d/resource.d/
 @INITDIR@/heartbeat
 @sysconfdir@/logrotate.d/heartbeat

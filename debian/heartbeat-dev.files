@@ -10,8 +10,6 @@ usr/lib/libplumb.so
 usr/lib/libapphb.a
 usr/lib/libapphb.la
 usr/lib/libapphb.so
-usr/include/ccm.h
-usr/include/ccmlib.h
 usr/include/clplumbing/GSource.h
 usr/include/clplumbing/Gmain_timeout.h
 usr/include/clplumbing/apphb_cs.h
