@@ -32,6 +32,7 @@ Usage() {
 PACKAGECMD=""
 
 ConfigureLinux() {
+  DFLAGS=""
   if
     [ -f /etc/SuSE-release -a -s /etc/SuSE-release ]
   then
@@ -42,11 +43,17 @@ ConfigureLinux() {
   then
     distro=RedHat
     PACKAGECMD="make rpm"
+  elif
+    [ -f /etc/conectiva-release -a -s /etc/conectiva-release ]
+  then
+    distro=Conectiva
+    PACKAGECMD="make rpm"
+    DFLAGS="--with-group-id=17"
   else
     distro="Generic"
   fi
   CFENV="$distro Linux"
-  FLAGS="--prefix=/usr --sysconfdir=/etc --localstatedir=/var"
+  FLAGS="--prefix=/usr --sysconfdir=/etc --localstatedir=/var $DFLAGS"
 }
 
 ConfigureAIX() {
