@@ -59,6 +59,7 @@ main(int argc,char ** argv)
 		switch(fork()){
 
 		case 0:
+			pid=getpid();
 			doatest(5);
 			exit(0);
 			break;
@@ -104,6 +105,9 @@ doatest(int delaysecs)
 	for (j=0; j < 10; ++j) {
 		sleep(1);
 		fprintf(stderr, "+");
+		if (j == 8) {
+			apphb_setwarn(500);
+		}
 		rc = apphb_hb();
 		if (rc < 0) {
 			cl_perror("apphb_hb failure");

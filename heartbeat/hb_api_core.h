@@ -38,6 +38,7 @@ typedef struct client_process {
 	int	iscasual;	/* 1 if this is a "casual" client */
 	int		beingremoved;	/* 1 if client is being removed */
 	FILE*		input_fifo;	/* Input FIFO file pointer */
+	int		output_fifofd;	/* Output FIFO file descriptor */
 	GList*		msgQ;		/* Queue of msgs for client */
 	int		msgcount;	/* length of client message queue */
 	int    	 signal;		/* What signal to indicate new msgs */

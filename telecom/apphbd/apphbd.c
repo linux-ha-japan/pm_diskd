@@ -48,8 +48,6 @@
  *
  * TODO list:
  *
- *	- Implement plugins for notification mechanisms...
- * 
  *	- Consider merging all the timeouts into some kind of single
  *		timeout source.  This would probably more efficient for
  *		large numbers of clients.  But, it may not matter ;-)
@@ -80,6 +78,7 @@
 #include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/apphb_cs.h>
 #include <clplumbing/cl_log.h>
+#include <clplumbing/cl_poll.h>
 #include <pils/generic.h>
 #include <pils/plugin.h>
 
@@ -94,6 +93,7 @@ const char *	cmdname = "apphbd";
 #define		DBGMIN		1
 #define		DBGDETAIL	2
 int		debug = 0;
+int		usenormalpoll=FALSE;
 
 
 
@@ -111,6 +111,8 @@ struct apphb_client {
 	guint			timerid;	/* timer source id */
 	guint			sourceid;	/* message source id */
 	long			timerms;	/* heartbeat timeout in ms */
+	longclock_t		lasthb;		/* Last HB time */
+	long			warnms;		/* heartbeat warntime in ms */
 	gboolean		missinghb;	/* True if missing a hb */
 	struct IPC_CHANNEL*	ch;		/* client comm channel */
 	GPollFD*		ifd;		/* ifd for poll */
@@ -125,7 +127,8 @@ enum apphb_event {
 	APPHB_HUP	= 1,
 	APPHB_NOHB	= 2,
 	APPHB_HBAGAIN	= 3,
-	APPHB_HBUNREG	= 4,
+	APPHB_HBWARN	= 4,
+	APPHB_HBUNREG	= 5,
 };
 
 #define	MAXNOTIFYPLUGIN	100
@@ -177,7 +180,7 @@ static gboolean	apphb_timer_popped(gpointer data);
 static gboolean	tickle_watchdog_timer(gpointer data);
 static apphb_client_t* apphb_client_new(struct IPC_CHANNEL* ch);
 static int apphb_client_register(apphb_client_t* client, void* Msg, int len);
-static void apphb_read_msg(apphb_client_t* client);
+static gboolean apphb_read_msg(apphb_client_t* client);
 static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
 void apphb_process_msg(apphb_client_t* client, void* msg,  int length);
 static gboolean authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
@@ -293,11 +296,13 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 
 	client->ch->ops->resume_io(client->ch);
 
-	while (client->ch->ops->is_message_pending(client->ch)) {
+	while (!client->deleteme && client->ch->ops->is_message_pending(client->ch)) {
 		if (client->ch->ch_status == IPC_DISCONNECT) {
 			client->deleteme = TRUE;
 		}else{
-			apphb_read_msg(client);
+			if (!apphb_read_msg(client)) {
+				break;
+			}
 		}
 	}
 	return TRUE;
@@ -318,6 +323,7 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 	ret = g_new(apphb_client_t, 1);
 
 	ret->appname = NULL;
+	ret->appinst = NULL;
 	ret->ch = ch;
 	ret->timerid = 0;
 	ret->pid = 0;
@@ -362,6 +368,8 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 	/* Set timer for this client... */
 	ret->timerid = Gmain_timeout_add(DEFAULT_TO, apphb_timer_popped, ret);
 	ret->timerms = DEFAULT_TO;
+	ret->warnms = 0;
+	ret->lasthb = time_longclock();
 
 	/* Set up "real" input message source for this client */
 	ret->sourceid = g_source_add(G_PRIORITY_HIGH, FALSE
@@ -452,11 +460,17 @@ apphb_client_remove(apphb_client_t* client)
 	}
 	if (client->ifd) {
 		g_main_remove_poll(client->ifd);
+		if (!usenormalpoll) {
+			cl_poll_ignore(client->ifd->fd);
+		}
 		g_free(client->ifd);
 		client->ifd=NULL;
 	}
 	if (client->ofd) {
 		g_main_remove_poll(client->ofd);
+		if (!usenormalpoll) {
+			cl_poll_ignore(client->ofd->fd);
+		}
 		g_free(client->ofd);
 		client->ofd=NULL;
 	}
@@ -492,6 +506,21 @@ apphb_client_set_timeout(apphb_client_t* client, void * Msg, int msgsize)
 	return apphb_client_hb(client, Msg, msgsize);
 }
 
+/* Client requested new warntime interval */
+static int
+apphb_client_set_warntime(apphb_client_t* client, void * Msg, int msgsize)
+{
+	struct apphb_msmsg*	msg = Msg;
+
+	if (msgsize < sizeof(*msg) || msg->ms < 0) {
+		return EINVAL;
+	}
+	client->warnms = msg->ms;
+	client->lasthb = time_longclock();
+	return 0;
+}
+
+
 /* Client heartbeat received */
 static int
 apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
@@ -509,12 +538,26 @@ apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
 		client->timerid = Gmain_timeout_add(client->timerms
 		,	apphb_timer_popped, client);
 	}
+	if (client->warnms > 0) {
+		longclock_t	now = time_longclock();
+		unsigned long	elapsedms;
+		elapsedms=longclockto_ms(sub_longclock(now, client->lasthb));
+		client->lasthb = now;
+		if (elapsedms > client->warnms) {
+			
+			cl_log(LOG_INFO, "apphb client '%s' / '%s' (pid %ld) "
+			"late heartbeat: %lu ms"
+			,	client->appname, client->appinst
+			,	(long)client->pid, elapsedms);
+			
+		}
+	}
 	return 0;
 }
 
 
 /* Read and process a client request message */
-static void
+static gboolean
 apphb_read_msg(apphb_client_t* client)
 {
 	struct IPC_MESSAGE*	msg = NULL;
@@ -526,20 +569,21 @@ apphb_read_msg(apphb_client_t* client)
 		if (msg->msg_done) {
 			msg->msg_done(msg);
 		}
+		return TRUE;
 		break;
 
 
 		case IPC_BROKEN:
 		client->deleteme = TRUE;
+		return FALSE;
 		break;
 
 
 		case IPC_FAIL:
-		cl_log(LOG_CRIT, "OOPS! client %s (pid %ld) read failure! [%s]"
-		,	client->appname, (long)client->pid
-		,	strerror(errno));
+		return FALSE;
 		break;
 	}
+	return FALSE;
 }
 
 /*
@@ -559,6 +603,7 @@ struct hbcmd	hbcmds[] =
 	{HEARTBEAT,	FALSE, apphb_client_hb},
 	{REGISTER,	TRUE, apphb_client_register},
 	{SETINTERVAL,	TRUE, apphb_client_set_timeout},
+	{SETWARNTIME,	TRUE, apphb_client_set_warntime},
 	{UNREGISTER,	TRUE, apphb_client_disconnect},
 };
 
@@ -665,7 +710,7 @@ apphb_notify(apphb_client_t* client, apphb_event_t event)
 	switch(event) {
 	case	APPHB_HUP:
 		msg = "hangup";
-		logtype = LOG_ERR;
+		logtype = LOG_WARNING;
 		break;
 
 	case	APPHB_NOHB:
@@ -808,6 +853,9 @@ init_start(void)
 	g_source_add(G_PRIORITY_HIGH, FALSE
 	,	&apphb_connsource, &pollfd, wconn, NULL);
 
+	if (!usenormalpoll) {
+		g_main_set_poll_func(cl_glibpoll);
+	}
 
 	/* Create the mainloop and run it... */
 	mainloop = g_main_new(FALSE);
@@ -1053,7 +1101,7 @@ load_notification_plugin(const char * pluginname)
 		,	&RegistrationRqsts)) !=	PIL_OK) {
 
 			cl_log(LOG_ERR
-			,       "ERROR: cannot load generic interface manager"
+			,       "cannot load generic interface manager"
 		       " [%s/%s]: %s"
 			,       "InterfaceMgr", "generic"
 			,       PIL_strerror(rc));

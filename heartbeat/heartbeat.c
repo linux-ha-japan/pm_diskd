@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.211 2002/09/20 02:09:50 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.212 2002/09/26 03:28:46 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -253,6 +253,8 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.211 2002/09/20 02:09
 #include <clplumbing/proctrack.h>
 #include <clplumbing/ipc.h>
 #include <clplumbing/lsb_exitcodes.h>
+#include <clplumbing/timers.h>
+#include <clplumbing/cl_poll.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api_core.h>
@@ -459,7 +461,7 @@ void	nak_rexmit(unsigned long seqno, const char * reason);
 void	req_our_resources(int getthemanyway);
 void	giveup_resources(void);
 void	go_standby(enum standby who);
-void	make_realtime(void);
+void	make_realtime(int stackgrow_K);
 void	make_normaltime(void);
 int	IncrGeneration(unsigned long * generation);
 void	ask_for_resources(struct ha_msg *msg);
@@ -531,6 +533,7 @@ static ProcTrack_ops ManagedChildTrackOps = {
 
 int	managed_child_count= 0;
 int	ResourceMgmt_child_count = 0;
+int	UseOurOwnPoll = FALSE;
 
 /*
  * A helper to allow us to pass things into the anonproc
@@ -839,7 +842,6 @@ initialize_heartbeat()
 			case 0:		/* Child */
 					curproc = &procinfo->info[ourproc];
 					curproc->type = PROC_HBWRITE;
-					make_realtime();
 					while (curproc->pid != getpid()) {
 						sleep(1);
 					}
@@ -867,7 +869,6 @@ initialize_heartbeat()
 					while (curproc->pid != getpid()) {
 						sleep(1);
 					}
-					make_realtime();
 					read_child(mp);
 					ha_perror("read child process exiting");
 					cleanexit(1);
@@ -890,7 +891,6 @@ initialize_heartbeat()
 		case 0:		/* Child */
 				curproc = &procinfo->info[ourproc];
 				curproc->type = PROC_MST_STATUS;
-				make_realtime();
 				while (curproc->pid != getpid()) {
 					sleep(1);
 				}
@@ -927,7 +927,7 @@ initialize_heartbeat()
  */
 
 void
-make_realtime()
+make_realtime(int stackgrowK)
 {
 
 #ifdef SCHED_RR
@@ -960,6 +960,35 @@ make_realtime()
 #endif
 
 #ifdef MCL_FUTURE
+#ifdef	HAVE_USABLE_BRK
+	{
+	/*
+	 *	Try and pre-allocate a little memory before locking
+	 *	ourselves into memory...
+	 */
+		long	currbrk;
+
+		currbrk = brk(NULL);
+
+		if (currbrk >= 0) {
+			if (brk((void*)(currbrk+stackgrowK*1024)) >= 0) {
+				if (ANYDEBUG) {
+					ha_log(LOG_INFO
+					,	"Break value incremented"
+					" by %d bytes."
+					,	stackgrowK*1024);
+				}
+			}else{
+				ha_log(LOG_ERR
+				,	"Got bad return from brk(0x%x)"
+				,	stackgrowK*1024);
+			}
+		}else{
+			ha_log(LOG_INFO
+			,	"Could not retrieve current brk value");
+		}
+	}
+#endif
 	if (mlockall(MCL_FUTURE) < 0) {
 		ha_log(LOG_ERR, "unable to lock pid %d in memory", (int) getpid());
 	}else if (ANYDEBUG) {
@@ -995,8 +1024,8 @@ read_child(struct hb_media* mp)
 	int	msglen;
 	int	rc;
 	int	statusfd = status_pipe[P_WRITEFD];
-	FILE *  statusfp = fdopen(statusfd, "w");
 
+	make_realtime(32);
 	curproc->pstat = RUNNING;
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
 
@@ -1025,13 +1054,13 @@ read_child(struct hb_media* mp)
 				ha_log(LOG_DEBUG, sm);
 			}
 
-			if ((rc=fwrite(sm, 1,  msglen, statusfp)) != msglen)  {
+			if ((rc=write(statusfd, sm, msglen)) != msglen)  {
 				if (pending_handlers) {
 					process_pending_handlers();
 				}
 				/* Try one extra time if we got EINTR */
 				if (errno != EINTR
-				||	(rc=fwrite(sm, 1,  msglen, statusfp))
+				||	(rc=write(statusfd, sm, msglen))
 				!=	msglen)  {
 					ha_perror("Write failure [%d/%d] %s"
 					,	rc
@@ -1039,7 +1068,6 @@ read_child(struct hb_media* mp)
 					,	"to status pipe");
 				}
 			}
-			fflush(statusfp);
 			ha_free(sm);
 			if (pending_handlers) {
 				process_pending_handlers();
@@ -1057,6 +1085,7 @@ write_child(struct hb_media* mp)
 	int	ourpipe =	mp->wpipe[P_READFD];
 	FILE *	ourfp		= fdopen(ourpipe, "r");
 
+	make_realtime(32);
 	siginterrupt(SIGALRM, 1);
 	signal(SIGALRM, ignore_signal);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
@@ -1104,8 +1133,9 @@ control_process(FILE * fp, int fifoofd)
 	siginterrupt(SIGQUIT, 1);
 
 	set_proc_title("%s: control process", cmdname);
-	make_realtime();
+	make_realtime(64);
 
+//	setmsrepeattimer(10);
 	for(;;) {
 		struct ha_msg *	msg;
 
@@ -1125,6 +1155,7 @@ control_process(FILE * fp, int fifoofd)
 		}
 	}
 
+	setmsrepeattimer(0);
 	/*
 	 * Sometimes kernels forget to deliver one or more of our
 	 * SIGCHLDs to us. So we just wait for them to exit...
@@ -1370,6 +1401,7 @@ master_status_process(void)
 	siginterrupt(SIGTERM, 1);
 	signal(SIGTERM, term_sig);
 
+	make_realtime(64);
 	send_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
 	set_proc_title("%s: master status process", cmdname);
@@ -1463,6 +1495,10 @@ master_status_process(void)
 		hip->local_lastupdate = time_longclock();
 	}
 
+//	setmsrepeattimer(10);
+	if (UseOurOwnPoll) {
+		g_main_set_poll_func(cl_glibpoll);
+	}
 	mainloop = g_main_new(TRUE);
 	g_main_run(mainloop);
 }
@@ -1502,8 +1538,6 @@ polled_input_prepare(gpointer source_data, GTimeVal* current_time
 ,	gint* timeout, gpointer user_data)
 {
 
-	/* MUST set timeout FIXME!! */
-	*timeout = 5000;
 	if (DEBUGDETAILS){
 		cl_log(LOG_DEBUG,"polled_input_prepare(): timeout=%d"
 		,	*timeout);
@@ -5980,6 +6014,27 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.212  2002/09/26 03:28:46  alan
+ * Made the 2.53 patch work again.
+ * Added code for preallocating a little memory before locking
+ * ourselves into memory.
+ *
+ * Added a new poll routine to be used in place of the system
+ * poll routine (for the cases we can do this).
+ * Changed apphbd to use it, and added code to allow
+ * heartbeat to use it (requires 2.5 kernel).
+ *
+ * Minor realtime fixes:
+ * 	use write instead of fwrite
+ * 	Don't open FIFO to client for each msg to them.
+ *
+ * Fixed a bug in apphbd where it complain and loop when
+ * clients disconnected unexpectedly.
+ *
+ * Added apphbd change to allow clients to specify warn times.
+ * Changed "client disconnected without telling us" from
+ * an error to a warning
+ *
  * Revision 1.211  2002/09/20 02:09:50  alan
  * Switched heartbeat to do everything with longclock_t instead of clock_t.
  * Switched heartbeat to be configured fundamentally from millisecond times.

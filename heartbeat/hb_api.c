@@ -83,6 +83,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <clplumbing/cl_poll.h>
 
 
 static int api_ping_iflist(const struct ha_msg* msg, struct node_info * node
@@ -99,6 +100,7 @@ struct api_query_handler query_handler_list [] = {
 	{ API_IFLIST, api_iflist },
 };
 
+extern int	UseOurOwnPoll;
 int		debug_client_count = 0;
 int		total_client_count = 0;
 client_proc_t*	client_list = NULL;	/* List of all our API clients */
@@ -822,12 +824,8 @@ api_flush_msgQ(client_proc_t* client)
 
 	fifoname = client_fifo_name(client, 0);
 
-	/*
-	 *	FIXME realtime:
-	 *	This code costs us realtime every time we open the fifo,
-	 *	because we might block searching for the FIFO inode.
-	 */
-	if ((fd=open(fifoname, O_WRONLY|O_NDELAY)) < 0) {
+	if ((fd=client->output_fifofd) < 0
+	&&	(fd=open(fifoname, O_WRONLY|O_NDELAY)) < 0) {
 		if (!client->beingremoved) {
 			/* Sometimes they've gone before we know it */
 			/* Then we get ENXIO.  So we ignore those. */
@@ -862,6 +860,10 @@ api_flush_msgQ(client_proc_t* client)
 			}
 			break;
 		}
+		if (DEBUGPKTCONT) {
+			cl_log(LOG_DEBUG, "Sending message to client pid %d: msg [%s]"
+			,	client->pid, msgstring);
+		}
 
 		/* If the write succeeded, remove msg from queue */
 		++writeok;
@@ -870,10 +872,6 @@ api_flush_msgQ(client_proc_t* client)
 	}
 	nsig = (writeok ? client->signal : 0);
 
-	if (close(fd) < 0) {
-		ha_perror("Client %ld close failure in api_flush_msgQ"
-		,	(long) client->pid);
-	}
 
 	if (kill(clientpid, nsig) < 0 && errno == ESRCH) {
 		ha_log(LOG_INFO, "api_send_client: client %ld died"
@@ -966,8 +964,12 @@ api_remove_client(client_proc_t* req, const char * reason)
 				client->input_fifo = NULL;
 
 				g_main_remove_poll(&client->gpfd);
+				if (UseOurOwnPoll) {
+					cl_poll_ignore(client->gpfd.fd);
+				}
 				g_source_remove(client->g_source_id);
 			}
+			close(client->output_fifofd);
 			/* Clean up after casual clients */
 			if (client->iscasual) {
 				unlink(client_fifo_name(client, 0));
@@ -1052,6 +1054,7 @@ api_add_client(struct ha_msg* msg)
 	/* Zap! */
 	memset(client, 0, sizeof(*client));
 	client->input_fifo = NULL;
+	client->output_fifofd = -1;
 	client->msgQ = NULL;
 	client->pid = pid;
 	client->desired_types = DEFAULTREATMENT;

@@ -25,9 +25,9 @@ diff -u -r1.107 configure.in
  
  dnl for libtool to work LTLIBOJS is needed (currently bug of autoconf)
  Xsed="sed -e s/^X//"
--# This line breaks on every single version other than the newest Suse (United Linux)
--# Commented out per converstion with Alan.
--#  LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
+-dnl This line breaks on every single version other than the newest Suse (United Linux)
+-dnl Commented out per converstion with Alan.
+-dnl  LTLIBOBJS=`echo X"$LIB@&t@OBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 -LTLIBOBJS=`echo X"$LIBOBJS"|[$Xsed -e "s,\.[^.]* ,.lo ,g;s,\.[^.]*$,.lo,"]`
 +dnl the @&t@ token is the officially recommended ugly work-around for
 +dnl autoconf 2.53 and up no longer allowing the LIBOBJS token to occur.

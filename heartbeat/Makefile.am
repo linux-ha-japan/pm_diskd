@@ -64,14 +64,14 @@ halib_PROGRAMS		= heartbeat send_arp findif api_test get_hw_addr
 ## SOURCES
 heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
 			ha_malloc.c ha_msg.c ha_msg_internal.c lock.c \
-			module.c ha_if.h hb_api.h hb_api_core.h \
+			module.c hb_api.h hb_api_core.h \
                         hb_md5.h hb_module.h hb_proc.h hb_sha1.h lock.h \
                         setproctitle.c setproctitle.h test.h
 heartbeat_LDADD		= $(top_builddir)/lib/stonith/libstonith.la \
 			$(top_builddir)/replace/libreplace.la	\
 			$(top_builddir)/lib/pils/libpils.la	\
 			$(top_builddir)/lib/clplumbing/libplumb.la	\
-			$(top_builddir)/libltdl/libltdlc.la $(gliblib)
+			$(top_builddir)/libltdl/libltdlc.la $(gliblib) -lrt
 
 heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \
