@@ -1,6 +1,6 @@
 #
 # Makefile for ldirectord
-# $Id: Makefile,v 1.12 2000/12/13 17:45:53 jacob Exp $
+# $Id: Makefile,v 1.13 2000/12/14 08:22:37 jacob Exp $
 #
 # Produces all manner of documentation for ldirectord
 #
@@ -28,7 +28,7 @@ MKDIR		= mkdir
 
 all: ldirectord.8
 
-pristene: clean
+pristine: clean
 clean:
 	$(RM) -f ldirectord.8
 
