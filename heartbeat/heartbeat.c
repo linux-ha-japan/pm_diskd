@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.26 1999/11/08 02:07:59 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.27 1999/11/09 06:13:02 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -182,7 +182,7 @@ void		(*localdie)(void);
 
 
 struct hb_media*	sysmedia[MAXMEDIA];
-const struct hb_media_fns* hbmedia_types[1];
+const struct hb_media_fns** HB_media;
 extern const int	num_hb_media_types;
 int			nummedia = 0;
 int			status_pipe[2];	/* The Master status pipe */
@@ -1416,7 +1416,19 @@ req_our_resources()
 		return(HA_FAIL);
 	}
 
-	while (fgets(buf, MAXLINE, rkeys) != NULL) {
+	clearerr(rkeys);
+
+	for (;;) {
+		if (fgets(buf, MAXLINE, rkeys) == NULL) {
+			if (ferror(rkeys) && errno == EINTR) {
+				/* Ding!  -- our alarm went off... */
+				clearerr(rkeys);
+				continue;
+			}
+			ha_perror("req_our_resources: fgets failure");
+			break;
+		}
+
 		if (buf[strlen(buf)-1] == '\n') {
 			buf[strlen(buf)-1] = EOS;
 		}
@@ -1555,10 +1567,10 @@ main(int argc, const char ** argv)
 
 	/* Perform static initialization for all our heartbeat medium types */
 	for (j=0; j < num_hb_media_types; ++j) {
-		if (hbmedia_types[j]->init() != HA_OK) {
+		if (HB_media[j]->init() != HA_OK) {
 			ha_log(LOG_ERR
 			,	"Initialization failure for %s channel"
-			,	hbmedia_types[j]->type);
+			,	HB_media[j]->type);
 			return(HA_FAIL);
 		}
 	}
@@ -2136,6 +2148,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.27  1999/11/09 06:13:02  alan
+ * Put in Thomas Hepper's bug fix for the alarm occurring when waiting for
+ * resources to be listed during initial startup.
+ * Also, minor changes to make config work without a linker warning...
+ *
  * Revision 1.26  1999/11/08 02:07:59  alan
  * Minor changes for reasons I can no longer recall :-(
  *

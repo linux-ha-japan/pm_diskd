@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.1 1999/11/07 05:12:38 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.2 1999/11/09 06:13:02 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -179,12 +179,16 @@ extern const struct hb_media_fns	ip_media_fns;
 extern const struct hb_media_fns	serial_media_fns;
 extern const struct hb_media_fns	ppp_udp_media_fns;
 
-const struct hb_media_fns* hbmedia_types[] = {
+static const struct hb_media_fns* hbmedia_types[] = {
 	&ip_media_fns,
 	&serial_media_fns,
 	&ppp_udp_media_fns,
 };
+
+const struct hb_media_fns** HB_media =  hbmedia_types;
+
 const int	num_hb_media_types = DIMOF(hbmedia_types);
+
 struct directive {
 	const char * name;
 	int (*add_func) (const char *);
