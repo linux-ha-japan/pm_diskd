@@ -15,7 +15,11 @@
 #
 
 # Source function library.
-. /etc/rc.d/init.d/functions
+if
+  [ -f /etc/rc.d/init.d/functions ]
+then
+  . /etc/rc.d/init.d/functions
+fi
 
 [ -f /etc/ha.d/conf/ldirectord.cf ] || exit 0
 
@@ -29,7 +33,7 @@ case "$1" in
         action "Starting ldirectord" /sbin/ldirectord  ldirectord.cf start
 	;;
   stop)
-        action "Stoping ldirectord" /sbin/ldirectord  ldirectord.cf stop
+        action "Stopping ldirectord" /sbin/ldirectord  ldirectord.cf stop
 	;;
   restart)
 	$0 stop
