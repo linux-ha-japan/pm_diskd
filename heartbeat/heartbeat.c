@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.107 2001/05/21 15:11:50 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.108 2001/05/21 15:29:50 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -270,20 +270,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.107 2001/05/21 15:11
 #include <test.h>
 #include <hb_proc.h>
 #include <hb_module.h>
-
-/*
- * <heartbeat.h> should have included <syslog.h>.
- * But <syslog.h> might not contain LOG_PRI.
- */
-
-#ifndef LOG_PRI
-#  ifdef LOG_PRIMASK
- 	/* David Lee <T.D.Lee@durham.ac.uk> reports this works on Solaris */
-#	define	LOG_PRI(p)      ((p) & LOG_PRIMASK)
-#  else
-#	error	"Syslog.h does not define either LOG_PRI or LOG_PRIMASK."
-#  endif 
-#endif
 
 #define OPTARGS		"dkMrRsvC:"
 
@@ -3994,6 +3980,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.108  2001/05/21 15:29:50  alan
+ * Moved David Lee's LOG_PRI (syslog) patch from heartbeat.c to heartbeat.h
+ *
  * Revision 1.107  2001/05/21 15:11:50  alan
  * Added David Lee's change to work without the LOG_PRI macro in config.h
  *

@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.49 2001/05/17 23:30:06 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.50 2001/05/21 15:29:50 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -47,6 +47,20 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.49 2001/05/17 23:30:
 
 #include <ha_msg.h>
 #include <stonith.h>
+
+/*
+ * <syslog.h> might not contain LOG_PRI...
+ * So, we define it ourselves, or error out if we can't...
+ */
+
+#ifndef LOG_PRI
+#  ifdef LOG_PRIMASK
+ 	/* David Lee <T.D.Lee@durham.ac.uk> reports this works on Solaris */
+#	define	LOG_PRI(p)      ((p) & LOG_PRIMASK)
+#  else
+#	error	"Syslog.h does not define either LOG_PRI or LOG_PRIMASK."
+#  endif 
+#endif
 
 
 #define	MAXLINE		1024
