@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.258 2003/05/09 15:15:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.259 2003/05/09 15:41:42 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2229,7 +2229,8 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		(void)open(devnull, O_RDONLY);	/* Stdin:  fd 0 */
 		(void)open(devnull, O_WRONLY);	/* Stdout: fd 1 */
 		(void)open(devnull, O_WRONLY);	/* Stderr: fd 2 */
-		(void)execl(centry->command, centry->command, NULL);
+		(void)execl(centry->command, centry->command
+		,	(const char *)NULL);
 
 		/* Should not happen */
 		cl_perror("Cannot exec %s", centry->command);
@@ -2317,16 +2318,17 @@ restart_heartbeat(void)
 			execl(HALIB "/heartbeat", "heartbeat", "-R"
 			,	"-C"
 			,	decode_resources(procinfo->i_hold_resources)
-			,	NULL);
+			,	(const char *)NULL);
 		}else{
-			execl(HALIB "/heartbeat", "heartbeat", "-R", NULL);
+			execl(HALIB "/heartbeat", "heartbeat", "-R"
+			,	(const char *)NULL);
 		}
 	}else{
 		/* Make sure they notice we're dead */
 		sleep((config->deadtime_ms+999)/1000+1);
 		/* "Normal" restart (not quick) */
 		unlink(PIDFILE);
-		execl(HALIB "/heartbeat", "heartbeat", NULL);
+		execl(HALIB "/heartbeat", "heartbeat", (const char *)NULL);
 	}
 	cl_log(LOG_ERR, "Could not exec " HALIB "/heartbeat");
 	cl_log(LOG_ERR, "Shutting down...");
@@ -4085,6 +4087,10 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.259  2003/05/09 15:41:42  alan
+ * Put in a patch to make OpenBSD compile.  Apparently, it doesn't know
+ * that NULL is a pointer...
+ *
  * Revision 1.258  2003/05/09 15:15:37  alan
  * Turned off the most expensive and onerous debugging code.
  *
