@@ -35,12 +35,9 @@ struct llc_ops {
 /*
  *	set_msg_callback:	Define callback for the given message type 
  *
- *	msgtype:	Type of message being handled.  NULL for default case.
- *			Note that default case not reached for node
- *			status messages handled by nstatus_callback,
- *			or ifstatus messages handled by nstatus_callback,
- *			Not just those explicitly handled by "msg_hander"
- *			cases.
+ *	msgtype:	Type of message being handled. 
+ *			Messages intercepted by nstatus_callback or ifstatus_callback
+ *			functions won't be handled here.
  *
  *	callback:	callback function.
  *
@@ -63,15 +60,13 @@ struct llc_ops {
 /*
  *	set_ifstatus_callback:	Define callback for interface status messages
  *				This is a message of type "ifstat"
- *			These messages are issued whenever an interface goes
+ *			These messages are received whenever an interface goes
  *			dead or becomes active again.
  *
  *	cbf:		callback function.
  *
- *
  *	p:		private data - later passed to callback.
  */
-
 	int             (*set_ifstatus_callback) (ll_cluster_t*
 ,			llc_ifstatus_callback_t cbf, void * p);
  
@@ -191,7 +186,4 @@ struct llc_ops {
 	const char * (*errmsg)(ll_cluster_t*);
 };
 
-ll_cluster_t*
-ll_cluster_new(const char * llctype);
-
-
+ll_cluster_t*	ll_cluster_new(const char * llctype);

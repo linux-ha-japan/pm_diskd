@@ -1473,8 +1473,7 @@ main(int argc, char ** argv)
 #endif
 	fprintf(stderr, "Setting message filter mode\n");
 	hb->llc_ops->setfmode(hb, fmask);
-	fprintf(stderr, "Setting message signal\n");
-	hb->llc_ops->setmsgsignal(hb, 0);
+
 
 	hb->llc_ops->init_nodewalk(hb);
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
@@ -1492,16 +1491,26 @@ main(int argc, char ** argv)
 
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, gotsig);
-	/* Read all subsequent replies... */
-	fprintf(stderr, "Now waiting for more messages...\n");
+
+	fprintf(stderr, "Setting message signal\n");
+	hb->llc_ops->setmsgsignal(hb, 0);
+
+	fprintf(stderr, "Waiting for messages...\n");
+
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
 		const char *	type;
+		const char *	orig;
 		if ((type = ha_msg_value(reply, F_TYPE)) == NULL) {
 			type = "?";
 		}
-		fprintf(stderr, "Got a message of type [%s]\n", type);
+		if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
+			orig = "?";
+		}
+		fprintf(stderr, "Got a message of type [%s] from [%s]\n"
+		,	type, orig);
 		ZAPMSG(reply);
 	}
+
 	if (!quitnow) {
 		perror("read_hb_msg returned NULL");
 	}
