@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr,v 1.2 1999/11/10 20:33:04 alan Exp $
+#	$Id: IPaddr,v 1.3 1999/11/16 04:36:53 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -13,6 +13,9 @@
 #	Surprisingly, the "stop" arg removes one.	:-)
 #
 #
+
+LC_ALL=en; export LC_ALL # Make ifconfig work in France for David Jules :-)
+
 . /etc/ha.d/shellfuncs
 
 IFCONFIG=/sbin/ifconfig
@@ -235,6 +238,13 @@ esac
 #
 #
 # $Log: IPaddr,v $
+# Revision 1.3  1999/11/16 04:36:53  alan
+# Added fix from David Jules to make IPaddr work in France.
+# The problem is that various commands that IPaddr invokes (notably ifconfig)
+# produce different output in other locales than they do in LC_ALL=en
+# so the output wasn't recognized by IPaddr.  The fix is much simpler than
+# this explanation :-)
+#
 # Revision 1.2  1999/11/10 20:33:04  alan
 # Deleted /proc/ha directory from build list
 # Added #!/bin/sh to lots (all?) of the scripts...
