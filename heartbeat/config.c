@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.30 2001/05/15 19:40:14 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.31 2001/05/18 05:50:27 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -341,6 +341,7 @@ parse_config(const char * cfgfile, char *nodename)
 
 	while (fgets(buf, MAXLINE, f) != NULL) {
 		char *  bp = buf; 
+		int	IsOptionDirective=1;
 
 		/* Skip over white space */
 		bp += strspn(bp, WHITESPACE);
@@ -379,8 +380,10 @@ parse_config(const char * cfgfile, char *nodename)
 			}
 			if (strcmp(directive, hbmedia_types[j]->type) == 0) {
 				int num_save = nummedia;
+				IsOptionDirective=0;
 				if (hbmedia_types[j]->parse(bp) != HA_OK) {
 					errcount++;
+					*bp = EOS;	/* Stop parsing now */
 					continue;
 				}
 				sysmedia[num_save]->vf = hbmedia_types[j];
@@ -396,6 +399,7 @@ parse_config(const char * cfgfile, char *nodename)
 				continue;
 			}
 			if (strcmp(directive, WLdirectives[j].type) == 0) {
+				IsOptionDirective=0;
 				if (WLdirectives[j].parse(bp) != HA_OK) {
 					errcount++;
 				}
@@ -403,7 +407,7 @@ parse_config(const char * cfgfile, char *nodename)
 			}
 		}
 		/* Now Check for  the options-list stuff */
-		while (*bp != EOS) {
+		while (IsOptionDirective && *bp != EOS) {
 			optionlength = strcspn(bp, DELIMS);
 			strncpy(option, bp, optionlength);
 			option[optionlength] = EOS;
