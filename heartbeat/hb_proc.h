@@ -45,6 +45,7 @@ enum process_type {
 	PROC_MST_STATUS,	/* Master status process */
 	PROC_HBREAD,		/* Read process */
 	PROC_HBWRITE,		/* Write process */
+	PROC_HBFIFO,		/* FIFO process */
 	PROC_PPP		/* (Obsolescent) PPP process */
 };
 

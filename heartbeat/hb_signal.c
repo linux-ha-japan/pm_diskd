@@ -22,7 +22,7 @@
  *
  */
 
-static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.7 2003/02/07 08:37:16 horms Exp $";
+static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.8 2003/03/27 07:04:26 alan Exp $";
 
 
 #define _USE_BSD
@@ -682,6 +682,19 @@ hb_signal_set_read_child(sigset_t *set)
 	return(0);
 }
 
+int
+hb_signal_set_fifo_child(sigset_t *set)
+{
+	if (hb_signal_set_common(set) < 0) {
+		ha_log(LOG_ERR, "hb_signal_set_read_child(): "
+			"hb_signal_set_common()");
+		return(-1);
+	}
+
+	hb_signal_process_pending_set_mask_set(set);
+
+	return(0);
+}
 
 int
 hb_signal_set_master_status_process(sigset_t *set)

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.243 2003/03/24 08:17:04 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.244 2003/03/27 07:04:26 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -386,9 +386,10 @@ static void	process_control_packet(struct msg_xmit_hist* msghist
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
 
 /* The biggies */
-static void control_process(FILE * fp, int fifoofd);
 static void read_child(struct hb_media* mp);
 static void write_child(struct hb_media* mp);
+static void fifo_child(IPC_Channel* chan);		/* Reads from FIFO */
+static void control_process(IPC_Channel* fifoipc);
 static void master_status_process(void);		/* The real biggie */
 
 pid_t		processes[MAXPROCS];
@@ -575,9 +576,8 @@ initialize_heartbeat()
 	int		j;
 	struct stat	buf;
 	int		pid;
-	FILE *		fifo;
 	int		ourproc = 0;
-	int		fifoofd;
+	IPC_Channel*	fifoipc[2];
 	int	(*getgen)(seqno_t * generation) = IncrGeneration;
 
 	localdie = NULL;
@@ -679,15 +679,46 @@ initialize_heartbeat()
 	/* We need to at least ignore SIGINTs early on */
 	hb_signal_set_common(NULL);
 
+	if (ipc_channel_pair(fifoipc) != IPC_OK) {
+		ha_perror("cannot create FIFO ipc channel");
+		return(HA_FAIL);
+	}
+
 	/* Now the fun begins... */
 /*
  *	Optimal starting order:
+ *		fifo_child();
  *		write_child();
  *		read_child();
  *		master_status_process();
  *		control_process(FILE * f, int ofd);
  *
  */
+
+	/* Fork FIFO process... */
+	ourproc = procinfo->nprocs;
+	switch ((pid=fork())) {
+		case -1:	ha_perror("Can't fork FIFO process!");
+				return(HA_FAIL);
+				break;
+
+		case 0:		/* Child */
+				curproc = &procinfo->info[ourproc];
+				curproc->type = PROC_HBFIFO;
+				while (curproc->pid != getpid()) {
+					sleep(1);
+				}
+				fifo_child(fifoipc[P_WRITEFD]);
+				ha_perror("FIFO child process exiting!");
+				cleanexit(1);
+	}
+	NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
+	,	&CoreProcessTrackOps);
+
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "FIFO process pid: %d", pid);
+	}
+
 	ourproc = procinfo->nprocs;
 
 	for (j=0; j < nummedia; ++j) {
@@ -743,6 +774,7 @@ initialize_heartbeat()
 
 
 
+
 	ourproc = procinfo->nprocs;
 	switch ((pid=fork())) {
 		case -1:	ha_perror("Can't fork master status process!");
@@ -769,12 +801,7 @@ initialize_heartbeat()
 		ha_log(LOG_DEBUG, "master status process pid: %d", pid);
 	}
 
-	fifo = fopen(FIFONAME, "r");
-	if (fifo == NULL) {
-		ha_perror("FIFO open failed.");
-	}
-	fifoofd = open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
-	control_process(fifo, fifoofd);
+	control_process(fifoipc[P_READFD]);
 
 	/*NOTREACHED*/
 	ha_log(LOG_ERR, "control_process exiting?");
@@ -878,11 +905,71 @@ write_child(struct hb_media* mp)
 }
 
 
+/* Read FIFO stream messages and translate to IPC msgs
+ * Maybe in the future after all is merged together, we'll just poll for 
+ * these every second or so.  Once we only use them for messages from
+ * shell scripts, that would be good enough.
+ * But, for now, we'll create this extra process...
+ */
+static void
+fifo_child(IPC_Channel* chan)
+{
+	FILE *	fifo;
+	int	fifoofd;	/* We never write on this... */
+	struct ha_msg *	msg = NULL;
+
+	if (hb_signal_set_fifo_child(NULL) < 0) {
+		ha_perror("write_child(): hb_signal_set_fifo_child()"
+		": Soldiering on...");
+	}
+	fifo = fopen(FIFONAME, "r");  /*FIXME!*/
+	if (fifo == NULL) {
+		ha_perror("FIFO open failed.");
+	}
+	fifoofd = open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
+
+	cl_make_realtime(-1, hb_realtime_prio, 32);
+	set_proc_title("%s: fifo reader", cmdname);
+	drop_privs(0, 0);	/* Become nobody */
+	curproc->pstat = RUNNING;
+
+	for (;;msg != NULL && (ha_msg_del(msg), msg=NULL)) {
+	
+		msg = controlfifo2msg(fifo);
+
+		if (msg) {
+			IPC_Message*	m;
+#if 0
+			ha_log(LOG_DEBUG, "Fifo_child message:");
+			ha_log_message(msg);
+#endif
+			if (fifoofd > 0) {
+				/* FIFO Reads will now fail if writers die */
+				close(fifoofd);
+				fifoofd = -1;
+			}
+			m = hamsg2ipcmsg(msg, chan);
+			if (!m) {
+				continue;
+			}
+			/* Send frees "m" "at the right time" */
+			chan->ops->send(chan, m);
+			
+		}else if (feof(fifo)) {
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"fifo_child: EOF on FIFO");
+			}
+			exit(0);
+		}
+	}
+}
+
 
 /* The master control process -- reads control fifo, sends msgs to cluster */
 /* Not a lot to this one, eh? */
 static void
-control_process(FILE * fp, int fifoofd)
+control_process(IPC_Channel* fifoipc)
 {
 	struct msg_xmit_hist	msghist;
 
@@ -910,22 +997,25 @@ control_process(FILE * fp, int fifoofd)
 
 		/* Process pending signals */
 		hb_signal_process_pending();
-		msg = controlfifo2msg(fp);
+		
+		if ((msg = msgfromIPC(fifoipc)) == NULL) {
 
-		if (msg) {
-			process_control_packet(&msghist, msg);
-			if (fifoofd > 0) {
-				/* FIFO Reads will now fail if writers die */
-				close(fifoofd);
-				fifoofd = -1;
+			if (fifoipc->ch_status == IPC_DISCONNECT) {
+				if (ANYDEBUG) {
+					ha_log(LOG_DEBUG
+					,	"control_process:"
+					": fifo_child closed socket.");
+				}
+				break;
 			}
-		}else if (feof(fp)) {
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				,	"control_process: EOF on FIFO");
-			}
-			break;
+			continue;
 		}
+		
+#if 0
+		ha_log(LOG_DEBUG, "Control_process message:");
+		ha_log_message(msg);
+#endif
+		process_control_packet(&msghist, msg);
 	}
 
 	if (ANYDEBUG) {
@@ -2101,6 +2191,7 @@ core_proc_name(enum process_type t)
 		case PROC_MST_STATUS:	ct = "MST_STATUS";	break;
 		case PROC_HBREAD:	ct = "HBREAD";		break;
 		case PROC_HBWRITE:	ct = "HBWRITE";		break;
+		case PROC_HBFIFO:	ct = "HBFIFO";		break;
 		case PROC_PPP:		ct = "PPP";		break;
 		default:		ct = "core process huh?";		break;
 	}
@@ -3268,7 +3359,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 
 				ha_log(LOG_WARNING
 				,	"Cluster node %s"
-				"returning after partition."
+				" returning after partition."
 				,	thisnode->nodename);
 				ha_log(LOG_WARNING
 				,	"Deadtime value may be too small.");
@@ -3911,6 +4002,10 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.244  2003/03/27 07:04:26  alan
+ * 1st step in heartbeat process restructuring.
+ * Create fifo_child() processes to read the FIFO written by the shell scripts.
+ *
  * Revision 1.243  2003/03/24 08:17:04  horms
  * merged in changes from stable branch
  *

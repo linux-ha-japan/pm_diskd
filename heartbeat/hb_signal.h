@@ -25,7 +25,7 @@
 #ifndef _HB_SIGNAL_H
 #define _HB_SIGNAL_H
 
-static const char * _hb_signal_h_Id = "$Id: hb_signal.h,v 1.1 2002/10/18 07:16:08 alan Exp $";
+static const char * _hb_signal_h_Id = "$Id: hb_signal.h,v 1.2 2003/03/27 07:04:26 alan Exp $";
 
 
 #include <clplumbing/cl_signal.h>
@@ -101,6 +101,9 @@ hb_signal_set_write_child(sigset_t *set);
 
 int
 hb_signal_set_read_child(sigset_t *set);
+
+int
+hb_signal_set_fifo_child(sigset_t *set);
 
 int
 hb_signal_set_master_status_process(sigset_t *set);

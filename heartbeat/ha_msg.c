@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.38 2003/02/07 08:37:16 horms Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.39 2003/03/27 07:04:26 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -389,6 +389,53 @@ msg2stream(struct ha_msg* m, FILE * f)
 		return(HA_FAIL);
 	}
 }
+static void ipcmsg_done(IPC_Message* m);
+
+static void
+ipcmsg_done(IPC_Message* m)
+{
+	if (!m) {
+		return;
+	}
+	if (!m->msg_body) {
+		ha_free(m->msg_body);
+	}
+	ha_free(m);
+	m = NULL;
+}
+
+
+IPC_Message*
+hamsg2ipcmsg(struct ha_msg* m, IPC_Channel* ch)
+{
+	char *		s  = msg2string(m);
+	IPC_Message*	ret = NULL;
+	if (s == NULL) {
+		return ret;
+	}
+	ret = MALLOCT(IPC_Message);
+	if (!ret) {
+		ha_free(s);
+		return ret;
+	}
+	ret->msg_done = ipcmsg_done;
+	ret->msg_private = NULL;
+	ret->msg_ch = ch;
+	ret->msg_body = s;
+	ret->msg_len = strlen(s)+1;
+
+	return ret;
+}
+
+struct ha_msg*
+ipcmsg2hamsg(IPC_Message*m)
+{
+	struct ha_msg*	ret = NULL;
+	
+	ret = string2msg(m->msg_body, m->msg_len);
+
+	return ret;
+}
 
 /* Converts a string (perhaps received via UDP) into a message */
 struct ha_msg *
@@ -513,6 +560,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.39  2003/03/27 07:04:26  alan
+ * 1st step in heartbeat process restructuring.
+ * Create fifo_child() processes to read the FIFO written by the shell scripts.
+ *
  * Revision 1.38  2003/02/07 08:37:16  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.
