@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.53 2002/01/25 05:29:46 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.54 2002/01/25 05:32:01 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -355,6 +355,8 @@ parse_config(const char * cfgfile, char *nodename)
 		directive[dirlength] = EOS;
 #ifdef DIRTYALIASKLUDGE
 		if (strcmp(directive, "udp")) {
+			ha_log(LOG_WARNING
+			,	"WARNING: directive 'udp' replaced by 'bcast'");
 			strncpy(directive, "bcast", sizeof("bcast"));
 		}
 #endif
@@ -1231,6 +1233,9 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.54  2002/01/25 05:32:01  alan
+ * Put in a warning when 'udp' is encountered.
+ *
  * Revision 1.53  2002/01/25 05:29:46  alan
  * Put in a dirty alias kludge to make the software recognize udp as well as bcast.
  *
