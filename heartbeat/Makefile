@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.20 2000/07/16 22:14:37 alan Exp $
+#	$Id: Makefile,v 1.21 2000/07/17 19:27:52 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -81,7 +81,8 @@ H_OBJLIST = 	heartbeat.o		\
 		sha1.o			\
 		ha_malloc.o
 H_HDRS    = heartbeat.h ha_msg.h hb_api.h hb_api_core.h
-LIBS=	../stonith/libstonith.o
+HBLIBS=	../stonith/libstonith.o
+LIBS=
 
 SENDARP =	send_arp
 S_OBJLIST =	send_arp.o
@@ -108,8 +109,8 @@ SPECSRC = Specfile
 
 all: $(PRODUCTS)
 
-$(HEARTBEAT): $(H_OBJLIST) $(H_HDRS)
-	$(CC) $(LDFLAGS) $(H_OBJLIST) $(LIBS) -o $(HEARTBEAT)
+$(HEARTBEAT): $(H_OBJLIST) $(H_HDRS) $(LIBS) $(HBLIBS)
+	$(CC) $(LDFLAGS) $(H_OBJLIST) $(LIBS) $(HBLIBS) -o $(HEARTBEAT)
 
 api_test: api_test.o ha_msg.o
 	$(CC) $(LDFLAGS) api_test.o ha_msg.o	-o api_test

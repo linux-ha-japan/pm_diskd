@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.50 2000/07/16 22:14:37 alan Exp $
+#	$Id: Specfile,v 1.51 2000/07/17 19:27:52 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -22,6 +22,20 @@ It implements the following kinds of heartbeats:
 	- Bidirectional Serial PPP/UDP Rings (using PPP)
 
 %changelog
+
+* Sun Jul 16 2000 Alan Robertson <alanr@suse.com>,
+     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
+     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
+     Guenther Thomsen <thomsen@cs.tu-berlin.de>,
+     Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
+     Marcelo Tosatti <marcelo@conectiva.com.br>
+     and Horms <horms@vergenet.net>
+
++ Version 0.4.9 Beta series
+  + Incorporated new ldirectord version
+  + Added STONITH option to heartbeat (stonith)
+  + Added late heartbeat warning for heartbeats that arrive later than
+    	0.75 of deadtime (warntime option)
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.14 2000/07/16 22:14:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.15 2000/07/17 19:27:52 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -49,6 +49,7 @@ extern clock_t				hb_warn_ticks;
 int	islegaldirective(const char *directive);
 int     parse_config(const char * cfgfile, char *nodename);
 int	parse_ha_resources(const char * cfgfile);
+static clock_t get_ticks(const char * input);
 void	dump_config(void);
 int	add_option(const char *	option, const char * value);
 int	add_node(const char * value);
@@ -108,6 +109,11 @@ init_config(const char * cfgfile)
 		ha_log(LOG_ERR, "No heartbeat ports defined");
 		++errcount;
 	}
+
+	if (config->warntime_interval <= 0) {
+		config->warntime_interval
+		=	(config->deadtime_interval * CLK_TCK*3)/4;
+	}
 	
 #if !defined(MITJA)
 	/* We should probably complain if there aren't at least two... */
@@ -140,7 +146,7 @@ init_config(const char * cfgfile)
 		,	config->deadtime_interval, config->heartbeat_interval);
 		++errcount;
 	}
-	config->warntime_interval = (config->deadtime_interval * CLK_TCK*3)/4;
+
 	if (*(config->logfile) == 0) {
                  if (config->log_facility > 0) {
                         /* 
@@ -188,6 +194,7 @@ init_config(const char * cfgfile)
 #define KEY_HOPS	"hopfudge"
 #define KEY_KEEPALIVE	"keepalive"
 #define KEY_DEADTIME	"deadtime"
+#define KEY_WARNTIME	"warntime"
 #define KEY_WATCHDOG	"watchdog"
 #define	KEY_BAUDRATE	"baud"
 #define	KEY_UDPPORT	"udpport"
@@ -208,6 +215,7 @@ int set_facility(const char *);
 int set_logfile(const char *);
 int set_dbgfile(const char *);
 int set_nice_failback(const char *);
+int set_warntime_interval(const char *);
 int set_stonith_info(const char *);
 
 extern const struct hb_media_fns	ip_media_fns;
@@ -232,6 +240,7 @@ struct directive {
 ,	{KEY_HOPS,	set_hopfudge}
 ,	{KEY_KEEPALIVE,	set_keepalive}
 ,	{KEY_DEADTIME,	set_deadtime_interval}
+,	{KEY_WARNTIME,	set_warntime_interval}
 ,	{KEY_WATCHDOG,	set_watchdogdev}
 ,	{KEY_BAUDRATE,	set_baudrate}
 ,	{KEY_UDPPORT,	set_udpport}
@@ -912,7 +921,51 @@ set_nice_failback(const char * value)
         return(HA_OK);
 }
 
-/* set Stonith information */
+#define	NUMCHARS	"0123456789."
+
+static clock_t
+get_ticks(const char * input)
+{
+	const char *	cp = input;
+	const char *	units;
+	int		multiplier = CLK_TCK;
+	int		divisor = 1;
+	clock_t		ret;
+	double		dret;
+
+	cp += strspn(cp, WHITESPACE);
+	units = cp + strspn(cp, NUMCHARS);
+	units += strspn(units, WHITESPACE);
+
+	if (strncasecmp(units, "ms", 2) == 0
+	||	strncasecmp(units, "msec", 4) == 0) {
+		multiplier = CLK_TCK;
+		divisor = 1000;
+	}
+	dret = atof(cp);
+	dret *= (double)multiplier;
+	dret /= (double)divisor;
+	dret += 0.5;
+	ret = (clock_t)dret;
+	return(ret);
+}
+
+/* Set warntime interval */
+int
+set_warntime_interval(const char * value)
+{
+	clock_t	warntime;
+	warntime = get_ticks(value);
+
+	if (warntime <= 0) {
+		fprintf(stderr, "Warn time [%s] is invalid.\n", value);
+		return(HA_FAIL);
+	}
+	config->warntime_interval = warntime;
+	return(HA_OK);
+}
+
+/* Set Stonith information */
 int
 set_stonith_info(const char * value)
 {

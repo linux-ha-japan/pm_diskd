@@ -112,6 +112,7 @@ static int RPCNametoOutlet(struct BayTech*, const char * name);
 static int RPCReset(struct BayTech*, int unitnum, const char * rebootid);
 static int RPCScanLine(struct BayTech* bt, int timeout, char * buf, int max);
 static int RPCLogout(struct BayTech * bt);
+static void RPCkillcomm(struct BayTech * bt);
 
 static int	RPC_set_configfile(Stonith *, const char * cfgname);
 static int	RPC_provide_config_info(Stonith *, const char * info);
@@ -166,8 +167,7 @@ RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout)
 	if ((rc = ExpectToken(bt->rdfd, tlist, timeout, NULL, 0)) < 0) {
 		syslog(LOG_ERR, "Did not find string: '%s' from" DEVICE "."
 		,	tlist[0].string);
-		kill(bt->pid, SIGTERM);
-		bt->pid = -1;
+		RPCkillcomm(bt);
 		return(-1);
 	}
 	return(rc);
@@ -180,7 +180,7 @@ RPCScanLine(struct BayTech* bt, int timeout, char * buf, int max)
 {
 	if (ExpectToken(bt->rdfd, CRNL, timeout, buf, max) < 0) {
 		syslog(LOG_ERR, "Could not read line from " DEVICE ".");
-		kill(bt->pid, SIGTERM);
+		RPCkillcomm(bt);
 		bt->pid = -1;
 		return(S_OOPS);
 	}
@@ -203,8 +203,7 @@ RPCLogin(struct BayTech * bt)
 	if (ExpectToken(bt->rdfd, BayTechAssoc, 2, IDinfo
 	,	sizeof(IDinfo)) < 0) {
 		syslog(LOG_ERR, "No initial response from " DEVICE ".");
-		kill(bt->pid, SIGTERM);
-		bt->pid = -1;
+		RPCkillcomm(bt);
 		return(errno == ETIME ? S_TIMEOUT : S_OOPS);
 	}
 	idptr += strspn(idptr, WHITESPACE);
@@ -264,6 +263,7 @@ RPCLogin(struct BayTech * bt)
 			return(S_ACCESS);
 
 		default:
+			RPCkillcomm(bt);
 			return(errno == ETIME ? S_TIMEOUT : S_OOPS);
 	}
 	EXPECT(Menu, 2);
@@ -290,11 +290,17 @@ RPCLogout(struct BayTech* bt)
 	close(bt->wrfd);
 	close(bt->rdfd);
 	bt->wrfd = bt->rdfd = -1;
-	if (bt->pid > 0) {
-		kill(bt->pid, SIGTERM);
-		(void)waitpid(bt->pid, NULL, 0);
-	}
+	RPCkillcomm(bt);
 	return(rc >= 0 ? S_OK : (errno == ETIME ? S_TIMEOUT : S_OOPS));
+}
+static void
+RPCkillcomm(struct BayTech* bt)
+{
+	if (bt->pid > 0) {
+		kill(bt->pid, SIGKILL);
+		(void)waitpid(bt->pid, NULL, 0);
+		bt->pid = -1;
+	}
 }
 
 /* Reset (power-cycle) the given outlet number */
@@ -762,11 +768,13 @@ RPC_reset_host(Stonith * s, const char * host)
 			syslog(LOG_WARNING, "%s %s "
 			"doesn't control host [%s].", bt->idinfo
 			,	bt->unitid, host);
+			RPCkillcomm(bt);
 			return(S_BADHOST);
 		}
 	}
 
 	lorc = RPCLogout(bt);
+	RPCkillcomm(bt);
 
 	return(rc != S_OK ? rc : lorc);
 }
@@ -846,10 +854,7 @@ baytech_del(Stonith *s) {
 	bt = (struct BayTech *)s->pinfo;
 
 	bt->BTid = NOTbtid;
-	if (bt->pid > 0) {
-		kill(SIGTERM, bt->pid);
-		bt->pid = -1;
-	}
+	RPCkillcomm(bt);
 	if (bt->rdfd >= 0) {
 		bt->rdfd = -1;
 		close(bt->rdfd);

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.70 2000/07/16 22:14:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.71 2000/07/17 19:27:52 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -119,6 +119,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.70 2000/07/16 22:14:
  *	Fix -r flag for nice_failback case.  Different logic and a new flag
  *		is required for takeover when nice_failback is in effect.
  *		Basically the new flag will tell it the proper resource state.
+ *		[I think this is working now?]
  *
  *	Heartbeat API:
  *		This is currently being worked.  It would allow application
@@ -126,11 +127,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.70 2000/07/16 22:14:
  *		and allow them to send and receive messages to/from the
  *		cluster as well.  This would allow us to move all the resource
  *		management stuff to a cluster manager, where it belongs ;-)
- *
- *	Late heartbeat warnings
- *		Someone from an after-ALE pizza party suggested that we should
- *		warn when heartbeats come in late, but not so late as to cause
- *		things to be declared dead.  A good idea.
  *
  *	Fuzzy heartbeat timing
  *		Right now, the code works in such a way that it systematically
@@ -475,7 +471,9 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.70 2000/07/16 22:14:37 alan Exp $$' | sort -u"
+			/* Break up te string so RCS won't react to it */
+		,	"strings %s/%s | grep '^\\$"
+			"Id" ": .*\\$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -829,7 +827,6 @@ make_realtime()
 			,	"scheduler priority set to %d", HB_STATIC_PRIO);
 		}
 	}
-
 #endif
 
 #ifdef MCL_FUTURE
@@ -2773,6 +2770,11 @@ signal_all(int sig)
 {
 	int us = getpid();
 	int j;
+
+	if (sig == SIGTERM) {
+		signal(SIGTERM, SIG_IGN);
+		make_normaltime();
+	}
 	for (j=0; j < num_procs; ++j) {
 		if (processes[j] != us) {
 			if (ANYDEBUG) {
@@ -2792,13 +2794,12 @@ signal_all(int sig)
 				ha_log(LOG_INFO
 				,	"Heartbeat shutdown in progress.");
 				giveup_resources();
-				signal(SIGTERM, SIG_IGN);
 
-				/* Kill any lingering takeover processes, etc. */
+				/* Kill any lingering takeover processes, etc.*/
 				kill(-getpid(), SIGTERM);
 				sleep(1);
 
-				ha_log(LOG_INFO, "Heartbeat shutdown complete.");
+				ha_log(LOG_INFO,"Heartbeat shutdown complete.");
 				unlink(PIDFILE);
 			}
 			cleanexit(sig);
@@ -3440,6 +3441,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.71  2000/07/17 19:27:52  alan
+ * Fixed a bug in stonith code (it didn't always kill telnet command)
+ *
  * Revision 1.70  2000/07/16 22:14:37  alan
  * Added stonith capabilities to heartbeat.
  * Still need to make the stonith code into a library...
