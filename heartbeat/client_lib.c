@@ -1374,6 +1374,7 @@ static int
 msgready(ll_cluster_t*ci )
 {
 	fd_set		fds;
+	int             fd = get_inputfd(ci);
 	struct timeval	tv;
 	int		rc;
 	llc_private_t* pi;
@@ -1393,11 +1394,11 @@ msgready(ll_cluster_t*ci )
 		return 1;
 	}
 	FD_ZERO(&fds);
-	FD_SET(get_inputfd(ci), &fds);
+	FD_SET(fd, &fds);
 	tv.tv_sec = 0;
 	tv.tv_usec = 0;
 
-	rc = select(1, &fds, NULL, NULL, &tv);
+	rc = select(fd+1, &fds, NULL, NULL, &tv);
 	
 	return (rc > 0);
 }
