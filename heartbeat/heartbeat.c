@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.167 2002/03/27 01:59:58 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.168 2002/04/02 19:40:36 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -820,6 +820,15 @@ initialize_heartbeat()
 		return(HA_FAIL);
 	}
 
+	/* Clean up tmp files from our resource scripts */
+	system("rm -fr " RSC_TMPDIR);
+
+	/* Remake the temporary directory ... */
+	mkdir(RSC_TMPDIR
+	,	S_IRUSR|S_IWUSR|S_IXUSR
+	|	S_IRGRP|S_IWGRP|S_IXGRP	
+	|	S_IROTH|S_IWOTH|S_IXOTH	|	S_ISVTX /* sticky bit */);
+
 	/* Open all our heartbeat channels */
 
 	for (j=0; j < nummedia; ++j) {
@@ -1348,6 +1357,10 @@ master_status_process(void)
 			ClockJustJumped = 1;
 			standby_running = 0L;
 			other_is_stable = 1;
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				, "Clock Jump: other now stable");
+			}
 		}else{
 			ClockJustJumped = 0;
 		}
@@ -1499,9 +1512,9 @@ process_clustermsg(FILE * f)
 			ha_log_message(msg);
 		}
 		goto psm_done;
-	}else if (ANYDEBUG) {
+	}else if (DEBUGDETAILS) {
 		ha_log(LOG_DEBUG
-		,       "process_status_message: node [%s] auth  ok"
+		,       "process_status_message: node [%s] auth ok"
 		,	from ? from :"?");
 	}
 
@@ -1518,7 +1531,7 @@ process_clustermsg(FILE * f)
 		sscanf(cseq, "%lx", &seqno);
 	}else{
 		seqno = 0L;
-		if (strcmp(type, NOSEQ_PREFIX) != 0) {
+		if (strncmp(type, NOSEQ_PREFIX, STRLEN(NOSEQ_PREFIX)) != 0) {
 			ha_log(LOG_ERR
 			,	"process_status_message: %s: iface %s, from %s"
 			,	"missing seqno"
@@ -1875,6 +1888,10 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 		}
 		other_is_stable = 0;
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			, "process_resources: other now unstable");
+		}
 		if (takeover_in_progress) {
 			ha_log(LOG_WARNING
 			,	"T_STARTING received during takeover.");
@@ -1940,6 +1957,11 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 					}
 				}else{
 					other_is_stable = 0;
+					if (ANYDEBUG) {
+						ha_log(LOG_DEBUG
+						, "process_resources(2): %s"
+						, " other now unstable");
+					}
 				}
 			}
 
@@ -1981,6 +2003,11 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 					takeover_in_progress = 0;
 					/* Probably unnecessary */
 					other_is_stable = 1;
+					if (ANYDEBUG) {
+						ha_log(LOG_DEBUG
+						, "process_resources(3): %s"
+						, " other now stable");
+					}
 				}else if (strcmp(comment, "shutdown") == 0) {
 					resourcestate = newrstate = R_SHUTDOWN;
 				}
@@ -1990,6 +2017,11 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	if (strcasecmp(type, T_SHUTDONE) == 0) {
 		if (thisnode != curnode) {
 			other_is_stable = 1;
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				, "process_resources(4): %s"
+				, " other now stable - T_SHUTDONE");
+			}
 		}else{
 			resourcestate = newrstate = R_SHUTDOWN;
 			i_hold_resources = 0;
@@ -2005,7 +2037,8 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 	if (resourcestate != newrstate) {
 		if (ANYDEBUG) {
-			ha_log(LOG_INFO, "STATE %d => %d", resourcestate, newrstate);
+			ha_log(LOG_INFO
+			,	"STATE %d => %d", resourcestate, newrstate);
 		}
 	}
 
@@ -2111,6 +2144,10 @@ CreateInitialFilter(void)
 		if (dep->d_name[0] == '.') {
 			continue;
 		}
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			,	"CreateInitialFilter: %s", dep->d_name);
+		}
 		g_hash_table_insert(RCScriptNames, g_strdup(dep->d_name),foo);
 	}
 	closedir(dp);
@@ -2118,10 +2155,19 @@ CreateInitialFilter(void)
 static int
 FilterNotifications(const char * msgtype)
 {
+	int		rc;
 	if (RCScriptNames == NULL) {
 		CreateInitialFilter();
 	}
-	return g_hash_table_lookup(RCScriptNames, msgtype) != NULL;
+	rc = g_hash_table_lookup(RCScriptNames, msgtype) != NULL;
+
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"FilterNotifications(%s) => %d"
+		,	msgtype, rc);
+	}
+
+	return rc;
 }
 
 
@@ -2152,6 +2198,11 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	char *		tp;
 	int		pid, status;
 
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"notify_world: invoking %s: OLD status: %s"
+		,	RC_ARG0,	(ostatus ? ostatus : "(none)"));
+	}
 	if (!DoManageResources) {
 		return;
 	}
@@ -2161,7 +2212,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	fp  = ha_msg_value(msg, F_TYPE);
 	ASSERT(fp != NULL && strlen(fp) < STATUSLENG);
 
-	if (fp == NULL || strlen(fp) > STATUSLENG
+	if (fp == NULL || strlen(fp) >= STATUSLENG
 	||	 !FilterNotifications(fp)) {
 		return;
 	}
@@ -2198,6 +2249,11 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				}
 				if (nice_failback) {
 					setenv(HANICEFAILBACK, "yes", 1);
+				}
+				if (ANYDEBUG) {
+					ha_log(LOG_DEBUG
+					,	"notify_world: Running %s %s"
+					,	argv[0], argv[1]);
 				}
 				execv(RCSCRIPT, argv);
 
@@ -2776,7 +2832,7 @@ ding_action(void)
 	{	{(HB_uS_PERIOD/1000000), (HB_uS_PERIOD % 1000000)}	/* Repeat Interval */
 	,	{(HB_uS_PERIOD/1000000), (HB_uS_PERIOD % 1000000)}};	/* Timer Value */
 
-	if (ANYDEBUG) {
+	if (DEBUGDETAILS) {
 		ha_log(LOG_DEBUG, "Ding!");
 	}
 
@@ -3069,7 +3125,9 @@ send_resources_held(const char *str, int stable, const char * comment)
 	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Sending hold resources msg: %s", str);
+		ha_log(LOG_DEBUG
+		,	"Sending hold resources msg: %s, stable=%d # %s"
+		,	str, stable, (comment ? comment : "<none>"));
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
 		ha_log(LOG_ERR, "Cannot send local starting msg");
@@ -3136,7 +3194,7 @@ send_local_starting(void)
 
 	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
-	if (ANYDEBUG) {
+	if (DEBUGDETAILS) {
 		ha_log(LOG_DEBUG, "Sending local starting msg");
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
@@ -3164,7 +3222,7 @@ send_local_status(void)
 	int		rc;
 
 
-	if (debug){
+	if (DEBUGDETAILS){
 		ha_log(LOG_DEBUG, "Sending local status");
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
@@ -3282,6 +3340,10 @@ mark_node_dead(struct node_info *hip, enum deadreason reason)
 			other_holds_resources = NO_RSC;
 			other_is_stable = 1;	/* Not going anywhere */
 			takeover_in_progress = 1;
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"mark_node_dead: other now stable");
+			}
 			/*
 			 * We MUST do this now, or the other side might come
 			 * back up and think they can own their own resources
@@ -3462,6 +3524,9 @@ req_our_resources(int getthemanyway)
 	alarm(0);
 	IGNORESIG(SIGALRM);
 	siginterrupt(SIGALRM, 0);
+	if (nice_failback) {
+		setenv(HANICEFAILBACK, "yes", 1);
+	}
 	sprintf(cmd, HALIB "/ResourceManager listkeys %s", curnode->nodename);
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
@@ -3504,7 +3569,8 @@ req_our_resources(int getthemanyway)
 			,	rsc_count, cmd);
 		}
 	}
-	send_resources_held(LOCAL_RESOURCES, 0, NULL);
+	send_resources_held(rsc_msg[i_hold_resources], 1
+	,	"req_our_resources()");
 	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
 }
@@ -3525,6 +3591,9 @@ go_standby(enum standby who)
 	 */
 	if (who == ME) {
 		other_is_stable = 0;
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG, "go_standby: other is unstable");
+		}
 	}
 	/* We need to fork so we can make child procs not real time */
 
@@ -3846,8 +3915,8 @@ main(int argc, char * argv[], char * envp[])
 
 		if (running_hb_pid < 0) {
 			fprintf(stderr
-			,	"ERROR: Heartbeat not currently running.\n");
-			cleanexit(1);
+			,	"INFO: Heartbeat already stopped.\n");
+			cleanexit(0);
 		}
 
 		if (kill((pid_t)running_hb_pid, SIGTERM) >= 0) {
@@ -4948,6 +5017,10 @@ ask_for_resources(struct ha_msg *msg)
 		}
 		if (strcasecmp(info, "me") == 0) {
 			standby_running = now + STANDBY_INIT_TO;
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				, "ask_for_resources: other now unstable");
+			}
 			other_is_stable = 0;
 			ha_log(LOG_INFO, "%s wants to go standby", from);
 			if (msgfromme) {
@@ -5066,6 +5139,22 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.168  2002/04/02 19:40:36  alan
+ * Failover was completely broken because of a typo in the configure.in file
+ * Changed the run level priorities so that heartbeat starts after
+ * drbd by default.
+ * Changed it so that heartbeat by default runs in init level 5 too...
+ *
+ * Fixed a problem which happened when both nodes started about simultaneously.
+ * The result was that hb_standby wouldn't work afterwards.
+ *
+ * Raised the debug level of some reasonably verbose messages so that you can
+ * turn on debug 1 and not be flooded with log messages.
+ *
+ * Changed the code so that in the case of nice_failback there is no waiting for
+ * the other side to give up resources, because we negotiate this in advance.
+ * It gets this information through and environment variable.
+ *
  * Revision 1.167  2002/03/27 01:59:58  alan
  * Hopefully, fixed a bug where requests to retransmit packets
  * (and other unsequenced protocol packets) get dropped because they don't

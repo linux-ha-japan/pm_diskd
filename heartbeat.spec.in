@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.19 2002/03/09 13:46:23 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.20 2002/04/02 19:40:36 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -529,7 +529,7 @@ fi
 if
   [ -f etc/SuSE-release ]
 then
-  for d in etc/init.d/rc[23].d
+  for d in etc/init.d/rc[235].d
   do
     rm -f $d/S10heartbeat
     rm -f $d/S99heartbeat; ln -s ../heartbeat $d/S99heartbeat 

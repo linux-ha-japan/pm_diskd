@@ -1,18 +1,18 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.13 2002/03/21 02:03:00 alan Exp $
+#	$Id: heartbeat.in,v 1.14 2002/04/02 19:40:36 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
 # Author:       Alan Robertson	<alanr@unix.sh>
 #
 #		This script works correctly under SuSE, Debian,
-#		Conectiva and a few others.  Please let me know if it
+#		Conectiva Red Hat and a few others.  Please let me know if it
 #		doesn't work under your distribution, and we'll fix it.
 #		We don't hate anyone, and like for everyone to use
 #		our software, no matter what OS or distribution you're using.
 #
-# chkconfig: 2345 34 40
+# chkconfig: 2345 61 39
 # description: Startup script high-availability services.
 # processname: heartbeat
 # pidfile: @localstatedir@/run/heartbeat.pid
@@ -23,7 +23,6 @@ CONFIG=$HA_DIR/ha.cf
 . $HA_DIR/shellfuncs
 
 LOCKDIR=@localstatedir@/lock/subsys
-RSCDIR=@localstatedir@/lib/heartbeat/rsctmp
 RUNDIR=@localstatedir@/run
 
 if
@@ -201,7 +200,6 @@ StartHA() {
     init_watchdog
   fi
   rm -f $RUNDIR/ppp.d/*
-  rm -fr $RSCDIR/*
   if
     [  -f $HA_DIR/ipresources -a ! -f $HA_DIR/haresources ]
   then
@@ -310,6 +308,22 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.14  2002/04/02 19:40:36  alan
+#  Failover was completely broken because of a typo in the configure.in file
+#  Changed the run level priorities so that heartbeat starts after
+#  drbd by default.
+#  Changed it so that heartbeat by default runs in init level 5 too...
+#
+#  Fixed a problem which happened when both nodes started about simultaneously.
+#  The result was that hb_standby wouldn't work afterwards.
+#
+#  Raised the debug level of some reasonably verbose messages so that you can
+#  turn on debug 1 and not be flooded with log messages.
+#
+#  Changed the code so that in the case of nice_failback there is no waiting for
+#  the other side to give up resources, because we negotiate this in advance.
+#  It gets this information through and environment variable.
+#
 #  Revision 1.13  2002/03/21 02:03:00  alan
 #  Added locking to the assignment of interfaces in IPaddr.
 #

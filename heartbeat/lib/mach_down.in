@@ -12,6 +12,8 @@ exec_prefix=@exec_prefix@
 
 mdown=$1;	#	The name of the downed machine...
 
+#ha_log "info: DEBUG: $0 -- taking resources for $mdown"
+
 case $mdown in
   $HA_CURHOST)	exit 0;;	# Oh No!  It's us!
 esac

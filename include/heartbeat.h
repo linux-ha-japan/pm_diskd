@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.11 2002/02/11 22:31:35 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.12 2002/04/02 19:40:36 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -116,6 +116,10 @@ enum deadreason {
 #	else
 #		define	TTY_LOCK_D	"/var/spool/lock"
 #	endif
+#endif
+
+#ifndef RSC_TMPDIR
+#	define	RSC_TMPDIR	VAR_LIB_D "/rsctmp"
 #endif
 
 /* This is consistent with OpenBSD, and is a good choice anyway */
@@ -336,6 +340,7 @@ extern int			udpport;
 extern int			RestartRequested;
 
 #define	ANYDEBUG	(debug)
+#define	DEBUGDETAILS	(debug >= 2)
 #define	DEBUGAUTH	(debug >=3)
 #define	DEBUGMODULE	(debug >=3)
 #define	DEBUGPKT	(debug >= 4)

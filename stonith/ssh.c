@@ -47,7 +47,9 @@
  * We have to do it in the background, otherwise this command will not
  * return.
  */
-#define REBOOT_COMMAND "nohup sh -c '(sleep 2; nohup /sbin/reboot -nf) >/dev/null 2>&1' &"
+#define REBOOT_COMMAND "nohup sh -c '(sleep 2; nohup /sbin/reboot -nf) </dev/null >/dev/null 2>&1' &"
+#undef REBOOT_COMMAND
+#define REBOOT_COMMAND	"echo /sbin/reboot -nf | at now"
 
 /*
  *    SSH STONITH device

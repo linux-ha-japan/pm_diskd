@@ -1527,9 +1527,10 @@ compute_msp_fdset(fd_set* set, int fd1, int fd2)
 	}
 	maxfd = newmax;
 	minfd = newmin;
-	if (ANYDEBUG) {
-		ha_log (LOG_DEBUG, "fd1: %d, fd2: %d maxfd: %d, minfd: %d, pmax: %d"
-			,fd1, fd2, maxfd, minfd, pmax);
+	if (DEBUGPKT) {
+		ha_log (LOG_DEBUG
+		,	"fd1: %d, fd2: %d maxfd: %d, minfd: %d, pmax: %d"
+		,	fd1, fd2, maxfd, minfd, pmax);
 	}
 
 	return ((pmax > newmax ? pmax : newmax)+1);

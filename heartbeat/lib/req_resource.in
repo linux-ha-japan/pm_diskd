@@ -16,9 +16,18 @@ exec_prefix=@exec_prefix@
 HA_DIR=@sysconfdir@/ha.d; export HA_DIR
 . $HA_DIR/shellfuncs
 
-# To comply with the new failback stuff the timeout was reduced to 10s.
-# The primary failover always waits $TIMEOUT...
-TIMEOUT=10
+#
+#	This code is the "ask nicely" case for when we first start up a node.
+#	The case of the other node failing or being dead when we start up
+#	is handled by mach_down which invokes takegroup just like we do
+#	except it never asks for permission.
+#
+#	The nice_failback = yes ($HA_NICEFAILBACK) case coordinates things
+#	so always know the other guy doesn't have the resources before we
+#	get here, so we don't need to ever wait in that case...
+#	
+#
+TIMEOUT=120
 
 RESOURCE=$1
 
@@ -36,13 +45,33 @@ $HA_BIN/ResourceManager status $RESOURCE && exit 0
 #						DENY if we won't/can't
 #
 
+#
+#	The nice failback case only takes over from dead machines...
+#
+case $HA_NICEFAILBACK in
+  yes)	HA_DONTASK=yes;;
+esac
 
-ha_clustermsg <<!MSG
-t=ip-request
-ipaddr=$RESOURCE
+case $HA_DONTASK in
+  yes)
+    $HA_BIN/ResourceManager status "$RESOURCE" ||
+    $HA_BIN/ResourceManager takegroup "$RESOURCE";;
+
+  *)
+    ha_clustermsg <<!MSG
+	t=ip-request
+	ipaddr=$RESOURCE
 !MSG
 
-( sleep $TIMEOUT
-  $HA_BIN/ResourceManager status $RESOURCE && exit 0
-  $HA_BIN/ResourceManager takegroup $RESOURCE
-)&
+  # Normally they will have already replied to us before we get here
+  # and we will have already taken things over.  This is to allow
+  # for the case that they somehow never tell us to go ahead...
+  # Heartbeat should kill us if it shuts down before we finish.
+  #
+  ( sleep $TIMEOUT
+    $HA_BIN/ResourceManager status "$RESOURCE" ||
+    $HA_BIN/ResourceManager takegroup "$RESOURCE"
+  )&
+  : "Ask Nicely ;-)" ;;
+
+esac
