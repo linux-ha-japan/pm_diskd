@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.13 2002/02/10 22:50:39 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.14 2002/04/04 09:21:59 lars Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -452,7 +452,7 @@ serial_write (struct hb_media*mp, struct ha_msg*m)
 				last_norts = now;
 				LOG(LOG_ERR
 				,	"TTY write timeout on [%s]"
-				" (no connection?)", mp->name);
+				" (no connection or bad cable (see documentation)?)", mp->name);
 			}
 		}else{
 			LOG(PIL_CRIT, "TTY write failure on [%s]: %s", mp->name
@@ -617,6 +617,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.14  2002/04/04 09:21:59  lars
+ * Make the serial code also report a bad cable as the likely cause of the error.
+ * (Most common mistake on the lists so far)
+ *
  * Revision 1.13  2002/02/10 22:50:39  alan
  * Added a bit to the serial code to limit the number of messages which
  * come out (and the workload on the machine) when the serial port goes
