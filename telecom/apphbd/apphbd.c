@@ -87,22 +87,31 @@
 #include <pils/plugin.h>
 
 #include <clplumbing/cl_signal.h>
+#include <clplumbing/lsb_exitcodes.h>
 
 
 #ifndef PIDFILE
-#	define	PIDFILE "/var/run/apphbd.pid"
+#	define		PIDFILE "/var/run/apphbd.pid"
 #endif
 
 const char *	cmdname = "apphbd";
 #define		DBGMIN		1
 #define		DBGDETAIL	2
-int		debug = 0;
-int		usenormalpoll=TRUE;
+static int	usenormalpoll = TRUE;
+static int	watchdogfd = -1;
 
+#define CONFIG_FILE "./apphbd.cf"
+#define MAXLINE 128
+#define EOS '\0'
 
+#define DEFAULT_DEBUG_LEVEL	"3"
+#define DEFAULT_WDT_DEV		NULL
+#define DEFAULT_WDT_INTERVAL_MS	"1000"
+#define DEFAULT_REALTIME	"yes"
+#define DEFAULT_DEBUGFILE	NULL
+#define DEFAULT_LOGFILE		NULL
 
 typedef struct apphb_client apphb_client_t;
-
 /*
  * Per-client data structure.
  */
@@ -126,22 +135,20 @@ struct apphb_client {
 
 #define	MAXNOTIFYPLUGIN	100
 
-
 AppHBNotifyOps*	NotificationPlugins[MAXNOTIFYPLUGIN];
 int		n_Notification_Plugins = 0;
-static int	watchdogfd = -1;
 
 static void apphb_notify(apphb_client_t* client, apphb_event_t event);
 static long get_running_pid(gboolean * anypidfile);
 static void make_daemon(void);
-static int init_start(const char * watchdogdev);
+static int init_start(void);
 static int init_stop(void);
 static int init_status(void);
-static int init_restart(const char * watchdogdev);
-static void load_notification_plugin(const char *optarg);
+static gboolean load_notification_plugin(const char *optarg);
 static gboolean open_watchdog(const char * dev);
 static void tickle_watchdog(void);
 static void close_watchdog(void);
+static void usage(const char* cmd, int exit_status);
 
 static void apphb_client_remove(gpointer client);
 static void apphb_putrc(apphb_client_t* client, int rc);
@@ -152,15 +159,46 @@ static int apphb_client_register(apphb_client_t* client, void* Msg, size_t len);
 static gboolean apphb_read_msg(apphb_client_t* client);
 static int apphb_client_hb(apphb_client_t* client, void * msg, size_t msgsize);
 void apphb_process_msg(apphb_client_t* client, void* msg,  size_t length);
-static int authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
-
+static int authenticate_client(void * clienthandle, uid_t * uidlist
+,	gid_t* gidlist, int nuid, int ngid);
 /* "event source" functions for client communication */
 static gboolean apphb_dispatch(IPC_Channel* src, gpointer user);
-
-
 /* "event source" functions for new client connections */
 static gboolean apphb_new_dispatch(IPC_Channel* src, gpointer user);
 
+/* Functions for apphbd configure */
+static void  init_config(const char* cfgfile);
+static gboolean parse_config(const char* cfgfile);
+static int get_dir_index(const char* directive);
+static int set_debug_level(const char* option);
+static int set_watchdog_device(const char* option);
+static int set_watchdog_interval(const char* option);
+static int set_realtime(const char* option);
+static int set_notify_plugin(const char* option);
+static int set_debugfile(const char* option);
+static int set_logfile(const char* option);
+struct {
+	int	debug_level;
+	char	wdt_dev[MAXLINE];
+	int	wdt_interval_ms;
+	int	realtime;
+	char	debugfile[MAXLINE];
+	char	logfile[MAXLINE];
+} apphbd_config;
+
+struct directive{
+	const char* name;
+	int (*add_func)(const char*);
+} Directives[]=
+{
+	{"debug_level", set_debug_level}
+,	{"watchdog_device", set_watchdog_device}
+,	{"watchdog_interval_ms", set_watchdog_interval}
+,	{"realtime", set_realtime}
+,	{"notify_plugin", set_notify_plugin}
+,	{"debugfile", set_debugfile}
+,	{"logfile", set_logfile}
+};
 
 /* Send return code from current operation back to client... */
 static void
@@ -193,7 +231,7 @@ apphb_dispatch(IPC_Channel* src, gpointer Client)
 {
 	apphb_client_t*		client  = Client;
 
-	if (debug >= DBGDETAIL) {
+	if (apphbd_config.debug_level >= DBGDETAIL) {
 		cl_log(LOG_DEBUG, "apphb_dispatch: client: %ld"
 		,	(long)client->pid);
 	}
@@ -246,7 +284,7 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 	ret->rcmsg.msg_private = NULL;
 	ret->rc.rc = 0;
 
-	if (debug >= DBGMIN) {
+	if (apphbd_config.debug_level >= DBGMIN) {
 		cl_log(LOG_DEBUG, "apphb_client_new: channel: 0x%x"
 		" pid=%ld"
 		,	GPOINTER_TO_UINT(ch)
@@ -315,7 +353,7 @@ apphb_client_register(apphb_client_t* client, void* Msg,  size_t length)
 	client->uid = msg->uid;
 	client->gid = msg->gid;
 
-	if (debug >= DBGMIN) {
+	if (apphbd_config.debug_level >= DBGMIN) {
 		cl_log(LOG_DEBUG
 		,	"apphb_client_register: client: [%s]/[%s] pid %ld"
 		" (uid,gid) = (%ld,%ld)\n"
@@ -343,7 +381,7 @@ apphb_client_remove(gpointer Client)
 	apphb_client_t* client = Client;
 	cl_log(LOG_INFO, "apphb_client_remove: client: %ld\n"
 	,	(long)client->pid);
-	if (debug >= DBGMIN) {
+	if (apphbd_config.debug_level >= DBGMIN) {
 		cl_log(LOG_DEBUG, "apphb_client_remove: client pid: %ld\n"
 		,	(long)client->pid);
 	}
@@ -418,12 +456,10 @@ apphb_client_hb(apphb_client_t* client, void * Msg, size_t msgsize)
 		elapsedms=longclockto_ms(sub_longclock(now, client->lasthb));
 		client->lasthb = now;
 		if (elapsedms > client->warnms) {
-			
 			cl_log(LOG_INFO, "apphb client '%s' / '%s' (pid %ld) "
 			"late heartbeat: %lu ms"
 			,	client->appname, client->appinst
 			,	(long)client->pid, elapsedms);
-			
 		}
 	}
 	return 0;
@@ -435,7 +471,7 @@ static gboolean
 apphb_read_msg(apphb_client_t* client)
 {
 	struct IPC_MESSAGE*	msg = NULL;
-	
+
 	switch (client->ch->ops->recv(client->ch, &msg)) {
 
 		case IPC_OK:
@@ -499,7 +535,7 @@ apphb_process_msg(apphb_client_t* client, void* Msg,  size_t length)
 
 	/* Which command are we processing? */
 
-	if (debug >= DBGDETAIL) {
+	if (apphbd_config.debug_level >= DBGDETAIL) {
 		cl_log(LOG_DEBUG, "apphb_process_msg: client: 0x%x"
 		" type=%s"
 		,	GPOINTER_TO_UINT(client)
@@ -519,7 +555,7 @@ apphb_process_msg(apphb_client_t* client, void* Msg,  size_t length)
 		}
 	}
 	if (sendrc) {
-		if (debug >= DBGMIN) {
+		if (apphbd_config.debug_level >= DBGMIN) {
 			cl_log(LOG_DEBUG, "apphb_process_msg: client: 0x%x"
 			" type=%s, rc=%d"
 			,	GPOINTER_TO_UINT(client)
@@ -536,7 +572,7 @@ static gboolean
 apphb_new_dispatch(IPC_Channel* src, gpointer user)
 {
 
-	if (debug >= DBGMIN) {
+	if (apphbd_config.debug_level >= DBGMIN) {
 		cl_log(LOG_DEBUG, "apphb_new_dispatch: IPC_channel: 0x%x"
 		" pid=%ld"
 		,	GPOINTER_TO_UINT(src)
@@ -599,7 +635,7 @@ apphb_notify(apphb_client_t* client, apphb_event_t event)
 		,	client->appname, client->appinst
 		,	(long)client->pid, msg);
 	}
-	
+
 	/* Tell the plugins something happened */
 	for (j=0; j < n_Notification_Plugins; ++j) {
 		NotificationPlugins[j]->status(client->appname
@@ -610,62 +646,289 @@ apphb_notify(apphb_client_t* client, apphb_event_t event)
 
 extern pid_t getsid(pid_t);
 
+
+static void 
+init_config(const char* cfgfile)
+{
+	/* Set default configure */
+	set_debug_level(DEFAULT_DEBUG_LEVEL); 
+	set_watchdog_device(DEFAULT_WDT_DEV);
+	set_watchdog_interval(DEFAULT_WDT_INTERVAL_MS);
+	set_realtime(DEFAULT_REALTIME);
+
+	/* Read configure file */
+	if (cfgfile) {
+		if (!parse_config(cfgfile)) {
+			exit(LSB_EXIT_NOTCONFIGED);
+		}
+	}else{
+		exit(LSB_EXIT_NOTCONFIGED);
+	}
+}
+
+/* Adapted from parse_config in config.c */
+static gboolean
+parse_config(const char* cfgfile)
+{
+	FILE*	f;
+	char	buf[MAXLINE];
+	char*	bp;
+	char*	cp;
+	char	directive[MAXLINE];
+	int	dirlength;
+	int 	optionlength;
+	char	option[MAXLINE];
+	int	dir_index;
+
+	gboolean	ret = TRUE;
+
+	if ((f = fopen(cfgfile, "r")) == NULL){
+		cl_log(LOG_ERR, "Cannot open config file:[%s]", cfgfile);
+		return(FALSE);
+	}
+
+	while(fgets(buf, MAXLINE, f) != NULL){
+		bp = buf;
+		/* Skip over white space*/
+		bp += strspn(bp, " \t\n\r\f");
+
+		/* comments */
+		if ((cp = strchr(bp, '#')) != NULL){
+			*cp = EOS;
+		}
+
+		if (*bp == EOS){
+			continue;
+		}
+
+		dirlength = strcspn(bp, " \t\n\f\r");
+		strncpy(directive, bp, dirlength);
+		directive[dirlength] = EOS;
+
+		if ((dir_index = get_dir_index(directive)) == -1){
+			cl_log(LOG_ERR, "Illegal directive [%s] in %s"
+			,	directive, cfgfile);
+			ret = FALSE;
+			continue;
+		}
+
+		bp += dirlength;
+
+		/* skip delimiters */
+		bp += strspn(bp, " ,\t\n\f\r");
+
+		/* Set option */
+		optionlength = strcspn(bp, " ,\t\n\f\r");
+		strncpy(option, bp, optionlength);
+		option[optionlength] = EOS;
+		if (!(*Directives[dir_index].add_func)(option)) {
+			ret = FALSE;
+		}
+	}/*while*/
+	fclose(f);
+	return ret;
+}
+
+static int 
+get_dir_index(const char* directive)
+{
+	int j;
+	for(j=0; j < DIMOF(Directives); j++){
+		if (strcmp(directive, Directives[j].name) == 0){
+			return j;
+		}
+	}
+	return -1;
+}
+
+static int 
+set_debug_level(const char* option)
+{
+	char * ep;
+	long lval;
+	if (!option) {
+		return FALSE;
+	}
+	errno = 0;
+	lval = strtol(option, &ep, 10);
+	if (errno == 0 && option[0] != EOS && *ep == EOS){
+		apphbd_config.debug_level = (int) lval;
+		return TRUE;
+	}else{
+		cl_log(LOG_ERR, "invalid debug_level [%s] specified"
+		     , option);
+		return FALSE;
+	}
+}
+
+static int
+set_watchdog_device(const char* option)
+{
+	if (!option) {
+		apphbd_config.wdt_dev[0] = EOS;
+		return FALSE;
+	}
+	strncpy(apphbd_config.wdt_dev, option, MAXLINE);
+	return TRUE;
+}
+
+static int 
+set_watchdog_interval(const char* option)
+{
+	char * ep;
+	long lval;
+	if (!option) {
+		return FALSE;
+	}
+	errno = 0;
+	lval = strtol(option, &ep, 10);
+	if (errno == 0 && option[0] != EOS && *ep == EOS
+	&&	lval >= 10) {
+		apphbd_config.wdt_interval_ms = (int) lval;
+		return TRUE;
+	}else{
+		cl_log(LOG_ERR, "invalid watchdog_interval_ms [%s] specified"
+		,	option);
+		return FALSE;
+	}
+}
+static int
+set_realtime(const char* option)
+{
+	if (!option) {
+		return FALSE;
+	}
+	if (strcmp(option, "yes") == 0){
+		apphbd_config.realtime = 1;
+		return TRUE;
+	}else if (strcmp(option, "no") == 0){
+		apphbd_config.realtime = 0;
+		return TRUE;
+	}
+	return FALSE;
+
+}
+
+static int
+set_notify_plugin(const char* option)
+{
+    	if (option && load_notification_plugin(option)) {
+		cl_log(LOG_INFO, "Plugin [%s] loaded", option);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static int
+set_debugfile(const char* option)
+{
+    	if (!option){
+		apphbd_config.debugfile[0] = EOS;
+		return FALSE;
+	}
+	strncpy(apphbd_config.debugfile, option, MAXLINE);
+	return TRUE;
+}
+static int
+set_logfile(const char* option)
+{
+    	if (!option){
+		apphbd_config.logfile[0] = EOS;
+		return FALSE;
+	}
+	strncpy(apphbd_config.logfile, option, MAXLINE);
+	return TRUE;
+}
 /*
  *	Main program for monitoring application heartbeats...
  */
 GMainLoop*	mainloop = NULL;
 
-#define OPTARGS	"sSrRwdkln:"
+
+void
+usage(const char* cmd, int exit_status)
+{
+	FILE* stream;
+
+	stream = exit_status ? stderr : stdout;
+
+	fprintf(stream, "usage: %s [-srkh]"
+			"[-c configure file]\n", cmd);
+	fprintf(stream, "\t-d\tsets debug level\n");
+	fprintf(stream, "\t-s\tgets daemon status\n");
+	fprintf(stream, "\t-r\trestarts daemon\n");
+	fprintf(stream, "\t-k\tstops daemon\n");
+	fprintf(stream, "\t-h\thelp message\n");
+	fflush(stream);
+
+	exit(exit_status);
+}
+
+#define OPTARGS	"srdkhc:"
+
 int
 main(int argc, char ** argv)
 {
-	int		flag;
-	const char *	watchdogdev = NULL;
-
-	cmdname = argv[0];
+	int	flag;
+	int	req_restart = FALSE;
+	int	req_status = FALSE;
+	int	req_stop = FALSE;
+	int	argerr = 0;
+	const char* cfgfile = CONFIG_FILE;
 
 	cl_log_set_entity(cmdname);
 	cl_log_enable_stderr(TRUE);
 	cl_log_set_facility(LOG_USER);
 
-	if (argc < 2) {
-		return init_start(NULL);
-	}
-
 	while ((flag = getopt(argc, argv, OPTARGS)) != EOF) {
 		switch(flag) {
 			case 's':		/* Status */
-			return init_status();
-
+				req_status = TRUE;
+				break;
 			case 'k':		/* Stop (kill) */
-			return init_stop();
-
+				req_stop = TRUE;
+				break;
 			case 'r':		/* Restart */
-			return init_restart(watchdogdev);
-
-			case 'w':		/* Watchdog dev */
-			watchdogdev = optarg;
-			break;
-
-			case 'l':		/* low priority */
-			cl_disable_realtime();
-			break;
-
-			case 'n':		/* Notification Plugin */
-			load_notification_plugin(optarg);
-			break;
-
-			case 'd':		/* Debug */
-			debug += 1;
-			break;
+				req_restart = TRUE;
+				break;
+			case 'h':		/* Help message */
+				usage(cmdname, LSB_EXIT_OK);
+				break;
+			case 'c':		/* Configure file */
+				cfgfile = optarg;
+				break;
+			case 'd':
+				++apphbd_config.debug_level;
+				break;
+			default:
+				++argerr;
+				break;
 		}
 	}
-	if (debug) {
-		cl_log_set_logfile("/var/log/apphbd.log");
-		cl_log_set_debugfile("/var/log/apphbd.log");
+
+	if (optind > argc) {
+		++argerr;
 	}
 
-	return init_start(watchdogdev);
+	if (argerr) {
+		usage(cmdname,LSB_EXIT_GENERIC);
+	}
+
+	if (req_status){
+		return init_status();
+	}
+
+	if (req_stop){
+		return init_stop();
+	}
+
+	if (req_restart) { 
+		init_stop();
+	}
+
+	init_config(cfgfile);
+	return init_start();
+
 }
 
 static void
@@ -684,18 +947,39 @@ shutdown(int nsig)
 
 
 static int
-init_start(const char * watchdogdev)
+init_start()
 {
 	char		path[] = IPC_PATH_ATTR;
 	char		commpath[] = APPHBSOCKPATH;
+	long		pid;
 
 	struct IPC_WAIT_CONNECTION*	wconn;
 	GHashTable*	wconnattrs;
 
+	if ((pid = get_running_pid(NULL)) > 0) {
+		cl_log(LOG_CRIT, "already running: [pid %ld]."
+		,	pid);
+		exit(LSB_EXIT_OK);
+	}
+
+	if (apphbd_config.debug_level) {
+		if (apphbd_config.logfile[0] != EOS) {
+			cl_log_set_logfile(apphbd_config.logfile);
+		}
+		if (apphbd_config.debugfile[0] != EOS) {
+			cl_log_set_debugfile(apphbd_config.debugfile);
+		}
+	}
+
+	if (apphbd_config.realtime == 1){
+		cl_enable_realtime();
+	}else if (apphbd_config.realtime == 0){
+		cl_disable_realtime();
+	}
 
 	make_daemon();
-	/* Create a "waiting for connection" object */
 
+	/* Create a "waiting for connection" object */
 	wconnattrs = g_hash_table_new(g_str_hash, g_str_equal);
 
 	g_hash_table_insert(wconnattrs, path, commpath);
@@ -705,9 +989,8 @@ init_start(const char * watchdogdev)
 	if (wconn == NULL) {
 		cl_log(LOG_CRIT, "Unable to create wcon of type %s", IPC_ANYTYPE);
 		cl_log(LOG_CRIT, "UhOh! Failed to create wconn!");
-		exit(1);
+		exit(LSB_EXIT_GENERIC);
 	}
-
 
 	/* Create a source to handle new connection requests */
 	G_main_add_IPC_WaitConnection(G_PRIORITY_HIGH, wconn
@@ -720,18 +1003,23 @@ init_start(const char * watchdogdev)
 	/* Create the mainloop and run it... */
 	mainloop = g_main_new(FALSE);
 	cl_log(LOG_INFO, "Starting %s", cmdname);
-	if (watchdogfd >= 0) {
-		Gmain_timeout_add(1000, tickle_watchdog_timer, NULL);
-	}
 	cl_make_realtime(SCHED_RR, 5, 64);
-	if (watchdogdev) {
-		open_watchdog(watchdogdev);
+	if (apphbd_config.wdt_dev[0] != EOS) {
+		open_watchdog(apphbd_config.wdt_dev);
+	}
+	if (watchdogfd >= 0) {
+		Gmain_timeout_add(apphbd_config.wdt_interval_ms
+		,	tickle_watchdog_timer, NULL);
 	}
 	drop_privs(0, 0); /* Become nobody */
 	g_main_run(mainloop);
+	return_to_orig_privs();
+	cl_log(LOG_DEBUG, "testing write to syslog when i am a nobody");
 	close_watchdog();
 	wconn->ops->destroy(wconn);
-	unlink(PIDFILE);
+	if (unlink(PIDFILE) == 0) {
+		cl_log(LOG_INFO, "[%s] stoped", cmdname);
+	}
 	return 0;
 }
 
@@ -742,26 +1030,19 @@ make_daemon(void)
 	long	pid;
 	FILE *	lockfd;
 
-	if ((pid = get_running_pid(NULL)) > 0) {
-		cl_log(LOG_CRIT, "already running: [pid %ld]."
-		,	pid);
-		close_watchdog();
-		exit(1);
-	}
-
 	pid = fork();
 
 	if (pid < 0) {
 		cl_log(LOG_CRIT, "cannot start daemon.\n");
-		exit(1);
+		exit(LSB_EXIT_GENERIC);
 	}else if (pid > 0) {
-		exit(0);
+		exit(LSB_EXIT_GENERIC);
 	}
 
 	lockfd = fopen(PIDFILE, "w");
 	if (lockfd == NULL) {
 		cl_log(LOG_CRIT, "cannot create pid file" PIDFILE);
-		exit(1);
+		exit(LSB_EXIT_GENERIC);
 	}else{
 		pid = getpid();
 		fprintf(lockfd, "%ld\n", pid);
@@ -770,17 +1051,17 @@ make_daemon(void)
 
 	umask(022);
 	getsid(0);
-	if (!debug) {
+	if (!apphbd_config.debug_level) {
 		cl_log_enable_stderr(FALSE);
 	}
 	for (j=0; j < 3; ++j) {
 		close(j);
 		(void)open("/dev/null", j == 0 ? O_RDONLY : O_RDONLY);
 	}
-
 	CL_IGNORE_SIG(SIGINT);
 	CL_IGNORE_SIG(SIGHUP);
 	CL_SIGNAL(SIGTERM, shutdown);
+
 }
 
 static long
@@ -811,21 +1092,16 @@ static int
 init_stop(void)
 {
 	long	pid;
+	int	rc = LSB_EXIT_OK;
 	pid =	get_running_pid(NULL);
 
 	if (pid > 0) {
 		if (CL_KILL((pid_t)pid, SIGTERM) < 0) {
+			rc = (errno == EPERM ? LSB_EXIT_EPERM: LSB_EXIT_GENERIC);
 			fprintf(stderr, "Cannot kill pid %ld\n", pid);
-			exit(1);
 		}
 	}
-	return 0;
-}
-static int
-init_restart(const char * wd)
-{
-	init_stop();
-	return init_start(wd);
+	return rc;
 }
 static int
 init_status(void)
@@ -836,15 +1112,15 @@ init_status(void)
 	if (pid > 0) {
 		fprintf(stderr, "%s is running [pid: %ld]\n"
 		,	cmdname, pid);
-		return 0;
+		return LSB_STATUS_OK;
 	}
 	if (anypidfile) {
 		fprintf(stderr, "%s is stopped [pidfile exists]\n"
 		,	cmdname);
-		return 1;
+		return LSB_STATUS_VAR_PID;
 	}
 	fprintf(stderr, "%s is stopped.\n", cmdname);
-	return 3;
+	return LSB_STATUS_STOPPED;
 }
 
 /*
@@ -876,17 +1152,20 @@ authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist
 	return rc;
 }
 
-
-static const char *	watchdogdev = NULL;
-
 static gboolean
 open_watchdog(const char * dev)
 {
 
- 	if (watchdogfd >= 0 || watchdogdev == NULL) {
+ 	if (watchdogfd >= 0) {
 		cl_log(LOG_WARNING, "Watchdog device already open.");
 		return FALSE;
 	}
+
+	if (!dev) {
+		cl_log(LOG_WARNING, "Bad watchdog device name.");
+		return FALSE;
+	}
+
 	watchdogfd = open(dev, O_WRONLY);
 	if (watchdogfd >= 0) {
 		if (fcntl(watchdogfd, F_SETFD, FD_CLOEXEC)) {
@@ -894,13 +1173,12 @@ open_watchdog(const char * dev)
 			"close-on-exec flag for watchdog");
 		}
 		cl_log(LOG_NOTICE, "Using watchdog device: %s"
-		,       watchdogdev);
+		,       dev);
 		tickle_watchdog();
-		watchdogdev = dev;
 		return TRUE;
 	}else{
 		cl_log(LOG_ERR, "Cannot open watchdog device: %s"
-		,       watchdogdev);
+		,       dev);
 	}
 	return FALSE;
 }
@@ -912,8 +1190,7 @@ close_watchdog(void)
 		if (write(watchdogfd, "V", 1) != 1) {
 			cl_log(LOG_CRIT
 			,	"Watchdog write magic character failure:"
-			" closing %s!\n"
-			,       watchdogdev);
+			" closing watchdog!\n");
 		}
 		close(watchdogfd);
 		watchdogfd=-1;
@@ -926,8 +1203,7 @@ tickle_watchdog(void)
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "", 1) != 1) {
 			cl_log(LOG_CRIT
-			,	"Watchdog write failure: closing %s!\n"
-			,       watchdogdev);
+			,	"Watchdog write failure: closing watchdog!\n");
 			close_watchdog();
 			watchdogfd=-1;
 		}
@@ -954,7 +1230,7 @@ static PILGenericIfMgmtRqst RegistrationRqsts [] =
 	{NULL,			NULL,		NULL,     NULL, NULL}
 };
 
-static void
+static gboolean 
 load_notification_plugin(const char * pluginname)
 {
 	PIL_rc	rc;
@@ -962,7 +1238,7 @@ load_notification_plugin(const char * pluginname)
 	if (pisys == NULL) {
 		pisys = NewPILPluginUniv("/usr/lib/heartbeat/plugins");
 		if (pisys == NULL) {
-			return;
+			return FALSE;
 		}
 		if ((rc = PILLoadPlugin(pisys, "InterfaceMgr", "generic"
 		,	&RegistrationRqsts)) !=	PIL_OK) {
@@ -972,20 +1248,21 @@ load_notification_plugin(const char * pluginname)
 		       " [%s/%s]: %s"
 			,       "InterfaceMgr", "generic"
 			,       PIL_strerror(rc));
-			return;
+			return FALSE;
 		}
 	}
 	rc = PILLoadPlugin(pisys, "AppHBNotification"
 	,        pluginname, NULL);
 	if (rc != PIL_OK) {
 		cl_log(LOG_ERR, "cannot load plugin %s", pluginname);
-		return;
+		return FALSE;
 	}
 	if ((exports = g_hash_table_lookup(Notifications, pluginname))
 	== NULL) {
 		cl_log(LOG_ERR, "cannot find plugin %s", pluginname);
-		return;
+		return FALSE;
 	}
 	NotificationPlugins[n_Notification_Plugins] = exports;
 	n_Notification_Plugins ++;
+	return TRUE;
 }
