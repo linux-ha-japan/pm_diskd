@@ -36,7 +36,7 @@ ipfresfifo		= $(havarlibdir)/api/ipfail.rsp
 halib_PROGRAMS		= ipfail
 
 ## SOURCES
-ipfail_SOURCES		= ipfail.c
+ipfail_SOURCES		= ipfail.c ipfail.h
 ipfail_LDADD		=$(top_builddir)/replace/libreplace.la	\
 			$(top_builddir)/lib/clplumbing/libplumb.la \
 			$(top_builddir)/heartbeat/libhbclient.la $(GLIBLIB)
