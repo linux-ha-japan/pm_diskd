@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.14 2002/04/02 19:40:36 alan Exp $
+#	$Id: heartbeat.in,v 1.15 2002/04/03 20:02:21 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -12,7 +12,7 @@
 #		We don't hate anyone, and like for everyone to use
 #		our software, no matter what OS or distribution you're using.
 #
-# chkconfig: 2345 61 39
+# chkconfig: 2345 @INITSTARTPRI@ @INITSTOPPRI@
 # description: Startup script high-availability services.
 # processname: heartbeat
 # pidfile: @localstatedir@/run/heartbeat.pid
@@ -308,6 +308,11 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.15  2002/04/03 20:02:21  alan
+#  Made the init starting and stopping priorities into autoconf variables.
+#  They default to 75 and 5 respectively.  They should probably be overridden for
+#  SuSE in the ConfigureMe script.
+#
 #  Revision 1.14  2002/04/02 19:40:36  alan
 #  Failover was completely broken because of a typo in the configure.in file
 #  Changed the run level priorities so that heartbeat starts after
