@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.8 2001/05/26 17:38:01 mmoerz Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.9 2001/05/27 05:31:15 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -62,7 +62,7 @@ static int comm_module_init(void);
 
 
 static char multi_init_error[] = "module loader initialised more than once";
-//static char module_not_unloaded_error[] = "module not unloaded";
+/* static char module_not_unloaded_error[] = "module not unloaded"; */
 
 static const char *_module_error = NULL;
 
