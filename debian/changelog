@@ -1,5 +1,12 @@
 heartbeat (0.4.8-1) unstable; urgency=low
 
+  * Split ldirectord and stonith into separate packages
+  * Fixed Man page so it refers to HTML documenation
+
+ -- Horms <horms@vergenet.net>  Fri, 22 Dec 2000 05:05:05 -0500
+
+heartbeat (0.4.8-1) unstable; urgency=low
+
   * Initial Release.
 
  -- Juan Pedro Paredes Caballero <juampe@retemail.es>  Wed, 22 Nov 2000 04:08:58 +0100

@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.68 2000/12/15 06:41:32 alan Exp $
+#	$Id: Makefile,v 1.69 2000/12/23 05:08:59 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -32,6 +32,7 @@ VARLIB=$(BUILD_ROOT)/var/lib/$(PKG)
 FIFO=$(VARRUN)/heartbeat-fifo
 HAPPP=$(VARRUN)/ppp.d
 DOCDIR=$(BUILD_ROOT)/usr/doc/heartbeat
+MANDIR=$(BUILD_ROOT)/usr/man
 INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
 LOGROTATESCRIPT=$(BUILD_ROOT)/$(LOGROTATED)/$(PKG)
 LOGROTATEDIR=$(BUILD_ROOT)/$(LOGROTATED)
@@ -67,8 +68,9 @@ VARS=MAKE="$(MAKE)" 			\
 	APIGROUP="$(APIGROUP)"		\
 	LIBDL="$(LIBDL)"		\
 	LIBINTL="$(LIBINTL)"		\
-	CFLAGEXTRA="$(CFLAGEXTRA)"		\
-	PICFLAG="$(PICFLAG)"
+	CFLAGEXTRA="$(CFLAGEXTRA)"	\
+	PICFLAG="$(PICFLAG)" 		\
+	MANDIR="$(MANDIR)"
 
 MAKE_CMD = $(MAKE) $(VARS)
 
@@ -100,7 +102,9 @@ RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-ldirectord-$(VERS)-$(RPMREL).i386.r
 	dist		\
 	distclean	\
 	tarclean	\
-	clobber
+	clobber		\
+	deb		\
+	debclean
 
 
 all:
@@ -111,6 +115,10 @@ all:
 
 all_dirs:	bin_dirs
 	[ -d $(DOCDIR) ]  || mkdir -p $(DOCDIR)
+	for i in "man8/"; do \
+		[ -d $(MANDIR)/$$i ]  || mkdir -p $(MANDIR)/$$i; \
+	done
+
 
 bin_dirs:
 	[ -d $(HA) ]	  || mkdir -p $(HA)
@@ -258,3 +266,18 @@ tarclean:	pristine
 
 
 clobber:	tarclean rpmclean clean
+
+###############################################################################
+#
+#       Below is all the boilerplate for making an DEB package out of
+#       the things made above.
+#
+#       To make the rpm package, say "make deb".
+#
+###############################################################################
+
+debclean:
+	fakeroot dh_clean
+	
+deb:
+	fakeroot dpkg-buildpackage

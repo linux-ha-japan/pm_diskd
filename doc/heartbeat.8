@@ -1,0 +1,51 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.\" First parameter, NAME, should be all caps
+.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
+.\" other parameters are allowed: see man(7), man(1)
+.TH HEARTBEAT 8 "22 December 2000"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+heartbeat \- Heartbeat subsystem for High-Availability Linux
+.SH SYNOPSIS
+.B heartbeat
+.nh
+.RI "[ -dkrRsv ] [-C Current-resource-state ]"
+.br
+.RI "-C only valid with -R"
+.br
+.RI "-r is mutually exclusive with -R"
+.SH DESCRIPTION
+\fBheartbeat\fP is a basic heartbeat subsystem for Linux-HA.
+It will run scripts at initialisation, and when machines go up or down.
+This version will also perform IP address takeover using gratuitous ARPs.
+It works correctly for a 2-node configuration, and is extensible to larger
+configurations.
+.PP
+It implements the following kinds of heartbeats:
+   * Bidirectional Serial Rings ("raw" serial ports)
+   * UDP/IP broadcast (ethernet, etc)
+   * Bidirectional Serial PPP/UDP Rings (using PPP)
+.PP
+Comprehensive documentation on the configuration and running of
+\fBheartbeat\fP can is supplied in HTML format with the distribution 
+of the code. If this documentation is not installed on your system
+it can be found, with the latest distribution of heartbeat
+on http://www.linux.ha.org/
+.SH AUTHORS
+.nf
+heartbeat - Alan Robertson <alanr@suse.com> et al.
+man page - Juan Pedro Paredes Caballero <juampe@retemail.es>
+           Horms <horms@vergenet.net>
+.fi
+

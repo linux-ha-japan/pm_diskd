@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.31 2000/12/20 16:54:41 alan Exp $
+#	$Id: heartbeat.sh,v 1.32 2000/12/23 05:08:59 horms Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -55,6 +55,8 @@ US=`uname -n`
 
 # Set this to a 1 if you want to automatically load kernel modules
 USE_MODULES=1
+
+[ -x $HA_BIN/heartbeat ] || exit 0
 
 #
 #	Some non-SUSE distributions like it if we use their functions...
@@ -269,13 +271,13 @@ case "$1" in
 	StartHA
 	;;
 
-  reload)
+  force-reload|reload)
 	ReloadHA
 	RC=$?
 	;;
 
   *)
-	echo "Usage: ha {start|stop|status|restart|reload}"
+	echo "Usage: ha {start|stop|status|restart|reload|force-reload}"
 	exit 1
 esac
 
@@ -283,6 +285,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.32  2000/12/23 05:08:59  horms
+#  Cleaned up debian flims
+#
 #  Revision 1.31  2000/12/20 16:54:41  alan
 #  Changed "restart" in heartbeat to actually do a stop followed by a start.
 #  Reload still does the no-failover reload operation.

@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.75 2000/12/20 12:59:58 eric Exp $
+#	$Id: Specfile,v 1.76 2000/12/23 05:08:59 horms Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -10,14 +10,14 @@ Packager: Alan Robertson <alanr@henge.com>
 Source: http://linux-ha.org/download/%PKG%-%VERS%.tar.gz
 Buildroot: /var/tmp/%PKG%-root
 BuildPreReq: lynx
+Requires: logrotate, sysklogd
 
 %package ldirectord
 Summary: Monitor daemon for maintaining high availability resources
 Group: Utilities
-# These are the right perl module names, but the wrong package names.
-# Requires: LWP.pm, Net::SSLeay
-# get yours from ultramonkey.sourceforge.net
-Requires: perl-libwww-perl
+Requires: perl, perl-libwww-perl perl-Net-SSLeay, logrotate, ipvsadm
+# perl-libwww-perl, perl-net-ssleay available from
+# ultramonkey.sourceforge.net and others
 
 %package stonith
 Summary: Provides an interface to Shoot The Other Node In The Head 
@@ -26,34 +26,29 @@ Group: Utilities
 %description
 %PKG% is a basic heartbeat subsystem for Linux-HA.
 It will run scripts at initialization, and when machines go up or down.
-This version will also perform IP address takeover using gratuitious ARPs.
+This version will also perform IP address takeover using gratuitous ARPs.
 It works correctly for a 2-node configuration, and is extensible to larger
 configurations.
 
 It implements the following kinds of heartbeats:
 	- Bidirectional Serial Rings ("raw" serial ports)
-	- UDP/IP braodcast (ethernet, etc)
+	- UDP/IP broadcast (ethernet, etc)
 	- Bidirectional Serial PPP/UDP Rings (using PPP)
 	- "ping" heartbeats (for routers, switches, etc.)
 	   (to be used for breaking ties in 2-node systems)
 
 %description ldirectord
-The Linux Director Daemon (ldirectord) was written by Jacob Rief
-<jacob.rief@tiscover.com>
-
-The ldirectord is a stand-alone daemon to monitor services of real
-servers, currently http, https and ftp service. It is simple to
-install and works with the heartbeat code (http://www.linux-ha.org/).
-
-See 'ldirectord -h' for all the information about ldirectord.
-See linux-ha/doc/ldirectord for more information.
+ldirectord is a stand-alone daemon to monitor services of real 
+for virtual services provided by The Linux Virtual Server
+(http://www.linuxvirtualserver.org/). It is simple to install 
+and works with the heartbeat code (http://www.linux-ha.org/).
 
 %description stonith
 The STONITH module (a.k.a. STOMITH) provides an extensible interface
 for remotely powering down a node in the cluster.  The idea is quite simple:
 When the software running on one machine wants to make sure another
 machine in the cluster is not using a resource, pull the plug on the other 
-machine. It's simple and reliable, albiet admittedly brutal.
+machine. It's simple and reliable, albeit admittedly brutal.
 
 %changelog
 
@@ -64,7 +59,8 @@ machine. It's simple and reliable, albiet admittedly brutal.
      Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
      Marcelo Tosatti <marcelo@conectiva.com.br>,
      Horms <horms@vergenet.net>, Eric Ayers <eric.ayers@compgen.com>,
-     Mike Tilstra <conrad@sistina.com>
+     Mike Tilstra <conrad@sistina.com> 
+     Juan Pedro Paredes Caballero <juampe@retemail.es>
 
 + Version 0.4.9 Beta series
   + Made media modules and authentication modules dynamically loadable.
@@ -104,6 +100,8 @@ machine. It's simple and reliable, albiet admittedly brutal.
   + Set close-on-exec bit in watchdog open code...
   + Recognize our IANA port number ("ha-cluster") if it's present.
   + Use the port number in /etc/services as the default if it's there.
+  + Added man page that refers to HTML documentation
+  + Added debian package support
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
@@ -369,10 +367,12 @@ install -m 644 rc.config.heartbeat $TEMPL
 %attr (750, root, %APIGROUP%) /var/lib/%PKG%/api
 %attr (620, root, %APIGROUP%) /var/lib/%PKG%/register
 %attr (1770, root, %APIGROUP%) /var/lib/%PKG%/casual
+/usr/man/man8/heartbeat.8
 %doc doc/*
 
-#  Things for the director deamon
+# Files for ldirectord
 %files ldirectord
+%defattr(-,root,root)
 /usr/sbin/ldirectord
 /etc/logrotate.d/ldirectord
 /etc/init.d/ldirectord
@@ -380,8 +380,9 @@ install -m 644 rc.config.heartbeat $TEMPL
 /usr/man/man8/ldirectord.8*
 %doc ldirectord/ldirectord.cf
 
-#  Things for the stonith library...
+# Files for the stonith library
 %files stonith
+%defattr(-,root,root)
 /usr/lib/libstonith.a
 /usr/lib/libstonith.so
 %dir /usr/lib/stonith/*.so

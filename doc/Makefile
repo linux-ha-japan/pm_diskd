@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.6 2000/12/12 22:09:34 alan Exp $
+#	$Id: Makefile,v 1.7 2000/12/23 05:08:59 horms Exp $
 #
 #	Makefile for making High-Availability Linux documents
 #
@@ -16,6 +16,7 @@ VERS=test!
 #       BUILD_ROOT=$RPM_BUILD_ROOT make install
 
 DOCDIR=$(BUILD_ROOT)/usr/doc/$(PKG)
+MANDIR=$(BUILD_ROOT)/usr/man
 
 HTML2TXT = lynx -dump
 INSTALL = install
@@ -38,6 +39,8 @@ DOCFILES =			\
 	authkeys		\
 	ha.cf			\
 	haresources
+
+MANPAGES = heartbeat.8
 
 SPECSRC = ../Specfile
 
@@ -62,6 +65,7 @@ Requirements: Requirements.html
 
 install: all $(DOCFILES)
 	$(INSTALL) -cm 644 $(DOCFILES) $(DOCDIR)
+	$(INSTALL) -cm 644 $(MANPAGES) $(MANDIR)/man8
 	$(INSTALL) -cm 644 ../proc-ha/proc_ha.c $(DOCDIR)
 
 rh-install: install

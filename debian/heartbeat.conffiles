@@ -1,0 +1,2 @@
+etc/init.d/heartbeat
+etc/logrotate.d/heartbeat

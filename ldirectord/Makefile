@@ -1,6 +1,6 @@
 #
 # Makefile for ldirectord
-# $Id: Makefile,v 1.13 2000/12/14 08:22:37 jacob Exp $
+# $Id: Makefile,v 1.14 2000/12/23 05:08:59 horms Exp $
 #
 # Produces all manner of documentation for ldirectord
 #
@@ -11,7 +11,7 @@
 
 POD2MAN		= pod2man
 SBIN		= $(BUILD_ROOT)/usr/sbin
-MAN		= $(BUILD_ROOT)/usr/man/man8
+MANDIR		= $(BUILD_ROOT)/usr/man/man8
 LOGROTATED	= etc/logrotate.d
 LOGROTATE	= $(BUILD_ROOT)/$(LOGROTATED)
 INITD		= etc/init.d
@@ -39,8 +39,8 @@ install: ldirectord.8
 	[ -d $(CONF) ] ||  $(MKDIR) -p $(CONF)
 	[ -d $(SBIN) ] ||  $(MKDIR) -p $(SBIN)
 	$(INSTALL) -m 0755 ldirectord $(SBIN)
-	[ -d $(MAN) ] ||  $(MKDIR) -p $(MAN)
-	$(INSTALL) -m 0644 ldirectord.8 $(MAN)
+	[ -d $(MANDIR)/man8 ] ||  $(MKDIR) -p $(MANDIR)/man8
+	$(INSTALL) -m 0644 ldirectord.8 $(MANDIR)/man8
 	[ -d $(LOGROTATE) ] ||  $(MKDIR) -p $(LOGROTATE) 
 	$(INSTALL) -m 0644  ldirectord.logrotate $(LOGROTATE)/ldirectord
 	[  -d $(INIT) ]     ||  $(MKDIR) -p $(INIT)	

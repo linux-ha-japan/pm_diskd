@@ -4,12 +4,12 @@
 #
 # chkconfig: 2345 92 40
 # description: Start and stop ldirectord on non-heartbeat systems
-#              Using the config file /etc/ha.d/conf/ldirectord.cf
+#              Using the config file /etc/ha.d/ldirectord.cf
 #              
 # processname: ldirectrod
-# config: /etc/ha.d/conf/ldirectord.cf
+# config: /etc/ha.d/ldirectord.cf
 #
-# Author: Horms <horms@valinux.com>
+# Author: Horms <horms@vergenet.net>
 # Released: April 2000
 # Licence: GNU General Public Licence
 #
@@ -19,7 +19,15 @@ if
   [ -f /etc/rc.d/init.d/functions ]
 then
   . /etc/rc.d/init.d/functions
+else
+  function action {
+    echo "$1"
+    shift
+    $@
+  }
 fi
+
+[ -x /usr/sbin/ldirectord ] || exit 0
 
 
 ######################################################################
@@ -40,8 +48,12 @@ case "$1" in
   status)
 	/usr/sbin/ldirectord status
 	;;
+  reload|force-reload)
+  	/usr/sbin/ldirectord reload
+	;;
   *)
-	echo "Usage: ipv4_conf {start|stop|restart|status}"
+	echo "Usage: ldirectord
+	{start|stop|restart|status|reload|force-reload}"
 	exit 1
 esac
 

@@ -24,17 +24,10 @@ set -e
 
 case "$1" in
     configure)
-	echo "Fix: Add a nice configuration script"
-	echo "Heartbeat is wonderfull,isn't it? [Y|N|?]: "
-	read FOO
-	case $FOO in
-		Y|y|yes)
-			echo "Good!"
-		;;
-		*)
-			echo "Well, I don't think so."
-		;;
-	esac
+	if [ -z "`grep '^haclient' /etc/group |awk -F':' '{print $1}'`" ]
+	then
+		/usr/sbin/groupadd -g 70 haclient
+	fi
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

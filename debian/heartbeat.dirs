@@ -1,0 +1,8 @@
+etc/ha.d
+etc/ha.d/conf
+etc/ha.d/resource.d
+etc/init.d
+etc/ha.d/rc.d
+usr/lib/heartbeat
+var/lock/subsys
+var/run
