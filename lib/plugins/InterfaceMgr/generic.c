@@ -58,7 +58,6 @@ static gboolean FreeAKey(gpointer key, gpointer value, gpointer data);
 static const PILPluginImports*	GenPIImports;	/* Imported plugin fcns */
 static PILPlugin*		GenPlugin;	/* Our plugin info */
 static PILInterfaceImports*	GenIfImports;	/* Interface imported fcns */
-static PILInterface*		GenIf;		/* Our Generic Interface info*/
 
 /* Our exported generic interface management functions */
 static PIL_rc RegisterGenIF(PILInterface* ifenv, void**	imports);
@@ -169,6 +168,7 @@ static PIL_rc
 AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
 {
 	PIL_rc	rc;
+	PILInterface*		GenIf;		/* Our Generic Interface info*/
 
 	g_hash_table_insert(MasterTable, g_strdup(req->iftype), req);
 
@@ -212,6 +212,9 @@ AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
 	,	&GenIf
 	,	(void**)&GenIfImports
 	,	NULL);
+
+	/* We don't ever want to be unloaded... */
+	GenIfImports->ModRefCount(GenIf, +100);
 
 	if (rc != PIL_OK) {
 		GenPIImports->log(PIL_CRIT
