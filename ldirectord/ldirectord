@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.17 2000/08/01 22:06:20 horms Exp $
+# $Id: ldirectord,v 1.18 2000/09/14 22:59:37 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -153,7 +153,7 @@ Otherwise the default service is B<none>.
 B<checkport = >I<n>
 
 Number of port to monitor. Sometimes check port differs from service port.
-Default is port specified for the virtual server.
+Default is port specified for the real server.
 
 B<request = ">I<uri to requested object>B<">
 
@@ -241,8 +241,8 @@ use Sys::Hostname;
 # command line options
 getopts("dh");
 
-$DEBUG = 2 if (defined $opt_d);
-if ($DEBUG>0) {
+$DEBUG = 3 if (defined $opt_d);
+if ($DEBUG>0 and -f "./ipvsadm") {
 	$IPVSADM="./ipvsadm";
 } else {
 	if(-f "/sbin/ipvsadm") {
@@ -396,16 +396,15 @@ sub read_config
 		$line++;
 		outer_loop:
 		if ($_ =~ /^virtual\s*=\s*(.*)/) {
-			$1 =~ /(\d+\.\d+\.\d+\.\d+):(\d+|\d+)/
+			$1 =~ /^(((\d+\.\d+\.\d+\.\d+):(\d+))|(\d+))$/
 			    or config_error($line, "invalid address for virtual server");
 			my (%vsrv, @rsrv);
-			$vsrv{server} = $1;
-			$vsrv{port} = $2;
-			if (defined $vsrv{server}) {
+			if (defined($2)) {
+			        $vsrv{server} = $3;
+			        $vsrv{port} = $4;
 				$vsrv{checktype} = "negotiate";
 			        $vsrv{protocol} = "tcp";
 #				( $vsrv{port} =~ /(\d+)/ ) or config_error($line, "invalid port number");
-                                $vsrv{checkport} = $vsrv{port};
 				( $vsrv{port}>0 && $vsrv{port}<65536 ) or config_error($line, "port number must be in range 1..65536");
 				if ($vsrv{port} eq "80") {
 					$vsrv{service} = "http";
@@ -417,11 +416,11 @@ sub read_config
 					$vsrv{service} = "none";
 				}
 			} else {
+			        $vsrv{fwm} = $5;
 				$vsrv{checktype} = "off";
 			        $vsrv{protocol} = "fwm";
 				$vsrv{service} = "none";
 				$vsrv{port} = "0";
-				$vsrv{checkport} = "0";
 			}
 			$vsrv{real} = \@rsrv;
 			$vsrv{status} = 0;
@@ -463,7 +462,7 @@ sub read_config
 				} elsif ($rcmd =~ /^checktimeout\s*=\s*(.*)/){
                                         $1 =~ /(\d+)/ && $1 or config_error($line, "invalid check timeout");
                                         $vsrv{checktimeout} = $1;
-				} elsif ($rcmd =~ /^checkport\s*=\s*(.)/){
+				} elsif ($rcmd =~ /^checkport\s*=\s*(.*)/){
 					$1 =~ /(\d+)/ or config_error($line, "invalid port");
 					( $1 > 0 && $1 < 65536 ) or config_error($line, "checkport must be in range 1..65536");
 					$vsrv{checkport} = $1;
@@ -607,7 +606,7 @@ sub add_real_server
 	}
 
         my $real    = $vsrv->{"protocol"}.":".$rmts.":".$rmtp;
-	my $virtual = $vsrv->{"protocol"}.":".$vsrv->{"server"}.":".$vsrv->{"port"};
+	my $virtual = $vsrv->{"protocol"}.":".&get_virtual($vsrv);
 	foreach $r (@REAL){
 		if($r->{"real"} eq $real){
 			my $ref=$r->{"virtual"};
@@ -656,7 +655,7 @@ sub ld_setup
 		} elsif ($$v{protocol} eq "fwm") {
 			$$v{proto} = "-f";
 		}
-		$$v{flags} = "$$v{proto} $$v{server}:$$v{port} ";
+		$$v{flags} = "$$v{proto} " .  &get_virtual($v) . " ";
 		$$v{flags} .= "-s $$v{scheduler} " if defined ($$v{scheduler});
 		$$v{flags} .= "-p $$v{persistent} " if defined ($$v{persistent});
 		my $real = $$v{real};
@@ -735,19 +734,19 @@ sub ld_start
 	foreach $nv (@VIRTUAL) {
 		my $nreal = $$nv{real};
 		$$nv{status} = 0;
-		my $real_service = "$$nv{server}:$$nv{port} $$nv{protocol}";
+		my $real_service = &get_virtual($nv) . " "  . $$nv{protocol};
 		if (exists($oldsrv{"$real_service"})) {
 			# service exists, modify it
 			&system_wrapper("$IPVSADM -E $$nv{flags}");
-			&ldirectord_log("Changing virtual server: $$nv{server}:$$nv{port}");
-			my $ov = $oldsrv{"$$nv{server}:$$nv{port} $$nv{protocol}"};
+			&ldirectord_log("Changing virtual server: " . &get_virtual($nv));
+			my $ov = $oldsrv{&get_virtual($nv) . " " . $$nv{protocol}};
 			my $or = $$ov{real};
 			foreach $nr (@$nreal) {
 				if (exists($$or{"$$nr{server}:$$nr{port}"})) {
-					&system_wrapper("$IPVSADM -e $$nv{proto} $$nv{server}:$$nv{port} -R $$nr{server}:$$nr{port} $$nr{forw} $$nr{wght}");
+					&system_wrapper("$IPVSADM -e $$nv{proto} " . &get_virtual($nv) . " -R $$nr{server}:$$nr{port} $$nr{forw} $$nr{wght}");
 					$$nr{status} = 1;
 					$$nv{status}++;
-					 &ldirectord_log("Changing real server: $$nr{server}:$$nr{port} ($$nv{server}:$$nv{port})\n");
+					 &ldirectord_log("Changing real server: $$nr{server}:$$nr{port} (" . &get_virtual($nv) . ")\n");
 					delete($$or{"$$nr{server}:$$nr{port}"});
 				} else {
 					$$nr{status} = 0;
@@ -755,17 +754,17 @@ sub ld_start
 			}
 			# remove remaining entries for real servers
 			foreach $k (keys %$or) {
-				&system_wrapper("$IPVSADM -d $$nv{proto} $$nv{server}:$$nv{port} -R $k");
-				print ("Removing real server: $$nr{server}:$$nr{port} ($$nv{status}*$$nv{server}:$$nv{port})\n");
+				&system_wrapper("$IPVSADM -d $$nv{proto} " . &get_virtual($nv) . " -R $k");
+				print ("Removing real server: $$nr{server}:$$nr{port} ($$nv{status}*" . &get_virtual($nv) . ")\n");
 			}
-			delete $oldsrv{"$$nv{server}:$$nv{port} $$nv{protocol}"};
+			delete $oldsrv{&get_virtual($nv) . " " . $$nv{protocol}};
 		} else {
 			# no such service, create a new one
 			&system_wrapper("$IPVSADM -A $$nv{flags}");
 			foreach $nr (@$nreal) {
 				$$nr{status} = 0;
 			}
-			&ldirectord_log("Adding virtual server: $$nv{server}:$$nv{port}\n");
+			&ldirectord_log("Adding virtual server: " . &get_virtual($nv) . "\n");
 		}
 
 		&fallback_on($nv);
@@ -773,10 +772,10 @@ sub ld_start
 
 	# remove remaining entries for virtual servers
 	foreach $nv (@OLDVIRTUAL) {
-		if (exists($oldsrv{"$$nv{server}:$$nv{port} $$nv{protocol}"})) {
+		if (exists($oldsrv{&get_virtual($nv) . " " . $$nv{protocol}})) {
 			# service still exists, remove it
-			&system_wrapper("$IPVSADM -D $$nv{proto} $$nv{server}:$$nv{port}");
-			&ldirectord_log("Removing virtual server: $$nv{server}:$$nv{port}\n");
+			&system_wrapper("$IPVSADM -D $$nv{proto} " . &get_virtual($nv));
+			&ldirectord_log("Removing virtual server: " . &get_virtual($nv) . "\n");
 		}
 	}
 }
@@ -788,14 +787,14 @@ sub ld_stop
 		my $real = $$v{real};
 		foreach $r (@$real) {
 			if ($$r{status}>0) {
-				&system_wrapper("$IPVSADM -d $$v{proto} $$v{server}:$$v{port} -R $$r{server}:$$r{port}");
+				&system_wrapper("$IPVSADM -d $$v{proto} " . &get_virtual($v) . " -R $$r{server}:$$r{port}");
 				$$r{status} = 0;
 				$$v{status}--;
-				&ldirectord_log("Removing real server: $$r{server}:$$r{port} ($$v{status}*$$v{server}:$$v{port})");
+				&ldirectord_log("Removing real server: $$r{server}:$$r{port} ($$v{status}*" . &get_virtual($v) );
 			}
 		}
-		&system_wrapper("$IPVSADM -D $$v{proto} $$v{server}:$$v{port}");
-		&ldirectord_log("Removing virtual server: $$v{server}:$$v{port}");
+		&system_wrapper("$IPVSADM -D $$v{proto} " .  &get_virtual($v));
+		&ldirectord_log("Removing virtual server: " .  &get_virtual($v));
 	}
 }
 
@@ -818,7 +817,7 @@ sub ld_main
 			foreach $r (@$real) {
 				unless(grep(/^$$v{protocol}:$$r{server}:$$r{port}$/, @real_checked)){
 					if ($$v{checktype} eq "negotiate") {
-						print "DEBUG2: Checking negotiate: real server=$$r{server}:$$r{port} (virtual: $$v{server}:$$v{port})\n" if ($DEBUG>=2);
+						print "DEBUG2: Checking negotiate: real server=$$r{server}:$$r{port} (virtual: " .  &get_virtual($v) . ")\n" if ($DEBUG>=2);
 						if ($$v{service} eq "http") {
 							check_http($v, $r);
 							# my $req = new HTTP::Request(GET=>"$$r{url}");
@@ -910,16 +909,18 @@ sub check_connect
 {
 	my ($v, $r) = @_;
 	undef $EVAL_ERROR, $result;
+
+	my $port=(defined $$v{checkport}?$$v{checkport}:$$r{port});
 	eval {
 		local $SIG{ALRM} = sub { die "Timeout Alarm" };
 		print "DEBUG4: Timeout is $$v{checktimeout}\n" if ($DEBUG>= 4);
 		alarm $$v{checktimeout};
-		$result = OpenSocket( $$r{server}, $$v{checkport} );
+		$result = OpenSocket( $$r{server}, $port );
 		if ($result == 0) {
 			# Failure to open the socket
 			die("Couldn't open socket");
 		} else {
-			print "DEBUG3: Connected to $1 (port $$v{checkport})\n" if ($DEBUG>=3);
+			print "DEBUG3: Connected to $1 (port $port)\n" if ($DEBUG>=3);
 		}
 	};
 	alarm 0; # Cancel the alarm
@@ -1015,7 +1016,8 @@ sub service_set()
 	# Check each virtual service for the real server and make
 	# changes as neccessary
 	foreach $v (@VIRTUAL){
-		if (grep(/^$$v{protocol}:$$v{server}:$$v{port}$/, @$virtual)) {
+		my $qry=$$v{protocol} . ":" . &get_virtual($v);
+		if (grep(/^$qry$/, @$virtual)) {
 			if ($state=~/up/i) {
 				$$r{status}=0;
 				_service_up($v, $r);
@@ -1046,10 +1048,10 @@ sub _service_up
 {
 	my ($v, $r) = @_;
 	if ($$r{status}==0) {
-		&system_wrapper("$IPVSADM -a $$v{proto} $$v{server}:$$v{port} -R $$r{server}:$$r{port} $$r{forw} $$r{wght}");
+		&system_wrapper("$IPVSADM -a $$v{proto}  " . &get_virtual($v) . " -R $$r{server}:$$r{port} $$r{forw} $$r{wght}");
 		$$r{status} = 1;
 		$$v{status}++;
-		&ldirectord_log("Adding real server: $$r{server}:$$r{port} ($$v{server}:$$v{port})");
+		&ldirectord_log("Adding real server: $$r{server}:$$r{port} (" .  &get_virtual($v) . ")");
 		&fallback_off($v);
 	}
 }
@@ -1071,10 +1073,10 @@ sub _service_down
 {
 	my ($v, $r) = @_;
 	if ($$r{status}==1) {
-		&system_wrapper("$IPVSADM -d $$v{proto} $$v{server}:$$v{port} -R $$r{server}:$$r{port}");
+		&system_wrapper("$IPVSADM -d $$v{proto} " .  &get_virtual($v) . " -R $$r{server}:$$r{port}");
 		$$r{status} = 0;
 		$$v{status}--;
-		&ldirectord_log("Removing real server: $$r{server}:$$r{port} ($$v{server}:$$v{port})");
+		&ldirectord_log("Removing real server: $$r{server}:$$r{port} (" .  &get_virtual($v) . ")");
 		&fallback_on($v);
 	}
 }
@@ -1092,8 +1094,8 @@ sub fallback_on {
 	my $fallback=&fallback_find($virtual);
 	if (defined $fallback && $$virtual{status}==0) {
 		# turn on fallback service
-		&system_wrapper("$IPVSADM -a $$virtual{proto} $$virtual{server}:$$virtual{port} -R $fallback");
-		&ldirectord_log("Starting fallback server for: $$virtual{server}:$$virtual{port} ($fallback)");
+		&system_wrapper("$IPVSADM -a $$virtual{proto} " . &get_virtual($virtual) . " -R $fallback");
+		&ldirectord_log("Starting fallback server for: " . &get_virtual($virtual) . " ($fallback)");
 	}
 }
 
@@ -1110,8 +1112,8 @@ sub fallback_off {
 	my $fallback=&fallback_find($virtual);
 	if ($$v{status}==1 && defined $fallback) {
 		# turn off fallback service
-		&system_wrapper("$IPVSADM -d $$virtual{proto} $$virtual{server}:$$virtual{port} -R $fallback");
-		&ldirectord_log("Turning off fallback server for: $$virtual{server}:$$virtual{port} ($fallback)");
+		&system_wrapper("$IPVSADM -d $$virtual{proto} " . &get_virtual($virtual) . " -R $fallback");
+		&ldirectord_log("Turning off fallback server for: " . &get_virtual($virtual) . " ($fallback)");
 	}
 }
 
@@ -1293,6 +1295,23 @@ sub decimal_to_ip
 		$ip_address&255
 	));
 }
+
+# get_virtual
+# Get the service for a virtual
+# Will be of the form IP:port for a UDP or TCP service
+# Will be of the form fwmark for a Firewall Mark service
+sub get_virtual
+{
+	my ($nv)=(@_);
+
+	if($nv->{"protocol"} eq "fwm"){
+	  return $nv->{"fwm"};
+	}
+	else {
+          return $nv->{"server"} . ":" . $nv->{"port"};
+	}
+}
+
 
 
 

@@ -39,8 +39,8 @@ virtual=192.168.6.240:80
 #        receive="Test Page"
 #        scheduler=rr
 #        #persistent=600
-#        protocol=tcp
-
+#        protocol=fwm
+#        checktype=connect
 
 # Sample configuration for a service using a range of real servers
 # and a single real server for a virtual service
