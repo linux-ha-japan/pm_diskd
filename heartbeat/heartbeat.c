@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.77 2000/07/31 00:04:32 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.78 2000/07/31 00:05:17 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -835,7 +835,6 @@ make_realtime()
 #	define HB_SCHED_POLICY	SCHED_RR
 #endif
 
-#if 0
 #ifdef HB_SCHED_POLICY
 	struct sched_param	sp;
 	int			staticp;
@@ -855,7 +854,6 @@ make_realtime()
 			,	"scheduler priority set to %d", HB_STATIC_PRIO);
 		}
 	}
-#endif
 #endif
 
 #ifdef MCL_FUTURE
@@ -3765,6 +3763,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.78  2000/07/31 00:05:17  alan
+ * Put the high-priority stuff back into heartbeat...
+ *
  * Revision 1.77  2000/07/31 00:04:32  alan
  * First working version of security-revised heartbeat API code.
  * Not all the security checks are in, but we're making progress...
