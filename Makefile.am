@@ -17,4 +17,5 @@ MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
 
 ## proc-ha is left out from SUBDIRS (obsolescent / doesn't work currently)
 
-SUBDIRS                 = libltdl doc replace lib @XPERIMENTALDIRS@ ldirectord stonith heartbeat
+SUBDIRS                 = libltdl doc replace lib \
+                        @XPERIMENTALDIRS@ ldirectord stonith heartbeat
