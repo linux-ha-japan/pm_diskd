@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.44 2002/05/16 05:51:18 horms Exp $
-# ÉD 2000, Jacob Rief <jacob.rief@tiscover.com>
+my($VERSION)=(qw$Id: ldirectord,v 1.45 2002/05/16 09:37:23 horms Exp $)[2];
+# (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
 
@@ -437,9 +437,9 @@ sub init
 
 	# Run as daemon
 	if ($SUPERVISED || defined $opt_d) {
-		&ld_log("Starting Linux Director with pid: $$");
+		&ld_log("Starting Linux Director v$VERSION with pid: $$");
         } else {
-		&ld_log("Starting Linux Director Daemon");
+		&ld_log("Starting Linux Director v$VERSION as daemon");
 		open(FILE, ">$RUNPID.$CFGNAME.pid") || 
 			init_error("Can not open $RUNPID.$CFGNAME.pid");
 		&ld_daemon();
