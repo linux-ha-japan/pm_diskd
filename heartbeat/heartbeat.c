@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.21 1999/10/11 14:29:15 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.22 1999/10/19 01:55:54 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -2295,6 +2295,11 @@ main(int argc, const char ** argv)
 		}
 			
 		if (kill(running_hb_pid, SIGTERM) >= 0) {
+			/* Wait for the running heartbeat to die */
+			alarm(0);
+			do {
+				sleep(1);
+			}while (kill(running_hb_pid, 0) >= 0);
 			cleanexit(0);
 		}
 		fprintf(stderr, "ERROR: Could not kill pid %d", running_hb_pid);
@@ -2820,6 +2825,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.22  1999/10/19 01:55:54  alan
+ * Put in code to make the -k option loop until the killed heartbeat stops running.
+ *
  * Revision 1.21  1999/10/11 14:29:15  alanr
  * Minor malloc tweaks
  *
