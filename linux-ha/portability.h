@@ -7,7 +7,7 @@
 #define	STRLEN(conststr)	((sizeof(conststr)/sizeof(char))-1)
 
 
-#ifdef HAVE_STRINGIZE
+#ifdef __STDC__
 #       define  MKSTRING(s)     #s
 #else
 #       define  MKSTRING(s)     "s"
