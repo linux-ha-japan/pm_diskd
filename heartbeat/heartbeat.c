@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.68 2000/07/11 03:49:42 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.69 2000/07/16 20:42:53 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -126,6 +126,11 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.68 2000/07/11 03:49:
  *		and allow them to send and receive messages to/from the
  *		cluster as well.  This would allow us to move all the resource
  *		management stuff to a cluster manager, where it belongs ;-)
+ *
+ *	Late heartbeat warnings
+ *		Someone from an after-ALE pizza party suggested that we should
+ *		warn when heartbeats come in late, but not so late as to cause
+ *		things to be declared dead.  A good idea.
  *
  *	Fuzzy heartbeat timing
  *		Right now, the code works in such a way that it systematically
@@ -471,7 +476,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.68 2000/07/11 03:49:42 alan Exp $$' | sort -u"
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.69 2000/07/16 20:42:53 alan Exp $$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -1220,6 +1225,7 @@ master_status_process(void)
 
 		/* Is this a status update (i.e., "heartbeat") message? */
 		if (strcasecmp(type, T_STATUS) == 0) {
+			clock_t		heartbeat_interval;
 			const char *	status;
 			const char *	cseq;
 			long		seqno;
@@ -1244,7 +1250,15 @@ master_status_process(void)
 			&&	seqno < thisnode->status_seqno) {
 				continue;
 			}
-
+			heartbeat_interval = messagetime
+			-	thisnode->local_lastupdate;
+			if (heartbeat_interval > config->warntime_interval) {
+				ha_log(LOG_WARNING
+				,	"Late heartbeat: Node %s:"
+				" interval %ld ms"
+				,	thisnode->nodename
+				,	(heartbeat_interval * 1000) / CLK_TCK);
+			}
 
 			thisnode->rmt_lastupdate = msgtime;
 
@@ -3428,6 +3442,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.69  2000/07/16 20:42:53  alan
+ * Added the late heartbeat warning code.
+ *
  * Revision 1.68  2000/07/11 03:49:42  alan
  * Further evolution of the heartbeat API code.
  * It works quite a bit at this point - at least on the server side.

@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.24 2000/06/12 06:11:09 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.25 2000/07/16 20:42:53 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -196,6 +196,7 @@ struct sys_config {
 	int	nodecount;		/* Number of nodes in cluster */
 	int	heartbeat_interval;	/* Seconds between heartbeats */
 	int	deadtime_interval;	/* Seconds before declaring dead */
+	clock_t	warntime_interval;	/* Ticks before declaring dead */
 	int	hopfudge;		/* hops beyond nodecount allowed */
 	int     log_facility;		/* syslog facility, if any */
 	char    logfile[PATH_MAX];	/* path to log file, if any */

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.12 2000/06/13 04:20:41 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.13 2000/07/16 20:42:53 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -44,6 +44,7 @@ extern volatile struct process_info *	curproc;
 extern char *				watchdogdev;
 extern int				nummedia;
 extern int                              nice_failback;
+extern clock_t				hb_warn_ticks;
 
 int	islegaldirective(const char *directive);
 int     parse_config(const char * cfgfile, char *nodename);
@@ -139,6 +140,7 @@ init_config(const char * cfgfile)
 		,	config->deadtime_interval, config->heartbeat_interval);
 		++errcount;
 	}
+	config->warntime_interval = (config->deadtime_interval * CLK_TCK*3)/4;
 	if (*(config->logfile) == 0) {
                  if (config->log_facility > 0) {
                         /* 
