@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <net/ethernet.h>
 #include <libnet.h>
 #include <string.h>
 #include <syslog.h>
