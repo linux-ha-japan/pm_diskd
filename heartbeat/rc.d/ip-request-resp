@@ -24,6 +24,7 @@ CMD=$1
 REQNODE=$HA_dest
 RSCGRPNAME=$HA_ipaddr
 RESPONSE=$HA_ok
+THEYOWN=$HA_weown
 
 # Really a resource group name...
 case "$RSCGRPNAME" in
@@ -44,7 +45,7 @@ if
 then
   exit 0; # We didn't request this IP address...  Ignore the response.
 fi
-ha_log "received $US $RSCGRPNAME $RESPONSE"
+ha_log "received $US $RSCGRPNAME $RESPONSE $THEYOWN"
 case $RESPONSE in
   OK)	$TAKE takegroup $RSCGRPNAME;;
   *);;

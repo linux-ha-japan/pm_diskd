@@ -53,19 +53,19 @@ fi
 if
   $RSCMGR status $IPADDR
 then
-  : We have resource $IPADDR
+  weown=yes
+  if
+    [ -x $HA_RCDIR/local_giveip ]
+  then
+    $HA_RCDIR/local_giveip $*
+  fi
+
+  $RSCMGR givegroup $IPADDR
 else
-  exit 0
+  weown=no
 fi
 
 
-if
-  [ -x $HA_RCDIR/local_giveip ]
-then
-  $HA_RCDIR/local_giveip $*
-fi
-
-$RSCMGR givegroup $IPADDR
 
 #
 #	Now give our ip-request-response message...
@@ -75,5 +75,6 @@ ha_clustermsg <<!MSG
 t=$CMD-resp
 dest=$ORIGNODE
 ipaddr=$IPADDR
+weown=$weown
 ok=OK
 !MSG

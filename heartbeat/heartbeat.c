@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.175 2002/04/11 18:33:54 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.176 2002/04/12 15:14:28 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -412,12 +412,24 @@ static	void CoreProcessRegistered(ProcTrack* p);
 static	void CoreProcessDied(ProcTrack* p, int status, int signo
 ,	int exitcode, int waslogged);
 static	const char * CoreProcessName(ProcTrack* p);
-static	void AnonProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
-static	const char * AnonProcessName(ProcTrack* p);
-static	void StonithProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
+
+static	void StonithProcessDied(ProcTrack* p, int status, int signo
+,	int exitcode, int waslogged);
 static	const char * StonithProcessName(ProcTrack* p);
-static	void ManagedChildRegistered(ProcTrack* p);
-static	void ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
+
+typedef void	(*RemoteRscReqFunc)	(GHook *  data);
+static	void	RscMgmtProcessRegistered(ProcTrack* p);
+static	void	RscMgmtProcessDied(ProcTrack* p, int status
+,	int signo, int exitcode, int waslogged);
+static	const char * RscMgmtProcessName(ProcTrack* p);
+static	void	StartNextRemoteRscReq(void);
+static	void	InitRemoteRscReqQueue(void);
+static	void	QueueRemoteRscReq(RemoteRscReqFunc, struct ha_msg* data);
+
+static	void	PerformQueuedNotifyWorld(GHook* g);
+static	void	ManagedChildRegistered(ProcTrack* p);
+static	void	ManagedChildDied(ProcTrack* p, int status
+,	int signo, int exitcode, int waslogged);
 static	const char * ManagedChildName(ProcTrack* p);
 void	KillTrackedProcess(ProcTrack* p, void * data);
 static	void FinalCPShutdown(void);
@@ -512,11 +524,12 @@ static ProcTrack_ops CoreProcessTrackOps = {
 };
 int CoreProcessCount = 0;
 
-static ProcTrack_ops AnonProcessTrackOps = {
-	AnonProcessDied,
-	NULL,
-	AnonProcessName
+static ProcTrack_ops RscMgmtProcessTrackOps = {
+	RscMgmtProcessDied,
+	RscMgmtProcessRegistered,
+	RscMgmtProcessName
 };
+
 
 static ProcTrack_ops StonithProcessTrackOps = {
 	StonithProcessDied,
@@ -529,7 +542,9 @@ static ProcTrack_ops ManagedChildTrackOps = {
 	ManagedChildRegistered,
 	ManagedChildName
 };
-int	managed_child_count;
+
+int	managed_child_count= 0;
+int	ResourceMgmt_child_count = 0;
 
 /*
  * A helper to allow us to pass things into the anonproc
@@ -540,11 +555,11 @@ struct const_string {
 	const char * str;
 };
 
-#define	ANONPROC(p, s)						\
+#define	RSCMGMTPROC(p, s)						\
 	 {							\
 	 	static struct const_string cstr = {(s)};		\
 		NewTrackedProc((p), 1, PT_LOGNORMAL		\
-		,	&cstr, &AnonProcessTrackOps);		\
+		,	&cstr, &RscMgmtProcessTrackOps);		\
 	}
 
 void
@@ -2120,6 +2135,23 @@ process_clustermsg(FILE * f)
 		}
 	}else{
 		heartbeat_monitor(msg, action, iface);
+		/*
+		 * There are some messages we queue for later
+		 * handling...
+                 */
+		if (thisnode != curnode) {
+			if (strcasecmp(type, "ip-request") == 0) {
+				QueueRemoteRscReq(PerformQueuedNotifyWorld
+				,	msg);
+				/* Mama don't let them free my msg! */
+				return;
+			}
+			/* Ignore these - we're shutting down! */
+			if (shutdown_in_progress
+			&&	strcasecmp(type, "ip-request-resp") == 0) {
+				goto psm_done;
+			}
+		}
 		notify_world(msg, thisnode->status);
 	}
 	/*
@@ -2672,7 +2704,15 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 
 
 		default:	/* Parent */
-				ANONPROC(pid, "notify world");
+				/*
+				 * If "hook" is non-NULL, we want to queue
+				 * it to run later (possibly now)
+				 * So, we need a different discipline
+				 * for managing such a process...
+				 */
+				/* We no longer need the "hook" parameter */
+				RSCMGMTPROC(pid, "notify world");
+
 #if WAITFORCOMMANDS
 				waitpid(pid, &status, 0);
 #else
@@ -2734,6 +2774,9 @@ reaper_action(void)
 
 	}/*endwhile*/
 }
+/***********************************************************************
+ * Track the core heartbeat processes
+ ***********************************************************************/
 
 /* Log things about registered core processes */
 static void
@@ -2807,6 +2850,10 @@ FinalCPShutdown(void)
 	cleanexit(0);
 }
 
+/***********************************************************************
+ * Track our managed child processes...
+ ***********************************************************************/
+
 static void
 ManagedChildRegistered(ProcTrack* p)
 {
@@ -2864,6 +2911,8 @@ ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode
 	}
 }
 
+/* Handle the death of one of our managed child processes */
+
 static const char *
 ManagedChildName(ProcTrack* p)
 {
@@ -2871,20 +2920,151 @@ ManagedChildName(ProcTrack* p)
 		return managedchild->command;
 }
 
-/* Handle the death of a garden-variety anonymous process */
 static void
-AnonProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged)
+RscMgmtProcessRegistered(ProcTrack* p)
 {
+	ResourceMgmt_child_count ++;
+}
+/* Handle the death of a resource management process */
+static void
+RscMgmtProcessDied(ProcTrack* p, int status, int signo, int exitcode
+,	int waslogged)
+{
+	ResourceMgmt_child_count --;
 	p->privatedata = NULL;
+	StartNextRemoteRscReq();
 }
 
 static const char *
-AnonProcessName(ProcTrack* p)
+RscMgmtProcessName(ProcTrack* p)
 {
 	struct const_string * s = p->privatedata;
 
 	return (s && s->str ? s->str : "heartbeat child");
 }
+
+/***********************************************************************
+ *
+ * RemoteRscRequests are resource management requests from other nodes
+ *
+ * Our "privatedata" is a GHook.  This GHook points back to the
+ * queue entry for this object. Its "data" element points to the message
+ * which we want to give to the function which the hook points to...
+ * QueueRemoteRscReq is the function which sets up the hook, then queues
+ * it for later execution.
+ *
+ * StartNextRemoteRscReq() is the function which runs the hook,
+ * when the time is right.  Basically, we won't run the hook if any
+ * other asynchronous resource management operations are going on.
+ * This solves the problem of a remote request coming in and conflicting
+ * with a different local resource management request.  It delays
+ * it until the local startup/takeover/etc. operations are complete.
+ * At this time, it has a clear picture of what's going on, and
+ * can safely do its thing.
+ *
+ * So, we queue the job to do in a Ghook.  When the Ghook runs, it
+ * will create a ProcTrack object to track the completion of the process.
+ *
+ * When the process completes, it will clean up the ProcTrack, which in
+ * turn will remove the GHook from the queue, destroying it and the
+ * associated struct ha_msg* from the original message.
+ *
+ ***********************************************************************/
+
+static GHookList	RemoteRscReqQueue = {0,0,0};
+static GHook*		RunningRemoteRscReq = NULL;
+
+/* Initialized the remote resource request queue */
+static void
+InitRemoteRscReqQueue(void)
+{
+	if (RemoteRscReqQueue.is_setup) {
+		return;
+	}
+	g_hook_list_init(&RemoteRscReqQueue, sizeof(GHook));
+}
+
+/* Queue a remote resource request */
+static void
+QueueRemoteRscReq(RemoteRscReqFunc func, struct ha_msg* msg)
+{
+	GHook*	hook;
+
+	InitRemoteRscReqQueue();
+	hook = g_hook_alloc(&RemoteRscReqQueue);
+
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"Queueing remote resource request (hook = 0x%x)"
+		,	(unsigned int)hook);
+		ha_log_message(msg);
+	}
+	hook->func = func;
+	hook->data = msg;
+	hook->destroy = (GDestroyNotify)(ha_msg_del);
+	g_hook_append(&RemoteRscReqQueue, hook);
+	StartNextRemoteRscReq();
+}
+
+/* If the time is right, start the next remote resource request */
+static void
+StartNextRemoteRscReq(void)
+{
+	GHook*		hook;
+	RemoteRscReqFunc	func;
+
+	/* We can only run one of these at a time... */
+	if (ResourceMgmt_child_count != 0) {
+		return;
+	}
+
+	RunningRemoteRscReq = NULL;
+
+	/* Run the first hook in the list... */
+
+	hook = g_hook_first_valid(&RemoteRscReqQueue, FALSE);
+	if (hook == NULL) {
+		ResourceMgmt_child_count = 0;
+		return;
+	}
+
+	RunningRemoteRscReq = hook;
+	func = hook->func;
+
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "StartNextRemoteRscReq() - calling hook");
+	}
+	/* Call the hook... */
+	func(hook);
+	g_hook_unref(&RemoteRscReqQueue, hook);
+	g_hook_destroy_link(&RemoteRscReqQueue, hook);
+}
+
+
+/*
+ * Perform a queued notify_world() call
+ *
+ * The Ghook and message are automatically destroyed by our
+ * caller.
+ */
+
+static void
+PerformQueuedNotifyWorld(GHook* hook)
+{
+	struct ha_msg* m = hook->data;
+	/*
+	 * We have been asked to run a notify_world() which
+	 * we would like to have done earlier...
+	 */
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "PerformQueuedNotifyWorld() msg follows");
+		ha_log_message(m);
+	}
+	notify_world(m, curnode->status);
+	/* "m" is automatically destroyed when "hook" is */
+}
+
+
 
 void
 KillTrackedProcess(ProcTrack* p, void * data)
@@ -4080,7 +4260,7 @@ req_our_resources(int getthemanyway)
 		case -1:	ha_log(LOG_ERR, "Cannot fork.");
 				return;
 		default:
-				ANONPROC(pid, "req_our_resources");
+				RSCMGMTPROC(pid, "req_our_resources");
 				return;
 
 		case 0:		/* Child */
@@ -4189,9 +4369,9 @@ go_standby(enum standby who)
 				 */
 		default:	
 				if (who == ME) {
-					ANONPROC(pid, "go_standby");
+					RSCMGMTPROC(pid, "go_standby");
 				}else{
-					ANONPROC(pid, "go_standby");
+					RSCMGMTPROC(pid, "go_standby");
 				}
 				/* waitpid(pid, NULL, 0); */
 				return;
@@ -4285,7 +4465,7 @@ giveup_resources(void)
 	/* Kill all our managed children... */
 	ForEachProc(&ManagedChildTrackOps, KillTrackedProcess
 	,	GINT_TO_POINTER(SIGTERM));
-	ForEachProc(&AnonProcessTrackOps, KillTrackedProcess
+	ForEachProc(&RscMgmtProcessTrackOps, KillTrackedProcess
 	,	GINT_TO_POINTER(SIGKILL));
 	procinfo->i_hold_resources = NO_RSC ;
 	resourcestate = R_SHUTDOWN; /* or we'll get a whiny little comment
@@ -4305,8 +4485,7 @@ giveup_resources(void)
 				return;
 
 		default:
-				/* FIXME!  We can now do better! */
-				ANONPROC(pid, "giveup_resources");
+				RSCMGMTPROC(pid, "giveup_resources");
 				return;
 
 		case 0:		/* Child */
@@ -5789,6 +5968,38 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.176  2002/04/12 15:14:28  alan
+ * Changed the processing of resource requests so we eliminate some
+ * timing holes.
+ *
+ * First, we ignore ip-request-resp messages during shutdowns, so that we
+ * don't acquire any new resources while we're shutting down :-)
+ *
+ * Secondly, we needed to queue ip-requests and don't answer them right
+ * away if we're running any resource acquisition code ourselves.
+ * This is because if we've just started a resource takeover ourselves,
+ * and someone asks to have it back, we'll answer that they can have it
+ * without releasing it ourselves because we don't realize that
+ * we're acquiring it, because we don't have it quite yet.
+ * By delaying until all resource acquisition/release processes
+ * are complete, we can give an accurate answer to this request.
+ *
+ * Two things caused these bug to appear:
+ * We now always answer any ip-request (if we're managing resources at all),
+ * and we keep our links up for a little while longer than we used to
+ * while we're shutting down.  So, the windows for these two behaviors have
+ * been opened up a little wider - though I suspect they've both been
+ * possible before.  Other changes made takeovers run faster, so the
+ * combination was effective in making the bug apparent ;-)
+ *
+ * Solving the first was easy - we just filter out ip-request-resp
+ * messages when shutting down.  The second one required that a queue be added
+ * for handling incoming resource acquisition messages.  To implement this
+ * queue we used Glib GHook-s, which are good things for recording a function
+ * and a pointer to data in, and later running them.
+ *
+ * GHooks are a handy kludge to have around...
+ *
  * Revision 1.175  2002/04/11 18:33:54  alan
  * Takeover/failover is much faster and a little safer than it was before...
  *
