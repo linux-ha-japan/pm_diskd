@@ -716,7 +716,7 @@ recover_app(RecoveryInfo *info, int eventindex)
 		if (eventindex > MAXEVENTS) eventindex = 0;
 
  	 	if (execl(info->scriptname, info->scriptname,
-			  info->event[eventindex].args, NULL) < 0)
+			  info->event[eventindex].args, (const char *)NULL) < 0)
 		{
 			cl_perror("Failed to exec recovery script for %s\n", info->appname);
 			_exit(EXIT_FAILURE);
