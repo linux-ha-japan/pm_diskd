@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.58 2000/09/02 23:28:28 alan Exp $
+#	$Id: Specfile,v 1.59 2000/10/04 17:03:21 eric Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -308,6 +308,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 #  Things for the stonith library...
 /usr/lib/libstonith.a
 /usr/lib/libstonith.so
+%dir /usr/lib/stonith/*.so
 /usr/sbin/stonith
 /etc/ha.d/resource.d
 /etc/rc.d/init.d/heartbeat
