@@ -837,9 +837,8 @@ api_flush_msgQ(client_proc_t* client)
 			/*
 			 * FIXME:  ???
 			 * It seems like with the O_NDELAY on the
-			 * open we ought not get EINTR.  But on
-			 * rare occasions during tests, we do anyway...
-			 * It's clearly not our fault... ;-)
+			 * open we ought not get EINTR.  But we
+			 * do anyway...
 			 */
 			ha_perror("api_flush_msgQ: can't open %s", fifoname);
 		}
@@ -860,6 +859,9 @@ api_flush_msgQ(client_proc_t* client)
 			if (rc < 0 && errno == EPIPE) {
 				closereason = "EPIPE";
 				break;
+			}
+			if (rc < 0 && errno == EINTR) {
+				continue;
 			}
 			if (rc >= 0 || errno != EAGAIN) {
 				ha_perror("Cannot write message to client"
@@ -974,6 +976,7 @@ api_remove_client(client_proc_t* req, const char * reason)
 				g_source_remove(client->g_source_id);
 			}
 			close(client->output_fifofd);
+			client->output_fifofd = -1;
 			/* Clean up after casual clients */
 			if (client->iscasual) {
 				unlink(client_fifo_name(client, 0));
