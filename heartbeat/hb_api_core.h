@@ -32,6 +32,7 @@ typedef struct client_process {
 	pid_t	pid;		/* PID of client process */
 	uid_t	uid;		/* UID of client  process */
 	int	iscasual;	/* 1 if this is a "casual" client */
+	int	beingremoved;	/* 1 if client is being removed */
 	FILE*	input_fifo;	/* Input FIFO file pointer */
 	GList*	msgQ;		/* Queue of msgs for client */
 	int	msgcount;	/* length of client message queue */

@@ -104,9 +104,11 @@ client_proc_t*	client_list = NULL;	/* List of all our API clients */
 
 void api_process_request(client_proc_t* client, struct ha_msg *msg);
 static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
+static void api_send_client_status(client_proc_t* client, const char * status
+,	const char *	reason);
 static void api_flush_msgQ(client_proc_t* client);
 static void api_clean_clientQ(client_proc_t* client);
-static void api_remove_client(client_proc_t* client);
+static void api_remove_client(client_proc_t* client, const char * reason);
 static void api_add_client(struct ha_msg* msg);
 static client_proc_t*	find_client(const char * fromid, const char * pid);
 static FILE*		open_reqfifo(client_proc_t* client);
@@ -224,7 +226,7 @@ api_audit_clients(void)
 		if (kill(client->pid, 0) < 0 && errno == ESRCH) {
 			ha_log(LOG_ERR, "api_audit_clients: client %d died"
 			,	client->pid);
-			api_remove_client(client);
+			api_remove_client(client, "died");
 			client=NULL;
 		}
 	}
@@ -278,7 +280,7 @@ api_signoff(const struct ha_msg* msg, struct ha_msg* resp
 { 
 		/* We send them no reply */
 		ha_log(LOG_INFO, "Signing client %d off", client->pid);
-		api_remove_client(client);
+		api_remove_client(client, "signoff");
 		return I_API_IGN;
 }
 
@@ -514,12 +516,12 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			ha_log(LOG_ERR, "api_process_request: "
 			"general message from casual client!");
 			/* Bad Client! */
-			api_remove_client(fromclient);
+			api_remove_client(fromclient, "badclient");
 			return;
 		}
 
-		/* We put their client ID info in the packet as the F_FROMID */
-		if (ha_msg_mod(msg, F_FROMID, fromclient->client_id) != HA_OK) {
+		/* We put their client ID info in the packet as the F_FROMID*/
+		if (ha_msg_mod(msg, F_FROMID, fromclient->client_id) !=HA_OK){
 			ha_log(LOG_ERR, "api_process_request: "
 			"cannot add F_FROMID field");
 			return;
@@ -591,7 +593,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 	/* See if this client FIFOs are (still) properly secured */
 
 	if (!ClientSecurityIsOK(client)) {
-		api_remove_client(client);
+		api_remove_client(client, "security");
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
@@ -627,9 +629,9 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 	}
 
 
-	/**********************************************************************
+	/********************************************************************
 	 * Unknown request type...
-	 *********************************************************************/
+	 ********************************************************************/
 	ha_log(LOG_ERR, "Unknown API request");
 
 	/* Common error return handling */
@@ -692,12 +694,14 @@ api_process_registration(struct ha_msg * msg)
 		return;
 	}
 	if (ha_msg_add(resp, F_TYPE, T_APIRESP) != HA_OK) {
-		ha_log(LOG_ERR, "api_process_registration: cannot add field/2");
+		ha_log(LOG_ERR
+		,	"api_process_registration: cannot add field/2");
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
 	if (ha_msg_add(resp, F_APIREQ, reqtype) != HA_OK) {
-		ha_log(LOG_ERR, "api_process_registration: cannot add field/3");
+		ha_log(LOG_ERR
+		,	"api_process_registration: cannot add field/3");
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
@@ -726,6 +730,46 @@ api_process_registration(struct ha_msg * msg)
 	ha_msg_del(resp); resp=NULL;
 }
 
+static void
+api_send_client_status(client_proc_t* client, const char * status
+,	const char *	reason)
+{
+	struct ha_msg*	msg;
+
+	if (client->iscasual) {
+		return;
+	}
+
+	/*
+	 * Create the status message
+	 */
+	if ((msg = ha_msg_new(4)) == NULL) {
+		ha_log(LOG_ERR, "api_send_client_status: out of memory/1");
+		return;
+	}
+
+	if (ha_msg_add(msg, F_TYPE, T_APICLISTAT) != HA_OK
+	||	ha_msg_add(msg, F_STATUS, status) != HA_OK
+	||	ha_msg_add(msg, F_FROMID, client->client_id) != HA_OK
+	||	ha_msg_add(msg, F_TOID, client->client_id) != HA_OK
+	||	ha_msg_add(msg, F_ORIG, curnode->nodename) != HA_OK
+	||	(reason != NULL && ha_msg_add(msg, F_COMMENT, reason)
+	!= HA_OK)) {
+		ha_log(LOG_ERR, "api_send_client_status: cannot add fields");
+		ha_msg_del(msg); msg=NULL;
+		return;
+	}
+	if (send_cluster_msg(msg) != HA_OK) {
+		ha_log(LOG_ERR, "api_send_client_status: "
+			"cannot send message to cluster");
+	}
+	if (strcmp(status, "leave") == 0) {
+		/* Make sure they know they're signed off... */
+		api_send_client_msg(client, msg);
+	}
+	ha_msg_del(msg); msg=NULL;
+}
+
 /*
  *	Send a message to a client process.
  */
@@ -736,10 +780,17 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 
 
 	if ((msgstring = msg2string(msg)) == NULL) {
-		ha_log(LOG_ERR, "api_send_client_message (msg2string failed) client %d"
+		ha_log(LOG_ERR
+		,	"api_send_client_message: msg2string failed client %d"
 		,	client->pid);
 		return;
 	}
+
+	/*
+	 * We should enforce some kind of a limit on messages we queue
+	 * up for clients.  Sick clients shouldn't use infinite resources.
+	 */
+
 	client->msgQ = g_list_append(client->msgQ, msgstring);
 	++client->msgcount;
 	api_flush_msgQ(client);
@@ -754,16 +805,11 @@ api_flush_msgQ(client_proc_t* client)
 	int		nsig;
 	int		writeok=0;
 
-	if (!ClientSecurityIsOK(client)) {
-		api_remove_client(client);
-		client=NULL;
-		return;
-	}
 	fifoname = client_fifo_name(client, 0);
 
 	if ((fd=open(fifoname, O_WRONLY|O_NDELAY)) < 0) {
 		ha_perror("api_send_client: can't open %s", fifoname);
-		api_remove_client(client);
+		api_remove_client(client, "FIFO");
 		return;
 	}
 
@@ -791,13 +837,24 @@ api_flush_msgQ(client_proc_t* client)
 	nsig = (writeok ? client->signal : 0);
 
 	if (kill(client->pid, nsig) < 0 && errno == ESRCH) {
-		ha_log(LOG_ERR, "api_send_client: client %d died", client->pid);
-		api_remove_client(client);
+		ha_log(LOG_ERR, "api_send_client: client %d died"
+		,	client->pid);
+		api_remove_client(client, "died");
 		client=NULL;
 	}
-	if (close(fd) <=0) {
+	if (close(fd) < 0) {
 		ha_perror("Client %d close failure in api_flush_msgQ"
 		,	client->pid);
+	}
+
+	/*
+	 * Checking *after* sending allows us to tell them they've
+	 * been kicked off
+	 */
+	if (!ClientSecurityIsOK(client)) {
+		api_remove_client(client, "security");
+		client=NULL;
+		return;
 	}
 }
 
@@ -822,12 +879,20 @@ static int	minfd = -1;
  */
 
 static void
-api_remove_client(client_proc_t* req)
+api_remove_client(client_proc_t* req, const char * reason)
 {
 	client_proc_t*	prev = NULL;
 	client_proc_t*	client;
 
+	if (req->beingremoved) {
+		return;
+	}
+	req->beingremoved = 1;
+
+	api_send_client_status(req, "leave", reason);
+
 	--total_client_count;
+
 	if ((req->desired_types & DEBUGTREATMENTS) != 0) {
 		--debug_client_count;
 	}
@@ -915,7 +980,7 @@ api_add_client(struct ha_msg* msg)
 			,	"duplicate client add request");
 			return;
 		}
-		api_remove_client(client);
+		api_remove_client(client, "dup add");
 	}
 	if ((client = MALLOCT(client_proc_t)) == NULL) {
 		ha_log(LOG_ERR
@@ -950,21 +1015,21 @@ api_add_client(struct ha_msg* msg)
 	/* Make sure their FIFOs are properly secured */
 	if (!ClientSecurityIsOK(client)) {
 		/* No insecure clients allowed! */
-		api_remove_client(client);
+		api_remove_client(client, "security");
 		return;
 	}
 	if ((fifofp=open_reqfifo(client)) <= 0) {
 		ha_log(LOG_ERR
 		,	"Unable to open API FIFO for client %s"
 		,	client->client_id);
-		api_remove_client(client);
+		api_remove_client(client, "fifo open");
 		return;
 	}
 	fifoifd=fileno(fifofp);
 	if (fifoifd >= MAXFD) {
 		ha_log(LOG_ERR
 		,	"Too many API clients [%d]", total_client_count);
-		api_remove_client(client);
+		api_remove_client(client, "toomany");
 		return;
 	}
 	client->input_fifo = fifofp;
@@ -975,6 +1040,7 @@ api_add_client(struct ha_msg* msg)
 	if (minfd < 0 || fifoifd < minfd) {
 		minfd = fifoifd;
 	}
+	api_send_client_status(client, "join", "signon");
 }
 
 /*
@@ -1453,7 +1519,7 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 					ha_log(LOG_ERR
 					,	"Client pid %d died (exception)"
 					,	client->pid);
-					api_remove_client(client);
+					api_remove_client(client, "died");
 					continue;
 				}
 			}
@@ -1469,7 +1535,7 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 				ha_log(LOG_ERR
 				,	"Client pid %d died (input)"
 				,	client->pid);
-				api_remove_client(client);
+				api_remove_client(client, "died");
 				continue;
 			}
 
@@ -1491,7 +1557,7 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 					ha_log(LOG_ERR
 					,	"Removing client pid %d "
 					,	client->pid);
-					api_remove_client(client);
+					api_remove_client(client, "noinput");
 					consecutive_failures = 0;
 				}
 				continue;
