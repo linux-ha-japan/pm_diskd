@@ -1,3 +1,10 @@
+/*
+ * Code for authentication of packets
+ *
+ * Version: $Id: auth.h,v 1.2 2000/04/12 02:30:02 horms Exp $
+ */
+
+
 #ifndef AUTH_H
 #define AUTH_H
 
