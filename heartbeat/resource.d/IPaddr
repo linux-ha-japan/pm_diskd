@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr,v 1.3 1999/11/16 04:36:53 alan Exp $
+#	$Id: IPaddr,v 1.4 1999/12/23 03:28:21 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -134,7 +134,7 @@ ip_start() {
 #	Do we already service this IP address?
 #
   if
-    $IFCONFIG | grep "inet addr:$1" >/dev/null 2>&1
+    $IFCONFIG | grep "inet addr:$1 " >/dev/null 2>&1
   then
     exit 0	# We already own this IP address
   fi
@@ -238,6 +238,10 @@ esac
 #
 #
 # $Log: IPaddr,v $
+# Revision 1.4  1999/12/23 03:28:21  alan
+# Put in Stefan Salzer's fix to IPaddr to make it not confuse
+# x.y.z.1 with x.y.z.11 or similar...
+#
 # Revision 1.3  1999/11/16 04:36:53  alan
 # Added fix from David Jules to make IPaddr work in France.
 # The problem is that various commands that IPaddr invokes (notably ifconfig)
