@@ -39,6 +39,8 @@ LOGFILE=/tmp/linux-ha.testlog
 RSCDIR=$HADIR/resource.d
 errcount=0
 
+cd /etc/ha.d
+
 GetAllIFNames() {
   $IFCONFIG | grep '^[a-zA-Z]' | cut -d' ' -f1
 }
@@ -103,9 +105,16 @@ GenerateHaResources() {
 	!
   chmod 644 $1
 }
+CONFIGFILES="ha.cf authkeys haresources"
 
 SetUpConfigFiles() {
-  for j in ha.cf authkeys haresources
+  if
+    HBStatus
+  then
+    echo "Cannot run tests with heartbeat already running."
+  fi
+  SaveConfigFiles
+  for j in $CONFIGFILES
   do
     if
       CheckConfigFile $HADIR/$j
@@ -125,7 +134,7 @@ SetUpConfigFiles() {
 }
 
 RemoveConfigFiles() {
-  for j in ha.cf authkeys haresources
+  for j in $CONFIGFILES
   do
     if
       CheckConfigFile $HADIR/$j
@@ -135,6 +144,20 @@ RemoveConfigFiles() {
       echo "OOPS! Cannot remove real config file $HADIR/$j!"
     fi
   done
+  RestoreConfigFiles
+}
+
+SaveConfigFiles() {
+  if
+    [ ! -d .cfsave ]
+  then
+    mkdir .cfsave
+  fi
+  mv $CONFIGFILES .cfsave
+}
+
+RestoreConfigFiles() {
+  mv /etc/ha.d/.cfsave/* /etc/ha.d
 }
 
 HBStart() {
