@@ -142,7 +142,9 @@ main(int argc, char** argv)
 	if (SwitchType == NULL) {
 		SwitchType = "baytech";
 	}
-
+#ifndef LOG_PERROR
+#	define LOG_PERROR	0
+#endif
 	openlog(cmdname, (LOG_CONS|(silent ? 0 : LOG_PERROR)), LOG_DAEMON);
 	s = stonith_new(SwitchType);
 
