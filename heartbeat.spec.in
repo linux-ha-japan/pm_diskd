@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.65 2003/07/01 04:10:36 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.66 2003/07/14 05:12:55 alan Exp $
 
 # Workaround for a change in RPM 4.1.x; needs proper fixing soon!
 %define _unpackaged_files_terminate_build 0
@@ -73,6 +73,48 @@ PILS is designed to support any number of plugins
 implementing any number of interfaces.
 
 %changelog
+* Mon Jul 13 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
++ Version 1.1.2
+  + Replaced the nice_failback option with the auto_failback option.
+	THIS OBSOLETES THE NICE_FAILBACK OPTION. READ THE DOCS FOR HOW
+	TO UPGRADE SMOOTHLY.
+  + Changed IPaddr to not do ARPs in background, and shortened time 
+	between ARPs.  Also made these things tunable...
+  + changed our comm ttys to not become our controlling TTYs
+  + Enhanced the ServeRAID script to fix a critical bug by using a new feature
+  + Added a new DirectoryMap to CVS - tells where everything is...
+  + significantly enhanced the BasicSanityCheck script, and the tests
+	it calls.
+  + added a new option to use a replacement poll function for improved
+	real-time performance.
+  + added the ability to have a cluster node's name be different
+	from it's uname -n
+  + Moved where CTS gets installed to /usr/lib/heartbeat/cts
+  + Big improvements to the CTS README from IBM test labs in Austin.
+  + bug fixes to the WTI NPS power switch
+  + new client API calls:
+	return arbitrary configuration parameters
+	return current resource status
+  + Added a new clplumbing function: mssleep()
+  + added new capabilities for supporting pseudo-resources
+  + added new messages which come out after initial takeover is done
+	 (improves CTS results)
+  + LOTS of documentation updates.
+  + fixed a security vulnerability
+  + fixed a bug where heartbeat would shut down while in the middle
+	of processing resource movement requests.
+  + changed compilation flags to eliminate similar future security
+	issues
+  + went to even-more-strict gcc flags
+  + fixed several "reload" bugs.  Now reload works ;-)
+  + fixed STONITH bug when other node never heard from.
+  + Minor bug fixes (cleaned up corrupted message)
+  + Two different client API bugs fixed.
+  + changed the configure script to test which warning flags are
+	supported by the current gcc.
+  + enhanced the API test program to test new capabilities...
+
+
 * Wed May 21 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
 + Version 1.1.1
   + Significant restructuring of the processes in heartbeat
