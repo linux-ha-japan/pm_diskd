@@ -80,10 +80,25 @@ AC_DEFUN([LIB_SNMP],
     dnl check net-snmp headers
     AC_CHECK_HEADERS([net-snmp/version.h], [NET_SNMP_HEADER=yes], 
         [AC_MSG_WARN([net-snmp header not found])], [])
+
     dnl then check ucd-snmp headers 
-    if test x"$NET_SNMP_HEADER" = x"no"; then
-        AC_CHECK_HEADERS([ucd-snmp/version.h], [],
-	    [AC_MSG_ERROR([no snmp library headers found.])])
+    AC_CHECK_HEADERS([ucd-snmp/version.h], [],
+	[AC_MSG_ERROR([no snmp library headers found.])], [#define UCD_COMPATIBLE])
+    
+    dnl make sure net-snmp is compiled with "--enable-ucd-snmp-compatibility"
+    if
+      test x"$NET_SNMP_HEADER" = x"yes" && test x"$UCD_SNMP_HEADER" = x"no" ;
+    then
+      AC_MSG_WARN([Your NET-SNMP is not compiled with --enable-ucd-snmp-compatibility turned on.])
+      AC_MSG_ERROR([Please recompile the NET-SNMP with that option.])
+    fi
+
+    dnl exit if no SNMP headers found.
+    if
+      test x$NET_SNMP_HEADER = x"no"  && test x"$UCD_SNMP_HEADER" = x"no" ;
+    then
+      AC_MSG_WARN([No NET-SNMP or UCD-SNMP headers found])
+      AC_MSG_ERROR([Please download the SNMP package from http://www.net-snmp.org.])
     fi
 
     dnl some libs and header might be needed later
@@ -236,8 +251,14 @@ AC_DEFUN([LIB_SNMP],
     CFLAGS=$CFLAGS_BEFORE_SNMPCHECK
 
     if test x"$SNMP_LIBS_FOUND" = x"no"; then
-	AC_MSG_ERROR(Despite my best effort I still cannot figure out the library dependencies of snmp.  
-Your best bet will be try to compile the ucd-snmp package from the source and try again.)
+	AC_MSG_ERROR([
+	Despite my best effort I still cannot figure out the library dependencies of snmp.  
+	Your best bet will be compile the ucd-snmp package from the source and try again. 
+
+	Special Note for RedHat users:
+	    If you installed the NET-SNMP RPM from a RedHat CD, make sure both the symbolic links 
+	for libbz2.so -> libbz2.so.x and libelf.so -> libelf.so.x exists. Or install the libelf-devel
+	and libbz2-devl rpms.])
     else
 	AC_MSG_WARN([SNMP: snmp library dependency resolved. List of libraries needed to compile the subagent:])
 	AC_MSG_WARN([	$SNMP_LIBS.])
