@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.11 2001/11/26 14:04:41 horms Exp $
+#	$Id: heartbeat.in,v 1.12 2002/03/05 21:13:06 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -177,7 +177,7 @@ init_watchdog_linux() {
 
 start_heartbeat() {
   if
-    ERROR="$($HA_BIN/heartbeat 2>&1)"
+    ERROR=`$HA_BIN/heartbeat 2>&1`
   then
     : OK
   else
@@ -308,6 +308,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.12  2002/03/05 21:13:06  alan
+#  Put in fix suggested by João Miguel P. Sá <joao-m-sa@ptinovacao.pt>
+#  to use grave accents instead of the silly bash notation.
+#
 #  Revision 1.11  2001/11/26 14:04:41  horms
 #  Log to stdout that <path>/ha.cf is missing if init script exits for that reason.
 #  (Horms)
