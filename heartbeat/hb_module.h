@@ -3,6 +3,12 @@
 
 #include <ltdl.h>
 
+/* *************************************************************
+ *      SPECIAL NOTE:
+ *      Must define MODULE *before* including this header if you
+ *      want to use the EXPORT macro.
+ * *************************************************************/
+
 /* portability stuff - I believe that this should be some day split off 
  * from the generic code */
 #ifdef __STDC__
