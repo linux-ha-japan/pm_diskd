@@ -64,7 +64,7 @@ SUBDIRS                 = libltdl doc debian replace include lib \
                         linux-ha
 
 rpm:		dist
-		$(RPM) $(RPMFLAGS) $(TARFILE);
+		$(RPM) $(RPMFLAGS) $(TARFILE) </dev/null;
 
 clean:	am_config_clean
 am_config_clean:
