@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.28 2000/08/31 05:27:31 alan Exp $
+#	$Id: Makefile,v 1.29 2000/09/01 06:07:43 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -111,15 +111,16 @@ LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 
 RESOURCECMDS= resource.d/IPaddr resource.d/AudibleAlarm
 
-RCCMDS = rc.d/ip-request rc.d/ip-request-resp rc.d/status
+RCCMDS = rc.d/ip-request rc.d/ip-request-resp rc.d/status	\
+	rc.d/ns_st rc.d/ifstat
 ROOTFILES = harc shellfuncs README.config
 
 SPECSRC = Specfile
 
 all: $(PRODUCTS)
 
-$(HEARTBEAT): $(H_OBJLIST) $(H_HDRS) $(LIBS) $(HBLIBS)
-	$(CC) $(LDFLAGS) $(H_OBJLIST) $(LIBS) $(HBLIBS) -o $(HEARTBEAT)
+$(HEARTBEAT): $(H_OBJLIST) $(H_HDRS) $(HBLIBS)
+	$(CC) $(LDFLAGS) $(H_OBJLIST) $(HBLIBS) -o $(HEARTBEAT)
 
 $(CLIENTLIB): $(CLIENTOBJS)
 	ar rc $(CLIENTLIB) $(CLIENTOBJS)
@@ -133,10 +134,10 @@ api_test: api_test.o $(CLIENTLIB)
 $(H_OBJLIST) : $(H_HDRS)
 
 $(SENDARP): $(S_OBJLIST) $(S_HDRS)
-	$(CC) $(LDFLAGS) $(S_OBJLIST) $(LIBS) -o $(SENDARP)
+	$(CC) $(LDFLAGS) $(S_OBJLIST) -o $(SENDARP)
 
 $(FINDIF): $(F_OBJLIST)
-	$(CC) $(LDFLAGS) $(F_OBJLIST) $(LIBS) -o $(FINDIF)
+	$(CC) $(LDFLAGS) $(F_OBJLIST) -o $(FINDIF)
 
 $(LDIRECTORD):
 	$(MAKE) -C $(LDIRECTORD_DIR)

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.83 2000/09/01 04:18:59 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.84 2000/09/01 06:07:43 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -282,6 +282,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.83 2000/09/01 04:18:
 
 #define OPTARGS		"dkrRsvC:"
 
+#define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
 
 /*
  *	Note that the _RSC defines below are bit fields!
@@ -1928,7 +1929,7 @@ restart_heartbeat(int quickrestart)
 	int			j;
 	pid_t			curpid = getpid();
 	struct rlimit		oflimits;
-	int			killsig = (quickrestart ? SIGKILL : SIGTERM);
+	int			killsig = SIGKILL;
 
 	/*
 	 * We need to do these things:
@@ -1946,9 +1947,6 @@ restart_heartbeat(int quickrestart)
 
 	getrlimit(RLIMIT_NOFILE, &oflimits);
 
-	if (!quickrestart) {
-		giveup_resources();
-	}
 	alarm(0);
 	sleep(1);
 
@@ -2475,7 +2473,6 @@ struct fieldname_map fmap [] = {
 
 
 #define	RETRYINTERVAL	(3600*24)	/* Once A Day... */
-#define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
 
 /*
  * Values of msgtype:
@@ -3665,6 +3662,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.84  2000/09/01 06:07:43  alan
+ * Fixed the "missing library" problem, AND probably fixed the perennial
+ * problem with partitioned cluster.
+ *
  * Revision 1.83  2000/09/01 04:18:59  alan
  * Added missing products to Specfile.
  * Perhaps fixed the partitioned cluster problem.
