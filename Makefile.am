@@ -1,5 +1,5 @@
 #
-# linux-ha: Linux-HA telecom code
+# linux-ha: Linux-HA code
 #
 # Copyright (C) 2002 Alan Robertson
 #
@@ -24,7 +24,7 @@
 ##AUX_DIST_EXTRA          = $(auxdir)/readline.m4 $(auxdir)/sys_errlist.m4 \
 ##                        $(auxdir)/sys_siglist.m4
 EXTRA_DIST              = bootstrap acconfig.h rc.config.heartbeat \
-                        	heartbeat.spec.in heartbeat.spec
+                        	heartbeat.spec.in heartbeat.spec ConfigureMe
 
 RPMREL			= @RPMREL@
 RPM			= @RPM@
