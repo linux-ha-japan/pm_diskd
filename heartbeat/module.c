@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.34 2001/08/15 16:17:12 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.35 2001/08/15 16:56:47 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -63,11 +63,15 @@ GHashTable*	CommFunctions = NULL;
 GHashTable*	StonithFuncs = NULL;
 static void	RegisterNewMedium(struct hb_media* mp);
 static const char *	ParameterValue(const char * name);
+static void	RegisterCleanup(void(*)(void));
+extern int	StringToBaud(const char *);
 struct hb_media_imports	CommImports =
 {	ParameterValue
 ,	RegisterNewMedium
 ,	ttylock
 ,	ttyunlock
+,	StringToBaud
+,	RegisterCleanup
 };
 
 extern struct hb_media* sysmedia[];
@@ -141,4 +145,9 @@ static const char *
 ParameterValue(const char * name)
 {
 	return NULL;
+}
+static void
+RegisterCleanup(void(*fun)(void))
+{
+	localdie = fun;
 }

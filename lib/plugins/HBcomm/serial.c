@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.2 2001/08/15 16:17:12 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.3 2001/08/15 16:56:47 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -140,7 +140,6 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 	/* Register ourself as a plugin */
 	imports->register_plugin(us, &OurPIExports);  
 
-	serial_init();
 	/*  Register our interface implementation */
  	return imports->register_interface(us, PIL_PLUGINTYPE_S
 	,	PIL_PLUGIN_S
@@ -149,6 +148,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 	,	&OurInterface
 	,	(void*)&OurImports
 	,	interfprivate); 
+	serial_init();
 }
 
 #define		IsTTYOBJECT(mp)	((mp) && ((mp)->vf == (void*)&serial_media_fns))
@@ -400,6 +400,7 @@ serial_write (struct hb_media*mp, struct ha_msg*m)
 	TTYASSERT(mp);
 
 	ourmedia = mp;	/* Only used for the "localdie" function */
+	OurImports->RegisterCleanup(serial_localdie);
 	ourtty = ((struct serial_private*)(mp->pd))->ttyfd;
 	if ((str=msg2string(m)) == NULL) {
 		ha_error("Cannot convert message to tty string");
@@ -571,6 +572,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.3  2001/08/15 16:56:47  alan
+ * Put in the code to allow serial port comm plugins to work...
+ *
  * Revision 1.2  2001/08/15 16:17:12  alan
  * Fixed the code so that serial comm plugins build/load/work.
  *

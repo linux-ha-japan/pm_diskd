@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.44 2001/08/10 17:35:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.45 2001/08/15 16:56:47 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -77,6 +77,7 @@ int   	parse_authfile(void);
 int	init_config(const char * cfgfile);
 int     set_logfile(const char * value);
 int     set_dbgfile(const char * value);
+int	StringToBaud(const char * baudstr);
 
 int	udpport;
 int	baudrate;
@@ -784,6 +785,34 @@ set_watchdogdev(const char * value)
 }
 
 int
+StringToBaud(const char * baudstr)
+{
+	int	baud;
+
+	baud = atoi(baudstr);
+	switch(baud)  {
+		case 9600:	return  B9600;
+		case 19200:	return  B19200;
+#ifdef B38400
+		case 38400:	return  B38400;
+#endif
+#ifdef B57600
+		case 57600:	return  B57600;
+#endif
+#ifdef B115200
+		case 115200:	return  B115200;
+#endif
+#ifdef B230400
+		case 230400:	return  B230400;
+#endif
+#ifdef B460800
+		case 460800:	return  B460800;
+#endif
+		default:	return 0;
+	}
+}
+
+int
 set_baudrate(const char * value)
 {
 	static int	baudset = 0;
@@ -793,30 +822,11 @@ set_baudrate(const char * value)
 		return(HA_FAIL);
 	}
 	++baudset;
-	baudrate = atoi(value);
-	switch(baudrate)  {
-		case 9600:	serial_baud = B9600; break;
-		case 19200:	serial_baud = B19200; break;
-#ifdef B38400
-		case 38400:	serial_baud = B38400; break;
-#endif
-#ifdef B57600
-		case 57600:	serial_baud = B57600; break;
-#endif
-#ifdef B115200
-		case 115200:	serial_baud = B115200; break;
-#endif
-#ifdef B230400
-		case 230400:	serial_baud = B230400; break;
-#endif
-#ifdef B460800
-		case 460800:	serial_baud = B460800; break;
-#endif
-		default:
+	serial_baud = StringToBaud(value);
+	if (serial_baud <= 0) {
 		fprintf(stderr, "%s: invalid baudrate [%s] specified.\n"
 		,	cmdname, value);
 		return(HA_FAIL);
-		break;
 	}
 	return(HA_OK);
 }
@@ -1187,6 +1197,9 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.45  2001/08/15 16:56:47  alan
+ * Put in the code to allow serial port comm plugins to work...
+ *
  * Revision 1.44  2001/08/10 17:35:37  alan
  * Removed some files for comm plugins
  * Moved the rest of the software over to use the new plugin system for comm
