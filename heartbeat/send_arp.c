@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.15 2003/02/07 08:37:17 horms Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.16 2003/02/17 15:31:50 alan Exp $";
 /* 
  * send_arp
  * 
@@ -58,25 +58,14 @@ void convert_macaddr (u_char *macaddr, u_char enet_src[6]);
 int
 main(int argc, char *argv[])
 {
-    int c;
-    char errbuf[LIBNET_ERRBUF_SIZE];
-    char *device = NULL;
-    char *macaddr = NULL;
-    char *broadcast = NULL;
-    char *netmask = NULL;
-    u_long ip;
-#ifdef HAVE_LIBNET_1_0_API
-    struct libnet_link_int *l;
-#endif
-
-#ifdef HAVE_LIBNET_1_1_API
-    libnet_t*		l;
-
-    if ((l=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
-	syslog(LOG_ERR, "libnet_init failure:");
-        exit(EXIT_FAILURE);
-    }
-#endif
+    int		c;
+    char	errbuf[LIBNET_ERRBUF_SIZE];
+    char*	device;
+    char*	macaddr;
+    char*	broadcast;
+    char*	netmask;
+    u_long	ip;
+    LTYPE*	l;
 
     (void)_send_arp_c;
     if (argc != 6) {
@@ -111,6 +100,10 @@ main(int argc, char *argv[])
 #endif
 
 #ifdef HAVE_LIBNET_1_1_API
+    if ((l=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
+	syslog(LOG_ERR, "libnet_init failure:");
+        exit(EXIT_FAILURE);
+    }
     if ((ip = libnet_name2addr4(l, argv[2], 1)) == -1) {
         syslog(LOG_ERR, "Cannot resolve IP address\n");
         exit(EXIT_FAILURE);
@@ -235,6 +228,10 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.16  2003/02/17 15:31:50  alan
+ * Fixed a nasty bug where we don't pass the interface to the libnet libraries
+ * correctly.  Thanks to Steve Snodgrass for finding it.
+ *
  * Revision 1.15  2003/02/07 08:37:17  horms
  * Removed inclusion of portability.h from .h files
  * so that it does not need to be installed.
