@@ -250,17 +250,20 @@ accept incoming and outgoing traffic on 694 UDP port. Add something like
 		If you don't do this, you may get
 		"Cluster node ... returning after partition"
 		which will cause heartbeat to restart on all machines
-		in the cluster.</li>
+		in the cluster.  This will almost certainly annoy you.
+		</li>
 	</ul>
 	Adding memory to the machine generally helps.
-	Limiting workload on the machine generally helps. Newer versions
-	of heartbeat are a bit better about this than
+	Limiting workload on the machine generally helps.
+	Newer versions of heartbeat are a better about this than
 	pre 1.0 versions.</li><br>
 
    <li><a name="serialerr">It's common to get a single mangled packet
 	on your serial interface when heartbeat starts up.</a>
 	&nbsp;This is an indicator that happened. &nbsp;It's harmless in
-	this scenario.<br>
+	this scenario.  If it happens continually, there is probably
+	something else going on.
+	<br>
    </li><br>
 
    <li> <a name="authkeys">It's probably a permissions problem on authkeys.</a>&nbsp;
@@ -272,7 +275,6 @@ places. <br>
        <li>stdout/stderr</li>
        <li>wherever you specified in your setup</li>
        <li>/var/log/messages</li>
-     
     </ol>
  Newer releases are better about also putting out startup messages to stderr
 in addition to whereever you have configured them to go. </li><br>
@@ -282,11 +284,11 @@ multicast group. If you need to/want to use broadcast, then run each cluster
 on different port numbers. &nbsp;An example of a configuration using multicast
 would be to have the following line in your ha.cf file:<br>
  &nbsp; &nbsp; &nbsp;<span style="font-style: italic;">mcast eth0 224.1.2.3
-694 1 1</span><br>
+694 1 0</span><br>
  This sets eth0 as the interface over which to send the multicast, 224.1.2.3
 as the multicast group (will be same on each node in the same cluster), udp
 port 694 (heartbeat default), time to live of 1 (limit multicast to local
-network segment and not propagate through routers), multicast loopback enabled
+network segment and not propagate through routers), multicast loopback disabled
 (typical).</li><br>
 
    <li><a name="CVS">There is a CVS repository for Linux-HA.</a> You can find

@@ -146,16 +146,26 @@ allowed in addition to the number of nodes in the cluster.</dd>
   <dt> <b><tt><font size="+1">baud 19200</font></tt></b></dt>
   <dd> Speed at which to run the serial line (bps).</dd>
   <dt> <b><tt><font size="+1">udpport 694</font></tt></b></dt>
-  <dd> Use port number 694 for udp. This is the default, and the
-official registered port number.</dd>
-  <dt> <b><tt><font size="+1">nice_failback on</font></tt></b></dt>
+  <dd> Use port number 694 for bcast or ucast communication.
+	This is the default, and the official IANA registered port number.</dd>
+  <dt> <b><tt><font size="+1">auto_failback on</font></tt></b></dt>
   <dl>
-    <dt> <i>Optional.</i>&nbsp; For those familiar with Tru64 Unix,
-heartbeat acts as if in "favored member"mode.&nbsp; The master holds all
+    <dt> <i>Required.</i>&nbsp; For those familiar with Tru64 Unix,
+heartbeat acts as if in "favored member" mode.&nbsp; The master listed
+in the haresources file holds all
 the resources until a failover, at which time the slave takes
-over.&nbsp; Once the master comes back online, it will take everything
-back from the slave.&nbsp; This option will prevent the master node from
-re-acquiring cluster resources after a failover.</dt>
+over.&nbsp; When <i>auto_failback</i> is set to <b>on</b>
+once the master comes back online, it will take everything
+back from the slave.&nbsp;
+When set to <b>off</b> this option will prevent the master node from
+re-acquiring cluster resources after a failover.
+This option is similar to to the obsolete <i>nice_failback</i> option.
+If you want to upgrade from a cluster which had <i>nice_failback</i>
+set <b>off</b>, to this or later versions, special considerations apply
+in order to want to avoid requiring a flash cut.  Please see the
+<a href="http://linux-ha.org/download/faqnstuff.html">FAQ</a> for details
+on how to deal with this situation.
+</dt>
   </dl>
   <dt> <b><tt><font size="+1">node linuxha1.linux-ha.org</font></tt></b></dt>
   <dd> <i>Mandatory</i>.&nbsp; Hostname of machine in cluster as
@@ -275,11 +285,16 @@ from said interface.  Consult
 <a href="ipfail-diagram.pdf">ipfail-diagram.pdf</a> for a graphical 
 representation of this idea.
 <br><br></li>
-<li><b>Turn on nice_failback</b><br>
-ipfail will only operate if heartbeat has been configured to use nice_failback.
-In ha.cf, set the nice_failback option to "on" instead of "off" like so:
+<li><b>Set auto_failback to <i>on</i> or <i>off</i>.</a</b><br>
+ipfail will only operate if heartbeat has been configured to soemthing
+other than <i>legacy</i>
+In ha.cf, set the auto_failback option to "on" or "off" like so:
 <blockquote>
-nice_failback on
+auto_failback on
+</blockquote>
+or
+<blockquote>
+auto_failback on
 </blockquote>
 </li>
 <li><b>Configure your ha.cf to start ipfail.</b><br>
@@ -527,7 +542,7 @@ is wrong. </p>
 <p>If you get this far, it's probably working, but you should probably
 check all your heartbeats, too. <br>
 First, check your serial heartbeat.&nbsp; Unplug the crossover cable
-from your eth1 NIC that you're using for your udp heartbeat.&nbsp; Wait
+from your eth1 NIC that you're using for your bcast heartbeat.&nbsp; Wait
 about 10 seconds. <br>
 Now, look at /var/log/ha-log on linuxha2 and make sure there's no line
 like this: <br>

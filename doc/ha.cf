@@ -75,7 +75,7 @@ logfacility	local0
 #initdead 120
 #
 #
-#	What UDP port to use for communication?
+#	What UDP port to use for bcast/ucast communication?
 #
 #udpport	694
 #
@@ -89,10 +89,12 @@ logfacility	local0
 #serial	/dev/cua/a	# Solaris
 #
 #
-#	What interfaces to heartbeat over?
+#	What interfaces to broadcast heartbeats over?
 #
-#bcast	eth0	# Linux
-#bcast	le0	# Solaris
+#bcast	eth0		# Linux
+#bcast	eth1 eth2	# Linux
+#bcast	le0		# Solaris
+#bcast	le1 le2		# Solaris
 #
 #	Set up a multicast heartbeat medium
 #	mcast [dev] [mcast group] [port] [ttl] [loop]
@@ -100,16 +102,18 @@ logfacility	local0
 #	[dev]		device to send/rcv heartbeats on
 #	[mcast group]	multicast group to join (class D multicast address
 #			224.0.0.0 - 239.255.255.255)
-#	[port]		udp port to sendto/rcvfrom (no real reason to differ
-#			from the port used for broadcast heartbeats)
+#	[port]		udp port to sendto/rcvfrom (set this value to the
+#			same value as "udpport" above)
 #	[ttl]		the ttl value for outbound heartbeats.  this effects
 #			how far the multicast packet will propagate.  (0-255)
+#			Must be greater than zero.
 #	[loop]		toggles loopback for outbound multicast heartbeats.
 #			if enabled, an outbound packet will be looped back and
 #			received by the interface it was sent on. (0 or 1)
+#			Set this value to zero.
 #		
 #
-#mcast eth0 225.0.0.1 694 1 1
+#mcast eth0 225.0.0.1 694 1 0
 #
 #	Set up a unicast / udp heartbeat medium
 #	ucast [dev] [peer-ip-addr]
