@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.151 2001/10/22 05:22:53 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.152 2001/10/23 04:19:24 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1217,6 +1217,7 @@ master_status_process(void)
 	init_status_alarm();
 	init_watchdog();
 	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
+	signal(SIGTERM, giveup_resources);
 	set_proc_title("%s: master status process", cmdname);
 
 	/* We open it this way to keep the open from hanging... */
@@ -3243,12 +3244,19 @@ giveup_resources(int dummy)
 	int		rc;
 	pid_t		pid;
 	struct ha_msg *	m;
+	static int	shutdown_in_progress = 0;
 
 	i_hold_resources = NO_RSC;
 	if (nice_failback) {
 		send_resources_held(rsc_msg[i_hold_resources], 0);
 	}
+	if (shutdown_in_progress) {
+		ha_log(LOG_INFO, "Heartbeat shutdown already underway.");
+		return;
+	}
+	shutdown_in_progress =1;
 	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)", getpid());
+
 	/* We need to fork so we can make child procs not real time */
 
 	switch((pid=fork())) {
@@ -3627,6 +3635,13 @@ signal_all(int sig)
 	int us = getpid();
 	int j;
 
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "pid %d: received signal %d", us, sig);
+		if (curproc) {
+			ha_log(LOG_DEBUG, "pid %d: type is %d", us, curproc->type);
+		}
+	}
+
 	if (sig == SIGTERM) {
 		IGNORESIG(SIGTERM);
 		ha_log(LOG_DEBUG, "pid %d: ignoring SIGTERM", us);
@@ -3636,12 +3651,17 @@ signal_all(int sig)
 	/* We're going to wait for the master status process to shut down */
 	if (curproc && curproc->type == PROC_CONTROL) {
 		if (sig == SIGTERM) {
-			if (kill(SIGTERM, master_status_pid) >= 0) {
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG, "sending SIGTERM to MSP: %d"
+				,	master_status_pid);
+			}
+			if (kill(master_status_pid, SIGTERM) >= 0) {
 				/* Tell master status proc to shut down */
 				/* He'll send us a SIGINT when done */
 				/* Meanwhile, we'll just go on... */
 				return;
 			}
+			ha_perror("MSP signal failed");
 		}else if (sig == SIGINT) {
 			/* All Resources are now released.  Shut down. */
 			sig = SIGTERM;
@@ -4628,6 +4648,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.152  2001/10/23 04:19:24  alan
+ * Put in code so that a "stop" really stops heartbeat (again).
+ *
  * Revision 1.151  2001/10/22 05:22:53  alan
  * Fixed the split-brain (cluster partition) problem.
  * Also, fixed lots of space/tab nits in various places in heartbeat.
