@@ -45,7 +45,8 @@ apphbd_SOURCES	= apphbd.c
 #
 apphbd_LDADD		= $(COMMONLIBS) 				\
 			$(top_builddir)/lib/pils/libpils.la		\
-			$(top_builddir)/libltdl/libltdlc.la 
+			$(top_builddir)/libltdl/libltdlc.la 		\
+			$(top_builddir)/replace/libreplace.la
 
 apphbd_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \
@@ -55,4 +56,6 @@ apphbd_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 apphbtest_SOURCES	= apphbtest.c
 apphbtest_LDADD		= $(COMMONLIBS) 				\
 			$(top_builddir)/lib/apphb/libapphb.la
+			$(top_builddir)/replace/libreplace.la
+
 apphbtest_LDFLAGS	=
