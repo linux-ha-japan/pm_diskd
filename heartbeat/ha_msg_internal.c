@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.11 2001/07/18 03:12:52 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.12 2001/09/29 19:08:24 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -298,7 +298,7 @@ add_msg_auth(struct ha_msg * m)
 
 	if (!config->authmethod->auth->auth(config->authmethod, msgbody
 	,	authtoken, DIMOF(authtoken))) {
-		ha_log(LOG_ERR, authstring
+		ha_log(LOG_ERR 
 		,	"Cannot compute message authentication [%s/%s/%s]"
 		,	config->authmethod->authname
 		,	config->authmethod->key
@@ -467,6 +467,13 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.12  2001/09/29 19:08:24  alan
+ * Wonderful security and error correction patch from Emily Ratliff
+ * 	<ratliff@austin.ibm.com>
+ * Fixes code to have strncpy() calls instead of strcpy calls.
+ * Also fixes the number of arguments to several functions which were wrong.
+ * Many thanks to Emily.
+ *
  * Revision 1.11  2001/07/18 03:12:52  alan
  * Put in a couple of minor security fixes from Emily Ratliff.
  * The ttl value put in the messages is now checked for overflow, and the

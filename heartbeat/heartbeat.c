@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.133 2001/09/18 14:19:45 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.134 2001/09/29 19:08:24 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1529,7 +1529,8 @@ process_clustermsg(FILE * f)
 			,	thisnode->nodename
 			,	status);
 			notify_world(msg, thisnode->status);
-			strcpy(thisnode->status, status);
+			strncpy(thisnode->status, status
+			, 	sizeof(thisnode->status));
 			heartbeat_monitor(msg, action, iface);
 		}else{
 			heartbeat_monitor(msg, NOCHANGE, iface);
@@ -2504,7 +2505,7 @@ set_local_status(const char * newstatus)
 {
 	if (strcmp(newstatus, curnode->status) != 0
 	&&	strlen(newstatus) > 1 && strlen(newstatus) < STATUSLENG) {
-		strcpy(curnode->status, newstatus);
+		strncpy(curnode->status, newstatus, sizeof(curnode->status));
 		send_local_status();
 		ha_log(LOG_INFO, "Local status now set to: '%s'", newstatus);
 		return(HA_OK);
@@ -2680,7 +2681,7 @@ change_link_status(struct node_info *hip, struct link *lnk, const char * newstat
 		return;
 	}
 
-	strcpy(lnk->status, newstat);
+	strncpy(lnk->status, newstat, sizeof(lnk->status));
 	ha_log(LOG_INFO, "Link %s:%s %s.", hip->nodename
 	,	lnk->name, lnk->status);
 
@@ -2727,7 +2728,7 @@ mark_node_dead(struct node_info *hip)
 
 	heartbeat_monitor(hmsg, KEEPIT, "<internal>");
 	notify_world(hmsg, hip->status);
-	strcpy(hip->status, DEADSTATUS);
+	strncpy(hip->status, DEADSTATUS, sizeof(hip->status));
 	if (hip == curnode) {
 		/* We may die too soon for this to actually be received */
 		/* But, we tried ;-) */
@@ -4037,7 +4038,7 @@ nak_rexmit(unsigned long seqno, const char * reason)
 	if (ha_msg_add(msg, F_TYPE, T_NAKREXMIT) != HA_OK
 	||	ha_msg_add(msg, F_FIRSTSEQ, sseqno) != HA_OK
 	||	ha_msg_add(msg, F_COMMENT, reason) != HA_OK) {
-		ha_log(LOG_ERR, "cannot create " T_NAKREXMIT, " msg.");
+		ha_log(LOG_ERR, "cannot create " T_NAKREXMIT " msg.");
 		ha_msg_del(msg);
 		return;
 	}
@@ -4177,7 +4178,15 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.134  2001/09/29 19:08:24  alan
+ * Wonderful security and error correction patch from Emily Ratliff
+ * 	<ratliff@austin.ibm.com>
+ * Fixes code to have strncpy() calls instead of strcpy calls.
+ * Also fixes the number of arguments to several functions which were wrong.
+ * Many thanks to Emily.
+ *
  * Revision 1.133  2001/09/18 14:19:45  horms
+ *
  * Signal handlers set flags and actions are executed accordingly
  * as part of event loops. This avoids problems with executing some
  * system calls within signal handlers. In paricular calling exec() from

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.46 2001/08/15 17:58:13 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.47 2001/09/29 19:08:24 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -163,7 +163,7 @@ init_config(const char * cfgfile)
 #endif
 	if ((curnode = lookup_node(u.nodename)) == NULL) {
 #if defined(MITJA)
-		ha_log(msg);
+		ha_log(LOG_NOTICE, "%s", msg);
 		add_node(u.nodename, NORMALNODE);
 		curnode = lookup_node(u.nodename);
 		ha_log(LOG_NOTICE, "Current node [%s] added to configuration"
@@ -194,7 +194,8 @@ init_config(const char * cfgfile)
                         /* 
                          * Set to DEVNULL in case a stray script outputs logs
                          */
-                        strcpy(config->logfile, DEVNULL);
+                        strncpy(config->logfile, DEVNULL
+			, 	sizeof(config->logfile));
                         config->use_logfile=0;
                   }else{
 		        set_logfile(DEFAULTLOG);
@@ -213,7 +214,8 @@ init_config(const char * cfgfile)
 		        /* 
 		        * Set to DEVNULL in case a stray script outputs errors
 		        */
-		        strcpy(config->dbgfile, DEVNULL);
+		        strncpy(config->dbgfile, DEVNULL
+			,	sizeof(config->dbgfile));
                         config->use_dbgfile=0;
 	        }else{
 		        set_dbgfile(DEFAULTDEBUG);
@@ -446,7 +448,8 @@ parse_config(const char * cfgfile, char *nodename)
 				}
 				lnk->name = config->nodes[i].nodename;
 				lnk->lastupdate = cticks;
-				strcpy(lnk->status, DEADSTATUS);
+				strncpy(lnk->status, DEADSTATUS
+				,	sizeof(lnk->status));
 				lnk[1].name = NULL;
 				break;
 			}
@@ -461,7 +464,7 @@ parse_config(const char * cfgfile, char *nodename)
 			}
 			lnk->name = sysmedia[j]->name;
 			lnk->lastupdate = cticks;
-			strcpy(lnk->status, DEADSTATUS);
+			strncpy(lnk->status, DEADSTATUS, sizeof(lnk->status));
 			lnk[1].name = NULL;
 			++config->nodes[i].nlinks;
 		}
@@ -712,8 +715,8 @@ add_node(const char * value, int nodetype)
 	hip = &config->nodes[config->nodecount];
 	memset(hip, 0, sizeof(*hip));
 	++config->nodecount;
-	strcpy(hip->status, INITSTATUS);
-	strcpy(hip->nodename, value);
+	strncpy(hip->status, INITSTATUS, sizeof(hip->status));
+	strncpy(hip->nodename, value, sizeof(hip->nodename));
 	hip->rmt_lastupdate = 0L;
 	hip->anypacketsyet  = 0;
 	hip->local_lastupdate = times(&proforma_tms);
@@ -1211,6 +1214,13 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.47  2001/09/29 19:08:24  alan
+ * Wonderful security and error correction patch from Emily Ratliff
+ * 	<ratliff@austin.ibm.com>
+ * Fixes code to have strncpy() calls instead of strcpy calls.
+ * Also fixes the number of arguments to several functions which were wrong.
+ * Many thanks to Emily.
+ *
  * Revision 1.46  2001/08/15 17:58:13  alan
  * Hopefully fixed the -v flag...
  * Soon to remove bag from head?

@@ -1,6 +1,5 @@
 /* 
- * api_test: Test program for testing the heartbeat API
- * 	(this will eventually become the heartbeat API client side code)
+ * client_lib: heartbeat API client side code
  *
  * Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
  * 
@@ -480,7 +479,7 @@ hb_api_delete(struct ll_cluster* ci)
 {
 	llc_private_t* pi;
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "hb_api_signoff: bad cinfo");
+		ha_log(LOG_ERR, "hb_api_delete: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
@@ -518,7 +517,7 @@ hb_api_setfilter(struct ll_cluster* ci, unsigned fmask)
 	llc_private_t* pi;
 
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "hb_api_signoff: bad cinfo");
+		ha_log(LOG_ERR, "hb_api_setfilter: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
@@ -582,7 +581,7 @@ hb_api_setsignal(ll_cluster_t* lcl, int nsig)
 
 	ClearLog();
 	if (!ISOURS(lcl)) {
-		ha_log(LOG_ERR, "hb_api_signoff: bad cinfo");
+		ha_log(LOG_ERR, "hb_api_setsignal: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)lcl->ll_cluster_private;
@@ -1103,7 +1102,7 @@ read_hb_msg(ll_cluster_t* llc, int blocking)
 	llc_private_t* pi;
 
 	if (!ISOURS(llc)) {
-		ha_log(LOG_ERR, "hb_api_signoff: bad cinfo");
+		ha_log(LOG_ERR, "read_hb_msg: bad cinfo");
 		return NULL;
 	}
 	pi = (llc_private_t*)llc->ll_cluster_private;
