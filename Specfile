@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.70 2000/11/15 17:55:35 alan Exp $
+#	$Id: Specfile,v 1.71 2000/11/23 15:53:08 jacob Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -333,7 +333,7 @@ rm -rf $RPM_BUILD_ROOT
 RPM_BUILD=yes BUILD_ROOT=$RPM_BUILD_ROOT make install
 (
   cd $RPM_BUILD_ROOT/etc/ha.d/resource.d
-  ln -s ../../../sbin/ldirectord .
+  ln -s /usr/sbin/ldirectord ldirectord
 )
 
 TEMPL=$RPM_BUILD_ROOT/var/adm/fillup-templates
@@ -356,7 +356,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 /usr/lib/libhbclient.so
 /usr/lib/libhbclient.a
 /etc/ha.d/resource.d/
-/etc/rc.d/init.d/heartbeat
+/etc/init.d/heartbeat
 /etc/logrotate.d/heartbeat
 /var/adm/fillup-templates/rc.config.heartbeat
 %dir /var/run/ppp.d
@@ -369,9 +369,9 @@ install -m 644 rc.config.heartbeat $TEMPL
 
 #  Things for the director deamon
 %files ldirectord
-/sbin/ldirectord
+/usr/sbin/ldirectord
 /etc/logrotate.d/ldirectord
-/etc/rc.d/init.d/ldirectord
+/etc/init.d/ldirectord
 /etc/ha.d/resource.d/ldirectord
 /usr/man/man8/ldirectord.8*
 %doc ldirectord/ldirectord.cf

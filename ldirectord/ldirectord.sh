@@ -30,17 +30,17 @@ fi
 
 case "$1" in
   start)
-        action "Starting ldirectord" /sbin/ldirectord  ldirectord.cf start
+        action "Starting ldirectord" /usr/sbin/ldirectord  ldirectord.cf start
 	;;
   stop)
-        action "Stopping ldirectord" /sbin/ldirectord  ldirectord.cf stop
+        action "Stopping ldirectord" /usr/sbin/ldirectord  ldirectord.cf stop
 	;;
   restart)
 	$0 stop
 	$0 start
 	;;
   status)
-	/sbin/ldirectord  ldirectord.cf status
+	/usr/sbin/ldirectord  ldirectord.cf status
 	;;
   *)
 	echo "Usage: ipv4_conf {start|stop|restart|status}"

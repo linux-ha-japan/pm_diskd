@@ -9,7 +9,7 @@
 #
 
 POD2MAN		= pod2man
-SBIN		= $(BUILD_ROOT)/sbin
+SBIN		= $(BUILD_ROOT)/usr/sbin
 MAN		= $(BUILD_ROOT)/usr/man/man8
 LOGROTATED	= /etc/logrotate.d
 LOGROTATE	= $(BUILD_ROOT)/$(LOGROTATED)
