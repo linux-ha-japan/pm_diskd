@@ -27,6 +27,7 @@ hard_SCRIPTS	=			\
 			Filesystem	\
 			IPaddr		\
 			LinuxSCSI	\
+			LVM		\
 			MailTo		\
 			ServeRAID	\
 			Raid1		\
