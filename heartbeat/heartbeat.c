@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.127 2001/08/10 17:35:38 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.128 2001/09/06 16:14:35 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -274,9 +274,14 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.127 2001/08/10 17:35
 #include <hb_module.h>
 #include <HBcomm.h>
 
+#include "setproctitle.h"
+
 #define OPTARGS		"dkMrRsvC:"
 
-#define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
+/* #define	IGNORESIG(s)	((void)signal((s), SIG_IGN)) */
+#define	IGNORESIG(s)	\
+        ha_log(LOG_DEBUG, "ignoring signal %d", s); \
+        (void)signal((s), SIG_IGN);
 
 /*
  *	Note that the _RSC defines below are bit fields!
@@ -347,6 +352,9 @@ volatile struct process_info *	curproc = NULL;
 
 int	setline(int fd);
 void	cleanexit(int rc);
+void    reaper_handler(int sig);
+void    giveup_resources_and_signal_all_handler(int sig);
+void    signal_all_handler(int sig);
 void	debug_sig(int sig);
 void	signal_all(int sig);
 void	parent_debug_sig(int sig);
@@ -930,8 +938,11 @@ read_child(struct hb_media* mp)
 	int	msglen;
 	int	rc;
 	int	statusfd = status_pipe[P_WRITEFD];
+        FILE *  statusfp = fdopen(statusfd, "w");
 
 	curproc->pstat = RUNNING;
+        set_proc_title("%s: read child: %s", cmdname, mp->name);
+
 	for (;;) {
 		struct	ha_msg*	m = mp->vf->read(mp);
 		char *		sm;
@@ -952,10 +963,10 @@ read_child(struct hb_media* mp)
 				ha_log(LOG_DEBUG, sm);
 			}
 
-			if ((rc=write(statusfd, sm, msglen)) != msglen)  {
+			if ((rc=fwrite(sm, 1,  msglen, statusfp)) != msglen)  {
 				/* Try one extra time if we got EINTR */
 				if (errno != EINTR
-				||	(rc=write(statusfd, sm, msglen))
+				||	(rc=fwrite(sm, 1,  msglen, statusfp))
 				!=	msglen)  {
 					ha_perror("Write failure [%d/%d] %s"
 					,	rc
@@ -963,6 +974,7 @@ read_child(struct hb_media* mp)
 					,	"to status pipe");
 				}
 			}
+                        fflush(statusfp);
 			ha_free(sm);
 		}
 		ha_msg_del(m);
@@ -979,6 +991,8 @@ write_child(struct hb_media* mp)
 
 	siginterrupt(SIGALRM, 1);
 	curproc->pstat = RUNNING;
+        set_proc_title("%s: write child: %s", cmdname, mp->name);
+
 	for (;;) {
 		struct ha_msg * msgp = if_msgfromstream(ourfp, NULL);
 		if (msgp == NULL) {
@@ -1005,8 +1019,10 @@ control_process(FILE * fp)
 	/* Catch and propagate debugging level signals... */
 	signal(SIGUSR1, parent_debug_sig);
 	signal(SIGUSR2, parent_debug_sig);
-	signal(SIGTERM, giveup_resources);
+	signal(SIGTERM, giveup_resources_and_signal_all_handler);
 	siginterrupt(SIGALRM, 1);
+
+        set_proc_title("%s: control process", cmdname);
 
 	for(;;) {
 		struct ha_msg *	msg = controlfifo2msg(fp);
@@ -1128,6 +1144,7 @@ master_status_process(void)
 	init_status_alarm();
 	init_watchdog();
 	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
+        set_proc_title("%s: master status process", cmdname);
 
 	/* We open it this way to keep the open from hanging... */
 
@@ -1955,6 +1972,38 @@ debug_sig(int sig)
 	dump_proc_stats(curproc);
 }
 
+/* Signal handler to use with SIGCHLD to free the
+ * resources of any exited chilren using wait3(2).
+ * This stops zombie processes from hanging around
+ */
+
+void
+reaper_handler(int sig)
+{
+        int status;
+
+        signal(sig, reaper_handler);
+        while(wait3(&status, WNOHANG, 0)>0) { 
+                ;
+        }
+}
+
+void
+giveup_resources_and_signal_all_handler(int sig) 
+{
+	ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
+        signal(sig, giveup_resources_and_signal_all_handler);
+        giveup_resources(sig);
+        signal_all(sig);
+}
+
+void
+signal_all_handler(int sig)
+{
+        signal(sig, signal_all_handler);
+        signal_all(sig);
+}
+
 void
 dump_proc_stats(volatile struct process_info * proc)
 {
@@ -2027,7 +2076,7 @@ restart_heartbeat(int quickrestart)
 	int			j;
 	pid_t			curpid = getpid();
 	struct rlimit		oflimits;
-	int			killsig = SIGKILL;
+	int			killsig = SIGTERM;
 
 	send_local_status();
 	/*
@@ -2785,16 +2834,8 @@ giveup_resources(int dummy)
 	int		rc;
 	pid_t		pid;
 	struct ha_msg *	m;
-	static int	giving_up = 0;
 
 	/* We need to fork so we can make child procs not real time */
-
-	if (giving_up) {
-	        signal_all(SIGTERM);
-		return;
-	}
-	giving_up=1;
-	ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
 
 	switch((pid=fork())) {
 
@@ -2805,7 +2846,7 @@ giveup_resources(int dummy)
 				 * We shouldn't block here, because then we
 				 * aren't sending heartbeats out...
 				 */
-		default:	/* waitpid(pid, NULL, 0); */
+		default:	waitpid(pid, NULL, 0);
 				return;
 
 		case 0:		/* Child */
@@ -2838,6 +2879,8 @@ giveup_resources(int dummy)
 	}
 	pclose(rkeys);
 	ha_log(LOG_INFO, "All HA resources relinquished.");
+
+        exit(0);
 
         if ((m=ha_msg_new(0)) == NULL) {
                 ha_log(LOG_ERR, "Cannot send final shutdown msg");
@@ -2892,20 +2935,21 @@ usage(void)
 
 extern int	optind;
 int
-main(int argc, char * argv[])
+main(int argc, char * argv[], char * envp[])
 {
 	int		flag;
 	int		argerrs = 0;
 	char *		CurrentStatus=NULL;
+	char *		tmp_cmdname;
 	long		running_hb_pid = get_running_hb_pid();
 
 	num_hb_media_types = 0;
 
-	if ((cmdname = strrchr(argv[0], '/')) != NULL) {
+        tmp_cmdname=strdup(argv[0]);
+	if ((cmdname = strrchr(tmp_cmdname, '/')) != NULL) {
 		++cmdname;
-		argv[0] = cmdname;
 	}else{
-		cmdname = argv[0];
+		cmdname = tmp_cmdname;
 	}
 
 	Argc = argc;
@@ -2955,6 +2999,9 @@ main(int argc, char * argv[])
 		usage();
 	}
 
+        init_set_proc_title(argc, argv, envp);
+        set_proc_title("%s", cmdname);
+
 	hbmedia_types = ha_malloc(sizeof(struct hbmedia_types **));
 
 	if(hbmedia_types == NULL) {
@@ -2992,11 +3039,13 @@ main(int argc, char * argv[])
 			/* Wait for the running heartbeat to die */
 			alarm(0);
 			do {
-				sleep(1);
+                                sleep(1);
+                                continue;
 			}while (kill((pid_t)running_hb_pid, 0) >= 0);
 			cleanexit(0);
 		}
-		fprintf(stderr, "ERROR: Could not kill pid %ld", running_hb_pid);
+		fprintf(stderr, "ERROR: Could not kill pid %ld", 
+                        running_hb_pid);
 		perror(" ");
 		cleanexit(1);
 	}
@@ -3156,9 +3205,11 @@ signal_all(int sig)
 	int us = getpid();
 	int j;
 
+        ha_log(LOG_DEBUG, "pid %d: got signal %d", us, sig);
+
 	if (sig == SIGTERM) {
-		signal(SIGTERM, SIG_IGN);
-		/* ha_log(LOG_DEBUG, "pid %d: ignoring SIGTERM", getpid()); */
+		IGNORESIG(SIGTERM);
+		ha_log(LOG_DEBUG, "pid %d: ignoring SIGTERM", us);
 		make_normaltime();
 	}
 	for (j=0; j < procinfo->nprocs; ++j) {
@@ -3166,7 +3217,7 @@ signal_all(int sig)
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG,
 				       "%d: Signalling process %d [%d]"
-				       ,	getpid(), processes[j], sig);
+				       ,	us, processes[j], sig);
 			}
 			kill(processes[j], sig);
 		}
@@ -3276,10 +3327,9 @@ make_daemon(void)
 	IGNORESIG(SIGTTIN);
 #endif
 
-	/* Maybe we shouldn't do this on Linux */
-#ifdef	SIGCHLD
-	IGNORESIG(SIGCHLD);
-#endif
+        /* Reap child processes to avoid zombies */
+        signal(SIGCHLD, reaper_handler);
+
 
 #ifdef	SIGQUIT
 	IGNORESIG(SIGQUIT);
@@ -3959,6 +4009,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.128  2001/09/06 16:14:35  horms
+ * Added code to set proctitle for heartbeat processes. Working on why heartbeat doesn't restart itself properly. I'd send the latter as a patch to the list but it is rather intertwined in the former
+ *
  * Revision 1.127  2001/08/10 17:35:38  alan
  * Removed some files for comm plugins
  * Moved the rest of the software over to use the new plugin system for comm
