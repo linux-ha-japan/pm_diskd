@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.20 2002/05/28 18:25:48 msoffen Exp $
+#	$Id: IPaddr.in,v 1.21 2002/07/09 16:42:22 msoffen Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -60,7 +60,6 @@ find_interface_solaris() {
     #  a machine.  Yet, we appear to use the results for this case too...
     case $SYSTYPE in
       *BSD)
-		ha_log $ifname
 		echo `echo "$ifname" | sed s'%:%%'`
 		return 0;;
       SunOS)
@@ -96,8 +95,6 @@ find_interface() {
       : Nothing
     done
 
-    ha_log "$ipaddr $ifname"
-
     case $ifname in
       *:*)	;;
       *)	continue;;
@@ -108,7 +105,6 @@ find_interface() {
     #  a machine.  Yet, we appear to use the results for this case too...
     case $SYSTYPE in
       *BSD)
-		ha_log $ifname
 		echo `echo "$ifname" | sed s'%:%%'`
 		return 0;;
       SunOS)
@@ -464,7 +460,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.20 2002/05/28 18:25:48 msoffen Exp $"
+  echo "$Id: IPaddr.in,v 1.21 2002/07/09 16:42:22 msoffen Exp $"
 }
 
 #
@@ -511,6 +507,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.21  2002/07/09 16:42:22  msoffen
+# Deleted extra "debugging" lines .
+#
 # Revision 1.20  2002/05/28 18:25:48  msoffen
 # Changes to replace send_arp with a libnet based version.  This works accross
 # all operating systems we currently "support" (Linux, FreeBSD, Solaris).
