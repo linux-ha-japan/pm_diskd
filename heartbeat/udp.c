@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.15 2000/11/15 17:55:35 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.16 2000/12/12 20:44:43 alan Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -193,7 +193,7 @@ hb_dev_close(struct hb_media* mp)
 		}
 	}
 	if (ei->wsocket >= 0) {
-		if (close(ei->rsocket) < 0) {
+		if (close(ei->wsocket) < 0) {
 			rc = HA_FAIL;
 		}
 	}
@@ -519,6 +519,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.16  2000/12/12 20:44:43  alan
+ * Fixed a file descriptor leak.  Fix courtesy of Chris Wright.
+ *
  * Revision 1.15  2000/11/15 17:55:35  alan
  * Added code to recognize the correct IANA port name in /etc/services and
  * deal with it appropriately.  Also, now just give a warning if they specify
