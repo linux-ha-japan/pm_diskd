@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager.in,v 1.7 2002/02/15 06:53:16 horms Exp $
+#	$Id: ResourceManager.in,v 1.8 2002/04/07 21:08:56 alan Exp $
 #
 #	New haresources format:
 #
@@ -303,15 +303,35 @@ VerifyAllIdle() {
     if
       we_own_resource $rsc
     then
-      echo "ERROR: Resource $rsc is active, and should not be." >&2
-      ha_log "ERROR: Resource $rsc is active, and should not be."
+      ha_log "CRITICAL: Resource $rsc is active, and should not be!"
+      ha_log "CRITICAL: Non-idle resources can affect data integrity!" >&2
+      ha_log "info: If you don't know what this means, then get help!"
+      ha_log "info: Read the docs and/or source to $0 for more details."
+      cat <<-! >&2
+	CRITICAL: Resource $rsc is active, and should not be!
+	CRITICAL: Non-idle resources can affect data integrity!
+	info: If you don't know what this means, then get help!
+	info: Read the docs and/or the source to $0 for more details.
+	!
+      #
+      # What this means is that if you have a shared disk and it's already mounted
+      # before you start heartbeat, then you could have it mounted simultaneously
+      # on both sides.  If this happens then your disk data is toast!
+      # So, this is sometimes VERY BAD INDEED!
+      #
+      # The most *common* cause for this message is that you told your OS to manage one
+      # of the IP addresses that you asked heartbeat to manage.  You can't put
+      # both your OS startup scripts and heartbeat in charge of HA resources.
+      # This particular case is discussed in detail in the docs.
+      #
       rc=`expr $rc + 1`
     fi
   done
   if
     [ $rc -ne 0 ]
   then
-    ha_log "WARNING: Non-idle resources will affect resource takeback"
+    ha_log "CRITICAL: Non-idle resources will affect resource takeback!"
+    ha_log "CRITICAL: Non-idle resources may affect data integrity!"
   fi
   exit $rc
 }
@@ -330,18 +350,22 @@ case $1 in
 
   verifyallidle)VerifyAllIdle ;;
 
-  *)		echo "$USAGE\n" >&2
+  *)		echo "$USAGE" >&2
+  		echo "" >&2
 		exit 1;;
 esac
 
 #
 #	$Log: ResourceManager.in,v $
+#	Revision 1.8  2002/04/07 21:08:56  alan
+#	Put in more stern warnings about resources not being idle when we start up...
+#
 #	Revision 1.7  2002/02/15 06:53:16  horms
 #	Small changes to allow heartbeat to work on Solaris 8
 #	* use unset LC_ALL and unset LANGUAGE instead of LC_ALL=en and LANGUAGE=en
 #	* provide LOG_PERROR, as Solaris doesn't
 #	-- Horms
-#
+#	
 #	Revision 1.6  2002/01/24 16:00:43  alan
 #	Put in a patch sent by Matt Soffen.
 #	
