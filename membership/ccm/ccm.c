@@ -3555,6 +3555,13 @@ ccm_initialize()
 	llm = CCM_GET_LLM((global_info));
 	llm_init(llm);
 	while((node = hb_fd->llc_ops->nextnode(hb_fd))!= NULL) {
+
+		/* ignore non normal nodes */
+		if(strcmp(hb_fd->llc_ops->node_type(hb_fd, node), 
+				"normal") != 0) {
+			continue;
+		}
+
 		status =  hb_fd->llc_ops->node_status(hb_fd, node);
 		if(global_debug) {
 			cl_log(LOG_DEBUG, "Cluster node: %s: status: %s", node,
