@@ -11,6 +11,7 @@ etc/ha.d/resource.d/IPsrcaddr
 etc/ha.d/resource.d/LVM
 etc/ha.d/resource.d/LinuxSCSI
 etc/ha.d/resource.d/MailTo
+etc/ha.d/resource.d/portblock
 etc/ha.d/resource.d/Raid1
 etc/ha.d/resource.d/ServeRAID
 etc/ha.d/resource.d/WAS
