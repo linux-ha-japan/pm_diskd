@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.37 2002/10/05 19:45:09 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.38 2002/10/09 14:26:33 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -67,23 +67,29 @@ PILS is designed to support any number of plugins
 implementing any number of interfaces.
 
 %changelog
-* Thu Jan 17 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
+* Wed Oct 9 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
 + Version 0.5.0 beta series
 
   0.4.9e:
   + Changed client code to keep write file descriptor open at all times
-	(realtime improvement)
+        (realtime improvement)
   + Added a "poll replacement"  function based on sigtimedwait(2), which
-	should be faster for those cases that can use it.
+        should be faster for those cases that can use it.
   + Added a hb_warntime() call to the application heartbeat API.
   + Changed all times in the configuration file to be in milliseconds
-	if specified with "ms" at the end.  (seconds is still the default).
-  + Closed some holes - thanks to Nathan Wallwork <nwallwo@pnm.com>
+        if specified with "ms" at the end.  (seconds is still the default).
+  + Good changes due to Nathan Wallwork <nwallwo@pnm.com>
   + Changed read/write child processes to run as nobody.
   + Fixed a bug where ping packets are printed incorrectly when debugging.
   + Changed heartbeat code to preallocate a some heap space.
   + CCM daemon API restructuring
   + Added ipc_channel_pair() function to the IPC library.
+  + Changed everything to use longclock_t instead of clock_t
+  + Fixed a bug concerning the ifwalk() call on ping nodes in the API
+  + Made apphbd run at high priority and locked into memory
+  + Made a library for setting priority up.
+  + Made ucast comm module at least be configurable and loadable.
+  + Fixed a startup/shutdown timing problem.
 
   0.4.9d:
   + removed an "open" call for /proc/loadavg (improve realtime behavior)
