@@ -19,8 +19,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+#include <stdlib.h>
 #include <ccm.h>
-#include <malloc.h>
 
 //
 // Convert a given string to a bitmap.
@@ -116,6 +116,7 @@ ccm_timeout(longclock_t t1, longclock_t t2, unsigned long timeout)
 void
 ccm_check_memoryleak(void)
 {
+#ifdef HAVE_MALLINFO
 	/* check for memory leaks */
 	struct mallinfo i;
 	static int arena=0;
@@ -129,4 +130,5 @@ ccm_check_memoryleak(void)
 			arena, i.arena);
 		arena=i.arena;
 	}
+#endif
 }
