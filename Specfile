@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.15 1999/10/12 16:40:46 alanr Exp $
+#	$Id: Specfile,v 1.16 1999/10/12 20:16:02 alanr Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -30,9 +30,9 @@ It implements the following kinds of heartbeats:
 + Version 0.4.5
   + Mijta Sarp added a new feature to authenticate heartbeat packets
 	using a variety of strong authentication techniques
-  + Changed resource acquisition and relinquishment on heartbeat shutdown to
-    occur in heartbeat, instead of in the start/stop script.  This means you
-       don't *really* have to use the start/stop script if you don't want to.
+  + Changed resource acquisition and relinquishment to occur in heartbeat,
+       instead of in the start/stop script.  This means you don't *really*
+       have to use the start/stop script if you don't want to.
   + Added -k option to gracefully shut down current heartbeat instance
   + Added -r option to cause currently running heartbeat to reread config files
   + Added -s option to report on operational status of "heartbeat"
