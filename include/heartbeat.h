@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.31 2003/02/07 08:37:17 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.32 2003/02/11 15:16:09 msoffen Exp $";
 
 #ifdef SYSV
 #	include <sys/termio.h>
@@ -368,11 +368,11 @@ void*		ha_calloc(size_t nmemb, size_t size);
 void		ha_free(void *ptr);
 void		ha_malloc_report(void);
 
-#ifndef HAVE_SETENV
+#ifndef HA_HAVE_SETENV
 int setenv(const char *name, const char * value, int why);
 #endif
 
-#ifndef HAVE_SCANDIR
+#ifndef HA_HAVE_SCANDIR
 #include <dirent.h>
 int
 scandir (const char *directory_name,

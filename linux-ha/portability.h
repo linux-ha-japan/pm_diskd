@@ -53,6 +53,7 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
+#include <ha_config.h>
 
 #ifndef HA_HAVE_SETENV
   /* We supply a replacement function, but need a prototype */

@@ -19,6 +19,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+#include <ha_config.h>
 #include <ccm.h>
 #include <clplumbing/cl_signal.h>
 

@@ -28,4 +28,10 @@
 /* heartbeat logging socket */
 #undef HA_LOGDAEMON_IPC
 
+#define HA_HAVE_SCANDIR @HA_HAVE_SCANDIR@
+
+#define HA_LOGDAEMON_IPC "@HA_LOGDAEMON_IPC@"
+
+#define HB_RC_DIR "@HB_RC_DIR@"
+
 #endif /* _HA_CONFIG_H */
