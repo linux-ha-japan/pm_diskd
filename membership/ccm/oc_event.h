@@ -25,7 +25,7 @@
 #ifndef OC_EVENT_H
 #define OC_EVENT_H
 #include <sys/types.h>
-#include <stdint.h>
+#include <inttypes.h>
 
 /*
  * An opaque token into the membership service is
