@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.10 2000/11/14 08:18:08 alan Exp $
+#	$Id: Makefile,v 1.11 2000/11/14 08:34:16 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -117,6 +117,7 @@ install_lib: $(LIBFILES) $(MODULES) baytech.so rps10.so nw_rpc100s.so
 	$(INSTALL) -cm 755 $(MODULES:.o=.so) baytech.so rps10.so nw_rpc100s.so $(MODDIR)
 
 install_inc:
+	if [ ! -d $(INCDIR) ]; then mkdir $(INCDIR); fi
 	$(INSTALL) -cm 644 $(INCFILES) $(INCDIR)
 
 clean:	
