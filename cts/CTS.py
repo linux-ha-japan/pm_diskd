@@ -587,7 +587,7 @@ as they might have been rebooted or crashed for some reason beforehand.
                 if anytimeouts:
                      # Fudge to wait for the system to finish coming up
                      time.sleep(30)
-                     self.Env.log("node %s now up" % node)
+                     self.Env.log("Node %s now up" % node)
                 return 1
 
             time.sleep(1)
