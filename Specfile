@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.67 2000/11/14 08:19:38 alan Exp $
+#	$Id: Specfile,v 1.68 2000/11/14 17:14:20 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -388,11 +388,11 @@ rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_DIR/%PKG%-%VERS%
 %pre
 if
-  grep '^%APIGROUP%:' /etc/group >/dev/null
+  grep '^%APIGROUP%:' etc/group >/dev/null
 then
   : OK
 else
-  /usr/sbin/groupadd -g %APIGID% %APIGROUP%
+  usr/sbin/groupadd -g %APIGID% %APIGROUP%
 fi
 %post
 #
@@ -402,7 +402,7 @@ Install_PPP_hack() {
   file2hack=/etc/ppp/ip-up.local
   echo "NOTE: Modifying $file2hack"
   if
-    [ ! -x /bin/ed ]
+    [ ! -x bin/ed ]
   then
     echo "Hey!  Gotta have /bin/ed!"
     exit 1
@@ -433,16 +433,16 @@ w
 }
 
 if
-  [ ! -x /etc/ppp/ip-up.heart ]
+  [ ! -x etc/ppp/ip-up.heart ]
 then
   Install_PPP_hack
 fi
 
 # Run heartbeat on startup
 if
-  [ -f /etc/SuSE-release ]
+  [ -f etc/SuSE-release ]
 then
-  for d in /etc/rc.d/init.d/rc[23].d
+  for d in etc/rc.d/init.d/rc[23].d
   do
     rm -f $d/S10heartbeat
     rm -f $d/S99heartbeat; ln -s ../heartbeat $d/S99heartbeat 
@@ -450,7 +450,7 @@ then
   done
   FILLUP=/bin/fillup
   if 
-    $FILLUP -q -d = /etc/rc.config /var/adm/fillup-templates/rc.config.heartbeat
+    $FILLUP -q -d = etc/rc.config var/adm/fillup-templates/rc.config.heartbeat
   then
     : fillup returned OK
   else
@@ -459,9 +459,9 @@ then
     echo "and update by hand."
   fi
 elif
-  [ -x /sbin/chkconfig ]
+  [ -x sbin/chkconfig ]
 then
-  /sbin/chkconfig --add heartbeat
+  sbin/chkconfig --add heartbeat
 fi
 true
 
@@ -481,16 +481,16 @@ w
 if
   [ $1 = 0 ]
 then
-  [ -x /sbin/chkconfig ] && /sbin/chkconfig --del heartbeat
+  [ -x sbin/chkconfig ] && sbin/chkconfig --del heartbeat
   if
-    [ ! -x /etc/ppp/ip-up.heart ]
+    [ ! -x etc/ppp/ip-up.heart ]
   then
     Uninstall_PPP_hack
   fi
 fi
 if
-   [ -r /etc/SuSE-release ]
+   [ -r etc/SuSE-release ]
 then
-  rm -f /sbin/init.d/rc[23]/*heartbeat
+  rm -f sbin/init.d/rc[23]/*heartbeat
 fi
 true
