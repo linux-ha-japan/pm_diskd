@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.84 2000/09/01 06:07:43 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.85 2000/09/01 06:27:49 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1931,6 +1931,7 @@ restart_heartbeat(int quickrestart)
 	struct rlimit		oflimits;
 	int			killsig = SIGKILL;
 
+	send_local_status();
 	/*
 	 * We need to do these things:
 	 *
@@ -3662,6 +3663,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.85  2000/09/01 06:27:49  alan
+ * Added code to force a status update when we restart.
+ *
  * Revision 1.84  2000/09/01 06:07:43  alan
  * Fixed the "missing library" problem, AND probably fixed the perennial
  * problem with partitioned cluster.
