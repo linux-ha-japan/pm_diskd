@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.25 2003/04/14 10:22:44 horms Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.26 2003/04/15 01:58:54 horms Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -87,7 +87,7 @@ static const char _findif_c [] = "$Id: findif.c,v 1.25 2003/04/14 10:22:44 horms
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define DEBUG 1
+#define DEBUG 0
 
 void ConvertQuadToInt (char *dest);
 
@@ -624,6 +624,9 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.26  2003/04/15 01:58:54  horms
+ * turn debuging off
+ *
  * Revision 1.25  2003/04/14 10:22:44  horms
  * should now work correclty with /32
  *
