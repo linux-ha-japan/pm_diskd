@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.7 2001/05/18 15:03:19 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.8 2001/05/22 13:15:40 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -712,8 +712,16 @@ if_getaddr(const char *ifname, struct in_addr *addr)
 		close(fd);
 		return -1;
 	}
-	memcpy(addr, &((struct sockaddr_in *)&if_info.ifr_addr)->sin_addr,
-		sizeof(struct in_addr));
+
+	/*
+	 * This #define w/void cast is to quiet alignment errors on some
+	 * platforms (notably Solaris)
+	 */
+#define SOCKADDR_IN(a)        ((struct sockaddr_in *)((void*)(a)))
+ 
+	memcpy(addr, &(SOCKADDR_IN(&if_info.ifr_addr)->sin_addr)
+	,	sizeof(struct in_addr));
+
 	close(fd);
 	return 0;
 }
@@ -777,6 +785,10 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.8  2001/05/22 13:15:40  alan
+ * Put in a fix to make a false-alarm alignment complaint go away on
+ * Solaris.  This is in mcast.c
+ *
  * Revision 1.7  2001/05/18 15:03:19  alan
  * Fixed a problem with a missing INADDR_NONE macro, and put back
  * the inet_aton() call for platforms that have that capability.
