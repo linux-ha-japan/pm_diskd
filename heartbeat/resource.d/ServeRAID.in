@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.13 2003/04/18 16:39:08 alan Exp $
+# $Id: ServeRAID.in,v 1.14 2003/04/18 16:46:16 alan Exp $
 # 
 # ServeRAID
 #
@@ -88,7 +88,7 @@ usage() {
 	You will need at least version 6 (~April 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.13 2003/04/18 16:39:08 alan Exp $
+	$Id: ServeRAID.in,v 1.14 2003/04/18 16:46:16 alan Exp $
 	!
   exit 1
 }
@@ -188,7 +188,7 @@ MergeGroupToSCSI_ID() {
 
   PerlScript="while (<>) {
 	/logical drive number *([0-9]+)/i && (\$ld=\$1);
-	/part of merge group *: *$sr_mergegroup *$/i && print \$ld - 1, \"\n\";
+	/part of merge group *: *$sr_mergegroup *\$/i && print \$ld - 1, \"\n\";
   }"
 
   ID=`SRLogicalDriveConfig | $PERL -e "$PerlScript"`
@@ -202,7 +202,7 @@ MergeGroupRaidLevel() {
 
   PerlScript="while (<>) {
 	/RAID level *: *([0-9]+[A-Z]*)/i && (\$ld=\$1);
-	/part of merge group *: *$sr_mergegroup *$/i && print \$ld, \"\n\";
+	/part of merge group *: *$sr_mergegroup *\$/i && print \$ld, \"\n\";
   }"
 
   Level=`SRLogicalDriveConfig | $PERL -e "$PerlScript"`
@@ -298,7 +298,7 @@ ServeRAID_status() {
   #	Part of merge group            : 2   
   #
   SRLogicalDriveConfig 		\
-  |	grep -i "part of merge group[ 	]*: *$sr_mergegroup *$" >/dev/null
+  |	grep -i "part of merge group[ 	]*: *$sr_mergegroup *\$" >/dev/null
 }
 
 if
