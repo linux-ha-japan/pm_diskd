@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.9 2003/03/13 14:58:52 alan Exp $
+# $Id: Filesystem.in,v 1.10 2003/07/03 02:14:14 alan Exp $
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
@@ -95,7 +95,7 @@ cat <<-EOT;
 	<fstype>    : name of the filesystem type. e.g. ext2
 	<options>   : options to be given as -o options to mount.
 
-	$Id: Filesystem.in,v 1.9 2003/03/13 14:58:52 alan Exp $
+	$Id: Filesystem.in,v 1.10 2003/07/03 02:14:14 alan Exp $
 	EOT
 }
 
@@ -140,12 +140,6 @@ if [ ! -d "$MOUNTPOINT" ] ; then
 	exit 1	
 fi
 	
-grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
-if [ $? != 0  ] ; then
-	ha_log "ERROR: Couldn't find filesystem $FSTYPE in /proc/filesystems"
-	usage
-	exit 1
-fi
 
 # Check to make sure the utilites are found
 check_util $MODPROBE
@@ -181,6 +175,12 @@ start)
 
 	# Insert Filesystem module
 	$MODPROBE $FSTYPE >/dev/null 2>&1
+	grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
+	if [ $? != 0  ] ; then
+		ha_log "ERROR: Couldn't find filesystem $FSTYPE in /proc/filesystems"
+		usage
+		exit 1
+	fi
 
 	# Check the filesystem & auto repair.  
 	# NOTE: Some filesystem types don't need this step...  Please modify
