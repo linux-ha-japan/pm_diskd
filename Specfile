@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.13 1999/10/10 22:22:41 alanr Exp $
+#	$Id: Specfile,v 1.14 1999/10/11 05:18:03 alanr Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -22,7 +22,7 @@ It implements the following kinds of heartbeats:
 	- Bidirectional Serial PPP/UDP Rings (using PPP for error correction)
 
 %changelog
-* Mon Oct 04 1999  Alan Robertson <alanr@henge.com>,
+* Wed Oct 13 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>,
      and Guenther Thomsen <thomsen@cs.tu-berlin.de>
@@ -51,8 +51,8 @@ It implements the following kinds of heartbeats:
   + Fixed a bug where the FIFO doesn't get created correctly.
   + Fixed a couple of uninitialized variables in heartbeat and /proc/ha code
   + Fixed longstanding crash bug related to getting a SIGALRM while in malloc
-	or free
-  + Implemented new malloc scheme, including new malloc stats
+	or free.
+  + Implemented new memory management scheme, including memory stats
 
 * Thu Sep 16 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.19 1999/10/11 04:50:31 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.20 1999/10/11 05:18:07 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -177,6 +177,7 @@ int		childpid = -1;
 char *		watchdogdev = NULL;
 int		watchdogfd = -1;
 time_t		starttime = 0L;
+time_t		next_statsdump = 0L;
 void		(*localdie)(void);
 
 
@@ -267,6 +268,8 @@ int	initialize_heartbeat(void);
 void	init_status_alarm(void);
 void	ding(int sig);
 void	dump_msg(const struct ha_msg *msg);
+void	dump_proc_stats(volatile struct process_info * proc);
+void	dump_all_proc_stats(void);
 void	check_node_timeouts(void);
 void	mark_node_dead(struct node_info* hip);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
@@ -295,6 +298,7 @@ void master_status_process(void);		/* The real biggie */
 pid_t	processes[MAXPROCS];
 int	num_procs = 0;
 int	send_status_now = 1;	/* Send initial status immediately */
+int	dump_stats_now = 0;
 
 #define	ADDPROC(pid)	{if (pid > 0 && pid != -1) {processes[num_procs] = (pid); ++num_procs;};}
 
@@ -1434,8 +1438,12 @@ master_status_process(void)
 		const char *	type;
 
 		if (send_status_now) {
-			send_local_status();
 			send_status_now = 0;
+			send_local_status();
+		}
+		if (dump_stats_now) {
+			dump_stats_now = 0;
+			dump_all_proc_stats();
 		}
 
 		/* Scan nodes to see if any have timed out */
@@ -1676,28 +1684,46 @@ debug_sig(int sig)
 			break;
 	}
 	ha_log(LOG_DEBUG, "debug now set to %d [pid %d]", debug, getpid());
-	if (curproc) {
-		const char *	ct;
+	dump_proc_stats(curproc);
+}
 
-		switch(curproc->type) {
-			case PROC_UNDEF:	ct = "UNDEF";		break;
-			case PROC_CONTROL:	ct = "CONTROL";		break;
-			case PROC_MST_STATUS:	ct = "MST_STATUS";	break;
-			case PROC_HBREAD:	ct = "HBREAD";		break;
-			case PROC_HBWRITE:	ct = "HBWRITE";		break;
-			case PROC_PPP:		ct = "PPP";		break;
-			default:		ct = "huh?";		break;
-		}
+void
+dump_proc_stats(volatile struct process_info * proc)
+{
+	const char *	ct;
 
-		ha_log(LOG_DEBUG, "MSG info: %ld/%ld age %ld [pid%d/%s]"
-		,	curproc->allocmsgs, curproc->totalmsgs
-		,	time(NULL) - curproc->lastmsg, curproc->pid, ct);
-		ha_log(LOG_DEBUG, "MALLOC info: %lu/%lu  %lu/%lu [pid%d/%s]"
-		,	curproc->numalloc, curproc->numfree
-		,	curproc->nbytes_alloc, curproc->nbytes_req
-		,	curproc->pid, ct);
-		ha_log(LOG_DEBUG, "RealMalloc: %lu total malloc bytes."
-		" pid %d/%s]", curproc->mallocbytes, curproc->pid, ct);
+	if (!proc) {
+		return;
+	}
+
+	switch(proc->type) {
+		case PROC_UNDEF:	ct = "UNDEF";		break;
+		case PROC_CONTROL:	ct = "CONTROL";		break;
+		case PROC_MST_STATUS:	ct = "MST_STATUS";	break;
+		case PROC_HBREAD:	ct = "HBREAD";		break;
+		case PROC_HBWRITE:	ct = "HBWRITE";		break;
+		case PROC_PPP:		ct = "PPP";		break;
+		default:		ct = "huh?";		break;
+	}
+
+	ha_log(LOG_INFO, "MSG stats: %ld/%ld age %ld [pid%d/%s]"
+	,	proc->allocmsgs, proc->totalmsgs
+	,	time(NULL) - proc->lastmsg, proc->pid, ct);
+
+	ha_log(LOG_INFO, "ha_malloc stats: %lu/%lu  %lu/%lu [pid%d/%s]"
+	,	proc->numalloc, proc->numfree
+	,	proc->nbytes_alloc, proc->nbytes_req, proc->pid, ct);
+
+	ha_log(LOG_INFO, "RealMalloc stats: %lu total malloc bytes."
+	" pid %d/%s]", proc->mallocbytes, proc->pid, ct);
+}
+void
+dump_all_proc_stats()
+{
+	int	j;
+
+	for (j=0; j < procinfo->nprocs; ++j) {
+		dump_proc_stats(procinfo->info+j);
 	}
 }
 
@@ -1809,11 +1835,14 @@ reread_config_sig(int sig)
 	}
 }
 
+#define	ONEDAY	(24*60*60)
+
 /* Ding!  Activated once per second in the status process */
 void
 ding(int sig)
 {
 	static int dingtime = 1;
+	time_t		now = time(NULL);
 	signal(SIGALRM, ding);
 
 	if (debug) {
@@ -1825,6 +1854,12 @@ ding(int sig)
 		dingtime = config->heartbeat_interval;
 		/* Note that it's time to send out our status update */
 		send_status_now = 1;
+	}
+	if (now > next_statsdump) {
+		if (next_statsdump != 0L) {
+			dump_stats_now = 1;
+		}
+		next_statsdump = now + ONEDAY;
 	}
 	alarm(1);
 }
@@ -2769,6 +2804,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.20  1999/10/11 05:18:07  alanr
+ * Minor tweaks in mem stats, etc
+ *
  * Revision 1.19  1999/10/11 04:50:31  alanr
  * Alan Cox's suggested signal changes
  *
