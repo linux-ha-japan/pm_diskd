@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager.in,v 1.9 2003/05/17 05:28:46 alan Exp $
+#	$Id: ResourceManager.in,v 1.10 2003/07/01 19:01:20 alan Exp $
 #
 #	New haresources format:
 #
@@ -210,13 +210,6 @@ doscript() {
 
 # Arguments are: nodename resource1 resource2 ...
 giveupresourcegroup() {
-  if
-    we_own_resource $2
-  then
-    : We own the resource.  Give it up!
-  else
-    return 0;  # Nothing to give up
-  fi
 
   ha_log "info: Releasing resource group: $*"
   shift
@@ -228,12 +221,6 @@ giveupresourcegroup() {
 
 # Arguments are: nodename resource1 resource2 ...
 acquireresourcegroup() {
-  if
-    we_own_resource $2
-  then
-    return 0; # We already have it.
-  fi
-
   ha_log "info: Acquiring resource group: $*"
   shift
   for j in $*
@@ -374,10 +361,14 @@ esac
 
 #
 #	$Log: ResourceManager.in,v $
+#	Revision 1.10  2003/07/01 19:01:20  alan
+#	removed the checks to see if we already own a resource group
+#	before giving it up.
+#
 #	Revision 1.9  2003/05/17 05:28:46  alan
 #	Implemented a modified version of nice_failback allowing it to
 #	move subsets of resources around - not just all of them...
-#
+#	
 #	Revision 1.8  2002/04/07 21:08:56  alan
 #	Put in more stern warnings about resources not being idle when we start up...
 #	
