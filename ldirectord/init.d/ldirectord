@@ -43,6 +43,7 @@ case "$1" in
 	;;
   restart)
 	$0 stop
+	sleep 1; # It may take a moment for the original ldirectord to exit
 	$0 start
 	;;
   status)
