@@ -48,7 +48,8 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
-	
+
+
 	/* This kicks out most messages... */
 	if ((msgtype&DEBUGTREATMENTS) != 0 && debug_client_count <= 0) {
 		return;
@@ -152,12 +153,32 @@ api_process_request(struct ha_msg * msg)
 	 */
 		const char *	cfmask;
 		unsigned	mask;
-		if ((cfmask = ha_msg_value(msg, F_FROMID)) == NULL
-		||	(sscanf(cfmask, "%ux", &mask) != 1)
+		if ((cfmask = ha_msg_value(msg, F_FILTERMASK)) == NULL
+		||	(sscanf(cfmask, "%x", &mask) != 1)
 		||	(mask&ALLTREATMENTS) == 0) {
+ha_log(LOG_ERR, "Sending badreq reply to setfilter message\n");
 			goto bad_req;
 		}
+
+		if ((client->desired_types  & DEBUGTREATMENTS)== 0
+		&&	(mask&DEBUGTREATMENTS) != 0) {
+			++debug_client_count;
+		}else if ((client->desired_types & DEBUGTREATMENTS) != 0
+		&&	(mask & DEBUGTREATMENTS) == 0) {
+			--debug_client_count;
+		}
 		client->desired_types = mask;
+		if (ha_msg_add(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_process_request: cannot add field/8.1");
+			ha_msg_del(resp); resp=NULL;
+			return;
+		}
+ha_log(LOG_ERR, "Sending OK reply to setfilter message\n");
+ha_log_message(resp);
+		api_send_client_msg(client, resp);
+		ha_msg_del(resp); resp=NULL;
+		return;
 	/*
 	 *	List the nodes in the cluster
 	 */
@@ -249,11 +270,14 @@ api_process_request(struct ha_msg * msg)
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
+	}else{
+ha_log(LOG_ERR, "Looking at unknown API request");
 	}
 
 bad_req:
 	ha_log(LOG_ERR, "api_process_request: bad request [%s]"
 	,	reqtype);
+	ha_log_message(msg);
 	if (ha_msg_add(resp, F_APIRESULT, API_BADREQ) != HA_OK) {
 		ha_log(LOG_ERR
 		,	"api_process_request: cannot add field/11");
@@ -312,7 +336,17 @@ api_remove_client(client_proc_t* req)
 {
 	client_proc_t*	prev = NULL;
 	client_proc_t*	client;
-	
+	char	fifoname[API_FIFO_LEN];
+
+	/* Do a little cleanup */
+	snprintf(fifoname, sizeof(fifoname), API_FIFO_DIR "/%d", req->pid);
+	unlink(fifoname);
+
+	--total_client_count;
+	if ((req->desired_types & DEBUGTREATMENTS) != 0) {
+		--debug_client_count;
+	}
+
 	for (client=client_list; client != NULL; client=client->next) {
 		if (client->pid == req->pid) {
 			if (prev == NULL) {

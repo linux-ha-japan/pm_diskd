@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.67 2000/07/11 00:25:52 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.68 2000/07/11 03:49:42 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -265,21 +265,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.67 2000/07/11 00:25:
 
 #define OPTARGS		"dkrRsvC:"
 
-/*
- *	This next set of defines is for the types of packets that come through heartbeat.
- *
- *	Any given packet behaves like an enumeration (should only have one bit on), but the options
- *	from client software treat them more like a set (bit field), with more than one at a time
- *	being on.  Normally the client only requests KEEPIT packets, but for debugging may want to
- *	ask to see the others too.
- */
-#define	KEEPIT		1	/* Keep this packet */
-#define	DROPIT		2	/* Ignore this packet: bad seqno or not to us or something  */
-#define DUPLICATE	4	/* This is a duplicate packet */
-
-#define	ALLTREATMENTS	(KEEPIT|DROPIT|DUPLICATE)
-#define	DEBUGTREATMENTS	(DROPIT|DUPLICATE)
-#define	DEFAULTREATMENT	(KEEPIT)
 
 /*
  *	Note that the _RSC defines below are bit fields!
@@ -486,7 +471,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.67 2000/07/11 00:25:52 alan Exp $$' | sort -u"
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.68 2000/07/11 03:49:42 alan Exp $$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -1187,14 +1172,15 @@ master_status_process(void)
 		/* Is this message a duplicate, or destined for someone else? */
 
 		action=should_drop_message(thisnode, msg, iface);
-		heartbeat_monitor(msg, action, iface);
 
 		switch (action) {
 			case DROPIT:
 			/* Ignore it */
+			heartbeat_monitor(msg, action, iface);
  			continue;
 
 			case DUPLICATE:
+			heartbeat_monitor(msg, action, iface);
 			case KEEPIT:
 
 			/* Even though it's a DUP, it could update link status*/
@@ -1228,6 +1214,7 @@ master_status_process(void)
 
 		if (strcasecmp(type, T_STARTING) == 0
 		||	strcasecmp(type, T_RESOURCES) == 0) {
+			heartbeat_monitor(msg, action, iface);
 			continue;
 		}
 
@@ -1273,6 +1260,9 @@ master_status_process(void)
 				,	status);
 				notify_world(msg, thisnode->status);
 				strcpy(thisnode->status, status);
+				heartbeat_monitor(msg, action, iface);
+			}else{
+				heartbeat_monitor(msg, NOCHANGE, iface);
 			}
 
 			/* Did we get a status update on ourselves? */
@@ -1280,13 +1270,16 @@ master_status_process(void)
 				tickle_watchdog();
 			}
 		}else if (strcasecmp(type, T_REXMIT) == 0) {
+			heartbeat_monitor(msg, PROTOCOL, iface);
 			if (thisnode != curnode) {
 				/* Forward to control process */
 				send_cluster_msg(msg);
 			}
 		}else if (strcasecmp(type, T_APIREQ) == 0) {
+			heartbeat_monitor(msg, APICALL, iface);
 			api_process_request(msg);
 		}else{
+			heartbeat_monitor(msg, action, iface);
 			notify_world(msg, thisnode->status);
 		}
 	}
@@ -3435,6 +3428,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.68  2000/07/11 03:49:42  alan
+ * Further evolution of the heartbeat API code.
+ * It works quite a bit at this point - at least on the server side.
+ * Now, on to the client side...
+ *
  * Revision 1.67  2000/07/11 00:25:52  alan
  * Added a little more API code.  It looks like the rudiments are now working.
  *

@@ -8,12 +8,23 @@
  * is registered.
  */ 
 
-#define	KEEPIT		1	/* A set of bits */
-#define	DROPIT		2
-#define DUPLICATE	4
+#define	KEEPIT		0x01	/* A set of bits */
+#define	NOCHANGE	0x02	/* A set of bits */
+#define	DROPIT		0x04
+#define DUPLICATE	0x08
+#define APICALL		0x10
+#define PROTOCOL	0x20
 
-#define	ALLTREATMENTS	(KEEPIT|DROPIT|DUPLICATE)
-#define	DEBUGTREATMENTS	(DROPIT|DUPLICATE)
+/*
+ *	This next set of defines is for the types of packets that come through heartbeat.
+ *
+ *	Any given packet behaves like an enumeration (should only have one bit on), but the options
+ *	from client software treat them more like a set (bit field), with more than one at a time
+ *	being on.  Normally the client only requests KEEPIT packets, but for debugging may want to
+ *	ask to see the others too.
+ */
+#define	DEBUGTREATMENTS	(DROPIT|DUPLICATE|APICALL|NOCHANGE|PROTOCOL)
+#define	ALLTREATMENTS	(DEBUGTREATMENTS|KEEPIT)
 #define	DEFAULTREATMENT	(KEEPIT)
 
 #define NR_TYPES 3
@@ -25,10 +36,9 @@
 #	define	F_NODENAME	"node"
 #define	API_NODELIST_END	"nodelist-end"
 #define	API_NODESTATUS		"nodestatus"
-/*	F_STATUS	"status" */
 
 #define	API_IFLIST		"iflist"
-#	define	F_IFNAME		"ifname"
+#	define	F_IFNAME	"ifname"
 #define	API_IFLIST_END		"iflist-end"
 #define	API_IFSTATUS		"ifstatus"
 
