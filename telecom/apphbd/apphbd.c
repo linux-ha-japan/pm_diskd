@@ -981,6 +981,11 @@ init_start()
 		cl_disable_realtime();
 	}
 
+	if (!usenormalpoll) {
+		g_main_set_poll_func(cl_glibpoll);
+		ipc_set_pollfunc(cl_poll);
+	}
+
 	make_daemon();
 
 	/* Create a "waiting for connection" object */
@@ -999,10 +1004,6 @@ init_start()
 	/* Create a source to handle new connection requests */
 	G_main_add_IPC_WaitConnection(G_PRIORITY_HIGH, wconn
 	,	NULL, FALSE, apphb_new_dispatch, wconn, NULL);
-
-	if (!usenormalpoll) {
-		g_main_set_poll_func(cl_glibpoll);
-	}
 
 	/* Create the mainloop and run it... */
 	mainloop = g_main_new(FALSE);
