@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.27 2002/08/16 14:18:42 msoffen Exp $
+#	$Id: IPaddr.in,v 1.28 2002/08/17 14:35:58 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -44,7 +44,9 @@ find_interface_solaris() {
   $IFCONFIG $IFCONFIG_A_OPT | nawk '{if ($0 ~ /.*: / && NR > 1) {print "\n"$0} else {print}}' |
   while read ifname linkstuff
   do
+    : ifname = $ifname
     read inet addr junk
+    : inet = $inet addr = $addr
     while
       read line && [ "X$line" != "X" ]
     do
@@ -81,7 +83,11 @@ find_interface_generic() {
   $IFCONFIG $IFCONFIG_A_OPT  |
   while read ifname linkstuff
   do
+    : Read gave us ifname = $ifname
+
     read inet addr junk
+    : Read gave us inet = $inet addr = $addr
+
     while
       read line && [ "X$line" != "X" ]
     do
@@ -95,22 +101,26 @@ find_interface_generic() {
       *)	continue;;
     esac
 
-    #  This doesn't look right for a box with multiple NICs.
-    #  It looks like it always selects the first interface on
-    #  a machine.  Yet, we appear to use the results for this case too...
+
     case $SYSTYPE in
       *BSD)
+		#  FIXME! This is broken!
+		#  This code always selects the first interface on a machine.
+		#  This is wrong for a machine with multiple NICs.
+		#  A case statement like the non-BSD case is needed!
+
 		echo `echo "$ifname" | sed s'%:$%%'`
 		return 0;;
       *)
+    		: "comparing $ipaddr to $addr (from ifconfig)"
+		case $addr in
+		  addr:$ipaddr)	echo $ifname; return 0;;
+		  $ipaddr)	echo $ifname; return 0;;
+    		esac
 		continue;;
     esac
 
 
-    case $addr in
-      addr:$ipaddr)	echo $ifname; return 0;;
-      $ipaddr)	echo $ifname; return 0;;
-    esac
   done
   return 1
 }
@@ -491,7 +501,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.27 2002/08/16 14:18:42 msoffen Exp $"
+  echo "$Id: IPaddr.in,v 1.28 2002/08/17 14:35:58 alan Exp $"
 }
 
 #
@@ -538,6 +548,11 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.28  2002/08/17 14:35:58  alan
+# Changed BasicSanityCheck to assign the dummy IP address to the dead machine.
+#
+# Fixed IPaddr.in so that it works again on Linux.
+#
 # Revision 1.27  2002/08/16 14:18:42  msoffen
 # Changes to get IP takeover working properly on OpenBSD
 # Changed how *BSD deletes an alias.

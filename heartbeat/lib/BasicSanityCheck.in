@@ -99,7 +99,7 @@ GenerateHaCf() {
 GenerateHaResources() {
   cat <<-! >$1
 	#	$IDENTSTRING
-	$LOCALNODE IPaddr::$TESTIP/30
+	$DUMMYNODE IPaddr::$TESTIP/30
 	!
   chmod 644 $1
 }
