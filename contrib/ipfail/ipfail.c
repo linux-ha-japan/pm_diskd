@@ -59,6 +59,7 @@
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api.h>
+#include <clplumbing/cl_log.h>
 
 void NodeStatus(const char *node, const char *status, void *private);
 void LinkStatus(const char *node, const char *, const char *, void *);
@@ -80,16 +81,15 @@ NodeStatus(const char *node, const char *status, void *private)
 {
 	/* Callback for node status changes */
 
-	fprintf(stderr, "Status update: Node %s now has status %s\n"
+	cl_log(LOG_INFO, "Status update: Node %s now has status %s"
 	,	node, status);
 	if (strcmp(status, "dead") == 0) {
 		if (ping_node_status(private)) {
-			fprintf(stderr, "NS: We are still alive!\n");
+			cl_log(LOG_INFO, "NS: We are still alive!");
+		}else{
+			cl_log(LOG_INFO, "NS: We are dead. :<");
 		}
-		else
-			fprintf(stderr, "NS: We are dead. :<\n");
-	}
-	else if (strcmp(status, "ping") == 0) {
+	} else if (strcmp(status, "ping") == 0) {
 		/* A ping node just came up, if we died, request resources?
 		 * If so, that would emulate the primary/secondary type of
 		 * High-Availability, instead of nice_failback mode
@@ -105,17 +105,17 @@ LinkStatus(const char *node, const char *lnk, const char *status,
 
 	int num_ping=0;
 
-	fprintf(stderr, "Link Status update: Link %s/%s now has status %s\n"
+	cl_log(LOG_INFO, "Link Status update: Link %s/%s now has status %s"
 	,	node, lnk, status);
 
 	if (strcmp(status, "dead") == 0) {
 		/* If we can still see pinging node, request resources */
 		if ((num_ping = ping_node_status(private))) {
 			ask_ping_nodes(private, num_ping);
-			fprintf(stderr, "Checking remote count of ping nodes.\n");
+			cl_log(LOG_INFO, "Checking remote count of ping nodes.");
 		}
 		else {
-			fprintf(stderr, "We are dead. :<\n");
+			cl_log(LOG_INFO, "We are dead. :<");
 			giveup(private);
 		}
 	}
@@ -133,20 +133,20 @@ ping_node_status(ll_cluster_t *hb)
 	int found=0;       /* Number of ping nodes found */
 
 	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
-		fprintf(stderr, "Cannot start node walk\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot start node walk");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(5);
 	}
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
 
 		if (strcmp("ping", hb->llc_ops->node_status(hb, node)) == 0) {
-			fprintf(stderr, "Found ping node %s!\n", node);
+			cl_log(LOG_DEBUG, "Found ping node %s!", node);
 			found++;
 		}
 	}
 	if (hb->llc_ops->end_nodewalk(hb) != HA_OK) {
-		fprintf(stderr, "Cannot end node walk\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot end node walk");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(8);
 	}
 
@@ -172,7 +172,7 @@ giveup(ll_cluster_t *hb)
 	ha_msg_add(msg, F_COMMENT, "me");
 
 	hb->llc_ops->sendclustermsg(hb, msg);
-	printf("Message sent.\n");
+	cl_log(LOG_DEBUG, "Message sent.");
 	ha_msg_del(msg);
 }
 
@@ -187,7 +187,7 @@ ask_ping_nodes(ll_cluster_t *hb, int num_ping)
 	struct ha_msg *msg;
 	char pid[6], np[5];
 
-	fprintf(stderr, "Asking other side for num_ping.\n");
+	cl_log(LOG_DEBUG, "Asking other side for num_ping.");
 	memset(pid, 0, sizeof(pid));
 	sprintf(pid, "%d", getpid());
 	memset(np, 0, sizeof(np));
@@ -199,7 +199,7 @@ ask_ping_nodes(ll_cluster_t *hb, int num_ping)
 	ha_msg_add(msg, "num_ping", np);
 
 	hb->llc_ops->sendnodemsg(hb, msg, other_node);
-	printf("Message sent.\n");
+	cl_log(LOG_DEBUG, "Message sent.");
 	ha_msg_del(msg);
 }
 
@@ -210,7 +210,7 @@ msg_ping_nodes(const struct ha_msg *msg, void *private)
 	 * returns nothing.  Callback for the num_ping_nodes message.
 	 */
 
-	fprintf(stderr, "Got asked for num_ping.\n");
+	cl_log(LOG_DEBUG, "Got asked for num_ping.");
 	if (ping_node_status(private) > atoi(ha_msg_value(msg, "num_ping"))) {
 		you_are_dead(private);
 	}
@@ -226,7 +226,7 @@ you_are_dead(ll_cluster_t *hb)
 	struct ha_msg *msg;
 	char pid[6];
 
-	fprintf(stderr, "Sending you_are_dead.\n");
+	cl_log(LOG_DEBUG, "Sending you_are_dead.");
 
 	memset(pid, 0, sizeof(pid));
 	sprintf(pid, "%d", getpid());
@@ -235,7 +235,7 @@ you_are_dead(ll_cluster_t *hb)
 	ha_msg_add(msg, F_TYPE, "you_are_dead");
 
 	hb->llc_ops->sendnodemsg(hb, msg, other_node);
-	printf("Message sent.\n");
+	printf("Message sent.");
 	ha_msg_del(msg);
 }
 
@@ -247,7 +247,7 @@ i_am_dead(const struct ha_msg *msg, void *private)
 	 * Callback for the you_are_dead message.
 	 */
 
-	fprintf(stderr, "Got you_are_dead.\n");
+	cl_log(LOG_DEBUG, "Got you_are_dead.");
 	giveup(private);
 }
 
@@ -278,7 +278,8 @@ gotsig(int nsig)
 
 
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
 	struct ha_msg *reply;
 	unsigned fmask;
@@ -289,6 +290,9 @@ int main(int argc, char **argv)
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
+	cl_log_enable_stderr(TRUE) ;
+	cl_log_set_entity(argv[0]) ;
+	cl_log_set_facility(LOG_DAEMON);
 
 	hb = ll_cluster_new("heartbeat");
 
@@ -297,36 +301,36 @@ int main(int argc, char **argv)
 
 	memset(pid, 0, sizeof(pid));
 	sprintf(pid, "%d", getpid());
-	fprintf(stderr, "PID=%s\n", pid);
+	cl_log(LOG_DEBUG, "PID=%s", pid);
 
-	fprintf(stderr, "Signing in with heartbeat\n");
+	cl_log(LOG_DEBUG, "Signing in with heartbeat");
 	if (hb->llc_ops->signon(hb, "ipfail")!= HA_OK) {
-		fprintf(stderr, "Cannot sign on with heartbeat\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot sign on with heartbeat");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(1);
 	}
 
 	if (hb->llc_ops->set_msg_callback(hb, "num_ping_nodes", msg_ping_nodes, hb) !=HA_OK){
-		fprintf(stderr, "Cannot set msg callback\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set msg callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(2);
 	}
 
 	if (hb->llc_ops->set_msg_callback(hb, "you_are_dead", i_am_dead, hb) !=HA_OK){
-		fprintf(stderr, "Cannot set msg callback\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set msg callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(2);
 	}
 
 	if (hb->llc_ops->set_nstatus_callback(hb, NodeStatus, hb) !=HA_OK){
-		fprintf(stderr, "Cannot set node status callback\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set node status callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(2);
 	}
 
 	if (hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, hb)!=HA_OK){
-		fprintf(stderr, "Cannot set if status callback\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set if status callback");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(3);
 	}
 
@@ -335,63 +339,64 @@ int main(int argc, char **argv)
 #else
 	fmask = LLC_FILTER_DEFAULT;
 #endif
-	fprintf(stderr, "Setting message filter mode\n");
+	cl_log(LOG_DEBUG, "Setting message filter mode");
 	if (hb->llc_ops->setfmode(hb, fmask) != HA_OK) {
-		fprintf(stderr, "Cannot set filter mode\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set filter mode");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(4);
 	}
 
-	fprintf(stderr, "Starting node walk\n");
+	cl_log(LOG_DEBUG, "Starting node walk");
 	if (hb->llc_ops->init_nodewalk(hb) != HA_OK) {
-		fprintf(stderr, "Cannot start node walk\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot start node walk");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(5);
 	}
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
-		fprintf(stderr, "Cluster node: %s: status: %s\n", node
+		cl_log(LOG_DEBUG, "Cluster node: %s: status: %s", node
 		,	hb->llc_ops->node_status(hb, node));
 
 		/* ifwalking is broken for ping nodes.  I don't think we even
 		   need it at this point.
 
 		if (hb->llc_ops->init_ifwalk(hb, node) != HA_OK) {
-			fprintf(stderr, "Cannot start if walk\n");
-			fprintf(stderr, "REASON: %s\n"
+			cl_log(LOG_ERR, "Cannot start if walk");
+			cl_log(LOG_ERR, "REASON: %s"
 			,	hb->llc_ops->errmsg(hb));
 			exit(6);
 		}
 		while ((intf = hb->llc_ops->nextif(hb))) {
-			fprintf(stderr, "\tnode %s: intf: %s ifstatus: %s\n"
+			cl_log(LOG_DEBUG, "\tnode %s: intf: %s ifstatus: %s"
 			,	node, intf
 			,	hb->llc_ops->if_status(hb, node, intf));
 		}
 		if (hb->llc_ops->end_ifwalk(hb) != HA_OK) {
-			fprintf(stderr, "Cannot end if walk\n");
-			fprintf(stderr, "REASON: %s\n"
+			cl_log(LOG_ERR, "Cannot end if walk");
+			cl_log(LOG_ERR, "REASON: %s"
 			,	hb->llc_ops->errmsg(hb));
 			exit(7);
 		}
 		-END of ifwalkcode */
 	}
 	if (hb->llc_ops->end_nodewalk(hb) != HA_OK) {
-		fprintf(stderr, "Cannot end node walk\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot end node walk");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(8);
 	}
 
 	siginterrupt(SIGINT, 1);
 	signal(SIGINT, gotsig);
 
-	fprintf(stderr, "Setting message signal\n");
+	cl_log(LOG_DEBUG, "Setting message signal");
 	if (hb->llc_ops->setmsgsignal(hb, 0) != HA_OK) {
-		fprintf(stderr, "Cannot set message signal\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot set message signal");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(9);
 	}
 
-	fprintf(stderr, "Waiting for messages...\n");
+	cl_log(LOG_DEBUG, "Waiting for messages...");
 	errno = 0;
+	cl_log_enable_stderr(FALSE) ;
 
 
 	for(; !quitnow && (reply=hb->llc_ops->readmsg(hb, 1)) != NULL;) {
@@ -407,34 +412,33 @@ int main(int argc, char **argv)
 		if ((node_name[0] != 0) && (other_node[0] == 0) &&
 		    (orig[0] != '?') && (strcmp(node_name, orig) != 0)) {
 			strcpy(other_node, orig);
-			printf("[They are %s]\n", other_node);
+			cl_log(LOG_DEBUG, "[They are %s]", other_node);
 			wake_up(hb);
 		}
 		if ((node_name[0] == 0) && (orig[0] != '?')) {
 			strcpy(node_name, orig);
-			printf("[We are %s]\n", node_name);
+			cl_log(LOG_DEBUG, "[We are %s]", node_name);
 		}
 
-		fprintf(stderr, "Got a message of type [%s] from [%s]\n"
+		cl_log(LOG_DEBUG, "Got a message of type [%s] from [%s]"
 		,	type, orig);
 		ha_log_message(reply);
-		fprintf(stderr, "Message: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_DEBUG, "Message: %s", hb->llc_ops->errmsg(hb));
 		ha_msg_del(reply); reply=NULL;
 	}
 
 	if (!quitnow) {
-		perror("read_hb_msg returned NULL");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_perror("read_hb_msg returned NULL");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 	}
 	if (hb->llc_ops->signoff(hb) != HA_OK) {
-		fprintf(stderr, "Cannot sign off from heartbeat.\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot sign off from heartbeat.");
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(10);
 	}
 	if (hb->llc_ops->delete(hb) != HA_OK) {
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
-		fprintf(stderr, "Cannot delete API object.\n");
-		fprintf(stderr, "REASON: %s\n", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		cl_log(LOG_ERR, "Cannot delete API object.");
 		exit(11);
 	}
 	return 0;
