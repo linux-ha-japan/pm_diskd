@@ -65,6 +65,10 @@
 
 #include <stdio.h>
 
+/*
+ * The next three typedefs really belongs in a .h file, but it's not
+ * there yet ;-)
+ */
 typedef enum {
 	PIL_REGISTER,
 	PIL_UNREGISTER,
