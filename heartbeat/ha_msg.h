@@ -1,7 +1,7 @@
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H
 
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.2 1999/09/26 14:01:03 alanr Exp $";
 #include <stdio.h>
 /*
  *	Intracluster message object (struct ha_msg)
@@ -10,13 +10,18 @@ static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.1 1999/09/23 15:31:24 alan
 struct ha_msg {
 	int	nfields;
 	int	nalloc;
+	int	stringlen;
 	char **	names;
+	int  *	nlens;
 	char **	values;
+	int  *	vlens;
 };
 
 #define	MSG_START	">>>\n"
 #define	MSG_END		"<<<\n"
 #define	EQUAL		"="
+
+#define	MAXMSG	1400	/* Maximum string length for a message */
 
 	/* Common field names for our messages */
 #define	F_TYPE		"t"		/* Message type */
@@ -28,6 +33,8 @@ struct ha_msg {
 #define	F_LOAD		"ld"		/* Load average */
 #define	F_COMMENT	"info"		/* Comment */
 #define	F_TTL		"ttl"		/* Time To Live */
+#define F_AUTH          "auth"		/* Authentication string */
+
 
 #define	T_STATUS	"status"	/* Message type = Status */
 
@@ -72,4 +79,5 @@ char *		msg2string(const struct ha_msg *m);
 /* This adds the default sequence#, load avg, etc. to the message */
 struct ha_msg *	controlfifo2msg(FILE * f);
 void		ha_log_message(const struct ha_msg* msg);
+int		isauthentic(const struct ha_msg * msg);
 #endif

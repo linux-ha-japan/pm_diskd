@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.2 1999/09/26 14:01:05 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -140,6 +140,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.1 1999/09/23 15:31:2
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
 #include <sys/types.h>
@@ -176,14 +177,55 @@ struct hb_media*	sysmedia[MAXMEDIA];
 int			nummedia = 0;
 int			status_pipe[2];	/* The Master status pipe */
 
+const char *ha_log_priority[8] = {
+	"emerg",
+	"alert",
+	"crit",
+	"error",
+	"warn",
+	"notice",
+	"info",
+	"debug"
+};
+
+struct _syslog_code {
+        const char    *c_name;
+        int     c_val;
+};
+
+
+struct _syslog_code facilitynames[] =
+{
+	{ "auth", LOG_AUTH },
+	{ "authpriv", LOG_AUTHPRIV },
+	{ "cron", LOG_CRON },
+	{ "daemon", LOG_DAEMON },
+	{ "ftp", LOG_FTP },
+	{ "kern", LOG_KERN },
+	{ "lpr", LOG_LPR },
+	{ "mail", LOG_MAIL },
+/*	{ "mark", INTERNAL_MARK },           * INTERNAL */
+	{ "news", LOG_NEWS },
+	{ "security", LOG_AUTH },           /* DEPRECATED */
+	{ "syslog", LOG_SYSLOG },
+	{ "user", LOG_USER },
+	{ "uucp", LOG_UUCP },
+	{ "local0", LOG_LOCAL0 },
+	{ "local1", LOG_LOCAL1 },
+	{ "local2", LOG_LOCAL2 },
+	{ "local3", LOG_LOCAL3 },
+	{ "local4", LOG_LOCAL4 },
+	{ "local5", LOG_LOCAL5 },
+	{ "local6", LOG_LOCAL6 },
+	{ "local7", LOG_LOCAL7 },
+	{ NULL, -1 }
+};
 
 struct sys_config *	config;
 struct node_info *	curnode = NULL;
 
 volatile struct pstat_shm *	procinfo = NULL;
 volatile struct process_info *	curproc = NULL;
-
-
 
 int	setline(int fd);
 void	cleanexit(int rc);
@@ -203,6 +245,10 @@ int	set_deadtime_interval(const char * value);
 int	set_watchdogdev(const char * value);
 int	set_baudrate(const char * value);
 int	set_udpport(const char * value);
+int	set_facility(const char * value);
+int	set_logfile(const char * value);
+int	set_dbgfile(const char * value);
+int   	set_auth(const char * value);
 void	init_watchdog(void);
 void	tickle_watchdog(void);
 void	usage(void);
@@ -259,11 +305,15 @@ init_config(const char * cfgfile)
  *	'Twould be good to move this to a shared memory segment
  *	Then we could share this information with others
  */
-	config = (struct sys_config *)malloc(sizeof(struct sys_config));
+	config = (struct sys_config *)calloc(1, sizeof(struct sys_config));
 	config->format_vers = 100;
 	config->heartbeat_interval = 2;
 	config->deadtime_interval = 5;
 	config->hopfudge = 1;
+	config->log_facility = -1;
+	config->authnum = 0;
+	config->authmethod[0] = EOS;
+	config->keystr[0] = EOS;
 
 	uname(&u);
 	curnode = NULL;
@@ -272,6 +322,16 @@ init_config(const char * cfgfile)
 		ha_error("Heartbeat not started: configuration error.");
 		return(HA_FAIL);
 	}
+	if (config->log_facility < 0 && *(config->logfile) == 0) {
+		strcpy(config->logfile, DEFAULTLOG);
+		strcpy(config->dbgfile, DEFAULTDEBUG);
+		ha_log(LOG_INFO, "Neither logfile nor logfacility found.");
+		ha_log(LOG_INFO, "Defaulting to " DEFAULTLOG);
+	}
+	if (config->log_facility >= 0) {
+		openlog(cmdname, LOG_CONS | LOG_PID, config->log_facility);
+	}
+
 	if (nummedia < 1) {
 		ha_error("No heartbeat ports defined");
 		++errcount;
@@ -281,21 +341,30 @@ init_config(const char * cfgfile)
 		ha_error("no nodes defined");
 		++errcount;
 	}
+	if (strlen(config->authmethod) <= 0) {
+		ha_error("No authentication specified.");
+		++errcount;
+	}
 	if ((curnode = lookup_node(u.nodename)) == NULL) {
 		sprintf(msg, "Current node [%s] not in configuration"
 		,	u.nodename);
+#if defined(MITJA)
+		ha_log(msg);
+		add_node(from);
+		curnode = lookup_node(u.nodename);
+#else
 		ha_error(msg);
 		++errcount;
-	}else{
-		setenv(CURHOSTENV, u.nodename, 1);
+#endif
 	}
+	setenv(CURHOSTENV, u.nodename, 1);
 	if (config->deadtime_interval <= 2 * config->heartbeat_interval) {
 		sprintf(msg
 		,	"Dead time [%d] is too small compared to keeplive [%d]"
 		,	config->deadtime_interval, config->heartbeat_interval);
 		ha_error(msg);
 		++errcount;
-	}
+	}		
 	return(errcount ? HA_FAIL : HA_OK);
 }
 
@@ -339,6 +408,10 @@ init_procinfo()
 #define KEY_WATCHDOG	"watchdog"
 #define	KEY_BAUDRATE	"baud"
 #define	KEY_UDPPORT	"udpport"
+#define	KEY_FACILITY	"facility"
+#define	KEY_LOGFILE	"logfile"
+#define	KEY_DBGFILE	"debugfile"
+#define KEY_AUTH	"auth"
 
 struct directive {
 	const char * name;
@@ -351,6 +424,10 @@ struct directive {
 ,	{KEY_WATCHDOG,	set_watchdogdev}
 ,	{KEY_BAUDRATE,	set_baudrate}
 ,	{KEY_UDPPORT,	set_udpport}
+,	{KEY_FACILITY,  set_facility}
+,	{KEY_LOGFILE,   set_logfile}
+,	{KEY_DBGFILE,   set_dbgfile}
+,	{KEY_AUTH, 	set_auth}
 };
 
 extern const struct hb_media_fns	ip_media_fns;
@@ -648,9 +725,64 @@ set_hopfudge(const char * value)
 	config->hopfudge = atoi(value);
 
 	if (config->hopfudge >= 0) {
-		return(1);
+		return(HA_OK);
 	}
-	return(0);
+	return(HA_FAIL);
+}
+
+/*
+ *  Set authentication method and key.
+ *  Open and parse the keyfile if needed
+ */
+
+int
+set_auth(const char * value)
+{
+	FILE * f;
+	char buf[MAXLINE], errmsg[MAXLINE];
+	int i;
+	struct stat keyfilestat;
+	config->authnum = atoi(value);
+
+	if ((f = fopen(KEYFILE, "r")) == NULL) {
+		sprintf(errmsg, "No keyfile [%s] found. Using plain crc."
+		,	KEYFILE);
+		strcpy(config->authmethod, "crc");
+		ha_error(errmsg);
+		return(HA_OK);
+	}
+
+	if (stat(KEYFILE, &keyfilestat) < 0
+	||	keyfilestat.st_mode & (S_IROTH | S_IRGRP)) {
+		sprintf(errmsg, "ERROR: Bad permissions on keyfile"
+		" [%s], 600 recommended.", KEYFILE);
+		ha_error(errmsg);
+		exit(1);
+	}
+
+	while(fgets(buf, MAXLINE, f) != NULL) {
+		if (*buf == COMMENTCHAR) {
+			continue;
+		}
+
+		if (sscanf(buf, "%d%s%s", &i, config->authmethod
+		,	config->keystr) == 3
+		&&	i == config->authnum) {
+
+			ha_log(LOG_DEBUG
+			,	"Using authentication method [%s]"
+			,	 config->authmethod);
+			fclose(f);
+			return(HA_OK);
+		}
+	}
+
+	fclose(f);
+	sprintf(errmsg
+	,	"Key number [%s] not found in keyfile [%s] - cannot start"
+	,	value, KEYFILE);
+	ha_error(errmsg);
+	return(HA_FAIL);
 }
 
 /* Set the keepalive time */
@@ -660,9 +792,9 @@ set_keepalive(const char * value)
 	config->heartbeat_interval = atoi(value);
 
 	if (config->heartbeat_interval > 0) {
-		return(1);
+		return(HA_OK);
 	}
-	return(0);
+	return(HA_FAIL);
 
 }
 
@@ -672,15 +804,15 @@ set_deadtime_interval(const char * value)
 {
 	config->deadtime_interval = atoi(value);
 	if (config->deadtime_interval >= 0) {
-		return(1);
+		return(HA_OK);
 	}
-	return(0);
+	return(HA_FAIL);
 }
 /* Set the watchdog device */
 int
 set_watchdogdev(const char * value)
 {
-	
+
 	if (watchdogdev != NULL) {
 		fprintf(stderr, "%s: Watchdog device multiply specified.\n"
 		,	cmdname);
@@ -726,7 +858,7 @@ set_baudrate(const char * value)
 #ifdef B460800
 		case 460800:	serial_baud = B460800; break;
 #endif
-		default:	
+		default:
 		fprintf(stderr, "%s: invalid baudrate [%s] specified.\n"
 		,	cmdname, value);
 		return(HA_FAIL);
@@ -765,6 +897,38 @@ set_udpport(const char * value)
 	return(HA_OK);
 }
 
+/* set syslog facility config variable */
+int
+set_facility(const char * value)
+{
+	int		i;
+	
+	for(i = 0; facilitynames[i].c_name != NULL; ++i) {
+		if(strcmp(value, facilitynames[i].c_name) == 0) {
+			config->log_facility = facilitynames[i].c_val;
+			return(HA_OK);
+		}
+	}
+	return(HA_FAIL);
+}
+
+/* set syslog facility config variable */
+int
+set_dbgfile(const char * value)
+{
+	strncpy(config->dbgfile, value, PATH_MAX);
+	return(HA_OK);
+}
+
+/* set syslog facility config variable */
+int
+set_logfile(const char * value)
+{
+	strncpy(config->logfile, value, PATH_MAX);
+	return(HA_OK);
+}
+
+
 /* Look up the node in the configuration, returning the node info structure */
 struct node_info *
 lookup_node(const char * h)
@@ -795,25 +959,17 @@ ha_timestamp(void)
 	return(ts);
 }
 
-/* Very unsophisticated HA-error-logging function */
+/* Very unsophisticated HA-error-logging function (deprecated) */
 void
 ha_error(const char *	msg)
 {
-	FILE *	fp;
-
-	if ((fp = fopen(HA_LOGFILE, "a")) == NULL) {
-		fprintf(stderr, "%s ERROR: %s\n", ha_timestamp(), msg);
-	}else{
-		fprintf(fp, "%s ERROR: %s\n", ha_timestamp(), msg);
-		fclose(fp);
-	}
+	ha_log(LOG_ERR, msg);
 }
 
 /* Equally unsophisticated HA-logging function */
 void
 ha_perror(const char *	msg)
 {
-	FILE *	fp;
 	const char *	err;
 	char	errornumber[16];
 
@@ -823,27 +979,38 @@ ha_perror(const char *	msg)
 	}else{
 		err = sys_errlist[errno];
 	}
-	if ((fp = fopen(HA_LOGFILE, "a")) == NULL) {
-		fprintf(stderr, "%s ERROR: %s: %s\n", ha_timestamp(), msg
-		,	err);
-	}else{
-		fprintf(fp, "%s ERROR: %s: %s\n", ha_timestamp(), msg, err);
-		fclose(fp);
-	}
+	ha_log(LOG_ERR, err);
 }
 
-/* Equally unsophisticated HA-logging function */
+/* HA-logging function */
 void
-ha_log(const char *	msg)
+ha_log(int priority, const char * fmt, ...)
 {
+	va_list ap;
 	FILE *	fp;
+	char buf[MAXLINE];
 
-	if ((fp = fopen(HA_LOGFILE, "a")) == NULL) {
-		fprintf(stderr, "%s HA_LOG: %s\n", ha_timestamp(), msg);
+	va_start(ap, fmt);
+	vsnprintf(buf, MAXLINE, fmt, ap);
+	if (config->log_facility < 0) {
+
+		fp = fopen(priority == LOG_DEBUG
+		?	config->dbgfile : config->logfile, "a");
+
+		if (fp == NULL) {
+			fp = stderr;
+		}
+
+		fprintf(fp, "heartbeat: %s %s: %s\n", ha_timestamp()
+		,	ha_log_priority[LOG_PRI(priority)], buf);
+
+		if (fp != stderr) {
+			fclose(fp);
+		}
 	}else{
-		fprintf(fp, "%s %s\n", ha_timestamp(), msg);
-		fclose(fp);
+		syslog(priority, "%s", buf);
 	}
+	va_end(ap);
 }
 
 
@@ -867,7 +1034,6 @@ initialize_heartbeat()
  */
 
 	int		j;
-	char		errmsg[MAXLINE];
 	struct stat	buf;
 	int		pid;
 	FILE *		fifo;
@@ -876,12 +1042,10 @@ initialize_heartbeat()
 	localdie = NULL;
 
 	if (stat(FIFONAME, &buf) < 0) {
-		sprintf(errmsg, "FIFO %s does not exist", FIFONAME);
-		ha_error(errmsg);
+		ha_log(LOG_ERR, "FIFO %s does not exist", FIFONAME);
 		return(HA_FAIL);
 	}else if (!S_ISFIFO(buf.st_mode)) {
-		sprintf(errmsg, "%s is not a FIFO", FIFONAME);
-		ha_error(errmsg);
+		ha_log(LOG_ERR, "%s is not a FIFO", FIFONAME);
 		return(HA_FAIL);
 	}
 
@@ -900,21 +1064,18 @@ initialize_heartbeat()
 			return(HA_FAIL);
 		}
 		if (ANYDEBUG) {
-			sprintf(errmsg, "opening %s %s", smj->vf->type
+			ha_log(LOG_DEBUG, "opening %s %s", smj->vf->type
 			,	smj->name);
-			ha_log(errmsg);
 		}
 		if (smj->vf->open(smj) != HA_OK) {
-			sprintf(errmsg, "cannot open %s %s"
+			ha_log(LOG_ERR, "cannot open %s %s"
 			,	smj->vf->type
 			,	smj->name);
-			ha_error(errmsg);
 			return(HA_FAIL);
 		}
 		if (ANYDEBUG) {
-			sprintf(errmsg, "%s channel %s now open..."
+			ha_log(LOG_DEBUG, "%s channel %s now open..."
 			,	smj->vf->type, smj->name);
-			ha_log(errmsg);
 		}
 	}
 	ADDPROC(getpid());
@@ -952,8 +1113,7 @@ initialize_heartbeat()
 	}
 	ADDPROC(pid);
 	if (ANYDEBUG) {
-		sprintf(errmsg, "master status process pid: %d\n", pid);
-		ha_log(errmsg);
+		ha_log(LOG_DEBUG, "master status process pid: %d\n", pid);
 	}
 
 	for (j=0; j < nummedia; ++j) {
@@ -977,8 +1137,7 @@ initialize_heartbeat()
 		}
 		ADDPROC(pid);
 		if (ANYDEBUG) {
-			sprintf(errmsg, "write process pid: %d\n", pid);
-			ha_log(errmsg);
+			ha_log(LOG_DEBUG, "write process pid: %d\n", pid);
 		}
 		ourproc = procinfo->nprocs;
 		procinfo->nprocs++;
@@ -998,8 +1157,7 @@ initialize_heartbeat()
 		}
 		ADDPROC(pid);
 		if (ANYDEBUG) {
-			sprintf(errmsg, "read child process pid: %d\n", pid);
-			ha_log(errmsg);
+			ha_log(LOG_DEBUG, "read child process pid: %d\n", pid);
 		}
 	}
 
@@ -1030,20 +1188,19 @@ read_child(struct hb_media* mp)
 		if (m == NULL) {
 			continue;
 		}
-		
+
 		sm = msg2string(m);
 		if (sm != NULL) {
 			msglen = strlen(sm);
 			if (DEBUGPKT) {
-				sprintf(msg
+				ha_log(LOG_DEBUG
 				, "Writing %d bytes/%d fields to status pipe"
 				,	msglen, m->nfields);
-				ha_log(msg);
 			}
 			if (DEBUGPKTCONT) {
-				ha_log(sm);
+				ha_log(LOG_DEBUG, sm);
 			}
-				
+
 			if ((rc=write(statusfd, sm, msglen)) != msglen)  {
 				/* Try one extra time if we got EINTR */
 				if (errno != EINTR
@@ -1119,7 +1276,7 @@ control_process(FILE * fp)
 			continue;
 		}
 		add2_xmit_hist (&msghist, msg, seqno);
-		
+
 		len = strlen(smsg);
 
 		/* Copy the message to the status process */
@@ -1139,7 +1296,6 @@ void
 master_status_process(void)
 {
 	struct node_info *	thisnode;
-	char			errmsg[MAXLINE];
 	FILE *			f = fdopen(status_pipe[P_READFD], "r");
 	struct ha_msg *	msg = NULL;
 
@@ -1154,6 +1310,7 @@ master_status_process(void)
 		const char *	from;
 		const char *	ts;
 		const char *	type;
+		unsigned char * cksum;
 
 		msg = msgfromstream(f);
 
@@ -1162,25 +1319,42 @@ master_status_process(void)
 			continue;
 		}
 
-
-		/* Extract message type, originator, and timestamp */
+		/* Extract message type, originator, timestamp, cksum and auth*/
 		type = ha_msg_value(msg, F_TYPE);
 		from = ha_msg_value(msg, F_ORIG);
 		ts = ha_msg_value(msg, F_TIME);
-		
+
 		if (from == NULL || ts == NULL || type == NULL) {
 			ha_error("master_status_process: missing from/ts/type");
 			continue;
 		}
 
+		if (!isauthentic(msg)) {
+			ha_log(LOG_DEBUG
+			,       "master_status_process: node [%s]"
+			" failed authentication", from);
+			continue;
+		}else if(ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			,       "master_status_process: node [%s] cksum [%s] ok"
+			,	from, cksum);
+		}
+		/* If a node isn't in the configfile but */
+
 		thisnode = lookup_node(from);
 		if (thisnode == NULL) {
-			sprintf(errmsg
+#if defined(MITJA)
+			ha_log(LOG_WARN
+			,   "master_status_process: new node [%s] in message"
+			,	from);
+			add_node(from);
+#else
+			ha_log(LOG_ERR
 			,   "master_status_process: bad node [%s] in message"
 			,	from);
-			ha_error(errmsg);
 			ha_log_message(msg);
 			continue;
+#endif
 		}
 
 		/* Is this message a duplicate, or destined for someone else? */
@@ -1214,11 +1388,10 @@ master_status_process(void)
 
 			/* Is the status the same? */
 			if (strcasecmp(thisnode->status, status) != 0) {
-				sprintf(errmsg
+				ha_log(LOG_INFO
 				,	"node %s: status %s"
 				,	thisnode->nodename
 				,	status);
-				ha_log(errmsg);
 				notify_world(msg, thisnode->status);
 				strcpy(thisnode->status, status);
 			}
@@ -1264,13 +1437,12 @@ notify_world(struct ha_msg * msg, const char * ostatus)
  */
 	char		command[STATUSLENG];
 	const char *	argv[MAXFIELDS+3];
-	char		ermsg[MAXLINE];
 	const char *	fp;
 	char *		tp;
 	int		pid, status;
 
 	tp = command;
-	
+
 	fp  = ha_msg_value(msg, F_TYPE);
 	ASSERT(fp != NULL && strlen(fp) < STATUSLENG);
 
@@ -1306,9 +1478,8 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				}
 				setenv(OLDSTATUS, ostatus, 1);
 				execv(RCSCRIPT, (char **)argv);
-				
-				sprintf(ermsg, "cannot exec %s", RCSCRIPT);
-				ha_error(ermsg);
+
+				ha_log(LOG_ERR, "cannot exec %s", RCSCRIPT);
 				cleanexit(1);
 				/*NOTREACHED*/
 				break;
@@ -1327,8 +1498,6 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 void
 debug_sig(int sig)
 {
-	char	msg[MAXLINE];
-
 	switch(sig) {
 		case SIGUSR1:
 			++debug;
@@ -1342,8 +1511,7 @@ debug_sig(int sig)
 			}
 			break;
 	}
-	sprintf(msg, "INFO: debug now set to %d [pid %d]", debug, getpid());
-	ha_log(msg);
+	ha_log(LOG_NOTICE, "debug now set to %d [pid %d]", debug, getpid());
 	if (curproc) {
 		const char *	ct;
 
@@ -1357,10 +1525,9 @@ debug_sig(int sig)
 			default:		ct = "huh?";		break;
 		}
 
-		sprintf(msg, "INFO: MSG info: %ld/%ld age %ld [pid%d/%s]"
+		ha_log(LOG_INFO, "MSG info: %ld/%ld age %ld [pid%d/%s]"
 		,	curproc->allocmsgs, curproc->totalmsgs
 		,	time(NULL) - curproc->lastmsg, curproc->pid, ct);
-		ha_log(msg);
 	}
 }
 
@@ -1380,7 +1547,7 @@ ding(int sig)
 	signal(SIGALRM, ding);
 
 	if (debug) {
-		ha_log("Ding!");
+		ha_log(LOG_DEBUG, "Ding!");
 	}
 
 	dingtime --;
@@ -1473,7 +1640,7 @@ send_local_status(void)
 
 
 	if (debug){
-		ha_log("Sending local status");
+		ha_log(LOG_DEBUG, "Sending local status");
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
 		ha_error("Cannot send local status");
@@ -1495,7 +1662,6 @@ send_local_status(void)
 void
 mark_node_dead(struct node_info *hip)
 {
-	char emsg[MAXLINE];
 	struct ha_msg *	hmsg;
 	char		timestamp[16];
 
@@ -1516,8 +1682,7 @@ mark_node_dead(struct node_info *hip)
 		ha_msg_del(hmsg);
 		return;
 	}
-	sprintf(emsg, "node %s: is dead", hip->nodename);
-	ha_log(emsg);
+	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
 
 	heartbeat_monitor(hmsg);
 	notify_world(hmsg, hip->status);
@@ -1539,6 +1704,7 @@ struct fieldname_map fmap [] = {
 	{F_STATUS,	"status"},
 	{F_TIME,	"nodetime"},
 	{F_LOAD,	"loadavg"},
+	{F_AUTH,	NULL},
 };
 
 static int	monfd = -1;
@@ -1573,7 +1739,7 @@ void init_monitor()
 		write(monfd, mon, strlen(mon));
 	}
 }
-			
+
 void
 heartbeat_monitor(struct ha_msg * msg)
 {
@@ -1588,7 +1754,7 @@ heartbeat_monitor(struct ha_msg * msg)
 	if (monfd < 0) {
 		return;
 	}
-			
+
 	sprintf(mon, "hb=?\nhbtime=%lx\n", time(NULL));
 	outptr = mon + strlen(mon);
 
@@ -1667,7 +1833,6 @@ main(int argc, const char ** argv)
 	int	argerrs = 0;
 	int	j;
 	extern int	optind;
-	char	errmsg[MAXLINE];
 
 	cmdname = argv[0];
 	Argc = argc;
@@ -1700,17 +1865,15 @@ main(int argc, const char ** argv)
 	}
 
 
-	setenv(LOGFENV, HA_LOGFILE, 1);
 	setenv(HADIRENV, HA_D, 1);
 	setenv(DATEFMT, HA_DATEFMT, 1);
-	setenv(DEBUGFENV, HA_DEBUGFILE, 1);
 	setenv(HAFUNCENV, HA_FUNCS, 1);
 
 	init_procinfo();
 	/* Perform static initialization for all our heartbeat medium types */
 	for (j=0; j < DIMOF(hbmedia_types); ++j) {
 		if (hbmedia_types[j]->init() != HA_OK) {
-			sprintf(errmsg
+			ha_log(LOG_ERR
 			,	"Initialization failure for %s channel"
 			,	hbmedia_types[j]->type);
 			return(HA_FAIL);
@@ -1719,32 +1882,36 @@ main(int argc, const char ** argv)
 
 	if (init_config(CONFIG_NAME) && parse_ha_resources(RESOURCE_CFG)) {
 		if (ANYDEBUG) {
-			ha_log("HA configuration OK.  Heartbeat started.\n");
+			ha_log(LOG_DEBUG
+			,	"HA configuration OK.  Heartbeat started.\n");
 		}
 		if (verbose) {
 			dump_config();
 		}
 		make_daemon();
+		setenv(LOGFENV, config->logfile, 1);
+		setenv(DEBUGFENV, config->dbgfile, 1);
 		initialize_heartbeat();
 	}else{
-		ha_error("Configuration error, heartbeat not started.");
+		ha_log(LOG_ERR, "Configuration error, heartbeat not started.");
 		cleanexit(1);
 	}
 	cleanexit(0);
 
 	/*NOTREACHED*/
-	return(0);
+	return(HA_FAIL);
 }
 
 void
 cleanexit(rc)
 	int	rc;
 {
-	char	msg[MAXLINE];
 	if (ANYDEBUG) {
-		sprintf(msg, "Exiting from pid %d [%d]"
+		ha_log(LOG_DEBUG, "Exiting from pid %d [%d]"
 		,	getpid(), rc);
-		ha_log(msg);
+	}
+	if(config->log_facility >= 0) {
+		closelog();
 	}
 	exit(rc);
 }
@@ -1757,10 +1924,9 @@ signal_all(int sig)
 	for (j=0; j < num_procs; ++j) {
 		if (processes[j] != us) {
 			if (ANYDEBUG) {
-				char msg[MAXLINE];
-				sprintf(msg,"%d: Signalling process %d [%d]"
-				,	getpid(), processes[j], sig);
-				ha_log(msg);
+				ha_log(LOG_DEBUG,
+				       "%d: Signalling process %d [%d]"
+				       ,	getpid(), processes[j], sig);
 			}
 			kill(processes[j], sig);
 		}
@@ -1839,7 +2005,7 @@ make_daemon(void)
 #endif
 	(void)signal(SIGUSR1, debug_sig);
 	(void)signal(SIGUSR2, debug_sig);
-	
+
 	(void)signal(SIGTERM, signal_all);
 	umask(022);
 	close(FD_STDIN);
@@ -1854,16 +2020,15 @@ void
 init_watchdog(void)
 {
 	if (watchdogfd < 0 && watchdogdev != NULL) {
-		char msg[128];
 		watchdogfd = open(watchdogdev, O_WRONLY);
 		if (watchdogfd >= 0) {
-			sprintf(msg, "Using watchdog device: %s", watchdogdev);
+			ha_log(LOG_NOTICE, "Using watchdog device: %s"
+			       , watchdogdev);
 			tickle_watchdog();
 		}else{
-			sprintf(msg, "Cannot open watchdog device: %s"
+			ha_log(LOG_ERR, "Cannot open watchdog device: %s"
 			,	watchdogdev);
 		}
-		ha_log(msg);
 	}
 }
 
@@ -1881,13 +2046,12 @@ tickle_watchdog(void)
 		}
 	}
 }
+
 void
 ha_assert(const char * assertion, int line, const char * file)
 {
-	char	errmsg[MAXLINE];
-	sprintf(errmsg, "Assertion \"%s\" failed on line %d in file \"%s\""
+	ha_log(LOG_ERR, "Assertion \"%s\" failed on line %d in file \"%s\""
 	,	assertion, line, file);
-	ha_error(errmsg);
 	cleanexit(1);
 }
 
@@ -1909,20 +2073,21 @@ should_ring_copy_msg(struct ha_msg *m)
 	/* Is this message from us? */
 	if (strcmp(from, us) == 0 || atoi(ttl) <= 0) {
 		/* Avoid infinite loops... Ignore this message */
-			return(0);
+		return(0);
 	}
 
 	/* Must be OK */
 	return(1);
 }
+
 void
 dump_msg(const struct ha_msg *msg)
 {
 	char *	s = msg2string(msg);
-	ha_log("Message dump:");
-	ha_log(s);
+	ha_log(LOG_INFO, "Message dump: %s", s);
 	free(s);
 }
+
 /*
  *	Right now, this is a little too simple.  There is no provision for
  *	sequence number wraparounds.  But, it will take a very long
@@ -1949,7 +2114,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	int			j;
 	char			msgbuf[MAXLINE];
 
-	
+
 	if (cseq  == NULL || sscanf(cseq, "%lx", &seq) != 1 ||	seq <= 0) {
 		ha_error("should_drop_message: bad sequence number");
 		dump_msg(msg);
@@ -1969,7 +2134,8 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	}else if (seq == t->last_seq) {
 		/* Same as last-seen packet -- very common case */
 		if (DEBUGPKT) {
-			ha_log("should_drop_message: Duplicate packet(1)");
+			ha_log(LOG_DEBUG,
+			       "should_drop_message: Duplicate packet(1)");
 		}
 		return(DROPIT);
 	}
@@ -2028,7 +2194,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	/*
 	 * This packet appears to be older than the last one we got.
 	 */
-	
+
 	/*
 	 * Is it a (recorded) missing packet?
 	 */
@@ -2068,11 +2234,10 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 		if (newts > thisnode->rmt_lastupdate) {
 			/* Yes.  Looks like a software restart to me... */
 			thisnode->rmt_lastupdate = newts;
-			sprintf(msgbuf
+			ha_log(LOG_NOTICE  /* or just INFO ? */
 			,	"node %s seq restart %ld vs %ld"
 			,	thisnode->nodename
 			,	seq, t->last_seq);
-			ha_log(msgbuf);
 			t->nmissing = 0;
 			t->last_seq = seq;
 			return(IsToUs ? KEEPIT : DROPIT);
@@ -2080,7 +2245,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	}
 	/* This is a duplicate packet (or a really old one we lost track of) */
 	if (DEBUGPKT) {
-		ha_log("should_drop_message: Duplicate packet");
+		ha_log(LOG_DEBUG, "should_drop_message: Duplicate packet");
 		dump_msg(msg);
 	}
 	return(DROPIT);
@@ -2092,7 +2257,7 @@ void
 init_xmit_hist (struct msg_xmit_hist * hist)
 {
 	int	j;
-	
+
 	hist->lastmsg = MAXMSGHIST-1;
 	hist->hiseq = hist->lowseq = 0;
 	for (j=0; j< MAXMSGHIST; ++j) {
@@ -2103,7 +2268,8 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 
 /* Add a packet to a channel's transmit history */
 void
-add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg, unsigned long seq)
+add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
+,	unsigned long seq)
 {
 	int	slot;
 
@@ -2138,8 +2304,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
- * Revision 1.1  1999/09/23 15:31:24  alanr
- * Initial revision
+ * Revision 1.2  1999/09/26 14:01:05  alanr
+ * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
+ *
+ * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+ * High-Availability Linux
  *
  * Revision 1.34  1999/09/16 05:50:20  alanr
  * Getting ready for 0.4.3...

@@ -41,6 +41,20 @@
 #
 #watchdog /dev/watchdog
 #
+#	File to wirte debug messages to
+#debugfile /var/log/ha-debug
+#
+#
+# 	File to write other messages to
+#
+#logfile	/var/log/ha-log
+#
+#
+#	Facility to use for syslog()/logger (alternative to log/debugfile)
+#
+logfacility	local0
+#
+#
 #	Tell what machines are in the cluster
 #	node	nodename ...	-- must match uname -n
 #node	ken3

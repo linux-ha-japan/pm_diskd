@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.2 1999/09/26 14:01:18 alanr Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -42,6 +42,8 @@ STATIC char *		ttygets(char * inbuf, int length
 ,				struct serial_private *tty);
 STATIC int		serial_write(struct hb_media*mp, struct ha_msg *msg);
 STATIC int		serial_open(struct hb_media* mp);
+STATIC int              ttylock(const char *devname);
+STATIC int              ttyunlock(const char *devname);
 STATIC int		ttysetup(int fd);
 STATIC int		opentty(char * serial_device);
 STATIC int		serial_close(struct hb_media* mp);
@@ -141,11 +143,15 @@ serial_open(struct hb_media* mp)
 
 	TTYASSERT(mp);
 	sp = (struct serial_private*)mp->pd;
+	if (ttylock(sp->ttyname) < 0) {
+		snprintf(msg, MAXLINE, "cannot lock line %s", sp->ttyname);
+		ha_error(msg);
+		return(HA_FAIL);
+	}
 	if ((sp->ttyfd = opentty(sp->ttyname)) < 0) {
 		return(HA_FAIL);
 	}
-	sprintf(msg, "Starting serial heartbeat on tty %s", sp->ttyname);
-	ha_log(msg);
+	ha_log(LOG_NOTICE, "Starting serial heartbeat on tty %s", sp->ttyname);
 	return(HA_OK);
 }
 
@@ -153,14 +159,110 @@ STATIC int
 serial_close(struct hb_media* mp)
 {
 	struct serial_private*	sp;
+	int rc;
 
 	TTYASSERT(mp);
 	sp = (struct serial_private*)mp->pd;
-	return(close(sp->ttyfd)< 0 ? HA_FAIL : HA_OK);
+	rc = close(sp->ttyfd) < 0 ? HA_FAIL : HA_OK;
+	ttyunlock(sp->ttyname);
+	return rc;
 }
 
 
-/* Set up a serial line the way we want it done */
+/* lock a tty (using lock files, see linux `man 2 open` close to O_EXCL) 
+ * devname has to be _the complete path_, i.e. including '/dev/' to the
+ * special file, which denotes the tty to lock -tho
+ * return 0 on success, 
+ * -1 if device is locked (lockfile exists and isn't stale),
+ * -2 for temporarily failure, try again,
+ * other negative value, if something unexpected happend (failure anyway)
+ */
+STATIC int
+ttylock(const char *devname)
+{
+	char lf_name[256], tf_name[256], buf[12];
+	int fd;
+	pid_t pid, mypid;
+	int rc;
+	struct stat sbuf;
+
+	mypid = getpid();
+	snprintf(lf_name, 256, "%s/LCK..%s", TTY_LOCK_D,
+		 devname + sizeof("/dev/") - 1);
+	snprintf(tf_name, 256, "%s/tmp%d-%s", TTY_LOCK_D, 
+		 mypid, devname + sizeof("/dev/") - 1);
+	if ((fd = open(lf_name, O_RDONLY)) >= 0) {
+		sleep(1); /* if someone was about to create on, give'm a
+			   * sec to do so */
+		if (read(fd, buf, 12) < 1) {
+			/* lockfile empty -> rm it and go on */
+		} else {
+			if (sscanf("%d", buf, &pid) < 1) {
+				/* lockfile screwed up -> rm it and go on */
+			} else {
+				if (kill(pid, 0) != ESRCH) {
+					/* tty is locked by existing (not
+					 * necessarily running) process
+					 * -> give up */
+					close(fd);
+					return -1;
+				} else {
+					/* stale lockfile -> rm it and go on */
+				}
+			}
+		}
+		unlink(lf_name);
+	}
+	if ((fd = open(tf_name, O_CREAT | O_WRONLY, 0660)) < 0) {
+		/* Hmmh, why did we fail? Anyway, nothing we can do about */
+		return -3;
+	}
+	sprintf(buf, "%10d\n", mypid);
+	if(write(fd, buf, 12) < 12) {
+		/* again, nothing we can do about */
+		return -3;
+	}
+	close(fd);
+	switch(link(tf_name, lf_name)) {
+	case 0:
+		if(stat(tf_name, &sbuf) < 0) {
+			/* something weird happened */
+			rc = -3;
+			break;
+		}
+		if(sbuf.st_nlink < 2) {
+			/* somehow, it didn't get through - NFS trouble? */
+			rc = -2;
+			break;
+		}
+		rc = 0;
+		break;
+	case EEXIST:
+		rc = -1;
+		break;
+	default:
+		rc = -3;
+	}
+	unlink(tf_name);
+	return rc;
+}
+
+/* unlock a tty (remove its lockfile) 
+ * do we need to check, if its (still) ours? No, IMHO, if someone else
+ * locked our line, it's his fault  -tho
+ * returns 0 on success
+ * <0 if some failure occured */ 
+STATIC
+int ttyunlock(const char *devname)
+{
+	char lf_name[256];
+	
+	snprintf(lf_name, 256, "%s/LCK..%s", TTY_LOCK_D,
+		 devname + sizeof("/dev/") - 1);
+	return unlink(lf_name);
+}
+
+/* Set up a serial line the way we want it be done */
 STATIC int
 ttysetup(int fd)
 {
@@ -237,13 +339,11 @@ serial_write(struct hb_media*mp, struct ha_msg*m)
 	}
 	size = strlen(str);
 	if (DEBUGPKT) {
-		char msg[MAXLINE];
-		sprintf(msg, "Sending pkt to %s [%d bytes]"
+		ha_log(LOG_DEBUG, "Sending pkt to %s [%d bytes]"
 		,	mp->name, size);
-		ha_log(msg);
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(str);
+		ha_log(LOG_DEBUG, str);
 	}
 	wrc = write(ourtty, str, size);
 
@@ -367,8 +467,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
- * Revision 1.1  1999/09/23 15:31:24  alanr
- * Initial revision
+ * Revision 1.2  1999/09/26 14:01:18  alanr
+ * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
+ *
+ * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+ * High-Availability Linux
  *
  * Revision 1.11  1999/09/18 02:56:36  alanr
  * Put in Matt Soffen's portability changes...

@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.2 1999/09/26 14:01:12 alanr Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -15,6 +15,9 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 1999/09/23 15:31:2
 #	define	SETATTR(fd, s)	tcsetattr(fd, TCSAFLUSH, s)
 #	define	FLUSH(fd)	tcflush(fd, TCIOFLUSH)
 #endif
+
+#include <limits.h>
+#include <syslog.h>
 #include <netdb.h>
 #include <db.h>
 #include <netinet/in.h>
@@ -45,6 +48,22 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 1999/09/23 15:31:2
 #define	HA_FAIL		0
 #define	HA_OK		1
 
+#ifndef HA_D
+#	define	HA_D		"/etc/ha.d"
+#endif
+#ifndef VAR_RUN_D
+#	define	VAR_RUN_D	"/var/run"
+#endif
+#ifndef VAR_LOG_D
+#	define	VAR_LOG_D	"/var/log"
+#endif
+#ifndef TTYLOCK_D
+#	define	TTY_LOCK_D	"/var/lock"
+#endif
+
+#define	DEFAULTLOG	VAR_LOG_D "/ha-log"
+#define	DEFAULTDEBUG	VAR_LOG_D "/ha-debug"
+
 #define	HA_OKEXIT	0
 #define	HA_FAILEXIT	1
 #define	WHITESPACE	" \t\n\r\f"
@@ -55,7 +74,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 1999/09/23 15:31:2
 #define	INITSTATUS	"unknown"
 #define	DEADSTATUS	"dead"
 #define	LOADAVG		"/proc/loadavg"
-#define	PIDFILE		"/var/run/heartbeat.pid"
+#define	PIDFILE		VAR_RUN_D "/heartbeat.pid"
+#define KEYFILE         HA_D "/authkeys"
 #define HA_SERVICENAME	"ha-heartbeat"
 #define	UDPPORT		1001	/* probably already used :-) */
 
@@ -65,6 +85,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 1999/09/23 15:31:2
 #define DATEFMT		"HA_DATEFMT"	/* Format string for date(1) */
 #define LOGFENV		"HA_LOGFILE"	/* well-formed log file :-) */
 #define DEBUGFENV	"HA_DEBUGLOG"	/* Debug log file */
+#define LOGFACILITY	"HA_LOGFACILITY"/* Facility to use for logger */
 #define HADIRENV	"HA_DIR"	/* The base HA directory */
 #define HAFUNCENV	"HA_FUNCS"	/* Location of ha shell functions */
 
@@ -72,12 +93,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 1999/09/23 15:31:2
 #define	DEFAULTBAUD	B19200	/* Default serial link speed */
 #define	DEFAULTBAUDRATE	19200	/* Default serial link speed as int */
 
-#ifndef HA_D
-#	define	HA_D		"/etc/ha.d"
-#endif
-#ifndef VAR_RUN_D
-#	define	VAR_RUN_D	"/var/run"
-#endif
 #ifndef PPP_D
 #	define	PPP_D		VAR_RUN_D "/ppp.d"
 #endif
@@ -94,14 +109,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.1 1999/09/23 15:31:2
 /* You may need to change this for your compiler */
 #define	ASSERT(X)	{if(!(X)) ha_assert(__STRING(X), __LINE__, __FILE__);}
 
-#if defined(IRIX)
-#	define HA_LOGDIR	"/var/adm"
-#else
-#	define HA_LOGDIR	"/var/log"
-#endif
 
-#define HA_LOGFILE	HA_LOGDIR "/ha-log"
-#define HA_DEBUGFILE	HA_LOGDIR "/ha-debug"
+
 #define HA_DATEFMT	"%Y/%m/%d_%T\t"
 #define HA_FUNCS	HA_D "/shellfuncs"
 
@@ -139,7 +148,13 @@ struct sys_config {
 	int	heartbeat_interval;	/* Seconds between heartbeats */
 	int	deadtime_interval;	/* Seconds before declaring dead */
 	int	hopfudge;		/* hops beyond nodecount allowed */
+	int     log_facility;		/* syslog facility, if any */
+	char    logfile[PATH_MAX];	/* path to log file, if any */
+	char	dbgfile[PATH_MAX];	/* path to debug file, if any */
 	struct node_info	nodes[MAXNODE];
+	char    keystr[MAXLINE];
+	int     authnum;
+	char    authmethod[MAXLINE];
 };
 
 
@@ -210,6 +225,7 @@ extern int			debug;
 extern int			udpport;
 
 #define	ANYDEBUG	(debug)
+#define	DEBUGAUTH	(debug >=3)
 #define	DEBUGPKT	(debug >= 4)
 #define	DEBUGPKTCONT	(debug >= 5)
 
@@ -218,11 +234,12 @@ extern int			udpport;
 extern void		ha_error(const char * msg);
 extern void		ha_perror(const char * msg);
 extern void		ha_assert(const char *s, int line, const char * file);
-extern void		ha_log(const char * msg);
+extern void		ha_log(int priority, const char * fmt, ...);
 extern int		send_local_status(void);
 extern int		set_local_status(const char * status);
 extern int		send_cluster_msg(struct ha_msg*msg);
 extern void		cleanexit(int exitcode);
 extern void		(*localdie)(void);
 extern int		should_ring_copy_msg(struct ha_msg* m);
+extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
 #endif

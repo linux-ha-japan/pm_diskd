@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.2 1999/09/26 14:01:21 alanr Exp $";
 /*
    About half the code in ths file borrowed 1999 from Tom Vogt's
 	"Heart" program, and significantly mangled by
@@ -131,7 +131,6 @@ STATIC int
 udp_open(struct hb_media* mp)
 {
 	struct ip_private * ei;
-	char msg[MAXLINE];
 
 	UDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
@@ -143,9 +142,8 @@ udp_open(struct hb_media* mp)
 		udp_close(mp);
 		return(HA_FAIL);
 	}
-	sprintf(msg, "UDP heartbeat started on port %d interface %s"
+	ha_log(LOG_NOTICE, "UDP heartbeat started on port %d interface %s"
 	,	udpport, mp->name);
-	ha_log(msg);
 	return(HA_OK);
 }
 
@@ -196,13 +194,11 @@ udp_read(struct hb_media* mp)
 	buf[numbytes] = EOS;
 
 	if (DEBUGPKT) {
-		char	msg[MAXLINE];
-		sprintf(msg, "got %d byte packet from %s"
+		ha_log(LOG_DEBUG, "got %d byte packet from %s"
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
-		ha_log(msg);
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(buf);
+		ha_log(LOG_DEBUG, buf);
 	}
 	return(string2msg(buf));
 }
@@ -236,13 +232,11 @@ udp_write(struct hb_media* mp, struct ha_msg * msgptr)
 	}
 
 	if (DEBUGPKT) {
-		char	msg[MAXLINE];
-		sprintf(msg, "sent %d bytes to %s"
+		ha_log(LOG_DEBUG, "sent %d bytes to %s"
 		,	rc, inet_ntoa(ei->addr.sin_addr));
-		ha_log(msg);
    	}
 	if (DEBUGPKTCONT) {
-		ha_log(pkt);
+		ha_log(LOG_DEBUG, pkt);
    	}
 	free(pkt);
 	return(HA_OK);
@@ -329,7 +323,6 @@ HB_make_receive_sock(struct hb_media * mp) {
 		 *  We want to packets only from this PPP interface...
 		 */
 		struct ifreq i;
-		char	msg[MAXLINE];
 		strcpy(i.ifr_name,  ei->interface);
 
 		if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE
@@ -340,9 +333,9 @@ HB_make_receive_sock(struct hb_media * mp) {
 			return(-1);
 		}
 		if (ANYDEBUG) {
-			sprintf(msg, "SO_BINDTODEVICE(r) set for device %s"
+			ha_log(LOG_DEBUG
+			,	"SO_BINDTODEVICE(r) set for device %s"
 			,	i.ifr_name);
-			ha_log(msg);
 		}
 	}
 #endif
@@ -353,12 +346,11 @@ HB_make_receive_sock(struct hb_media * mp) {
 		if (errno == EADDRINUSE) {
 			char msg[MAXLINE];
 			/* This happens with multiple udp or ppp interfaces */
-			sprintf(msg
+			ha_log(LOG_NOTICE
 			,	"Someone already listening on port %d [%s]"
 			,	ei->port
 			,	ei->interface);
-			ha_log(msg);
-			ha_log("UDP read process exiting");
+			ha_log(LOG_NOTICE, "UDP read process exiting");
 			close(sockfd);
 			cleanexit(0);
 		}
@@ -458,8 +450,11 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
- * Revision 1.1  1999/09/23 15:31:24  alanr
- * Initial revision
+ * Revision 1.2  1999/09/26 14:01:21  alanr
+ * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
+ *
+ * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+ * High-Availability Linux
  *
  * Revision 1.9  1999/09/18 02:56:36  alanr
  * Put in Matt Soffen's portability changes...

@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.2 1999/09/26 14:01:14 alanr Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -305,12 +305,10 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 	FILE *		fp;
 	struct ip_private * ei;
 	char		line[MAXLINE];
-	char		msg[MAXLINE];
 	PPPUDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
 	if (ANYDEBUG) {
-		sprintf(msg, "Attempting to open %s", ppp_start_file);
-		ha_log(msg);
+		ha_log(LOG_DEBUG, "Attempting to open %s", ppp_start_file);
    	}
 	/*
 	 *	This is the information we put in the start file...
@@ -321,8 +319,7 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 	 */
 	if ((fp=fopen(ppp_start_file, "r")) != NULL)  {
 		if (ANYDEBUG) {
-			sprintf(msg, "%s opened.", ppp_start_file);
-			ha_log(msg);
+			ha_log(LOG_DEBUG, "%s opened.", ppp_start_file);
 		}
 		if (fgets(line, MAXLINE-1, fp) != NULL) {
 			if (ei->far_addr != NULL)  {
@@ -333,8 +330,7 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 			ei->far_addr = malloc(strlen(line)+1);
 			strcpy(ei->far_addr, line);
 			if (ANYDEBUG) {
-				sprintf(msg, "addr=%s", line);
-				ha_log(msg);
+				ha_log(LOG_DEBUG, "addr=%s", line);
 			}
 		}
 		if (fgets(line, MAXLINE-1, fp) != NULL) {
@@ -346,8 +342,7 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 			ei->interface = malloc(strlen(line)+1);
 			strcpy(ei->interface, line);
 			if (ANYDEBUG) {
-				sprintf(msg, "if=%s", ei->interface);
-				ha_log(msg);
+				ha_log(LOG_DEBUG, "if=%s", ei->interface);
 			}
 		}
 		if (fgets(line, MAXLINE-1, fp) != NULL) {
@@ -356,13 +351,11 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 				ei->ppp_pid = pid;
 			}
 			if (ANYDEBUG) {
-				sprintf(msg, "pid=%d", ei->ppp_pid);
-				ha_log(msg);
+				ha_log(LOG_DEBUG, "pid=%d", ei->ppp_pid);
 			}
 		}
 		if (ANYDEBUG) {
-			sprintf(msg, "closing %s.", ppp_start_file);
-			ha_log(msg);
+			ha_log(LOG_DEBUG, "closing %s.", ppp_start_file);
 		}
 		fclose(fp);
 		return(HA_OK);
@@ -378,16 +371,14 @@ STATIC int
 ppp_udp_open(struct hb_media* mp)
 {
 	struct ip_private * ei;
-	char msg[MAXLINE];
 
 	PPPUDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
 
 	ei->wsocket = -1;
 	ei->rsocket = -1;
-	sprintf(msg, "PPP/UDP heartbeat started on port %d tty %s"
+	ha_log(LOG_NOTICE, "PPP/UDP heartbeat started on port %d tty %s"
 	,	udpport, mp->name);
-	ha_log(msg);
 	return(HA_OK);
 }
 /*
@@ -404,13 +395,12 @@ STATIC int
 ppp_udp_open_write(struct hb_media * mp)
 {
 	struct ip_private * ei;
-	char msg[MAXLINE];
 
 	PPPUDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
 
 	if (ANYDEBUG)  {
-		ha_log("ppp_udp_open_write called");
+		ha_log(LOG_DEBUG, "ppp_udp_open_write called");
 	}
 	if (ei->wsocket >= 0) {
 		close(ei->wsocket);
@@ -430,10 +420,9 @@ ppp_udp_open_write(struct hb_media * mp)
 		if (ppp_udp_ppp_proc_info(mp) == HA_OK) {
 			if (ei->ppp_pid > 1) {
 				if (kill(ei->ppp_pid, 0) >= 0) {
-					sprintf(msg
+					ha_log(LOG_NOTICE
 					,	"PID %d: killing PPPd pid %d"
 					,	getpid(), ei->ppp_pid);
-					ha_log(msg);
 				}
 				kill(ei->ppp_pid, SIGTERM);
 			}else{
@@ -480,7 +469,6 @@ STATIC int
 ppp_udp_start_ppp(struct hb_media * mp)
 {
 	char		PPPcmd[MAXLINE];
-	char		msg[MAXLINE];
 	struct ip_private * ei;
 	pid_t		pid;
 	extern int	baudrate;
@@ -489,7 +477,7 @@ ppp_udp_start_ppp(struct hb_media * mp)
 	ei = (struct ip_private *) mp->pd;
 
 	if (ANYDEBUG)  {
-		ha_log("Starting PPPd");
+		ha_log(LOG_DEBUG, "Starting PPPd");
 	}
 	sprintf(PPPcmd, "exec %s %s %d %s %s: >%s/start.msgs 2>&1"
 	,	PPPD, mp->name, baudrate, PPP_OPTS, ei->ipaddr
@@ -507,8 +495,8 @@ ppp_udp_start_ppp(struct hb_media * mp)
 
 		default:	/* Parent */
 				ei->ppp_pid = pid;
-				sprintf(msg, "PPPd process %d started", pid);
-				ha_log(msg);
+				ha_log(LOG_NOTICE
+				       , "PPPd process %d started", pid);
 	}
 	
 	/* Take PPP down with us! */
@@ -527,7 +515,7 @@ ppp_udp_open_read(struct hb_media * mp)
 	ei = (struct ip_private *) mp->pd;
 
 	if (ANYDEBUG)  {
-		ha_log("ppp_udp_open_read called");
+		ha_log(LOG_DEBUG, "ppp_udp_open_read called");
 	}
 	if (ei->rsocket >= 0) {
 		close(ei->rsocket);
@@ -559,7 +547,7 @@ ppp_udp_close(struct hb_media* mp)
 	ei = (struct ip_private *) mp->pd;
 
 	if (ANYDEBUG)  {
-		ha_log("ppp_udp_close called");
+		ha_log(LOG_DEBUG, "ppp_udp_close called");
 	}
 	if (ei->rsocket >= 0) {
 		if (close(ei->rsocket) < 0) {
@@ -575,11 +563,9 @@ ppp_udp_close(struct hb_media* mp)
 	}
 	/* We don't like our PPP process for some reason */
 	if (ei->ppp_pid > 1) {
-		char msg[MAXLINE];
 		if (kill(ei->ppp_pid, 0) >= 0) {
-			sprintf(msg, "PID %d: killing PPPd pid %d."
+			ha_log(LOG_NOTICE, "PID %d: killing PPPd pid %d."
 			,	getpid(), ei->ppp_pid);
-			ha_log(msg);
 		}
 		/* Even the reader can cause this, if things look bad */
 		kill(ei->ppp_pid, SIGTERM);
@@ -608,7 +594,7 @@ ppp_udp_read(struct hb_media* mp)
 	ei = (struct ip_private *) mp->pd;
 
 	if (ANYDEBUG)  {
-		ha_log("ppp_udp_read called");
+		ha_log(LOG_DEBUG, "ppp_udp_read called");
 	}
 	/* Wait for PPP to start... */
 	while (ei->rsocket < 0) {
@@ -646,13 +632,11 @@ ppp_udp_read(struct hb_media* mp)
 	 */
 
 	if (DEBUGPKT) {
-		char	msg[MAXLINE];
-		sprintf(msg, "got %d byte packet from %s"
+		ha_log(LOG_DEBUG, "got %d byte packet from %s"
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
-		ha_log(msg);
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(buf);
+		ha_log(LOG_DEBUG, buf);
 	}
 
 	/* Should this message should continue around the ring? */
@@ -711,7 +695,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 	size = strlen(pkt)+1;
 
 	if (ANYDEBUG)  {
-		ha_log("ppp_udp_write called");
+		ha_log(LOG_DEBUG, "ppp_udp_write called");
 	}
 	/* Is PPP connection already open? */
 	if (ei->wsocket < 0) {
@@ -729,8 +713,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 	 */
 	if (ei->ppp_pid > 0 && (kill(ei->ppp_pid, 0)< 0 && errno == ESRCH)) {
 		/* Our PPP process has died.  Start a new one */
-		sprintf(msg, "PPPd process %d is gone.", ei->ppp_pid);
-		ha_log(msg);
+		ha_log(LOG_DEBUG, "PPPd process %d is gone.", ei->ppp_pid);
 		ppp_udp_close(mp);
 		ppp_udp_open_write(mp);
 	}
@@ -756,7 +739,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 			ha_perror(msg);
 		}else{
 			if (ANYDEBUG)  {
-				ha_log("ppp_udp_write succeeds");
+				ha_log(LOG_DEBUG, "ppp_udp_write succeeds");
 			}
 			errcount = 0;
 		}
@@ -782,9 +765,9 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 			free(pkt);
 			return(HA_OK);
 		}
-		sprintf(msg, "Too many errors sending to %s... closing..."
+		ha_log(LOG_WARNING
+		,	"Too many errors sending to %s... closing..."
 		,	inet_ntoa(ei->addr.sin_addr));
-		ha_log(msg);
 		/* This will cause PPPd to restart */
 		ppp_udp_close(mp);
 		free(pkt);
@@ -795,12 +778,11 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 	}
 
 	if (DEBUGPKT) {
-		sprintf(msg, "sent %d bytes to %s"
+		ha_log(LOG_DEBUG, "sent %d bytes to %s"
 		,	rc, inet_ntoa(ei->addr.sin_addr));
-		ha_log(msg);
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(pkt);
+		ha_log(LOG_DEBUG, pkt);
    	}
 	free(pkt);
 	return(HA_OK);
@@ -884,7 +866,6 @@ ppp_udp_make_receive_sock(struct hb_media * mp) {
 	struct ip_private * ei;
 	struct sockaddr_in my_addr;    /* my address information */
 	int	sockfd;
-	char	msg[MAXLINE];
 
 	PPPUDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
@@ -925,9 +906,9 @@ ppp_udp_make_receive_sock(struct hb_media * mp) {
 			return(-1);
 		}
 		if (ANYDEBUG) {
-			sprintf(msg, "SO_BINDTODEVICE(r) set for device %s"
+			ha_log(LOG_DEBUG
+			,	"SO_BINDTODEVICE(r) set for device %s"
 			,	i.ifr_name);
-			ha_log(msg);
 		}
 	}
 #endif
@@ -936,24 +917,22 @@ ppp_udp_make_receive_sock(struct hb_media * mp) {
 #if !defined(SO_BINDTODEVICE)
 		if (errno == EADDRINUSE) {
 			/* This happens with multiple udp or ppp interfaces */
-			sprintf(msg
+			ha_log(LOG_NOTICE,
 			,	"Someone already listening on port %d [%s]"
 			,	ei->port
 			,	mp->name);
-			ha_log(msg);
-			ha_log("PPP/UDP read process exiting.");
+			ha_log(LOG_NOTICE, "PPP/UDP read process exiting.");
 			close(sockfd);
 			cleanexit(0);
 		}
 #endif
 		ha_perror("Error binding ppp_receive socket");
-		ha_log("Read process exiting.");
+		ha_log(LOG_NOTICE, "Read process exiting.");
 		close(sockfd);
 		cleanexit(1);
 	}
-	sprintf(msg, "PPP/UDP socket open on interface (%s:%s)"
+	ha_log(LOG_NOTICE, "PPP/UDP socket open on interface (%s:%s)"
 	,	ei->interface, mp->name);
-	ha_log(msg);
 	return(sockfd);
 }
 #define	ALARMCNT	2
@@ -1028,10 +1007,9 @@ check_ppp_info(int sig)
 	buf.st_mtime=0;
 	if (ppp_ts != NULLTS
 	&&	(stat(ppp_path, &buf) < 0 || ppp_ts != buf.st_mtime)) {
-		char errmsg[MAXLINE];
 		/* OOPS! Need to re-open the socket */
-		sprintf(errmsg, "PPP/UDP reader closing socket [%s]", ppp_path);
-		ha_log(errmsg);
+		ha_log(LOG_NOTICE
+		       , "PPP/UDP reader closing socket [%s]", ppp_path);
 		ppp_ts = NULLTS;
 		ppp_udp_close(ppp_hbmedia);
 	}else{
@@ -1160,8 +1138,11 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
- * Revision 1.1  1999/09/23 15:31:24  alanr
- * Initial revision
+ * Revision 1.2  1999/09/26 14:01:14  alanr
+ * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
+ *
+ * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
+ * High-Availability Linux
  *
  * Revision 1.10  1999/09/18 02:56:36  alanr
  * Put in Matt Soffen's portability changes...

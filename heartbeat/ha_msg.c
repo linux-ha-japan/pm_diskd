@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.1 1999/09/23 15:31:24 alanr Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.2 1999/09/26 14:01:01 alanr Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,6 +10,8 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.1 1999/09/23 15:31:24 alan
 
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
+
+int add_msg_auth(struct ha_msg * msg);
 
 /*
  *	Heartbeat messaging object.
@@ -27,10 +29,14 @@ ha_msg_new(nfields)
 	ret = MALLOCT(struct ha_msg);
 	if (ret) {
 		ret->nfields = 0;
-		ret->nalloc = MINFIELDS;
-		ret->names = (char **)malloc(sizeof(char *)*MINFIELDS);
-		ret->values = (char **)malloc(sizeof(char *)*MINFIELDS);
-		if (ret->names == NULL || ret->values == NULL) {
+		ret->nalloc	= MINFIELDS;
+		ret->names	= (char **)malloc(sizeof(char *)*MINFIELDS);
+		ret->nlens	= (int *)malloc(sizeof(int)*MINFIELDS);
+		ret->values	= (char **)malloc(sizeof(char *)*MINFIELDS);
+		ret->vlens	= (int *)malloc(sizeof(int)*MINFIELDS);
+		ret->stringlen	= sizeof(MSG_START)+sizeof(MSG_END)-1;
+		if (ret->names == NULL || ret->values == NULL
+		||	ret->nlens == NULL || ret->vlens == NULL) {
 			ha_error("ha_msg_new: out of memory for ha_msg");
 			ha_msg_del(ret);
 			ret = NULL;
@@ -70,8 +76,17 @@ ha_msg_del(struct ha_msg *msg)
 			free(msg->values);
 			msg->values = NULL;
 		}
+		if (msg->nlens) {
+			free(msg->nlens);
+			msg->nlens = NULL;
+		}
+		if (msg->vlens) {
+			free(msg->vlens);
+			msg->vlens = NULL;
+		}
 		msg->nfields = -1;
 		msg->nalloc = -1;
+		msg->stringlen = -1;
 		free(msg);
 	}
 }
@@ -91,7 +106,8 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 	int	next;
 	char *	cpname;
 	char *	cpvalue;
-	int	startlen = strlen(MSG_START);
+	int	startlen = sizeof(MSG_START)-1;
+	int	newlen = msg->stringlen + (namelen+vallen+2);	/* 2 == "=" + "\n" */
 
 	if (!msg || (msg->nfields >= msg->nalloc)
 	||	msg->names == NULL || msg->values == NULL) {
@@ -99,7 +115,7 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 		return(HA_FAIL);
 	}
 	if (name == NULL || value == NULL
-	||	namelen <= 0 || vallen <= 0) {
+	||	namelen <= 0 || vallen <= 0 || newlen >= MAXMSG) {
 		ha_error("ha_msg_nadd: cannot add name/value to ha_msg");
 		return(HA_FAIL);
 	}
@@ -125,7 +141,10 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 
 	next = msg->nfields;
 	msg->values[next] = cpvalue;
+	msg->vlens[next] = vallen;
 	msg->names[next] = cpname;
+	msg->nlens[next] = namelen;
+	msg->stringlen = newlen;
 	msg->nfields++;
 	return(HA_OK);
 }
@@ -264,7 +283,7 @@ string2msg(const char * s)
 		return(NULL);
 	}
 
-	startlen = strlen(MSG_START);
+	startlen = sizeof(MSG_START)-1;
 	if (strncmp(sp, MSG_START, startlen) != 0) {
 		ha_error("string2msg: no MSG_START");
 		return(NULL);
@@ -272,7 +291,7 @@ string2msg(const char * s)
 		sp += startlen;
 	}
 
-	endlen = strlen(MSG_END);
+	endlen = sizeof(MSG_END)-1;
 
 	/* Add Name=value pairs until we reach MSG_END or end of string */
 
@@ -304,32 +323,31 @@ msg2string(const struct ha_msg *m)
 {
 	int	j;
 	char *	buf;
-	int	charcount = strlen(MSG_START) + strlen(MSG_END)+1;
+	char *	bp;
 
 	if (m->nfields <= 0) {
 		ha_error("msg2string: Message with zero fields");
 		return(NULL);
 	}
 
-	for (j=0; j < m->nfields; ++j) {
-		charcount += strlen(m->names[j]);
-		charcount += strlen(m->values[j]);
-		charcount += 2;	/* "=" and "\n" */
-	}
-
-	buf = malloc(charcount);
+	buf = malloc(m->stringlen);
 
 	if (buf == NULL) {
 		ha_error("msg2string: no memory for string");
 	}else{
+		bp = buf;
 		strcpy(buf, MSG_START);
 		for (j=0; j < m->nfields; ++j) {
-			strcat(buf, m->names[j]);
-			strcat(buf, "=");
-			strcat(buf, m->values[j]);
-			strcat(buf, "\n");
+			strcat(bp, m->names[j]);
+			bp += m->nlens[j];
+			strcat(bp, "=");
+			bp++;
+			strcat(bp, m->values[j]);
+			bp += m->vlens[j];
+			strcat(bp, "\n");
+			bp++;
 		}
-		strcat(buf, MSG_END);
+		strcat(bp, MSG_END);
 	}
 	return(buf);
 }
@@ -338,13 +356,11 @@ void
 ha_log_message (const struct ha_msg *m)
 {
 	int	j;
-	char buf[MAXLINE+MAXLINE+20];
-	sprintf(buf, "MSG: Dumping message with %d fields", m->nfields);
-	ha_log(buf);
+
+	ha_log(LOG_INFO, "MSG: Dumping message with %d fields", m->nfields);
 
 	for (j=0; j < m->nfields; ++j) {
-		sprintf(buf, "MSG[%d]: %s=%s",j, m->names[j], m->values[j]);
-		ha_log(buf);
+		ha_log(LOG_INFO, "MSG[%d]: %s=%s",j, m->names[j], m->values[j]);
 	}
 }
 
@@ -400,7 +416,7 @@ controlfifo2msg(FILE * f)
 			return(NULL);
 		}
 	}
-			
+
 	/* Add Name=value pairs until we reach MSG_END or EOF */
 	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
 	&&	strcmp(buf, MSG_END) != 0) {
@@ -413,8 +429,108 @@ controlfifo2msg(FILE * f)
 			return(NULL);
 		}
 	}
+	if (!add_msg_auth(ret)) {
+		ha_msg_del(ret);
+		ret = NULL;
+	}
+
 	return(ret);
 }
+
+int
+add_msg_auth(struct ha_msg * m)
+{
+	char	msgbody[MAXMSG];
+	char	authstring[MAXLINE];
+	char *	authtoken;
+	char *	bp = msgbody;
+	int	j;
+
+	msgbody[0] = EOS;
+	for (j=0; j < m->nfields; ++j) {
+		strcat(bp, m->names[j]);
+		bp += m->nlens[j];
+		strcat(bp, "=");
+		bp++;
+		strcat(bp, m->values[j]);
+		bp += m->vlens[j];
+		strcat(bp, "\n");
+		bp++;
+	}
+
+
+	if ((authtoken = calc_cksum(config->authmethod, config->keystr,msgbody))
+	==	NULL) {
+		ha_log(LOG_ERR, authstring
+		,	"Cannot compute message authentication [%s/%s/%s]"
+		,	config->authmethod, config->keystr, msgbody);
+		return(HA_FAIL);
+	}
+
+	sprintf(authstring, "%d %s", config->authnum, authtoken);
+
+	if (!ha_msg_add(m, F_AUTH, authstring)) {
+		return(HA_FAIL);
+	}
+	return(HA_OK);
+}
+int
+isauthentic(const struct ha_msg * m)
+{
+	char	msgbody[MAXMSG];
+	char	authstring[MAXLINE];
+	char *	authtoken;
+	char *	bp = msgbody;
+	int	j;
+	int	authwhich = 0;
+	
+	if (m->stringlen >= sizeof(msgbody)) {
+		return(0);
+	}
+
+	msgbody[0] = EOS;
+	for (j=0; j < m->nfields; ++j) {
+		if (strcmp(m->names[j], F_AUTH) == 0) {
+			authtoken = m->values[j];
+			continue;
+		}
+		strcat(bp, m->names[j]);
+		bp += m->nlens[j];
+		strcat(bp, "=");
+		bp++;
+		strcat(bp, m->values[j]);
+		bp += m->vlens[j];
+		strcat(bp, "\n");
+		bp++;
+	}
+	
+	if (authtoken == NULL
+	||	sscanf(authtoken, "%d %s", &authwhich, authstring) != 2) {
+		ha_error("Bad/invalid auth token");
+		return(0);
+	}
+	if (authwhich != config->authnum) {
+		ha_error("Wrong authentication type!");
+		return(0);
+	}
+		
+	if ((authtoken = calc_cksum(config->authmethod, config->keystr,msgbody))
+	==	NULL) {
+		ha_error("Cannot check message authentication");
+		return(0);
+	}
+	if (strcmp(authstring, authtoken) == 0) {
+		if (DEBUGAUTH) {
+			ha_log(LOG_INFO, "Packet authenticated");
+		}
+		return(1);
+	}
+	if (DEBUGAUTH) {
+		ha_log(LOG_INFO, "Packet failed authentication check");
+	}
+	return(0);
+}
+
 
 /* Add field to say who this packet is from */
 STATIC	const char *
@@ -494,8 +610,8 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
- * Revision 1.1  1999/09/23 15:31:24  alanr
- * Initial revision
+ * Revision 1.2  1999/09/26 14:01:01  alanr
+ * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
  *
  * Revision 1.9  1999/09/16 05:50:20  alanr
  * Getting ready for 0.4.3...
