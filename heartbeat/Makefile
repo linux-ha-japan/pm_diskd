@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.37 2000/11/12 21:02:17 alan Exp $
+#	$Id: Makefile,v 1.38 2000/11/14 08:19:38 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -185,7 +185,6 @@ install_bin: all
 	$(INSTALL) -cm 755 heartbeat.sh $(INITSCRIPT)
 	[ -d $(LOGROTATED) ] && \
 		$(INSTALL) -cm 644 heartbeat.logrotate $(LOGROTATESCRIPT)
-	if grep 
 
 install_lib: all
 	if [ ! -d  $(GENLIB) ]; then mkdir -p $(GENLIB); fi
