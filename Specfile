@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.26 1999/12/25 08:44:17 alan Exp $
+#	$Id: Specfile,v 1.27 1999/12/25 08:50:08 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -26,7 +26,11 @@ It implements the following kinds of heartbeats:
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      and Guenther Thomsen <thomsen@cs.tu-berlin.de>
-+ Version 0.4.7 (UNRELEASED)
+
++ Version 0.4.7 BETA SERIES...
+  + Put in lots of code to make lost packet retransmission happen
+	(seems to work reasonably well so far...)
+  + Stopped trying to use the /proc/ha interface
   + Finished the error recovery in the heartbeat protocol (and got it to work)
   + Added test code for the heartbeat protocol
   + Raised the maximum length of a node name
@@ -35,12 +39,18 @@ It implements the following kinds of heartbeats:
 	wasn't specific enough and would sometimes get IPaddr confused on
 	IP addresses that prefix-matched.
   + Added Lars Marowsky-Bree's suggestion to make the code almost completely
-	immune to jumping the clock backwards and forwards
+	robust with respect to jumping the clock backwards and forwards
+
+* Mon Nov 22 1999  Alan Robertson <alanr@henge.com>,
+     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
+     Mitja Sarp <mitja@lysator.liu.se>,
+     and Guenther Thomsen <thomsen@cs.tu-berlin.de>
 
 * Tue Nov 22 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>,
      and Guenther Thomsen <thomsen@cs.tu-berlin.de>,
+
 + Version 0.4.6
   + Fixed timing problem in "heartbeat restart" so it's reliable now
   + Made start/stop status compatible with SuSE expectations
