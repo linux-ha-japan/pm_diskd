@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.56 2002/08/07 07:39:42 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.57 2002/08/13 01:47:05 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -201,12 +201,13 @@ answers and in much longer intervalls a negotiating check is done.  Off
 means no checking will take place and no real or fallback servers will be
 activated. Default is I<negotiate>.
 
-B<service = http>|B<https>|B<ftp>|B<smtp>|B<pop>|B<imap>|B<ldap>|B<none>
+B<service = ftp>|B<smtp>|B<http>|B<pop>|B<nntp>|B<imap>|B<ldap>|B<https>|B<none>
 
 The type of service to monitor. None denotes a service that will not be
 monitored. If the port specfied for the virtual server is 21, 25, 80, 
-110, 143, 389 or 443, the default B<ftp>, B<smtp>, B<http>, B<pop>, B<imap>,
-B<ldap>or B<https> respectivly. Otherwise the default service is B<none>.
+110, 119, 143, 389 or 443, the default B<ftp>, B<smtp>, B<http>, B<pop>, 
+B<nntp>, B<imap>, B<ldap>or B<https> respectivly. Otherwise the default
+service is B<none>.
 
 B<checkport = >I<n>
 
@@ -696,8 +697,8 @@ sub read_config
 				} elsif ($rcmd =~ /^service\s*=\s*(.*)/) {
 					lc($1);
 					$1 =~ /(\w+)/ && ($1 eq "http" || $1 eq "https" || $1 eq "ldap"
-					    || $1 eq "ftp" || $1 eq "none" || $1 eq "smtp" || $1 eq "pop" || $1 eq "imap")
-					    or &config_error($line, "service must be http, https, ftp, smtp, pop, imap, ldap or none");
+					    || $1 eq "ftp" || $1 eq "none" || $1 eq "smtp" || $1 eq "pop" || $1 eq "imap" || $1 eq "nntp")
+					    or &config_error($line, "service must be http, https, ftp, smtp, pop, imap, ldap, nntp or none");
 					$vsrv{service} = $1;
 				} elsif ($rcmd =~ /^sitename\s*=\s*(.*)/) {
 					$1 =~ /(\w+)/ or &config_error($line, "invalid sitename");
@@ -814,7 +815,7 @@ sub read_config
 # post: Take ip_port, resolve it as per ld_gethostservbyname
 #       and set $vsrv->{server} and $vsrv->{port} accordingly.
 #       If $vsrv->{service} is not set, then set it to "http",
-#       "https", "ftp", "smtp", "pop", "imap", "ldap" or "none" 
+#       "https", "ftp", "smtp", "pop", "imap", "ldap", "nntp" or "none" 
 #       if $vsrv->{port} is 80, 443, 21, 25, 110, 143, 389 or 
 #       any other value, respectivley
 # return: none
@@ -850,6 +851,9 @@ sub _ld_read_config_virtual_resolve
 			} 
 			elsif ($vsrv->{port} eq "110") {
 				$vsrv->{service} = "pop";
+			} 
+			elsif ($vsrv->{port} eq "119") {
+				$vsrv->{service} = "nntp";
 			} 
 			elsif ($vsrv->{port} eq "143") {
 				$vsrv->{service} = "imap";
@@ -1435,6 +1439,8 @@ sub ld_main
 						$$r{num_connects} = 0 if (check_ftp($v, $r));
 					} elsif ($$v{service} eq "ldap") {
 						$$r{num_connects} = 0 if (check_ldap($v, $r));
+					} elsif ($$v{service} eq "nntp") {
+						$$r{num_connects} = 0 if (check_nntp($v, $r));
 					} else {
 						$$r{num_connects} = 0 if (check_none($v, $r));
 					}
@@ -1640,6 +1646,41 @@ sub check_https
 	service_set($v, $r, "up");
 	return 1;
 }
+
+
+sub check_nntp
+{
+        use IO::Socket;
+        use IO::Select;
+        my ($v, $r) = @_;
+        my $sock;
+        my $s;
+        my $buf;
+
+        unless ($sock = IO::Socket::INET->new(PeerAddr => $$r{server},
+                PeerPort => $$r{port}, Proto => 'tcp',
+                TimeOut => $$v{negotiatetimeout})) {
+                service_set($v, $r, "down");
+                return 0;
+        }
+        $s = IO::Select->new();
+        $s->add($sock);
+        if (scalar($s->can_read($$v{negotiatetimeout})) == 0) {
+                service_set($v, $r, "down");
+        } else {
+                sysread($sock, $buf, 64);
+                if ($buf =~ /^2/) {
+                        service_set($v, $r, "up");
+                } else {
+                        service_set($v, $r, "down");
+                }
+        }
+        $s->remove($sock);
+        $sock->close;
+
+        return 0;
+}
+
 
 sub check_connect
 {
