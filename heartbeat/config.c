@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.45 2001/08/15 16:56:47 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.46 2001/08/15 17:58:13 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -383,15 +383,23 @@ parse_config(const char * cfgfile, char *nodename)
 		/* Check first for whole line media-type  directives */
 		if (funs && funs->parse)  {
 			int num_save = nummedia;
+			char *		pname = strdup(bp);
 			IsOptionDirective=0;
 			if (funs->parse(bp) != HA_OK) {
 				PILIncrIFRefCount(PluginLoadingSystem
 				,	HB_COMM_TYPE_S, directive, -1);
 				errcount++;
+				free(pname); pname=NULL;
 				*bp = EOS;	/* Stop parsing now */
 				continue;
 			}
 			sysmedia[num_save]->vf = funs;
+			sysmedia[num_save]->name = pname;
+			funs->mtype(&sysmedia[num_save]->type);
+			funs->descr(&sysmedia[num_save]->description);
+			g_assert(sysmedia[num_save]->type);
+			g_assert(sysmedia[num_save]->description);
+
 			*bp = EOS;
 		}
 
@@ -485,15 +493,13 @@ dump_config(void)
 	,	u.nodename);
 
 	for(j=0; j < nummedia; ++j) {
-		if (sysmedia[j]->type != last_media) {
-			if (last_media != NULL) {
-				puts("\n");
-			}
-			printf("# %s heartbeat channel -------------\n"
-			,	sysmedia[j]->description);
-			printf(" %s", sysmedia[j]->type);
-			last_media = sysmedia[j]->type;
-		}
+			puts("\n");
+		g_assert(sysmedia[j]->type);
+		g_assert(sysmedia[j]->description);
+		printf("# %s heartbeat channel -------------\n"
+		,	sysmedia[j]->description);
+		printf(" %s", sysmedia[j]->type);
+		last_media = sysmedia[j]->type;
 		printf(" %s", sysmedia[j]->name);
 	}
 	printf("\n#---------------------------------------------------\n");
@@ -653,8 +659,9 @@ add_option(const char *	option, const char * value)
 		struct hb_media* mp = funs->new(value);
 		char*		type;
 		char*		descr;
-		funs->mtype(&type);
+
 		funs->descr(&descr);
+		funs->mtype(&type);
 
 		sysmedia[nummedia] = mp;
 		if (mp == NULL) {
@@ -668,10 +675,17 @@ add_option(const char *	option, const char * value)
 		}else{
 			mp->type = type;
 			mp->description = descr;
+			g_assert(mp->type);
+			g_assert(mp->description);
+			g_assert(mp->type[0] != '(');
+			g_assert(mp->description[0] != '(');
 			mp->vf = funs;
+			mp->name = strdup(value);
 			++nummedia;
 			return(HA_OK);
 		}
+		g_assert(sysmedia[nummedia-1]->type);
+		g_assert(sysmedia[nummedia-1]->description);
 	}
 	ha_log(LOG_ERR, "Illegal configuration directive [%s]", option);
 	return(HA_FAIL);
@@ -1197,6 +1211,10 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.46  2001/08/15 17:58:13  alan
+ * Hopefully fixed the -v flag...
+ * Soon to remove bag from head?
+ *
  * Revision 1.45  2001/08/15 16:56:47  alan
  * Put in the code to allow serial port comm plugins to work...
  *
