@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.21 2002/07/09 16:42:22 msoffen Exp $
+#	$Id: IPaddr.in,v 1.22 2002/07/27 06:02:21 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -120,6 +120,35 @@ find_interface() {
   done
   return 1
 }
+
+# Find hidden loopback aliases on Linux.
+#
+#
+find_loopback () {
+  BASEIP=`echo $1 | sed s'%/.*%%'`
+    case $SYSTYPE in
+      Linux)
+        if [ -e /proc/sys/net/ipv4/conf/lo/hidden ]; then
+          loopbackaliases=`$IFCONFIG $IFCONFIG_A_OPT | grep "lo:" | awk '{printf "%s\n",$1}'`
+          for loopbackalias in $loopbackaliases
+            do
+              if
+                $IFCONFIG $loopbackalias | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
+                then
+                    echo $loopbackalias
+                fi
+           done
+        else
+          return 0
+        fi
+        ;;
+
+      *)
+                return 0
+       ;;
+       esac
+}
+
 
 #
 #	Return the MAC address of the given interface in the form
@@ -332,6 +361,20 @@ ip_start() {
 #	Do we already service this IP address?
 #
   case `ip_status $1` in
+    loopback)
+          #
+          # Remove conflicting hidden loopback IP aliases
+          # On Linux before giving up.
+          #
+          loopback=`find_loopback $1`
+          case $loopback in
+            lo*)
+                ha_log "Removing conflicting hidden loopback alias on $loopback"
+                $IFCONFIG $loopback down
+                $ROUTE del -host $1
+             ;;
+             esac
+    ;;
     *unning*)	exit 0;
   esac
 
@@ -432,7 +475,16 @@ ip_status() {
   if
     $IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
   then
-    echo "running"
+    # If this is a Linux system with a hidden loopback
+    # alias for this IP address we say loopback instead of
+    # running or stopped.
+    case `find_loopback $1` in
+      lo*)
+       echo "loopback"
+       ;;
+      *)
+        echo "running";;
+      esac
   else
     echo "stopped"
   fi
@@ -460,7 +512,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.21 2002/07/09 16:42:22 msoffen Exp $"
+  echo "$Id: IPaddr.in,v 1.22 2002/07/27 06:02:21 horms Exp $"
 }
 
 #
@@ -507,6 +559,12 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.22  2002/07/27 06:02:21  horms
+# Lorn Kay's patch for IPaddr to better handle the presance of
+# managed IP addresses being present on a loopback interface.
+# Designed for use in conjunction with LVS Direct Routing.
+# Should be fully backwards compatible.
+#
 # Revision 1.21  2002/07/09 16:42:22  msoffen
 # Deleted extra "debugging" lines .
 #
