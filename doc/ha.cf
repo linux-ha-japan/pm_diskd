@@ -1,7 +1,7 @@
 #
 #	There are lots of options in this file.  All you have to have is a set
 #	of nodes listed {"node ...}
-#	and one of {serial, bcast, or mcast}
+#	and one of {serial, bcast, mcast, or ucast}
 #
 #
 #       Note on logging:
