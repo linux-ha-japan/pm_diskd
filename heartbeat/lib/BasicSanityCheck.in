@@ -34,6 +34,7 @@ LIBDIR=@libdir@/
 HBLIB=$LIBDIR/heartbeat
 APPHBD=$HBLIB/apphbd
 APPHBTEST=$HBLIB/apphbtest
+IPCTEST=$HBLIB/ipctest
 #
 DEFAULTINTERFACE=eth0	# But we really guess it...
 #
@@ -384,6 +385,11 @@ AppHBCheck() {
 	CheckPat "info:.*apphbd.*stopped" 1
 }
 
+IPCtest() {
+	$IPCTEST >>$LOGFILE 2>&1
+	errcount=`expr $errcount + $?`
+}
+
 #
 #	Check our identity.
 #	Set Up Config Files.
@@ -405,8 +411,10 @@ TestHeartbeat
 RemoveConfigFiles
 StonithCheck
 AppHBCheck
+IPCtest
+
 if
-  egrep -i 'CRIT|ERROR' $LOGFILE
+  egrep  'CRIT|ERROR' $LOGFILE
 then
   echo "OOPS! Looks like we had some errors come up."
   errcount=`expr $errcount + 1`
