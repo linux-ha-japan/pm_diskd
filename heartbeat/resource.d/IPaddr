@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr,v 1.7 2000/11/07 14:15:04 alan Exp $
+#	$Id: IPaddr,v 1.8 2001/02/05 21:43:38 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -202,6 +202,26 @@ ip_status() {
   fi
 }
 
+#
+#	Determine if this IP address is really being served, or not.
+#	Note that we don't distinguish if *we're* serving it locally...
+#
+ip_monitor() {
+  BASEIP=`echo $1 | sed s'%/.*%%'`
+  OPTS=" -c 1 -w 2 -q"
+  for j in 1 2 3
+  do 
+    if
+      ping $OPTS $BASEIP >/dev/null 2>&1
+    then
+      echo "OK"
+      return 0
+    fi
+  done
+  echo "down"
+  return 1
+}
+
 usage() {
   echo $USAGE >&2
 }
@@ -242,6 +262,7 @@ case $2 in
   start)	ip_start $1;;
   stop)		ip_stop $1;;
   status)	ip_status $1;;
+  monitor)	ip_monitor $1;;
   *)		usage
   		exit 1
 		;;
@@ -249,6 +270,9 @@ esac
 #
 #
 # $Log: IPaddr,v $
+# Revision 1.8  2001/02/05 21:43:38  alan
+# Added "monitor" action to IPaddr.
+#
 # Revision 1.7  2000/11/07 14:15:04  alan
 # Made the takeover of IP addresses go faster.
 # Removed the limit on 8 aliases per interface.
