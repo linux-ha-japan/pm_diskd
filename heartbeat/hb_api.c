@@ -659,7 +659,7 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 		ha_perror("Cannot send message to client %d (close)"
 		,	client->pid);
 	}
-	if (kill(client->pid, client->signal) < 0 && errno == EEXIST) {
+	if (kill(client->pid, client->signal) < 0 && errno == ESRCH) {
 		ha_log(LOG_ERR, "api_send_client: client %d died", client->pid);
 		api_remove_client(client);
 		client=NULL;
@@ -749,7 +749,7 @@ api_add_client(struct ha_msg* msg)
 	if ((cpid = ha_msg_value(msg, F_PID)) != NULL) {
 		pid = atoi(cpid);
 	}
-	if (pid <= 0  || (kill(pid, 0) < 0 && errno == EEXIST)) {
+	if (pid <= 0  || (kill(pid, 0) < 0 && errno == ESRCH)) {
 		ha_log(LOG_ERR
 		,	"api_add_client: bad pid [%d]", pid);
 		return;
@@ -759,7 +759,7 @@ api_add_client(struct ha_msg* msg)
 	client = find_client(cpid, fromid);
 
 	if (client != NULL) {
-		if (kill(client->pid, 0) == 0 || errno != EEXIST) {
+		if (kill(client->pid, 0) == 0 || errno != ESRCH) {
 			ha_log(LOG_ERR
 			,	"duplicate client add request");
 			return;
@@ -1061,7 +1061,7 @@ ClientSecurityIsOK(client_proc_t* client)
 
 	/* Does this client even exist? */
 
-	if (kill(client->pid, 0) < 0 && errno == EEXIST) {
+	if (kill(client->pid, 0) < 0 && errno == ESRCH) {
 		ha_log(LOG_ERR
 		,	"Client pid %d does not exist", client->pid);
 		return(0);
