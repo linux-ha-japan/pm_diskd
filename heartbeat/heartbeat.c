@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.129 2001/09/07 00:07:14 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.130 2001/09/07 01:09:06 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -322,6 +322,9 @@ int		watchdogfd = -1;
 TIME_T		starttime = 0L;
 TIME_T		next_statsdump = 0L;
 void		(*localdie)(void);
+void		ha_glib_msg_handler(const gchar *log_domain
+,			GLogLevelFlags log_level, const gchar *message
+,			gpointer user_data);
 
 
 struct hb_media*		sysmedia[MAXMEDIA];
@@ -453,6 +456,7 @@ init_procinfo()
 	(void)_heartbeat_c_Id;
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
+	(void)_setproctitle_h_Id;
 
 	if ((ipcid = shmget(IPC_PRIVATE, sizeof(*procinfo), 0666)) < 0) {
 		ha_perror("Cannot shmget for process status");
@@ -674,6 +678,28 @@ ha_perror(const char * fmt, ...)
 
 }
 
+void
+ha_glib_msg_handler(const gchar *log_domain,	GLogLevelFlags log_level
+,	const gchar *message, gpointer user_data)
+{
+	GLogLevelFlags	level = (log_level & G_LOG_LEVEL_MASK);
+	int	ha_level;
+
+	switch(level) {
+		case G_LOG_LEVEL_ERROR:		ha_level = LOG_ERR; break;
+		case G_LOG_LEVEL_CRITICAL:	ha_level = LOG_ERR; break;	
+		case G_LOG_LEVEL_WARNING:	ha_level = LOG_WARNING; break;	
+		case G_LOG_LEVEL_MESSAGE:	ha_level = LOG_NOTICE; break;	
+		case G_LOG_LEVEL_INFO:		ha_level = LOG_INFO; break;	
+		case G_LOG_LEVEL_DEBUG:		ha_level = LOG_DEBUG; break;	
+
+		default:			ha_level = LOG_WARNING; break;	
+	}
+
+
+	ha_log(ha_level, "%s", message);
+}
+
 /*
  *	This routine starts everything up and kicks off the heartbeat
  *	process.
@@ -700,6 +726,7 @@ initialize_heartbeat()
 
 	localdie = NULL;
 	starttime = time(NULL);
+
 
 	if (IncrGeneration(&config->generation) != HA_OK) {
 		ha_perror("Cannot get/increment generation number");
@@ -2951,6 +2978,15 @@ main(int argc, char * argv[], char * envp[])
 
 	num_hb_media_types = 0;
 
+	/* Redirect messages from glib functions to our handler */
+	g_log_set_handler(NULL
+	,	G_LOG_LEVEL_ERROR	| G_LOG_LEVEL_CRITICAL
+	|	G_LOG_LEVEL_WARNING	| G_LOG_LEVEL_MESSAGE
+	|	G_LOG_LEVEL_INFO	| G_LOG_LEVEL_DEBUG
+	|	G_LOG_FLAG_RECURSION	| G_LOG_FLAG_FATAL
+
+	,	ha_glib_msg_handler, NULL);
+
         tmp_cmdname=strdup(argv[0]);
 	if ((cmdname = strrchr(tmp_cmdname, '/')) != NULL) {
 		++cmdname;
@@ -4019,6 +4055,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.130  2001/09/07 01:09:06  alan
+ * Put in code to make the glib error messages get redirected to whereever
+ * the other ha_log messages go...
+ *
  * Revision 1.129  2001/09/07 00:07:14  alan
  * Fixed the code for dealing with the test packet dropping facility.
  * It has been broken since I changed the startup order.
