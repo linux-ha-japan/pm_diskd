@@ -65,6 +65,10 @@ SUBDIRS                 = libltdl doc debian replace include lib \
                         telecom ldirectord heartbeat \
                         cts linux-ha membership contrib config @SNMP_SUBAGENT_DIR@
 
+DIST_SUBDIRS                 = libltdl doc debian replace include lib \
+                        telecom ldirectord heartbeat \
+                        cts linux-ha membership contrib config snmp_subagent 
+
 # Pass these to configure when running "make distcheck"
 DISTCHECK_CONFIGURE_FLAGS = --with-initdir=prefix
 
