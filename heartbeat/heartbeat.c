@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.205 2002/09/11 13:07:36 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.206 2002/09/12 12:36:09 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3996,7 +3996,7 @@ takeover_from_node(const char * nodename)
 	||	ha_msg_add(hmsg, F_SEQ, "1") != HA_OK
 	||	ha_msg_add(hmsg, F_TIME, timestamp) != HA_OK
 	||	ha_msg_add(hmsg, F_ORIG, hip->nodename) != HA_OK
-	||	ha_msg_add(hmsg, F_STATUS, "dead") != HA_OK) {
+	||	ha_msg_add(hmsg, F_STATUS, DEADSTATUS) != HA_OK) {
 		ha_log(LOG_ERR, "no memory to mark node dead");
 		ha_msg_del(hmsg);
 		return;
@@ -5972,6 +5972,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.206  2002/09/12 12:36:09  horms
+ * * Added PINGSTATUS and used it instead of directly using "ping"
+ *   as the status for an active ping node
+ * * Used DEADSTATUS everywhere, instead of "dead"
+ *
  * Revision 1.205  2002/09/11 13:07:36  alan
  * renamed healed_cluster_partition to be called cause_shutdown_restart,
  * and moved the log message elsewhere.

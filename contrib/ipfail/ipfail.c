@@ -83,13 +83,13 @@ NodeStatus(const char *node, const char *status, void *private)
 
 	cl_log(LOG_INFO, "Status update: Node %s now has status %s"
 	,	node, status);
-	if (strcmp(status, "dead") == 0) {
+	if (strcmp(status, DEADSTATUS) == 0) {
 		if (ping_node_status(private)) {
 			cl_log(LOG_INFO, "NS: We are still alive!");
 		}else{
 			cl_log(LOG_INFO, "NS: We are dead. :<");
 		}
-	} else if (strcmp(status, "ping") == 0) {
+	} else if (strcmp(status, PINGSTATUS) == 0) {
 		/* A ping node just came up, if we died, request resources?
 		 * If so, that would emulate the primary/secondary type of
 		 * High-Availability, instead of nice_failback mode
@@ -108,7 +108,7 @@ LinkStatus(const char *node, const char *lnk, const char *status,
 	cl_log(LOG_INFO, "Link Status update: Link %s/%s now has status %s"
 	,	node, lnk, status);
 
-	if (strcmp(status, "dead") == 0) {
+	if (strcmp(status, DEADSTATUS) == 0) {
 		/* If we can still see pinging node, request resources */
 		if ((num_ping = ping_node_status(private))) {
 			ask_ping_nodes(private, num_ping);
@@ -139,7 +139,8 @@ ping_node_status(ll_cluster_t *hb)
 	}
 	while((node = hb->llc_ops->nextnode(hb))!= NULL) {
 
-		if (strcmp("ping", hb->llc_ops->node_status(hb, node)) == 0) {
+		if (strcmp(PINGSTATUS, 
+				hb->llc_ops->node_status(hb, node)) == 0) {
 			cl_log(LOG_DEBUG, "Found ping node %s!", node);
 			found++;
 		}

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.9 2002/08/07 18:20:33 msoffen Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.10 2002/09/12 12:36:09 horms Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -190,11 +190,11 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 static int
 ping_mtype(char **buffer) { 
 	
-	*buffer = MALLOC((strlen("ping") * sizeof(char)) + 1);
+	*buffer = MALLOC((strlen(PIL_PLUGIN_S) * sizeof(char)) + 1);
 
-	strcpy(*buffer, "ping");
+	strcpy(*buffer, PIL_PLUGIN_S);
 
-	return strlen("ping");
+	return strlen(PIL_PLUGIN_S);
 }
 
 static int
@@ -419,7 +419,7 @@ ping_write(struct hb_media* mp, struct ha_msg * msg)
 	}
 
 	if (ha_msg_add(nmsg, F_TYPE, T_NS_STATUS) != HA_OK
-	||	ha_msg_add(nmsg, F_STATUS, "ping") != HA_OK
+	||	ha_msg_add(nmsg, F_STATUS, PINGSTATUS) != HA_OK
 	||	ha_msg_add(nmsg, F_ORIG, mp->name) != HA_OK
 	||	ha_msg_add(nmsg, F_TIME, ts) != HA_OK) {
 		ha_msg_del(nmsg); nmsg = NULL;
