@@ -1,11 +1,17 @@
 /*
+*
+*  Copyright 2001 Mission Critical Linux, Inc.
+*
+*  All Rights Reserved.
+*/
+/*
  *	Stonith module for APC Master Switch (AP9211)
  *
  *  Copyright (c) 2001 Mission Critical Linux, Inc.
- *                     mike ledoux <mwl@mclinux.com>
+ *  author: mike ledoux <mwl@mclinux.com>
+ *  author: Todd Wheeling <wheeling@mclinux.com>
  *
- *  Based strongly on original code from baytech.c
- *	  Copyright (c) 2000 Alan Robertson <alanr@unix.sh>
+ *  Based strongly on original code from baytech.c by Alan Robertson.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +29,28 @@
  *
  */
 
+/*                          Observations/Notes
+ * 
+ * 1. The APC MasterSwitch, unlike the BayTech network power switch,
+ *    accpets only one (telnet) connection/session at a time. When one
+ *    session is active, any subsequent attempt to connect to the MasterSwitch 
+ *    will result in a connection refused/closed failure. In a cluster 
+ *    environment or other environment utilizing polling/monitoring of the 
+ *    MasterSwitch (from multiple nodes), this can clearly cause problems. 
+ *    Obviously the more nodes and the shorter the polling interval, the more 
+ *    frequently such errors/collisions may occur.
+ *
+ * 2. We observed that on busy networks where there may be high occurances
+ *    of broadcasts, the MasterSwitch became unresponsive.  In some 
+ *    configurations this necessitated placing the power switch onto a 
+ *    private subnet.
+ */
+
+/*
+ * Version string that is filled in by CVS
+ */
+static const char *version __attribute__ ((unused)) = "$Revision: 1.6 $"; 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -33,8 +61,8 @@
 #include <libintl.h>
 #include <sys/wait.h>
 
-#include <stonith/expect.h>
-#include <stonith/stonith.h>
+#include "expect.h"
+#include "stonith.h"
 
 #define	DEVICE	"APC MasterSwitch"
 
@@ -54,7 +82,7 @@ struct APCMS {
 	int		wrfd;
 	int		config;
 	char *		device;
-	char *		user;
+        char *		user;
 	char *		passwd;
 };
 
@@ -102,7 +130,7 @@ static struct Etoken EscapeChar[] =	{ {"Escape character is '^]'.", 0, 0}
 					,	{NULL,0,0}};
 static struct Etoken login[] = 		{ {"User Name :", 0, 0}, {NULL,0,0}};
 static struct Etoken password[] =	{ {"Password  :", 0, 0} ,{NULL,0,0}};
-static struct Etoken Prompt[] =	{ {">", 0, 0} ,{NULL,0,0}};
+static struct Etoken Prompt[] =	{ {"> ", 0, 0} ,{NULL,0,0}};
 static struct Etoken LoginOK[] =	{ {APCMSSTR, 0, 0}
                     , {"User Name :", 1, 0} ,{NULL,0,0}};
 static struct Etoken Separator[] =	{ {"-----", 0, 0} ,{NULL,0,0}};
@@ -117,8 +145,9 @@ static struct Etoken Processing[] =	{ {"Press <ENTER> to continue", 0, 0}
 static int	MSLookFor(struct APCMS* ms, struct Etoken * tlist, int timeout);
 static int	MS_connect_device(struct APCMS * ms);
 static int	MSLogin(struct APCMS * ms);
-static int	MSNametoOutlet(struct APCMS*, const char * name, char **outlets);
-static int	MSReset(struct APCMS*, char * outlets, const char * rebootid);
+static int	MSRobustLogin(struct APCMS * ms);
+static int	MSNametoOutlet(struct APCMS*, const char * name);
+static int	MSReset(struct APCMS*, int outletNum, const char * host);
 static int	MSScanLine(struct APCMS* ms, int timeout, char * buf, int max);
 static int	MSLogout(struct APCMS * ms);
 static void	MSkillcomm(struct APCMS * ms);
@@ -144,11 +173,11 @@ void *	st_new(void);
  *	We do these things a lot.  Here are a few shorthand macros.
  */
 
-#define	SEND(s)	(write(ms->wrfd, (s), strlen(s)))
+#define	SEND(s)         (write(ms->wrfd, (s), strlen(s)))
 
 #define	EXPECT(p,t)	{						\
 			if (MSLookFor(ms, p, t) < 0)			\
-				return(errno == ETIMEDOUT		\
+				return(errno == ETIMEDOUT			\
 			?	S_TIMEOUT : S_OOPS);			\
 			}
 
@@ -179,7 +208,6 @@ MSLookFor(struct APCMS* ms, struct Etoken * tlist, int timeout)
 		syslog(LOG_ERR, _("Did not find string: '%s' from" DEVICE ".")
 		,	tlist[0].string);
 		MSkillcomm(ms);
-		return(-1);
 	}
 	return(rc);
 }
@@ -192,7 +220,6 @@ MSScanLine(struct APCMS* ms, int timeout, char * buf, int max)
 	if (ExpectToken(ms->rdfd, CRNL, timeout, buf, max) < 0) {
 		syslog(LOG_ERR, ("Could not read line from " DEVICE "."));
 		MSkillcomm(ms);
-		ms->pid = -1;
 		return(S_OOPS);
 	}
 	return(S_OK);
@@ -203,36 +230,22 @@ MSScanLine(struct APCMS* ms, int timeout, char * buf, int max)
 static int
 MSLogin(struct APCMS * ms)
 {
-	char		IDinfo[128];
-	char *		idptr = IDinfo;
+        EXPECT(EscapeChar, 10);
 
-
-	EXPECT(EscapeChar, 10);
-	/* Look for the unit type info */
-	if (ExpectToken(ms->rdfd, password, 2, IDinfo
-	,	sizeof(IDinfo)) < 0) {
-		syslog(LOG_ERR, _("No initial response from " DEVICE "."));
-		MSkillcomm(ms);
-		return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
-	}
-	idptr += strspn(idptr, WHITESPACE);
-	/*
+  	/* 
 	 * We should be looking at something like this:
-     *	User Name :
+         *	User Name :
 	 */
-
-	EXPECT(login, 2);
-	SEND(ms->user);
+	EXPECT(login, 10);
+	SEND(ms->user);       
 	SEND("\r");
 
 	/* Expect "Password  :" */
-	EXPECT(password, 5);
+	EXPECT(password, 10);
 	SEND(ms->passwd);
 	SEND("\r");
-
-	/* Expect "American Power Conversion" */
-
-	switch (MSLookFor(ms, LoginOK, 5)) {
+ 
+	switch (MSLookFor(ms, LoginOK, 30)) {
 
 		case 0:	/* Good! */
 			break;
@@ -244,36 +257,74 @@ MSLogin(struct APCMS * ms)
 		default:
 			MSkillcomm(ms);
 			return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
-	}
+	} 
 
 	return(S_OK);
 }
 
-/* Log out of the APC Master Switch */
+/* Attempt to login up to 20 times... */
 
 static int
-MSLogout(struct APCMS* ms)
+MSRobustLogin(struct APCMS * ms)
+{
+	int	rc=S_OOPS;
+	int	j;
+
+	for (j=0; j < 20 && rc != S_OK; ++j) {
+
+	  if (ms->pid > 0) {
+			MSkillcomm(ms);
+		}
+
+		if (MS_connect_device(ms) != S_OK) {	
+		        MSkillcomm(ms);
+			continue;
+		}
+
+		rc = MSLogin(ms);
+	}
+	return rc;
+}
+
+/* Log out of the APC Master Switch */
+
+static 
+int MSLogout(struct APCMS* ms)
 {
 	int	rc;
 
 	/* Make sure we're in the right menu... */
-	SEND("\033\033\033\033\033\033\033");
-
-	/* Expect ">" */
+ 	/*SEND("\033\033\033\033\033\033\033"); */
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");
+	
+	/* Expect "> " */
 	rc = MSLookFor(ms, Prompt, 5);
 
 	/* "4" is logout */
 	SEND("4\r");
 
-	close(ms->wrfd);
-	close(ms->rdfd);
-	ms->wrfd = ms->rdfd = -1;
 	MSkillcomm(ms);
 	return(rc >= 0 ? S_OK : (errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS));
 }
 static void
 MSkillcomm(struct APCMS* ms)
 {
+        if (ms->rdfd >= 0) {
+		close(ms->rdfd);
+		ms->rdfd = -1;
+	}
+	if (ms->wrfd >= 0) {
+		close(ms->wrfd);
+		ms->wrfd = -1;
+	}
 	if (ms->pid > 0) {
 		kill(ms->pid, SIGKILL);
 		(void)waitpid(ms->pid, NULL, 0);
@@ -283,14 +334,22 @@ MSkillcomm(struct APCMS* ms)
 
 /* Reset (power-cycle) the given outlets */
 static int
-MSReset(struct APCMS* ms, char * outlets, const char * rebootid)
+MSReset(struct APCMS* ms, int outletNum, const char *host)
 {
-	char		unum[32];
+  	char		unum[32];
 
 
 	/* Make sure we're in the top level menu */
-	SEND("\033\033\033\033\033\033\033\r");
-
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");
+	
 	/* Expect ">" */
 	EXPECT(Prompt, 5);
 
@@ -298,13 +357,16 @@ MSReset(struct APCMS* ms, char * outlets, const char * rebootid)
 	SEND("1\r");
 
 	/* Select requested outlet */
-	snprintf(unum, sizeof(unum), "%s\r", outlets);
-	SEND(unum);
+	EXPECT(Prompt, 5);
+	snprintf(unum, sizeof(unum), "%i\r", outletNum);
+  	SEND(unum);
 
 	/* Select menu 1 (Control Outlet) */
+	EXPECT(Prompt, 5);
 	SEND("1\r");
 
 	/* Select menu 3 (Immediate Reboot) */
+	EXPECT(Prompt, 5);
 	SEND("3\r");
 
 	/* Expect "Press <ENTER> " or "Enter 'YES'" (if confirmation turned on) */
@@ -321,7 +383,7 @@ MSReset(struct APCMS* ms, char * outlets, const char * rebootid)
 		default: 
 			return(errno == ETIMEDOUT ? S_RESETFAIL : S_OOPS);
 	}
-	syslog(LOG_INFO, _("Host %s being rebooted."), rebootid);
+	syslog(LOG_INFO, _("Host %s being rebooted."), host);
 
 	/* Expect ">" */
 	if (MSLookFor(ms, Prompt, 10) < 0) {
@@ -330,35 +392,48 @@ MSReset(struct APCMS* ms, char * outlets, const char * rebootid)
 
 	/* All Right!  Power is back on.  Life is Good! */
 
-	syslog(LOG_INFO, _("Power restored to host %s."), rebootid);
+	syslog(LOG_INFO, _("Power restored to host %s."), host);
 
 	/* Return to top level menu */
-	SEND("\033\033\033\033\033\r");
+	SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");
 
 	return(S_OK);
 }
 
 #if defined(ST_POWERON) && defined(ST_POWEROFF)
 static int
-MS_onoff(struct APCMS* ms, char *outlets, const char * unitid, int req)
+MS_onoff(struct APCMS* ms, int outletNum, const char * unitid, int req)
 {
 	char		unum[32];
 
 	const char *	onoff = (req == ST_POWERON ? "1\r" : "2\r");
 	int	rc;
 
-
-	if (MS_connect_device(ms) != S_OK) {
-		return(S_OOPS);
-	}
-
-	if ((rc = MSLogin(ms) != S_OK)) {
+	if ((rc = MSRobustLogin(ms) != S_OK)) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(rc);
 	}
 	
 	/* Make sure we're in the top level menu */
-	SEND("\033\033\033\033\033\033\033\033\r");
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+        SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");
 
 	/* Expect ">" */
 	EXPECT(Prompt, 5);
@@ -367,8 +442,8 @@ MS_onoff(struct APCMS* ms, char *outlets, const char * unitid, int req)
 	SEND("1\r");
 
 	/* Select requested outlet */
-	snprintf(unum, sizeof(unum), "%s\r", outlets);
-	SEND(unum);
+  	snprintf(unum, sizeof(unum), "%s\r", outletNum); 
+  	SEND(unum); 
 
 	/* Select menu 1 (Control Outlet) */
 	SEND("1\r");
@@ -406,31 +481,23 @@ MS_onoff(struct APCMS* ms, char *outlets, const char * unitid, int req)
  */
 
 static int
-MSNametoOutlet(struct APCMS* ms, const char * name, char **outlets)
+MSNametoOutlet(struct APCMS* ms, const char * name)
 {
 	char	NameMapping[128];
 	int	sockno;
 	char	sockname[32];
 	int times = 0;
-	char	buf[32];
-	int left = 17;
 	int ret = -1;
 
-	
-	if (*outlets != NULL) {
-		free(*outlets);
-		*outlets = NULL;
-	}
-	
-	if ((*outlets = (char *)MALLOC(left*sizeof(char))) == NULL) {
-		syslog(LOG_ERR, "out of memory");
-		return(-1);
-	}
-	strncpy(*outlets, "", left);
-	left = left - 1;	/* ensure terminating '\0' */
-
 	/* Verify that we're in the top-level menu */
-	SEND("\033\033\033\033\033\033\033\r");
+	EXPECT(Prompt, 5);
+	SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");	
+	EXPECT(Prompt, 5);
+	SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");
 
 	/* Expect ">" */
 	EXPECT(Prompt, 5);
@@ -466,15 +533,19 @@ MSNametoOutlet(struct APCMS* ms, const char * name, char **outlets)
 			}
 			if (strcmp(name, sockname) == 0) {
 				ret = sockno;
-				sprintf(buf, "%d ", sockno);
-				strncat(*outlets, buf, left);
-				left = left - 2;
 			}
 		}
-	} while (strlen(NameMapping) > 2 && times < 8 && left > 0);
+	} while (strlen(NameMapping) > 2 && times < 8);
 
 	/* Pop back out to the top level menu */
-	SEND("\033\033\033\033\033\033\r");
+	EXPECT(Prompt, 5);
+	SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");	
+	EXPECT(Prompt, 5);
+	SEND("\033");
+	EXPECT(Prompt, 5);
+	SEND("\033");
 	return(ret);
 }
 
@@ -494,19 +565,15 @@ st_status(Stonith  *s)
 		return(S_OOPS);
 	}
 	ms = (struct APCMS*) s->pinfo;
-	if (MS_connect_device(ms) != S_OK) {
-		return(S_OOPS);
-	}
 
-	if ((rc = MSLogin(ms) != S_OK)) {
+	if ((rc = MSRobustLogin(ms) != S_OK)) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(rc);
 	}
 
-	/* Verify that we're in the top-level menu */
-	SEND("\033\033\033\033\033\033\033\033\r");
 
 	/* Expect ">" */
+	SEND("\033\r");
 	EXPECT(Prompt, 5);
 
 	return(MSLogout(ms));
@@ -525,34 +592,32 @@ st_hostlist(Stonith  *s)
 	char **		ret = NULL;
 	struct APCMS*	ms;
 
+
 	if (!ISAPCMS(s)) {
 		syslog(LOG_ERR, "invalid argument to MS_list_hosts");
 		return(NULL);
 	}
+	
 	if (!ISCONFIGED(s)) {
 		syslog(LOG_ERR
 		,	"unconfigured stonith object in MS_list_hosts");
 		return(NULL);
 	}
+
 	ms = (struct APCMS*) s->pinfo;
-
-	if (MS_connect_device(ms) != S_OK) {
-		return(NULL);
-	}
-
-	if (MSLogin(ms) != S_OK) {
+		
+	if (MSRobustLogin(ms) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(NULL);
 	}
 
-	/* Verify that we're in the top-level menu */
-	SEND("\033\033\033\033\033\033\033\r");
 
 	/* Expect ">" */
-	NULLEXPECT(Prompt, 5);
+	NULLEXPECT(Prompt, 10);
 
 	/* Request menu 1 (Device Control) */
 	SEND("1\r");
+	
 
 	/* Expect: "-----" so we can skip over it... */
 	NULLEXPECT(Separator, 5);
@@ -588,6 +653,7 @@ st_hostlist(Stonith  *s)
 				syslog(LOG_ERR, "out of memory");
 				return(NULL);
 			}
+			memset(nm, 0, strlen(sockname)+1);
 			strcpy(nm, sockname);
 			NameList[numnames] = nm;
 			++numnames;
@@ -596,7 +662,16 @@ st_hostlist(Stonith  *s)
 	} while (strlen(NameMapping) > 2);
 
 	/* Pop back out to the top level menu */
-	SEND("\033\033\033\033\033\033\033\r");
+    	SEND("\033");
+        NULLEXPECT(Prompt, 10);
+    	SEND("\033");
+        NULLEXPECT(Prompt, 10);
+    	SEND("\033");
+        NULLEXPECT(Prompt, 10);
+    	SEND("\033");
+	NULLEXPECT(Prompt, 10);
+      
+
 	if (numnames >= 1) {
 		ret = (char **)MALLOC((numnames+1)*sizeof(char*));
 		if (ret == NULL) {
@@ -711,17 +786,12 @@ st_reset(Stonith * s, int request, const char * host)
 	}
 	ms = (struct APCMS*) s->pinfo;
 
-	if ((rc = MS_connect_device(ms)) != S_OK) {
-		return(rc);
-	}
-
-	if ((rc = MSLogin(ms)) != S_OK) {
+	if ((rc = MSRobustLogin(ms)) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
+		return(rc);
 	}else{
-		char *outlets;
-		int noutlet;
-		noutlet = MSNametoOutlet(ms, host, &outlets);
-
+		int noutlet; 
+		noutlet = MSNametoOutlet(ms, host);
 		if (noutlet < 1) {
 			syslog(LOG_WARNING, _("%s %s "
 			"doesn't control host [%s]."), ms->idinfo
@@ -733,12 +803,14 @@ st_reset(Stonith * s, int request, const char * host)
 
 #if defined(ST_POWERON) && defined(ST_POWEROFF)
 		case ST_POWERON:
+		        rc = MS_onoff(ms, noutlet, host, request);
+			break;
 		case ST_POWEROFF:
-			rc = MS_onoff(ms, outlets, host, request);
+			rc = MS_onoff(ms, noutlet, host, request);
 			break;
 #endif
 		case ST_GENERIC_RESET:
-			rc = MSReset(ms, outlets, host);
+			rc = MSReset(ms, noutlet, host);
 			break;
 		default:
 			rc = S_INVAL;
@@ -747,8 +819,6 @@ st_reset(Stonith * s, int request, const char * host)
 	}
 
 	lorc = MSLogout(ms);
-	MSkillcomm(ms);
-
 	return(rc != S_OK ? rc : lorc);
 }
 
@@ -840,7 +910,7 @@ st_getinfo(Stonith * s, int reqtype)
 }
 
 /*
- *	Baytech Stonith destructor...
+ *	APC MasterSwitch Stonith destructor...
  */
 void
 st_destroy(Stonith *s)
@@ -855,14 +925,6 @@ st_destroy(Stonith *s)
 
 	ms->MSid = NOTmsid;
 	MSkillcomm(ms);
-	if (ms->rdfd >= 0) {
-		ms->rdfd = -1;
-		close(ms->rdfd);
-	}
-	if (ms->wrfd >= 0) {
-		close(ms->wrfd);
-		ms->wrfd = -1;
-	}
 	if (ms->device != NULL) {
 		FREE(ms->device);
 		ms->device = NULL;
@@ -885,7 +947,7 @@ st_destroy(Stonith *s)
 	}
 }
 
-/* Create a new BayTech Stonith device. */
+/* Create a new APC Master Switch Stonith device. */
 
 void *
 st_new(void)
@@ -912,3 +974,17 @@ st_new(void)
 
 	return((void *)ms);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

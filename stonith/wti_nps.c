@@ -1,11 +1,17 @@
 /*
+*
+*  Copyright 2001 Mission Critical Linux, Inc.
+*
+*  All Rights Reserved.
+*/
+/*
  *	Stonith module for WTI Network Power Switch Devices (NPS-xxx)
  *
- *  Copyright (c) 2001 Mission Critical Linux, Inc.
- *                     mike ledoux <mwl@mclinux.com>
+ *  Copyright 2001 Mission Critical Linux, Inc.
+ *  author: mike ledoux <mwl@mclinux.com>
+ *  author: Todd Wheeling <wheeling@mclinux.com>
  *
- *  Based strongly on original code from baytech.c
- *	  Copyright (c) 2000 Alan Robertson <alanr@unix.sh>
+ *  Based strongly on original code from baytech.c by Alan Robertson.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +29,29 @@
  *
  */
 
+/*                          Observations/Notes
+ * 
+ * 1. The WTI Network Power Switch, unlike the BayTech network power switch,
+ *    accpets only one (telnet) connection/session at a time. When one
+ *    session is active, any subsequent attempt to connect to the NPS will
+ *    result in a connection refused/closed failure. In a cluster environment
+ *    or other environment utilizing polling/monitoring of the NPS
+ *    (from multiple nodes), this can clearly cause problems. Obviously the
+ *    more nodes and the shorter the polling interval, the more frequently such
+ *    errors/collisions may occur.
+ *
+ * 2. We observed that on busy networks where there may be high occurances
+ *    of broadcasts, the NPS became unresponsive.  In some 
+ *    configurations this necessitated placing the power switch onto a 
+ *    private subnet.
+ */
+
+
+/*
+ * Version string that is filled in by CVS
+ */
+static const char *version __attribute__ ((unused)) = "$Revision: 1.5 $"; 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -33,8 +62,8 @@
 #include <libintl.h>
 #include <sys/wait.h>
 
-#include <stonith/expect.h>
-#include <stonith/stonith.h>
+#include "expect.h"
+#include "stonith.h"
 
 #define	DEVICE	"WTI Network Power Switch"
 
@@ -104,7 +133,7 @@ static struct Etoken password[] =	{ {"Password:", 0, 0} ,{NULL,0,0}};
 static struct Etoken Prompt[] =	{ {"NPS>", 0, 0} ,{NULL,0,0}};
 static struct Etoken LoginOK[] =	{ {WTINPSSTR, 0, 0}
                     , {"Invalid password", 1, 0} ,{NULL,0,0}};
-static struct Etoken Separator[] =	{ {"-----", 0, 0} ,{NULL,0,0}};
+static struct Etoken Separator[] =	{ {"-----+", 0, 0} ,{NULL,0,0}};
 /* Accept either a CR/NL or an NL/CR */
 static struct Etoken CRNL[] =		{ {"\n\r",0,0},{"\r\n",0,0},{NULL,0,0}};
 
@@ -143,11 +172,12 @@ void *	st_new(void);
  *	We do these things a lot.  Here are a few shorthand macros.
  */
 
-#define	SEND(s)	(write(nps->wrfd, (s), strlen(s)))
+#define	SEND(s) (write(nps->wrfd, (s), strlen(s)))
+
 
 #define	EXPECT(p,t)	{						\
 			if (NPSLookFor(nps, p, t) < 0)			\
-				return(errno == ETIMEDOUT		\
+				return(errno == ETIMEDOUT			\
 			?	S_TIMEOUT : S_OOPS);			\
 			}
 
@@ -178,7 +208,6 @@ NPSLookFor(struct WTINPS* nps, struct Etoken * tlist, int timeout)
 		syslog(LOG_ERR, _("Did not find string: '%s' from" DEVICE ".")
 		,	tlist[0].string);
 		NPSkillcomm(nps);
-		return(-1);
 	}
 	return(rc);
 }
@@ -191,20 +220,41 @@ NPSScanLine(struct WTINPS* nps, int timeout, char * buf, int max)
 	if (ExpectToken(nps->rdfd, CRNL, timeout, buf, max) < 0) {
 		syslog(LOG_ERR, ("Could not read line from " DEVICE "."));
 		NPSkillcomm(nps);
-		nps->pid = -1;
 		return(S_OOPS);
 	}
 	return(S_OK);
 }
 
-/* Login to the WTI Network Power Switch (NPS) */
 
+/* Attempt to login up to 20 times... */
+static int
+NPSRobustLogin(struct WTINPS * nps)
+{
+	int	rc=S_OOPS;
+	int	j;
+
+	for (j=0; j < 20 && rc != S_OK; ++j) {
+
+	  if (nps->pid > 0) {
+			NPSkillcomm(nps);
+		}
+
+	  if (NPS_connect_device(nps) != S_OK) {	
+	      NPSkillcomm(nps);
+	      continue;
+	  }
+
+	  rc = NPSLogin(nps);
+	}
+	return rc;
+}
+
+/* Login to the WTI Network Power Switch (NPS) */
 static int
 NPSLogin(struct WTINPS * nps)
 {
 	char		IDinfo[128];
 	char *		idptr = IDinfo;
-
 
 	EXPECT(EscapeChar, 10);
 	/* Look for the unit type info */
@@ -212,17 +262,16 @@ NPSLogin(struct WTINPS * nps)
 	,	sizeof(IDinfo)) < 0) {
 		syslog(LOG_ERR, _("No initial response from " DEVICE "."));
 		NPSkillcomm(nps);
-		return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
+ 		return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
 	idptr += strspn(idptr, WHITESPACE);
 	/*
 	 * We should be looking at something like this:
-     *	Enter Password: 
+	 *	Enter Password: 
 	 */
 
 	SEND(nps->passwd);
 	SEND("\r");
-
 	/* Expect "Network Power Switch vX.YY" */
 
 	switch (NPSLookFor(nps, LoginOK, 5)) {
@@ -238,7 +287,6 @@ NPSLogin(struct WTINPS * nps)
 			NPSkillcomm(nps);
 			return(errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS);
 	}
-
 	return(S_OK);
 }
 
@@ -248,27 +296,31 @@ static int
 NPSLogout(struct WTINPS* nps)
 {
 	int	rc;
-
-	/* Make sure we're in the right menu... */
-	SEND("\033\033\033\033");
-
+	
+	/* Send "/h" help command and expect back prompt */
+	//SEND("/h\r");
 	/* Expect "NPS>" */
 	rc = NPSLookFor(nps, Prompt, 5);
 
 	/* "/x" is Logout, "/x,y" auto-confirms */
 	SEND("/x,y\r");
 
-	close(nps->wrfd);
-	close(nps->rdfd);
-	nps->wrfd = nps->rdfd = -1;
 	NPSkillcomm(nps);
 	return(rc >= 0 ? S_OK : (errno == ETIMEDOUT ? S_TIMEOUT : S_OOPS));
 }
 static void
 NPSkillcomm(struct WTINPS* nps)
 {
-	if (nps->pid > 0) {
-		kill(nps->pid, SIGKILL);
+        if (nps->rdfd >= 0) {
+	        close(nps->rdfd);
+	        nps->rdfd = -1;
+	}
+	if (nps->wrfd >= 0) {
+	        close(nps->wrfd);
+  	        nps->wrfd = -1;
+	}
+        if (nps->pid > 0) {
+	        kill(nps->pid, SIGKILL);		
 		(void)waitpid(nps->pid, NULL, 0);
 		nps->pid = -1;
 	}
@@ -280,18 +332,15 @@ NPSReset(struct WTINPS* nps, char * outlets, const char * rebootid)
 {
 	char		unum[32];
 
-
-	SEND("\033\033\033\033\r");
-
-	/* Make sure we're in the top level menu */
-
+	/* Send "/h" help command and expect back prompt */
+	SEND("/h\r");
 	/* Expect "NPS>" */
 	EXPECT(Prompt, 5);
-
-	/* Send REBOOT command for given outlet */
+	
+	/* Send REBOOT command for given outlets */
 	snprintf(unum, sizeof(unum), "/BOOT %s,y\r", outlets);
 	SEND(unum);
-
+	
 	/* Expect "Processing "... or "(Y/N)" (if confirmation turned on) */
 
 	retry:
@@ -316,32 +365,26 @@ NPSReset(struct WTINPS* nps, char * outlets, const char * rebootid)
 	/* All Right!  Power is back on.  Life is Good! */
 
 	syslog(LOG_INFO, _("Power restored to host %s."), rebootid);
-
+	SEND("/h\r");
 	return(S_OK);
 }
 
 #if defined(ST_POWERON) && defined(ST_POWEROFF)
 static int
-NPS_onoff(struct WTINPS* nps, char *outlets, const char * unitid, int req)
+NPS_onoff(struct WTINPS* nps, int outlets, const char * unitid, int req)
 {
 	char		unum[32];
 
 	const char *	onoff = (req == ST_POWERON ? "/On" : "/Off");
 	int	rc;
 
-
-	if (NPS_connect_device(nps) != S_OK) {
-		return(S_OOPS);
-	}
-
-	if ((rc = NPSLogin(nps) != S_OK)) {
+	if ((rc = NPSRobustLogin(nps) != S_OK)) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(rc);
 	}
-	SEND("\033\033\033\033\r");
-
-	/* Make sure we're in the top level menu */
-
+       
+	/* Send "/h" help command and expect prompt back */
+	SEND("/h\r");
 	/* Expect "NPS>" */
 	EXPECT(Prompt, 5);
 
@@ -355,13 +398,10 @@ NPS_onoff(struct WTINPS* nps, char *outlets, const char * unitid, int req)
 		/* They've turned on that annoying command confirmation :-( */
 		SEND("Y\r");
 	}
-	
 	EXPECT(Prompt, 10);
 
 	/* All Right!  Command done. Life is Good! */
 	syslog(LOG_NOTICE, _("Power to NPS outlet(s) %s turned %s."), outlets, onoff);
-	/* Pop back to main menu */
-	SEND("\033\033\033\033\r");
 	return(S_OK);
 }
 #endif /* defined(ST_POWERON) && defined(ST_POWEROFF) */
@@ -373,73 +413,60 @@ NPS_onoff(struct WTINPS* nps, char *outlets, const char * unitid, int req)
 static int
 NPSNametoOutlet(struct WTINPS* nps, const char * name, char **outlets)
 {
-	char	NameMapping[128];
-	int	sockno;
-	char	sockname[32];
-	int times = 0;
-	char	buf[32];
-	int left = 17;
-	int ret = -1;
-
+  	char	NameMapping[128];
+  	int	sockno;
+  	char	sockname[32];
+  	int times = 0;
+        char buf[32];
+        int left = 17;
+  	int ret = -1;
 	
-	if (*outlets != NULL) {
-		free(*outlets);
-		*outlets = NULL;
-	}
+        
+        if ((*outlets = (char *)MALLOC(left*sizeof(char))) == NULL) {
+                syslog(LOG_ERR, "out of memory");
+                return(-1);
+        }
 	
-	if ((*outlets = (char *)MALLOC(left*sizeof(char))) == NULL) {
-		syslog(LOG_ERR, "out of memory");
-		return(-1);
-	}
-	strncpy(*outlets, "", left);
-	left = left - 1;	/* ensure terminating '\0' */
+        strncpy(*outlets, "", left);
+        left = left - 1;        /* ensure terminating '\0' */
+  	/* Expect "NPS>" */
+  	EXPECT(Prompt, 5);
+	
+  	/* The status command output contains mapping of hosts to outlets */ 
+    	SEND("/s\r");
 
-	/* Verify that we're in the top-level menu */
-	SEND("\033\033\033\033\r");
-
-	/* Expect "NPS>" */
-	EXPECT(Prompt, 5);
-
-	/* The status command output contains mapping of hosts to outlets */
-	SEND("/s\r");
-
-	/* Expect: "-----" so we can skip over it... */
-	EXPECT(Separator, 5);
-	EXPECT(CRNL, 5);
-
-	/* Looks Good!  Parse the status output */
-
-	do {
-		times++;
-		NameMapping[0] = EOS;
-		SNARF(NameMapping, 5);
-		if (sscanf(NameMapping
-		,	"%d | %16c",&sockno, sockname) == 2) {
-
-			char *	last = sockname+16;
-			*last = EOS;
-			--last;
-
+ 	/* Expect: "-----+" so we can skip over it... */
+    	EXPECT(Separator, 5); 
+	
+  	do {
+  		times++;
+  		NameMapping[0] = EOS;
+  		SNARF(NameMapping, 5);
+  		
+  		if (sscanf(NameMapping
+  		,	"%d | %16c",&sockno, sockname) == 2) {
+  
+  			char *	last = sockname+16;
+  			*last = EOS;
+  			--last;
 			/* Strip off trailing blanks */
-			for(; last > sockname; --last) {
-				if (*last == ' ') {
-					*last = EOS;
-				}else{
-					break;
-				}
-			}
-			if (strcmp(name, sockname) == 0) {
-				ret = sockno;
-				sprintf(buf, "%d+", sockno);
-				strncat(*outlets, buf, left);
-				left = left - 2;
-			}
-		}
-	} while (strlen(NameMapping) > 2 && times < 8 && left > 0);
+  			for(; last > sockname; --last) {
+  				if (*last == ' ') {
+  					*last = EOS;
+  				}else{
+  					break;
+  				}
+  			}
+  			if (strcmp(name, sockname) == 0) {
+  				ret = sockno;
+  				sprintf(buf, "%d ", sockno);
+  				strncat(*outlets, buf, left);
+  				left = left - 2;
+  			}
+  		}
+  	} while (strlen(NameMapping) > 2 && times < 8 && left > 0);
 
-	/* Pop back out to the top level menu */
-	SEND("\033\033\033\033\r");
-	return(ret);
+  	return(ret);
 }
 
 int
@@ -458,18 +485,14 @@ st_status(Stonith  *s)
 		return(S_OOPS);
 	}
 	nps = (struct WTINPS*) s->pinfo;
-	if (NPS_connect_device(nps) != S_OK) {
-		return(S_OOPS);
-	}
 
-	if ((rc = NPSLogin(nps) != S_OK)) {
+       	if ((rc = NPSRobustLogin(nps) != S_OK)) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(rc);
 	}
 
-	/* Verify that we're in the top-level menu */
-	SEND("\033\033\033\033\r");
-
+	/* Send "/h" help command and expect back prompt */
+	SEND("/h\r");
 	/* Expect "NPS>" */
 	EXPECT(Prompt, 5);
 
@@ -489,6 +512,7 @@ st_hostlist(Stonith  *s)
 	char **		ret = NULL;
 	struct WTINPS*	nps;
 
+
 	if (!ISWTINPS(s)) {
 		syslog(LOG_ERR, "invalid argument to NPS_list_hosts");
 		return(NULL);
@@ -499,29 +523,25 @@ st_hostlist(Stonith  *s)
 		return(NULL);
 	}
 	nps = (struct WTINPS*) s->pinfo;
-
 	if (NPS_connect_device(nps) != S_OK) {
 		return(NULL);
 	}
-
-	if (NPSLogin(nps) != S_OK) {
+ 
+	if (NPSRobustLogin(nps) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(NULL);
 	}
-
-	/* Verify that we're in the top-level menu */
-	SEND("\033\033\033\033\r");
-
+	
 	/* Expect "NPS>" */
 	NULLEXPECT(Prompt, 5);
-
+	
 	/* The status command output contains mapping of hosts to outlets */
 	SEND("/s\r");
 
 	/* Expect: "-----" so we can skip over it... */
 	NULLEXPECT(Separator, 5);
 	NULLEXPECT(CRNL, 5);
-
+	
 	/* Looks Good!  Parse the status output */
 
 	do {
@@ -552,6 +572,7 @@ st_hostlist(Stonith  *s)
 				syslog(LOG_ERR, "out of memory");
 				return(NULL);
 			}
+			memset(nm, 0, strlen(sockname)+1);
 			strcpy(nm, sockname);
 			NameList[numnames] = nm;
 			++numnames;
@@ -559,18 +580,19 @@ st_hostlist(Stonith  *s)
 		}
 	} while (strlen(NameMapping) > 2);
 
-	/* Pop back out to the top level menu */
-	SEND("\033\033\033\033\r");
 	if (numnames >= 1) {
 		ret = (char **)MALLOC((numnames+1)*sizeof(char*));
 		if (ret == NULL) {
 			syslog(LOG_ERR, "out of memory");
 		}else{
+			memset(ret, 0, (numnames+1)*sizeof(char*));
 			memcpy(ret, NameList, (numnames+1)*sizeof(char*));
 		}
 	}
 	(void)NPSLogout(nps);
+	
 	return(ret);
+	
 }
 
 void
@@ -636,9 +658,9 @@ NPS_connect_device(struct WTINPS * nps)
 
 	snprintf(TelnetCommand, sizeof(TelnetCommand)
 	,	"exec telnet %s 2>/dev/null", nps->device);
-
+	
 	nps->pid=StartProcess(TelnetCommand, &nps->rdfd, &nps->wrfd);
-	if (nps->pid <= 0) {
+	if (nps->pid <= 0) {	
 		return(S_OOPS);
 	}
 	return(S_OK);
@@ -665,17 +687,14 @@ st_reset(Stonith * s, int request, const char * host)
 	}
 	nps = (struct WTINPS*) s->pinfo;
 
-	if ((rc = NPS_connect_device(nps)) != S_OK) {
-		return(rc);
-	}
-
-	if ((rc = NPSLogin(nps)) != S_OK) {
+        if ((rc = NPSRobustLogin(nps)) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
-	}else{
-		char *outlets;
+        }else{
+	        char *outlets;
 		int noutlet;
+     
 		noutlet = NPSNametoOutlet(nps, host, &outlets);
-
+		    
 		if (noutlet < 1) {
 			syslog(LOG_WARNING, _("%s %s "
 			"doesn't control host [%s]."), nps->idinfo
@@ -689,20 +708,30 @@ st_reset(Stonith * s, int request, const char * host)
 		case ST_POWERON:
 		case ST_POWEROFF:
 			rc = NPS_onoff(nps, outlets, host, request);
+			if (outlets != NULL) {
+			  free(outlets);
+			  outlets = NULL;
+			}
 			break;
 #endif
 		case ST_GENERIC_RESET:
 			rc = NPSReset(nps, outlets, host);
 			break;
+			if (outlets != NULL) {
+			  free(outlets);
+			  outlets = NULL;
+			}
 		default:
-			rc = S_INVAL;
+			rc = S_INVAL;			
+			if (outlets != NULL) {
+			  free(outlets);
+			  outlets = NULL;
+			}
 			break;
 		}
 	}
 
 	lorc = NPSLogout(nps);
-	NPSkillcomm(nps);
-
 	return(rc != S_OK ? rc : lorc);
 }
 
@@ -809,14 +838,6 @@ st_destroy(Stonith *s)
 
 	nps->NPSid = NOTnpsid;
 	NPSkillcomm(nps);
-	if (nps->rdfd >= 0) {
-		nps->rdfd = -1;
-		close(nps->rdfd);
-	}
-	if (nps->wrfd >= 0) {
-		close(nps->wrfd);
-		nps->wrfd = -1;
-	}
 	if (nps->device != NULL) {
 		FREE(nps->device);
 		nps->device = NULL;
@@ -861,3 +882,8 @@ st_new(void)
 
 	return((void *)nps);
 }
+
+
+
+
+
