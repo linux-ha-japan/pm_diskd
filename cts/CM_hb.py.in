@@ -237,16 +237,23 @@ class HBResource(Resource):
 
         line = self.CM.rsh.readaline(nodename, Script)
         if  re.search(pattern, line):
-	  return 1
-	else:
-	  #return self.CM.rsh.lastrc == 0
+          return 1
+        elif operation == "monitor":
+          return self.CM.rsh.lastrc == 0
+        else:
 	  return 0
 
         
+#    def IsWorkingCorrectly(self, nodename):
+#        "We default to returning TRUE for this one..."
+#        if self.Instance == None:
+#          self.CM.log("Faking out: " + self.ResourceType)
+#        else:
+#          self.CM.log("Faking out: " + self.ResourceType + self.Instance)
+#        return 1
+
     def IsWorkingCorrectly(self, nodename):
-        "We default to returning TRUE for this one..."
-        self.CM.log("Faking out: " + self.Instance)
-        return 1
+        return self._ResourceOperation("monitor", "OK", nodename)
 
 class HBipResource(HBResource):
     '''
