@@ -93,5 +93,5 @@ cd $HERE
 $srcdir/configure "$@"
 
 echo 
-echo "Now type 'make' to compile the system."
+echo "Now type 'gmake' to compile the system."
 trap '' 0
