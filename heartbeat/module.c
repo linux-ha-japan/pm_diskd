@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.14 2001/06/03 08:05:10 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.15 2001/06/03 08:25:03 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -578,9 +578,16 @@ ml_get_module_list	/* Return (sorted) list of available module names */
 
 /*
  *	Begin MLModule.h (or something like that)
- */
-
-/*
+ *
+ * This of a fairly general and reasonably interesting module loading system.
+ * These modules are sometimes referred to as plugins.  Here, we use the two terms
+ * to mean slightly different things.
+ *
+ * It is not at all specific to our application (high-availability) and should be
+ * directly usable by basically any project.
+ *
+ *
+ *
  * Some terminology...
  *
  * There are kinds of objects we deal with here:
@@ -588,8 +595,8 @@ ml_get_module_list	/* Return (sorted) list of available module names */
  * Modules: dynamically loaded chunks of code which implement one or more
  *		plugins.
  *
- * Plugin: A set of functions which implement a particular set of functions
- * 	specific to the type of plugin in is.
+ * Plugin: A set of functions which implement a particular plug-in capability which
+ * 	can by dynamically loaded.
  *
  * Each plugin exports certain interfaces which it exports for its clients to use.
  * We refer to these those "Ops".
@@ -617,6 +624,15 @@ ml_get_module_list	/* Return (sorted) list of available module names */
  * implements.  The registration function is in the parameters which are passed
  * as a parameter to ml_module_init().
  *
+ *************************************************************************************
+ *
+ * THINGS IN THIS DESIGN WHICH ARE KNOWN TO BE BROKEN...
+ *
+ * I think the AutoLoad environment still has some unnecessary global variables implied
+ * by it's interfaces...  It could be improved.
+ *
+ *
+ *************************************************************************************
  */
 typedef int				ML_rc;	/* Return code from Module functions */
 
@@ -675,13 +691,11 @@ struct mlModuleImports_s {
 };
 
 
-/*
- ************************************************************************************
+/************************************************************************************
  *
- * Start of MLautoload.h or something like that ;-)
+ * Start of MLModEnv.h or something like that ;-)
  *
- ************************************************************************************
- */
+ *************************************************************************************/
 
 /*
  * MLModEnv is the "class" for the basic module loading mechanism.
@@ -726,30 +740,30 @@ struct mlModEnv_s {
 	void	(*setdebuglevel)(MLModEnv*, const char *  modulename);
 					/* modulename may be NULL */
 	int	(*getdebuglevel)(MLModEnv*, const char *  modulename);
+	char**	(*listmodules)(MLModEnv*);
 };
 
 /************************************************************************************
- *	Begin MLPluginHandler.h
+ *	Begin MLPluginHandler.h    Or something like that...
  ************************************************************************************/
 
 /*
- *
  * The most basic plugin type is the "PluginHandler" plugin.
- * Each plugin handler handles plugins of a given type.
+ * Each plugin handler registers and deals with plugins of a given type.
  *
  * Such a plugin must be loaded before any modules of it's type can be loaded.
- * PluginHandlers will be autoloaded, however, if certain conditions are met...
+ * MLPluginHandlers will be autoloaded, however, if certain conditions are met...
  *
- * If a PluginHandler is to be autoloaded, it must be one plugin handler per file,
+ * If a MLPluginHandler is to be autoloaded, it must be one plugin handler per file,
  * and the file named according to the type of the plugin it implements, and loaded
  * in the directory named "PluginHandler".
  * 
  */
-typedef struct PluginHandlerOps_s	PluginHandlerOps;
-typedef struct PluginHandlerImports_s	PluginHandlerImports;
+typedef struct MLPluginHandlerOps_s	MLPluginHandlerOps;
+typedef struct MLPluginHandlerImports_s	MLPluginHandlerImports;
 
 /* Interfaces exported by a PluginHander plugin */
-struct PluginHandlerOps_s{
+struct MLPluginHandlerOps_s{
 	/* RegisterPlugin - Returns unique id info for plugin or NULL on failure */
  	void*	(*RegisterPlugin)(const char * pluginname, void * epiinfo);
 	ML_rc	(*UnRegisterPlugin)(void*ipiinfo);	/* Unregister the given plugin */
@@ -758,7 +772,7 @@ struct PluginHandlerOps_s{
 };
 
 /* Interfaces imported by a PluginHander plugin */
-struct PluginHandlerImports_s { 
+struct MLPluginHandlerImports_s { 
 	int (*RefCount)(void * epiinfo);	/* Returns current reference count */
 	int (*ModRefCount)(void*epiinfo,int plusminus);	/* Incr/Decr reference count */
 	void (*UnloadIfPossible)(void *epiinfo); /* Unload module associated with
