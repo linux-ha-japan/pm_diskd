@@ -71,7 +71,8 @@ heartbeat_LDFLAGS	= @LIBLTDL@ -export-dynamic -dlpreopen force \
 			-dlopen mcast.la \
 			-dlopen md5.la \
 			-dlopen sha1.la \
-			-dlopen crc.la
+			-dlopen crc.la \
+			-lglib
 
 send_arp_SOURCES	= send_arp.c
 

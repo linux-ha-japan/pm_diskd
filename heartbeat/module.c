@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.13 2001/05/31 16:22:32 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.14 2001/06/03 08:05:10 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -37,6 +37,7 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.13 2001/05/31 16:22:32 al
 #include "heartbeat.h"
 #include <ha_msg.h>
 #include <hb_module.h>
+#include "../libltdl/config.h"
 
 /* BSD wants us to cast the select parameter to scandir */
 #ifdef BSD
@@ -73,7 +74,8 @@ module_error (void)
 	return _module_error;
 }
 
-#define MODULESUFFIX	".so"
+/* #define MODULESUFFIX	".so" */
+#define MODULESUFFIX	LTDL_SHLIB_EXT
 #define	STRLEN(s)	(sizeof(s)-1)
 
 static int
@@ -118,7 +120,11 @@ generic_symbol_load(const char * module
 ,	struct symbol_str symbols[], int len, lt_dlhandle handle)
 { 
 	int  a;
+#ifdef MODPREFIXSTR
 	char symbolname[MAX_FUNC_NAME + sizeof(MODPREFIXSTR)];
+#else
+	char symbolname[MAX_FUNC_NAME + sizeof(MODPREFIXSTR)];
+#endif
 	char modlen = strlen(module);
 	char modulename[MAX_FUNC_NAME];
 
@@ -137,8 +143,8 @@ generic_symbol_load(const char * module
 #if defined(MODPREFIXSTR)
 		strncpy(symbolname, modulename, sizeof(symbolname));
 		strncat(symbolname, MODPREFIXSTR, sizeof(symbolname));
-		strncat(symbolname, sym->name, sizeof(symbolname));
 #endif
+		strncat(symbolname, sym->name, sizeof(symbolname));
 		
 		if ((sym->function = lt_dlsym(handle, symbolname)) == NULL) {
 			if (sym->mandatory) {
@@ -462,3 +468,300 @@ module_init(void)
     _module_error = multi_init_error;
     return HA_FAIL;
 }
+#define NEWMODULECODE 1
+#ifdef NEWMODULECODE
+/*
+ *	Herein lie many fragments and pieces of the new module loading scheme...
+ *
+ *	Ultimately most of the things in here will go into separate files, and probably
+ *	into separate directories as well...
+ *
+ *	This stuff is all pretty cool if we can make it work ;-)
+ *
+ */
+
+/* Gotta love the glib folks ... whose prototype parameters shadow system functions  */
+#define index _fooIndex
+#define time _fooTime
+
+#include <glib.h>
+#undef index
+#undef time
+
+
+static void free_dirlist(struct dirent** dlist, int n);
+/* Returns a char ** */
+char** ml_get_module_list(const char * basedir, const char * modclass, int* count);
+
+static int qsort_string_cmp(const void *a, const void *b);
+
+
+static void
+free_dirlist(struct dirent** dlist, int n)
+{
+	int	j;
+	for (j=0; j < n; ++j) {
+		if (dlist[j]) {
+			free(dlist[j]);
+			dlist[j] = NULL;
+		}
+	}
+	free(dlist);
+}
+
+static int
+qsort_string_cmp(const void *a, const void *b)
+{
+	return(strcmp(*(const char **)a, *(const char **)b));
+}
+
+#define FREE_DIRLIST(dlist, n)	{free_dirlist(dlist, n); dlist = NULL;}
+
+/* Generalized module loading code */
+char**
+ml_get_module_list	/* Return (sorted) list of available module names */
+(	const char *	basedir		/* Defaults to HA_MODULE_D */
+,	const char *	modclass	/* Can be NULL if you want ... */
+,	int *		modcount	/* Ditto... */
+)
+{
+	GString*	path;
+	char **		result = NULL;
+        struct dirent**	files;
+	int		modulecount;
+	int		j;
+
+	if (basedir == NULL) {
+		basedir= HA_MODULE_D;
+	}
+
+	/* Base module directory must be a full path name */
+	if (!g_path_is_absolute(basedir)) {
+		return(NULL);
+	}
+
+	path = g_string_new(basedir);
+	if (modclass) {
+		if (g_string_append_c(path, G_DIR_SEPARATOR) == NULL
+		||	g_string_append(path, modclass) == NULL) {
+			g_string_free(path, 1); path = NULL;
+			return(NULL);
+		}
+	}
+
+	modulecount = scandir(path->str, &files, SCANSEL_C &so_select, NULL);
+	g_string_free(path, 1); path=NULL;
+
+	result = (char **) ha_malloc((modulecount+1)*sizeof(char *));
+
+	for (j=0; j < modulecount; ++j) {
+		char*	s;
+		int	slen = strlen(files[j]->d_name) - STRLEN(MODULESUFFIX);
+
+		s = ha_malloc(slen+1);
+		strncpy(s, files[j]->d_name, slen);
+		s[slen] = EOS;
+		result[j] = s;
+	}
+	result[j] = NULL;
+
+	/* Return them in sorted order... */
+	qsort(result, modulecount, sizeof(char *), qsort_string_cmp);
+
+	if (modcount != NULL) {
+		*modcount = modulecount;
+	}
+
+	FREE_DIRLIST(files, modulecount);
+	return(result);
+}
+
+/*
+ *	Begin MLModule.h (or something like that)
+ */
+
+/*
+ * Some terminology...
+ *
+ * There are kinds of objects we deal with here:
+ *
+ * Modules: dynamically loaded chunks of code which implement one or more
+ *		plugins.
+ *
+ * Plugin: A set of functions which implement a particular set of functions
+ * 	specific to the type of plugin in is.
+ *
+ * Each plugin exports certain interfaces which it exports for its clients to use.
+ * We refer to these those "Ops".
+ *
+ * Each plugin is provided certain interfaces which it imports when it is loaded.
+ * We refer to these as "Imports".
+ *
+ * In the function parameters below, the following notation will sometimes appear:
+ *
+ * (OP) == Output Parameter - a parameter which is modified by the function being called
+ *
+ *************************************************************************************
+ *
+ * Each module has only one entry point which is exported directly, regardless
+ * of what kind of plugin(s) it implements...
+ *
+ * This entrypoint is named ml_module_init().
+ *
+ * The ml_module_init() function is called once when the module is loaded.
+ *
+ *
+ * All other entry points are exported through parameters passed to ml_module_init()
+ *
+ * Ml_module_init() then registers the module, and all the plugins which this module
+ * implements.  The registration function is in the parameters which are passed
+ * as a parameter to ml_module_init().
+ *
+ */
+typedef int				ML_rc;	/* Return code from Module functions */
+
+typedef struct mlModuleImports_s	MLModuleImports;
+typedef struct mlModuleOps_s		MLModuleOps;
+typedef struct mlModule_s		MLModule;
+
+
+/*
+ * struct mlModule_s (typedef MLModule) is the structure which represents a
+ * module, and is used to identify which module is being referred to in
+ * various function calls.
+ *
+ * NOTE: It may be the case that this definition should be moved to another header
+ * file - since no one ought to be messing with them anyway ;-)
+ */
+
+struct mlModule_s {
+	const char*	module_name;
+	/* Other stuff goes here ... */
+};
+/*
+ * struct mlModuleOps_s (typedef MLModuleOps) defines the set of functions
+ * exported by all modules...
+ */
+struct mlModuleOps_s {
+	const char*	(*moduleversion) (void);
+	const char*	(*modulename)	 (void);
+	void		(*getdebuglevel) (void);
+
+	void		(*setdebuglevel) (int);
+	void		(*close) (void);
+};
+
+/*
+ * struct mlModuleImports_s (typedef MLModImport) defines
+ * the functions and capabilities that every module imports when it is loaded.
+ */
+
+struct mlModuleImports_s {
+	ML_rc	(*register_module)(MLModule* modinfo, MLModuleOps* commonops);
+	ML_rc	(*unregister_module)(MLModule* modinfo);
+	ML_rc	(*register_plugin)(MLModule* modinfo
+	,	const char *	plugintype	/* Type of plugin			*/
+	,	const char *	pluginname	/* Name of plugin			*/
+	,	void*		Ops		/* Info (functions) exported by plugin	*/
+	,	void**		pluginid	/* Plugin id (OP)			*/
+	,	void**		Imports);	/* Functions imported by plugin (OP)	*/
+
+	ML_rc	(*unregister_plugin)(void* pluginid);
+	ML_rc	(*load_module)(const char * moduletype, const char * modulename);
+
+	void*	(*pmalloc)(size_t);	/* Preferred malloc method...		*/
+	void	(*pfree)(void *);	/* Preferred free method...		*/
+	void	(*log)	(int priority, const char * fmt, ...); // Logging function
+};
+
+
+/*
+ ************************************************************************************
+ *
+ * Start of MLautoload.h or something like that ;-)
+ *
+ ************************************************************************************
+ */
+
+/*
+ * MLModEnv is the "class" for the basic module loading mechanism.
+ *
+ * To enable loading of modules from a particular environment (module type), 
+ * one calls NewMLModuleEnvironment with the module type name, the module
+ * base directory, and the set of functions to be imported to the module.
+ */
+
+typedef struct mlModEnv_s		MLModEnv;
+
+extern MLModEnv* NewMLModuleEnvironment(const char * moduletype
+					, const char* moduledirectory
+					, MLModuleImports * imports);
+/*
+ * MLEnableModClassAutoLoading is called once to enable automatic module loading
+ * by the class of module requested.
+ */
+extern ML_rc	MLEnableModClassAutoLoading(const char *basemoduledirectory
+		,	MLModuleImports* imports);
+
+extern MLModEnv*	MLModuleEnvironment(const char * moduletype);
+
+/*
+ * MLForEachEnv calls 'fun2call' once for each environment in
+ * the autoload module environment.
+ */
+extern void	MLForEachEnv(void (*fun2call)(MLModEnv*, void*private), void *private);
+
+struct mlModEnv_s {
+	const char *		moduletype;
+	const char *		basemoduledirectory;
+	MLModuleImports*	imports;
+	void*			moduleinfo;	/* Private data */
+
+	int	(*IsLoaded)	(MLModEnv*, const char * modulename);
+	ML_rc	(*Load)		(MLModEnv*, const char * modulename);
+	ML_rc	(*UnLoad)	(MLModEnv*, const char * modulename);
+	int	(*refcount)	(MLModEnv*, const char * modulename);
+	int	(*modrefcount)	(MLModEnv*, const char * modulename, int plusminus);
+	void	(*UnloadUnRef)	(MLModEnv*);
+	void	(*setdebuglevel)(MLModEnv*, const char *  modulename);
+					/* modulename may be NULL */
+	int	(*getdebuglevel)(MLModEnv*, const char *  modulename);
+};
+
+/************************************************************************************
+ *	Begin MLPluginHandler.h
+ ************************************************************************************/
+
+/*
+ *
+ * The most basic plugin type is the "PluginHandler" plugin.
+ * Each plugin handler handles plugins of a given type.
+ *
+ * Such a plugin must be loaded before any modules of it's type can be loaded.
+ * PluginHandlers will be autoloaded, however, if certain conditions are met...
+ *
+ * If a PluginHandler is to be autoloaded, it must be one plugin handler per file,
+ * and the file named according to the type of the plugin it implements, and loaded
+ * in the directory named "PluginHandler".
+ * 
+ */
+typedef struct PluginHandlerOps_s	PluginHandlerOps;
+typedef struct PluginHandlerImports_s	PluginHandlerImports;
+
+/* Interfaces exported by a PluginHander plugin */
+struct PluginHandlerOps_s{
+	/* RegisterPlugin - Returns unique id info for plugin or NULL on failure */
+ 	void*	(*RegisterPlugin)(const char * pluginname, void * epiinfo);
+	ML_rc	(*UnRegisterPlugin)(void*ipiinfo);	/* Unregister the given plugin */
+				/* ipiinfo was returned from RegisterPlugin... */
+	int	(*IsKnown)(const char*);	/* True if the given plugin is known */
+};
+
+/* Interfaces imported by a PluginHander plugin */
+struct PluginHandlerImports_s { 
+	int (*RefCount)(void * epiinfo);	/* Returns current reference count */
+	int (*ModRefCount)(void*epiinfo,int plusminus);	/* Incr/Decr reference count */
+	void (*UnloadIfPossible)(void *epiinfo); /* Unload module associated with
+						  * this plugin -- if possible */
+};
+#endif /* NEWMODULECODE */
