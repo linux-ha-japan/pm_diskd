@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.5 2000/07/26 05:17:19 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.6 2000/08/13 20:37:49 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *	It's really simple to write in C, but hard to write in the shell...
@@ -231,16 +231,19 @@ main(int argc, char ** argv) {
 		,	best_netmask,  def_bcast);
 #endif
 
-		printf("%s\tnetmask %d.%d.%d.%d\tbroadcast %d.%d.%d.%d\n"
-		,	best_if
-		,	(int)(best_netmask & 0xff)
-		,	(int)((best_netmask>>8) & 0xff)
-		,	(int)((best_netmask>>16) & 0xff)
-		,	(int)((best_netmask>>24) & 0xff)
-		,	(int)(def_bcast & 0xff)
-		,	(int)((def_bcast>>8) & 0xff)
-		,	(int)((def_bcast>>16) & 0xff)
-		,	(int)((def_bcast>>24) & 0xff));
+		/* Make things a bit more machine-independent */
+		best_netmask = htonl(best_netmask);
+		def_bcast = htonl(def_bcast);
+                printf("%s\tnetmask %d.%d.%d.%d\tbroadcast %d.%d.%d.%d\n"
+                ,       best_if
+                ,       (int)((best_netmask>>24) & 0xff)
+                ,       (int)((best_netmask>>16) & 0xff)
+                ,       (int)((best_netmask>>8) & 0xff)
+                ,       (int)(best_netmask & 0xff)
+                ,       (int)((def_bcast>>24) & 0xff)
+                ,       (int)((def_bcast>>16) & 0xff)
+                ,       (int)((def_bcast>>8) & 0xff)
+                ,       (int)(def_bcast & 0xff));
 	}
 	return(0);
 }
@@ -262,6 +265,11 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
+ * Revision 1.6  2000/08/13 20:37:49  alan
+ * Fixed a bug related to byte-ordering in findif.c.  Thanks to
+ *         Lars Kellogg-Stedman for the fix.  There are probably some
+ * 	related to byte ordering in input that still need fixing...
+ *
  * Revision 1.5  2000/07/26 05:17:19  alan
  * Added GPL license statements to all the code.
  *
