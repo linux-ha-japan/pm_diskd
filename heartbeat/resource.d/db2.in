@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: db2.in,v 1.1 2002/03/06 18:43:20 alan Exp $
+# $Id: db2.in,v 1.2 2002/03/12 22:28:33 alan Exp $
 # 
 # db2
 #
@@ -49,6 +49,7 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 #. @sysconfdir@/ha.d/shellfuncs
 . /etc/ha.d/shellfuncs
+SH=/bin/bash
 
 
 #
@@ -64,9 +65,12 @@ db2_methods() {
 	!
 }
 
+
 #	Gather up information about our db2 instance
 
 db2info() {
+	US=`id -u -n`
+	US=`echo $US`
 	instance=$1
 	db2admin=$instance
 	db2home=`bash -c "echo ~$db2admin"`
@@ -100,9 +104,18 @@ db2info() {
 #	Run the given command in the db2 admin environment...
 #
 runasdb2() {
-	su $db2admin -c ". $db2profile; $*"
+	if
+	  [ $US = $db2admin ]
+	then
+	  $SH -c ". $db2profile; $*"
+	else
+	  su $db2admin -c ". $db2profile; $*"
+	fi
 }
 
+#
+#	Run a command as the DB2 admin, and log the output
+#
 logasdb2() {
 	output=`runasdb2 $*`
 	rc=$?
@@ -180,16 +193,27 @@ db2_status() {
   test $pscount -ge 6
 }
 
+db2_dblist() {
+  runasdb2 $db2db2 list database directory	\
+  |	grep -i 'Database name.*=' | sed 's%.*= *%%'
+}
+
 
 #
 # db2_monitor: Can the given db2 instance do anything useful?
 #
 db2_monitor() {
   # We ignore the instance, the info we need is already in $vars
+  for DB in `db2_dblist`
+  do
 
-CMD="	$db2db2 connect to $db2instance ; 
-	$db2db2 select \* from sysibm.sysversions ; rc=\$?;
-	$db2db2 disconnect $db2instance ;
+  CMD="	if $db2db2 connect to $DB;
+	then 
+	  $db2db2 select \* from sysibm.sysversions ; rc=\$?;
+	  $db2db2 disconnect $DB;
+	else
+          rc=\$?;
+	fi;
 	exit \$rc"
 
     : Running this command: $CMD
@@ -197,12 +221,13 @@ CMD="	$db2db2 connect to $db2instance ;
       output=`runasdb2 $CMD`
     then
       : Command succeeded!
-      ha_log "info: DB2 UDB instance $1 appears to be working"
     else
-      ha_log "ERROR: DB2 UDB database $1 is not working"
+      ha_log "ERROR: DB2 UDB instance $1 DB $DB is not working"
       ha_log "ERROR: DB2 UDB message: $output"
       return 1
     fi
+  done
+  : ha_log "info: All DBs in DB2 UDB instance $1 appear to be working"
 }
 
 #
@@ -210,10 +235,17 @@ CMD="	$db2db2 connect to $db2instance ;
 #
 
 if
-  [ $# -eq 1 -a "methods" = "$1" ]
+  [ $# -eq 1 ]
 then
-  db2_methods
-  exit $?
+  if
+    [ "methods" = "$1" ]
+  then
+    db2_methods
+    exit $?
+  else
+    usage
+    exit $?
+  fi
 fi
 
 #
