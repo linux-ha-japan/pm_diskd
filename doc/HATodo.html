@@ -1,8 +1,6 @@
-<!doctype html public "-//w3c//dtd html 4.0 transitional//en">
 <html>
 <head>
    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-   <meta name="GENERATOR" content="Mozilla/4.61 [en] (X11; I; Linux 2.2.5-22 i686) [Netscape]">
    <meta name="Author" content="Alan Robertson">
    <meta name="Description" content="This is the current task list (or to do list) for the High-Availability Linux Project">
    <meta name="Keywords" content="RAS, reliability, availability, serviceability, Linux, HA, Linux-HA, HA-Linux, schedules, todo, tasks">
@@ -20,8 +18,7 @@ how it should be done to break it up into distinct tasks.
 and hopefully match them up to people who will do them.&nbsp; <i><b>Perhaps
 you?</b>&nbsp; </i>If you see a task you are interested in, or want to
 add tasks to the list or comment on it, contact
-<a href="mailto:alanr@unix.sh">Alan
-Robertson</a>.
+<a href="mailto:alanr@unix.sh">Alan Robertson</a>.
 <br>&nbsp;
 <h2>
 Organization of Activities</h2>
@@ -30,13 +27,38 @@ Linux-HA phase I is divided into three basic areas:
 <li>
 Heartbeat and cluster management services</li>
 
-<li>
-HA resource implementations</li>
+<li>HA resource implementations</li>
 
 <li>
 Diagnostics</li>
 </ol>
 
+<h2>High-Priority Jobs</h2>
+These are the jobs I feel strongly need to be done soon:
+<ul>
+<li>	SharedFS
+	</li>
+<li>	DRBD (needs fixing)
+	</li>
+<li>	NFS
+	</li>
+<li>	Samba
+	</li>
+<li>	Oracle
+	</li>
+<li>	PostgreSQL
+	</li>
+<li>	CMsplit
+	</li>
+<li>	ResourceMon
+	</li>
+<li>	Status GUI
+	</li>
+<li>	Automake/Autobuild
+	</li>
+</ul>
+Volunteers willing to tackle these head-on soon would be very much
+appreciated.
 <h2>
 HA Resource Implementations</h2>
 Anything that can move from one machine to another (processes, IP addresses,
@@ -76,16 +98,6 @@ configuration supported, you may have to create the resource for it.
 </tr>
 
 <tr>
-<td>MACaddr</td>
-
-<td>MAC address resource implementation</td>
-
-<td></td>
-
-<td></td>
-</tr>
-
-<tr>
 <td>SharedFS</td>
 
 <td>Shared filesystem takeover.&nbsp; Useful for multi-interface RAID boxes
@@ -97,26 +109,70 @@ and shared SCSI implementations.</td>
 </tr>
 
 <tr>
-<td>NBD</td>
+<td>NFS</td>
 
-<td>Network block device /&nbsp; Mirroring Resource.&nbsp; This implements
-the "poor-man's file synchronization" described on the list</td>
+<td>NFS server takeover.&nbsp;  The tricky parts are (a) lock takeover and (b) integration with
+ReiserFS.  You'll need to get the latest nfs-utils package for this one.
+The folks at MC Linux and SGI have both implemented this and may be of some help.
+</td>
 
 <td></td>
-
-<td>alanr (?)</td>
+<td></td>
 </tr>
 
 <tr>
-<td>NBD-NFS</td>
+<td>Samba</td>
 
-<td>Design a resource sharing fileystem strategy based on NBD and NFS.&nbsp;
-Implement the resource type for it.</td>
+<td>Samba server takeover.&nbsp;  This made tricky by the stateful protocol.
+It may be necessary to fix some client software to get this to work for every application.
+Good to consult with Jeremy Allison or one of the other Samba principals.
+</td>
 
-<td>NBD</td>
+<td></td>
+<td></td>
+</tr>
+
+<tr>
+<td>Netatalk</td>
+
+<td>Appletalk (netatalk) server takeover.&nbsp;
+</td>
+
+<td></td>
+<td></td>
+</tr>
+
+
+<tr>
+<td>Oracle</td>
+
+<td>Oracle database server takeover.&nbsp;
+</td>
+
+<td></td>
+<td></td>
+</tr>
+
+<tr>
+<td>PostsreSQL</td>
+
+<td>PostgreSQL database server takeover.&nbsp;
+</td>
+
+<td></td>
+<td></td>
+</tr>
+
+<tr>
+<td>MACaddr</td>
+
+<td>MAC address resource implementation</td>
+
+<td></td>
 
 <td></td>
 </tr>
+
 
 <tr>
 <td>Intermezzo</td>
@@ -128,6 +184,7 @@ Implement the resource type for it.</td>
 
 <td></td>
 </tr>
+
 
 <tr>
 <td >IPaddr-bcast</td>
@@ -158,23 +215,88 @@ Things that don't fall into one of the other categories show up here...
 </tr>
 
 <tr>
+<td>AutoMake/AutoBuild</td>
+
+<td>Convert heartbeat to be based on Automake/autobuild.
+</td>
+
+<td></td>
+
+<td>
+David Lee &lt;T.D.Lee@durham.ac.uk&gt; and 
+Michael Moerz &lt;e9625136@stud3.tuwien.ac.at&gt;
+</td>
+</tr>
+
+<tr>
+<td>SolarisPort</td>
+
+<td> re-port heartbeat to Solaris
+</td>
+
+<td>AutoMake/AutoBuild</td>
+
+<td>
+David Lee &lt;T.D.Lee@durham.ac.uk&gt;
+</td>
+</tr>
+
+<tr>
+<td>OpenBSDPort</td>
+
+<td>Complete OpenBSD port of heartbeat
+</td>
+
+<td>AutoMake/AutoBuild</td>
+
+<td> 
+Frank DENIS aka Jedi/Sector One <j@c9x.org>
+</td>
+</tr>
+
+<tr>
+<td>FreeBSDPort</td>
+
+<td>Complete FreeBSD port of heartbeat
+</td>
+
+<td>AutoMake/AutoBuild</td>
+
+<td>
+Matt Soffen <msoffen@iso-ne.com>
+</td>
+</tr>
+
+<tr>
 <td>FileSync</td>
 
 <td>Transactional file synchronization between nodes.</td>
 
 <td></td>
 
-<td>Lars Marowsky-Bree (?)</td>
+<td></td>
 </tr>
 
 <tr>
+<td>configlib</td>
+<td>Separate out configuration parsing code into a library or .o
+Preferably a dynamically loaded module.
+<td></td>
+<td>alanr</td>
+</tr>
+
+<tr>
+<td>ResourceMove</td>
+<td>Add an interface to allow users to move resources between one node and
+another.
+<td></td>
+<td></td>
+</tr>
+
 <td>GGUI</td>
-
 <td>GNOME-based configuration and status GUI [can KGUI and GGUI share code?]</td>
-
 <td></td>
-
-<td></td>
+<td>(<b>?</b>)</td>
 </tr>
 
 <tr>
@@ -200,11 +322,13 @@ Things that don't fall into one of the other categories show up here...
 <tr>
 <td>LVS</td>
 
-<td>Figure out how to best integrate Linux-HA with the LVS project.</td>
+<td>Figure out how to best integrate Linux-HA with the LVS project.
+Note that Jacob Rief has already done a little work in this area.
+</td>
 
 <td></td>
 
-<td></td>
+<td><b>DONE</b> - see UltraMonkey </td>
 </tr>
 </table>
 
@@ -257,7 +381,7 @@ version.</td>
 
 <td>DiagFrame</td>
 
-<td></td>
+<td><b>done/replaced</b></td>
 </tr>
 </table>
 
@@ -277,13 +401,22 @@ the testing department.&nbsp; This is the beginning of such a list.
 </tr>
 
 <tr>
-<td>ConfigRegress</td>
+<td>TestUtil</td>
+<td>Utility for banging on Linux-HA, and testing it.
+Should be capable of causing failovers, and seeing if they worked.
+Current implementation is well underway, is
+called CTS and is now under CVS, under the "cts" directory.
+It is written in Python.
+</td>
+<td></td>
+<td><b>InProgress</b></td>
+</tr>
 
+<tr>
+<td>ConfigRegress</td>
 <td>Configuration regression testing database containing valid and invalid
 configurations for testing the input validation below.</td>
-
 <td></td>
-
 <td></td>
 </tr>
 
@@ -315,6 +448,29 @@ of them are marked as critical.&nbsp; Lots of fun stuff to be done here.
 </tr>
 
 <tr>
+<td><b><font color="#3333FF">CMsplit</font></b></td>
+
+<td>Split out the Cluster Manager function from the current
+heartbeat and make the heartbeat core "pure" - devoid of policies and decision-making.
+</td>
+
+<td>hbAPI</td>
+
+<td></td>
+</tr>
+
+<tr>
+<td><b>ResourceMon</b></td>
+
+<td>Add resource monitoring to the CMsplit cluster manger.
+</td>
+
+<td>CMsplit</td>
+
+<td></td>
+</tr>
+
+<tr>
 <td><b><font color="#3333FF">PartCluster</font></b></td>
 
 <td>Detect and perform basic recovery from a partitioned cluster condition.&nbsp;
@@ -323,8 +479,23 @@ occured as a result of a partitioned cluster :-)</td>
 
 <td></td>
 
-<td></td>
+<td>partly done - needs testing</td>
 </tr>
+
+<tr>
+<td><b>ModuleLoading</b></td>
+<td>Implement a general module loading strategy for heartbeat<td>
+<td>marcelo<br><b>DONE</b> - for now</td>
+</tr>
+
+<tr>
+<td><b>PingMedia</b></td>
+<td>Ping mediatype for pseudo-membership.
+This would allow a router, or switch, or other device to become a pseudo-member for purposes of quorum calculations, etc.
+<td></td>
+<td><b>DONE</b></td>
+</tr>
+
 
 <tr>
 <td><b><font color="#3333FF">CMFrame</font></b></td>
@@ -332,10 +503,11 @@ occured as a result of a partitioned cluster :-)</td>
 <td>Create framework for "real" cluster manager.&nbsp; This constitutes
 the APIs and supporting code allowing a cluster manager to be written</td>
 
-<td>NPhase</td>
+<td>NPhase, hbAPI</td>
 
 <td></td>
 </tr>
+
 
 <tr>
 <td><b><font color="#3333FF">NPhase</font></b></td>
@@ -353,7 +525,9 @@ Search of Clusters</a>".&nbsp; See especially pages 428 and 429.</td>
 <td><b><font color="#3333FF">CM1</font></b></td>
 
 <td>Create the first cluster manager.&nbsp; A translation of the current
-methodology into a cluster manager structure.&nbsp; May be a throwaway.</td>
+methodology into a cluster manager structure.&nbsp;
+May ultimately be a throwaway, or it may be wonderful
+for a 2-node cluster.</td>
 
 <td>CMFrame, HBProtocol (before release)</td>
 
@@ -377,31 +551,23 @@ manager.</td>
 
 <td>Verify and Validate system configuration rigorously before starting
 up.&nbsp; Provide a standalone configuration validation tool or input checking
-mode for heartbeat.</td>
+mode for heartbeat.
+(<i>much of this is done now</i>)
+</td>
 
 <td></td>
 
 <td></td>
 </tr>
 
-<tr>
-<td>SecKeeps</td>
-
-<td>Optionally allow the secondary host to keep the resources it has when
-the primary comes back online.</td>
-
-<td></td>
-
-<td></td>
-</tr>
 
 <tr>
 <td>Restart heartbeat processes</td>
 <td>Heartbeat should be able to restart its processes that die.
 This is intended to allow for the possibility that one day a bug
 might be found in the code which would cause it to die.
-A little infrastructure work to support this effort is in 0.4.3.
 Heavens! Perish the thought!  :-)
+A little infrastructure work to support this effort is in 0.4.3.
 </td>
 <td></td>
 <td></td>
@@ -409,14 +575,6 @@ Heavens! Perish the thought!  :-)
 
 
 
-<tr>
-<td><b><font color="#3333FF">HBProtocol</font></b></td>
-
-<td>Fix the protocol so that lost packets are retransmitted,
-not just discovered.</td>
-<td></td>
-<td>alanr</td>
-</tr>
 
 
 
@@ -464,6 +622,56 @@ not just discovered.</td>
 </tr>
 
 <tr>
+<TD>IpResourceSyntax</TD>
+<td>Allow some form of continuation lines in haresources file.
+</td>
+<td></td>
+<td><b>done</b></td>
+</tr>
+
+<!----
+
+<tr>
+<td><b><font color="#3333FF">hbAPI</font></b></td>
+
+<td>Build a heartbeat API so clients and cluster managers can
+talk to heartbeat.</td>
+
+<td></td>
+
+<td>alanr, marcelo <b>done</b></td>
+</tr>
+
+<tr>
+<td>DRBD</td>
+
+<td>DRBD Mirroring Resource.&nbsp; This implements
+the filesystem synchroniztion over the LAN</td>
+
+<td></td>
+
+<td><b>Done</b> but doesn't quite work.<td>
+</tr>
+<tr>
+<td>SecKeeps</td>
+
+<td>Optionally allow the secondary host to keep the resources it has when
+the primary comes back online. Called nice_failback.</td>
+
+<td></td>
+
+<td>alanr, lclaudio (<b>DONE</b>)</td>
+</tr>
+<tr>
+<td><b><font color="#3333FF">HBProtocol</font></b></td>
+
+<td>Fix the protocol so that lost packets are retransmitted,
+not just discovered.</td>
+<td></td>
+<td>alanr (<b>DONE</b>)</td>
+</tr>
+
+<tr>
 <td>Reconfig</td>
 <td>Should be able to update configurations without shutting down the
 cluster and restarting it.
@@ -471,7 +679,7 @@ This could be accomplished in lots of different ways.  From a local kill -1 type
 approach, to a global synchronized cluster restart.
 </td>
 <td></td>
-<td>alanr (available in 0.4.5)</td>
+<td>alanr (<b>DONE</b> 0.4.5)</td>
 </tr>
 
 <tr>
@@ -489,7 +697,7 @@ approach, to a global synchronized cluster restart.
 		given up.
 	</td>
 	<td></td>
-	<td>alanr (available in 0.4.5)</td>
+	<td>alanr (<b>DONE</b> 0.4.5)</td>
 </tr>
 
 
@@ -498,7 +706,7 @@ approach, to a global synchronized cluster restart.
 <td>change ha_log() functions to use syslog.</td>
 <td></td>
 <td>Guenther Thomsen
-(Available in 0.4.5)</td>
+(<b>DONE</b> 0.4.5)</td>
 </tr>
 
 <tr>
@@ -507,7 +715,7 @@ approach, to a global synchronized cluster restart.
 <td>Heartbeat debuginfo doesn't go into debug-log</td>
 <td></td>
 <td>Guenther Thomsen
-(Available in 0.4.5)</td>
+(<b>DONE</b> 0.4.5)</td>
 </tr>
 
 
@@ -525,7 +733,7 @@ the methods used by NTP.</td>
 <td></td>
 <td>Mitja Sarp,
 Neal McBurnett (consulting)
-(Will be available in 0.4.5)</td>
+(<b>DONE</b> 0.4.5)</td>
 </tr>
 
 
