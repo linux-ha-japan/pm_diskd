@@ -181,13 +181,13 @@ main(int argc, char** argv)
 		}
 	}
 	if (listtypes) {
-		const char **	typelist;
+		char **	typelist;
 
 		typelist = stonith_types();
 		if (s == NULL) {
 			syslog(LOG_ERR, "Could not list Stonith types.");
 		}else{
-			const char **	this;
+			char **	this;
 
 			for(this=typelist; *this; ++this) {
 				printf("%s\n", *this);

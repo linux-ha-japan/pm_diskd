@@ -27,6 +27,7 @@
 #include <libintl.h>
 #include <sys/wait.h>
 #include <dlfcn.h>
+#include <dirent.h>
 #include <stonith.h>
 
 #define MAX_FUNC_NAME 20
@@ -36,9 +37,11 @@ struct symbol_str {
     void** function;
 };
 
-int symbol_load(struct symbol_str symbols[], int len, void **handle);
+static int so_select (const struct dirent *dire);
 
-int symbol_load(struct symbol_str symbols[], int len, void **handle)
+static int symbol_load(struct symbol_str symbols[], int len, void **handle);
+
+static int symbol_load(struct symbol_str symbols[], int len, void **handle)
 {
 	int  a;
 	char *error;
@@ -134,3 +137,59 @@ stonith_new(const char * type)
 
 	return s;
 }
+
+/*
+ *	Return the list of Stonith types which can be given to stonith_new()
+ */
+char **
+stonith_types(void)
+{
+	char ** list;
+	struct dirent **namelist;
+	int n, i;
+
+	list = malloc(sizeof(char *));
+
+	if(list == NULL) {
+		syslog(LOG_ERR, "%s: malloc failed.", __FUNCTION__);
+		return(NULL);
+	}
+
+	n = scandir(STONITH_MODULES, &namelist, &so_select, 0);
+	if (n < 0) {
+		syslog(LOG_ERR, "%s: scandir failed.", __FUNCTION__);
+		return(NULL);
+	}
+
+	for(i=0;i<n;i++) { 
+		int len = strlen(namelist[i]->d_name);
+
+		list[i] = malloc(len * sizeof(char));
+		if(list[i] == NULL) {
+			syslog(LOG_ERR, "%s: malloc/1 failed.", __FUNCTION__);
+			return(NULL);
+		}
+		strcpy(list[i], namelist[i]->d_name);
+
+		/* strip ".so" */
+		list[i][len - 3] = '\0';
+
+		free(namelist[i]);
+	}
+
+	list[i] = NULL;
+
+	return list;
+}
+
+static int so_select (const struct dirent *dire) {
+
+	const char *end = &dire->d_name[strlen(dire->d_name) - 3];
+	const char *obj_end = ".so";
+
+	if(strcmp(end, obj_end) == 0)
+		return 1;
+
+	return 0;
+}
+
