@@ -26,6 +26,7 @@ hard_SCRIPTS	=			\
 			AudibleAlarm	\
 			db2		\
 			Filesystem	\
+			ICP		\
 			IPaddr		\
 			LinuxSCSI	\
 			LVM		\
