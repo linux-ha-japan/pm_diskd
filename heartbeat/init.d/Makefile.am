@@ -43,6 +43,6 @@ uninstall-initdSCRIPTS:
 	@$(NORMAL_UNINSTALL)
 	@list='$(initd_SCRIPTS)'; for p in $$list; do \
 	  f="`echo $$p|sed '$(transform)'`"; \
-	  echo " rm -f $(DESTDIR)$(initddir)/$$f"; \
-	  rm -f $(DESTDIR)$(initddir)/$$f; \
+	  echo " rm -f $(DESTDIR)$(initddir)/$$f@INIT_EXT@"; \
+	  rm -f $(DESTDIR)$(initddir)/$$f;@INIT_EXT@ \
 	done
