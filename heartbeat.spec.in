@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.10 2001/10/25 17:06:04 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.11 2001/10/26 01:34:28 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -569,27 +569,17 @@ fi
 if
   [ -f etc/SuSE-release ]
 then
-  if
-    [ -d etc/rc.d/rc2.d ]
-  then
-    for d in etc/rc.d/rc[23].d
-    do
-      rm -f $d/S99heartbeat; ln -s ../../init.d/heartbeat $d/S99heartbeat 
-      rm -f $d/K35heartbeat; ln -s ../../init.d/heartbeat $d/K35heartbeat
-    done
-  else
-    for d in etc/rc.d/init.d/rc[23].d
-    do
-      rm -f $d/S10heartbeat
-      rm -f $d/S99heartbeat; ln -s ../heartbeat $d/S99heartbeat 
-      rm -f $d/K35heartbeat; ln -s ../heartbeat $d/K35heartbeat
-    done
-  fi
+  for d in etc/init.d/rc[23].d
+  do
+    rm -f $d/S10heartbeat
+    rm -f $d/S99heartbeat; ln -s ../heartbeat $d/S99heartbeat 
+    rm -f $d/K35heartbeat; ln -s ../heartbeat $d/K35heartbeat
+  done
   FILLUP=/bin/fillup
   if 
     $FILLUP -q -d = etc/rc.config var/adm/fillup-templates/rc.config.heartbeat
   then
-    : fillup returned OK
+    : $FILLUP returned OK
   else
     echo "ERROR: $FILLUP failed. This should not happen. Please compare"
     echo "@sysconfdir@/rc.config and @localstatedir@/adm/fillup-templates/rc.config.heartbeat"
