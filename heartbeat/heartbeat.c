@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.34 1999/11/25 20:13:15 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.35 1999/11/26 07:19:17 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -2348,12 +2348,13 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			/*
 			 * We resend a packet unless it has been re-sent in
 			 * the last second.  We treat lbolt wraparound as though
-			 * the packet needs resending (should this occur).
+			 * the packet needs resending
 			 */
 			last_rexmit = hist->lastrexmit[msgslot];
 			if (last_rexmit != 0L && now > last_rexmit
 			&&	(now - last_rexmit) < CLK_TCK) {
-				continue;
+				/* Continue to outer loop */
+				goto NextReXmit;
 			}
 			/* Found it!	Let's send it again! */
 			firstslot = msgslot -1;
@@ -2375,6 +2376,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 		if (!foundit) {
 			nak_rexmit(thisseq, "seqno not found");
 		}
+NextReXmit:
 	}
 }
 void
@@ -2465,6 +2467,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.35  1999/11/26 07:19:17  alan
+ * Changed heartbeat.c so that it doesn't say "seqno not found" for a
+ * packet which has been retransmitted recently.
+ * The code continued to the next iteration of the inner loop.  It needed
+ * to continue to the next iteration of the outer loop.  lOOPS!
+ *
  * Revision 1.34  1999/11/25 20:13:15  alan
  * Minor retransmit updates.  Need to add another source file to CVS, too...
  * These updates were to allow us to simulate lots of packet losses.
