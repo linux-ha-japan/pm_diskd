@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.15 1999/10/05 16:11:49 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.16 1999/10/05 18:47:52 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1714,7 +1714,7 @@ restart_heartbeat(void)
 	 *
 	 *	re-exec ourselves with the -R option
 	 */
-	ha_log(LOG_ERR, "Restarting heartbeat.");
+	ha_log(LOG_INFO, "Restarting heartbeat.");
 
 	
 	getrlimit(RLIMIT_NOFILE, &oflimits);
@@ -1743,7 +1743,7 @@ restart_heartbeat(void)
 	for (j=0; j < procinfo->nprocs; ++j) {
 		pid_t	pid = procinfo->info[j].pid;
 		if (pid != curpid) {
-			ha_log(LOG_INFO, "Killing child process %d", pid);
+			ha_log(LOG_INFO, "Killing process %d", pid);
 			kill(pid, SIGKILL);
 		}
 	}
@@ -1752,7 +1752,8 @@ restart_heartbeat(void)
 		close(j);
 	}
 
-	execl(HALIB "/heartbeat", "heartbeat" "-R", NULL);
+	ha_log(LOG_INFO, "Performing heartbeat restart exec.");
+	execl(HALIB "/heartbeat", "heartbeat", "-R", NULL);
 	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat -R");
 	ha_log(LOG_ERR, "Shutting down...");
 	kill(curpid, SIGTERM);
@@ -1766,16 +1767,29 @@ reread_config_sig(int sig)
 
 	/* If we're the control process, tell our children */
 	if (curproc->type == PROC_CONTROL) {
-		ha_log(LOG_INFO, "Rereading authentication file.");
-		for (j=0; j < procinfo->nprocs; ++j) {
-			if (procinfo->info+j != curproc) {
-				kill(procinfo->info[j].pid, sig);
+		struct	stat	buf;
+		if (stat(CONFIG_NAME, &buf) < 0) {
+			ha_perror("Cannot stat " CONFIG_NAME);
+			return;
+		}
+		if (buf.st_mtime != config->cfg_time) {
+			restart_heartbeat();
+			/*NOTREACHED*/
+		}
+		if (stat(KEYFILE, &buf) < 0) {
+			ha_perror("Cannot stat " KEYFILE);
+		}else if (buf.st_mtime != config->auth_time) {
+			config->rereadauth = 1;
+			ha_log(LOG_INFO, "Rereading authentication file.");
+			for (j=0; j < procinfo->nprocs; ++j) {
+				if (procinfo->info+j != curproc) {
+					kill(procinfo->info[j].pid, sig);
+				}
 			}
+		}else{
+			ha_log(LOG_INFO, "Configuration unchanged.");
 		}
 	}
-	/* This is needs to be fixed to only do this if it's necessary */
-	restart_heartbeat();
-	config->rereadauth = 1;
 }
 
 /* Ding!  Activated once per second in the status process */
@@ -2378,8 +2392,10 @@ get_running_hb_pid()
 void
 make_daemon(void)
 {
-	pid_t	pid;
-	FILE *	lockfd;
+	pid_t		pid;
+	FILE *		lockfd;
+	sigset_t	sighup;
+
 
 	/* See if heartbeat is already running... */
 
@@ -2415,6 +2431,12 @@ make_daemon(void)
 		perror("setsid");
 	}
 
+	sigemptyset(&sighup);
+	sigaddset(&sighup, SIGHUP);
+	if (sigprocmask(SIG_UNBLOCK, &sighup, NULL) < 0) {
+		fprintf(stderr, "%s: could unblock SIGHUP signal\n", cmdname);
+	}
+
 #ifdef	SIGTTOU
 	IGNORESIG(SIGTTOU);
 #endif
@@ -2427,9 +2449,6 @@ make_daemon(void)
 	IGNORESIG(SIGCHLD);
 #endif
 
-#ifdef	SIGHUP
-	IGNORESIG(SIGHUP);
-#endif
 #ifdef	SIGQUIT
 	IGNORESIG(SIGQUIT);
 #endif
@@ -2735,6 +2754,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.16  1999/10/05 18:47:52  alanr
+ * restart code (-r flag) now works as I think it should
+ *
  * Revision 1.15  1999/10/05 16:11:49  alanr
  * First attempt at restarting everything with -R/-r flags
  *
