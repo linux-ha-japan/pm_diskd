@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.37 2001/10/03 05:22:19 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.38 2002/01/16 22:02:59 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -36,6 +36,7 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.37 2001/10/03 05:22:19 al
 #define time FOOtime
 #include <glib.h>
 #undef index
+#undef time
 #include <unistd.h>
 #include <dirent.h>
 #include <ltdl.h>
