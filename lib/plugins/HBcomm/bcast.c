@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.23 2002/09/12 03:39:45 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.24 2002/09/12 03:52:07 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -23,8 +23,6 @@ static const char _bcast_Id [] = "$Id: bcast.c,v 1.23 2002/09/12 03:39:45 alan E
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
- */
-
 #include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -781,6 +779,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.24  2002/09/12 03:52:07  alan
+ * Fixed up a comment :-(.
+ *
  * Revision 1.23  2002/09/12 03:39:45  alan
  * Fixed some logging level names in the code and also
  * fixed an error in the license chosen for a file.

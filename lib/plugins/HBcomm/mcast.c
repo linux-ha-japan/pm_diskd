@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.8 2002/09/12 03:39:45 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.9 2002/09/12 03:52:07 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -21,7 +21,6 @@ static const char _mcast_Id [] = "$Id: mcast.c,v 1.8 2002/09/12 03:39:45 alan Ex
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- */
  */
 
 #include <portability.h>
@@ -820,6 +819,9 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.9  2002/09/12 03:52:07  alan
+ * Fixed up a comment :-(.
+ *
  * Revision 1.8  2002/09/12 03:39:45  alan
  * Fixed some logging level names in the code and also
  * fixed an error in the license chosen for a file.
