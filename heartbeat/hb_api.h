@@ -130,12 +130,12 @@ struct llc_ops {
  *	sendclustermsg:	Send the given message to all cluster members
  */
 	int		(*sendclustermsg)(ll_cluster_t*
-,			const struct ha_msg* msg);
+,			struct ha_msg* msg);
 /*
  *	sendnodemsg:	Send the given message to the given node in cluster.
  */
 	int		(*sendnodemsg)(ll_cluster_t*
-,			const struct ha_msg* msg
+,			struct ha_msg* msg
 ,			const char * nodename);
 
 /*

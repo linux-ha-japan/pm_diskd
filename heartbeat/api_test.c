@@ -88,6 +88,9 @@ static const char *	get_ifstatus(ll_cluster_t*, const char *host
 static int get_inputfd(ll_cluster_t*);
 static int msgready(ll_cluster_t*);
 static int setfmode(ll_cluster_t*, int mode);
+static int sendclustermsg(ll_cluster_t*, struct ha_msg* msg);
+static int sendnodemsg(ll_cluster_t*, struct ha_msg* msg
+,			const char * nodename);
 
 volatile struct process_info *	curproc = NULL;
 static char		OurPid[16];
@@ -846,6 +849,21 @@ setfmode(ll_cluster_t* lct, int mode)
 	return(hb_api_setfilter(filtermask));
 	
 }
+static int
+sendclustermsg(ll_cluster_t* lct, struct ha_msg* msg)
+{
+	return(msg2stream(msg, MsgFIFO));
+}
+static int
+sendnodemsg(ll_cluster_t* lct, struct ha_msg* msg
+,			const char * nodename)
+{
+	if (ha_msg_mod(msg, F_TO, nodename) != HA_OK) {
+		fprintf(stderr, "sendnodemsg: cannot mod field\n");
+		return(HA_FAIL);
+	}
+	return(msg2stream(msg, MsgFIFO));
+}
 
 
 struct llc_ops heartbeat_ops = {
@@ -860,8 +878,8 @@ struct llc_ops heartbeat_ops = {
 	nextif,			/* nextif */
 	end_ifwalk,		/* end_ifwalk */
 	get_ifstatus,		/* if_status */
-	NULL,			/* sendclustermsg */
-	NULL,			/* sendnodemsg */
+	sendclustermsg,		/* sendclustermsg */
+	sendnodemsg,		/* sendnodemsg */
 	get_inputfd,		/* inputfd */
 	msgready,		/* msgready */
 	hb_api_setsignal,	/* setmsgsignal */
