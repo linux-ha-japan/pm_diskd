@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.33 2000/04/27 12:50:20 alan Exp $
+#	$Id: Makefile,v 1.34 2000/04/28 19:14:32 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -58,7 +58,7 @@ HTML2TXT = lynx -dump
 INSTALL = install
 
 WEBDIR=/usr/home/alanr/ha-web/download
-RPMDIR=/usr/src/redhat
+RPMDIR=/usr/src/packages
 RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PKG)-$(VERS)-$(RPMREL).src.rpm
 RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-$(VERS)-$(RPMREL).i386.rpm
 
