@@ -772,8 +772,8 @@ api_add_client(struct ha_msg* msg)
 	client->pid = pid;
 	client->desired_types = DEFAULTREATMENT;
 	client->signal = 0;
-	if (fromid == NULL) {
-		strncpy(client->client_id, cpid, sizeof(client->client_id));
+	if (fromid != NULL) {
+		strncpy(client->client_id, fromid, sizeof(client->client_id));
 		if (atoi(client->client_id) == pid) {
 			client->iscasual = 1;
 		}else{
