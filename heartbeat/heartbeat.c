@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.249 2003/04/15 23:06:53 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.250 2003/04/16 13:07:59 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1042,9 +1042,6 @@ read_child_dispatch(IPC_Channel* source, gpointer user_data)
 			lnk = lookup_iface(nip, (*mp)->name);
 		}
 
-		if (lnk == NULL) {
-			cl_log(LOG_ERR, "read_child_dispatch: NULL link");
-		}
 		process_clustermsg(msg, lnk);
 		ha_msg_del(msg);  msg = NULL;
 	}
@@ -4023,6 +4020,10 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.250  2003/04/16 13:07:59  alan
+ * Dropped the read_child_dispatch() NULL link message because it can occur
+ * "normally" when we get garbled packets (particularly from serial ports).
+ *
  * Revision 1.249  2003/04/15 23:06:53  alan
  * Lots of new code to support the semi-massive process restructuriing.
  *
