@@ -45,11 +45,12 @@ TARFILE			= $(distdir).tar.gz
 #	should be to make everyone happy -- at least at this time...)
 #
 DESTDIR=
+RPMDIR=$(HOME)/rpms
 WEBDIR=/home/alanr/ha-web/download
-RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PACKAGE)-$(VERS)-$(RPMREL).src.rpm
-RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-$(VERS)-$(RPMREL).i386.rpm
-RPMstonith=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-stonith-$(VERS)-$(RPMREL).i386.rpm
-RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-ldirectord-$(VERS)-$(RPMREL).i386.rpm
+RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PACKAGE)-$(VERSION)-$(RPMREL).src.rpm
+RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-$(VERSION)-$(RPMREL).i386.rpm
+RPMstonith=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-stonith-$(VERSION)-$(RPMREL).i386.rpm
+RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-ldirectord-$(VERSION)-$(RPMREL).i386.rpm
 
 AUTOMAKE_OPTIONS	= foreign
 ##ACLOCAL                 = aclocal -I $(auxdir)
@@ -70,4 +71,11 @@ clean:	am_config_clean
 am_config_clean:
 		rm -fr $(PACKAGE)-*.tar.gz
 
-.PHONY: rpm
+handy: rpm
+	cd doc; $(MAKE) ChangeLog
+	rm -f $(WEBDIR)/ChangeLog
+	cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(RPMstonith) $(RPMldir) $(WEBDIR)
+
+
+
+.PHONY: rpm handy
