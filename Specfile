@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.84 2001/02/05 14:06:31 alan Exp $
+#	$Id: Specfile,v 1.85 2001/02/07 07:27:26 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -52,7 +52,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 
 %changelog
 
-* Sun Nov 12 2000 Alan Robertson <alanr@suse.com>,
+* Sun Nov 12 2000 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
@@ -61,8 +61,11 @@ machine. It's simple and reliable, albeit admittedly brutal.
      Horms <horms@vergenet.net>, Eric Ayers <eric.ayers@compgen.com>,
      Mike Tilstra <conrad@sistina.com> 
      Juan Pedro Paredes Caballero <juampe@retemail.es>
+     Andreas Piesk's <a.piesk@gmx.net>, Chris Wright <chris@wirex.com>
 
 + Version 0.4.9 Beta series
+  + Added checks that complain if all resources aren't idle on startup.
+    This is a *very* common error. <alanr@unix.sh>
   + Fixed a bug relating to not properly handshaking when starting
 	the various heartbeat xmit/receive modules so that I could mark
 	another node which was up or myself dead especially when the machine
@@ -82,7 +85,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Added heartbeat API code
   + Added late heartbeat warning for heartbeats that arrive later than
     	0.75 of deadtime (warntime option)
-  + Added better protection against replay attacks
+  + Added better protection against replay attacks (it's now quite good)
   + Added detection of and recovery from cluster partitions
   + Added ping node/membership/link type for tiebreaking.  This will
 	be useful when implementing quorum on 2-node systems.
@@ -113,7 +116,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
   + Added man page that refers to HTML documentation
   + Added debian package support
 
-* Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
+* Fri Jun 30 2000 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
