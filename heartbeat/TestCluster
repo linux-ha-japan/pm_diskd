@@ -6,6 +6,9 @@
 #	We only implement one particular kind of testing
 #	right now.  But, we expect to add others.
 #
+#	We currently test for simultaneous startup race
+#	conditions.
+#
 
 @hosts = ("amymarie", "kathyamy");
 
