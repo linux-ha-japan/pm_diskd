@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.16 2003/05/05 11:34:16 alan Exp $
+# $Id: ServeRAID.in,v 1.17 2003/05/22 13:25:24 alan Exp $
 # 
 # ServeRAID
 #
@@ -49,18 +49,21 @@
 #	At this time, the ServeRAID clustering solution only works with
 #	RAID 1 setups.  It does NOT support RAID 5.
 #
-#	Note that this script requires ServeRAID software version 6.x or
+#	Note that this script requires ServeRAID software version 6.10 or
 #	later.
 #
-#	As of this writing (5/2/2003) you can download the CD image for this
-#	software here:
+#	As of this writing (5/22/2003) this version of the software is not
+#	yet available.  For everything but the ipssend command, you can
+#	grab the ISO image here:
 #
 #		ftp://ftp.pc.ibm.com/pub/pccbbs/bp_server/01r0539.iso
 #
-#	Note that this verison may be replaced by a newer one at some
-#	time in the future.
+#	For the time being, you will need to grab a "correct" version of
+#	the ipssend command here:
+#		http://linux-ha.org/download/ipssend.gz
 #
-#
+#	NOTE: This a temporary URL which will go away once the official
+#	version with the corrections is available from IBM.
 #
 #
 # An example usage in /etc/ha.d/haresources: 
@@ -98,10 +101,18 @@ usage() {
 	version of the ServeRAID manager does not have the "configure for
 	clustering" option.
 
-	You will need at least version 6 (~April 2003 release) of the ipssend
+	You will need at least version 6.10 (~July 2003 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.16 2003/05/05 11:34:16 alan Exp $
+	For the time being, you will need to grab a "correct" version of
+	the ipssend command here:
+	        http://linux-ha.org/download/ipssend.gz
+
+	NOTE: This a temporary URL which will go away once the official
+	version becomes available.
+
+
+	$Id: ServeRAID.in,v 1.17 2003/05/22 13:25:24 alan Exp $
 	!
   exit 1
 }
@@ -260,7 +271,10 @@ ServeRAID_start() {
       : OK All is well!
       targetid=`MergeGroupToSCSI_ID`
       sr_logicaldrivenumber=`expr $targetid + 1`
-      run $IPS SYNCH $sr_adapter $sr_logicaldrivenumber &
+      #run $IPS SYNCH $sr_adapter $sr_logicaldrivenumber &
+      # This version of the SYNCH command requires the 6.10 or later
+      # ServeRAID support CD.
+      run $IPS SYNCH $sr_adapter GROUP $sr_mergegroup &
       AddSCSI
     else
       return $?
