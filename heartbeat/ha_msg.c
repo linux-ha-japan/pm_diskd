@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.5 1999/10/03 03:13:43 alanr Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.6 1999/10/05 06:00:55 alanr Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -484,7 +484,7 @@ isauthentic(const struct ha_msg * m)
 {
 	char	msgbody[MAXMSG];
 	char	authstring[MAXLINE];
-	const char *	authtoken;
+	const char *	authtoken = 0;
 	char *	bp = msgbody;
 	int	j;
 	int	authwhich = 0;
@@ -620,6 +620,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.6  1999/10/05 06:00:55  alanr
+ * Added RPM Cflags to Makefiles
+ *
  * Revision 1.5  1999/10/03 03:13:43  alanr
  * Moved resource acquisition to 'heartbeat', also no longer attempt to make the FIFO, it's now done in heartbeat.  It should now be possible to start it up more readily...
  *

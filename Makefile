@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.10 1999/10/05 04:45:48 alanr Exp $
+#	$Id: Makefile,v 1.11 1999/10/05 06:00:51 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -42,7 +42,8 @@ B_VARRUN=$(DESTDIR)/var/run
 B_FIFO=$(B_VARRUN)/heartbeat-fifo
 B_HAPPP=$(B_VARRUN)/ppp.d
 #
-VARS=DESTDIR=$(DESTDIR) RPM_BUILD_ROOT=$(RPM_BUILD_ROOT) PKG=$(PKG) VERS=$(VERS)
+VARS=DESTDIR=$(DESTDIR) RPM_BUILD_ROOT=$(RPM_BUILD_ROOT) PKG=$(PKG) VERS=$(VERS)	\
+	OPTFLAGS=$(RPM_OPT_FLAGS)
 MAKE=make
 MAKE_CMD = $(MAKE) $(VARS)
 

@@ -1,5 +1,5 @@
 /*
- * $Id: proc_ha.c,v 1.2 1999/10/02 05:08:03 alanr Exp $
+ * $Id: proc_ha.c,v 1.3 1999/10/05 06:01:00 alanr Exp $
  *
  * Linux-HA /proc interface
  *
@@ -697,7 +697,7 @@ static void proc_del_all_nodes(void)
 static SSIZE_T proc_hb_read(struct file * file,
 		char * buf, size_t count, loff_t * ppos)
 {
-	SSIZE_T len;
+	SSIZE_T len = 0;
 	struct inode * inode = file->f_dentry->d_inode;
 	struct proc_dir_entry *dp;
 	struct node_info *ni;
@@ -949,6 +949,9 @@ void cleanup_module(void)
 
 /****************************************************
  * $Log: proc_ha.c,v $
+ * Revision 1.3  1999/10/05 06:01:00  alanr
+ * Added RPM Cflags to Makefiles
+ *
  * Revision 1.2  1999/10/02 05:08:03  alanr
  * Removed the #include that Mike had thought I'd needed.
  *

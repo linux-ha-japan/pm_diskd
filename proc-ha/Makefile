@@ -1,5 +1,5 @@
 #
-# $Id: Makefile,v 1.2 1999/09/30 18:34:27 alanr Exp $
+# $Id: Makefile,v 1.3 1999/10/05 06:00:58 alanr Exp $
 #
 # Makefile for the Linux-HA /proc interface
 #
@@ -34,7 +34,7 @@ CC = gcc
 # VFLAGS = -V2.7.2.3
 #
 #
-CFLAGS += -Wall -fomit-frame-pointer -DKERNEL -DMODULE
+CFLAGS += -Wall -fomit-frame-pointer -DKERNEL -DMODULE $(OPTFLAGS)
 
 SRC = proc_ha.c
 
@@ -83,6 +83,9 @@ pristene: clean
 
 #####################################################
 # $Log: Makefile,v $
+# Revision 1.3  1999/10/05 06:00:58  alanr
+# Added RPM Cflags to Makefiles
+#
 # Revision 1.2  1999/09/30 18:34:27  alanr
 # Matt Soffen's FreeBSD changes
 #

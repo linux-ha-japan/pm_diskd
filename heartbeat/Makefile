@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.4 1999/10/03 03:13:41 alanr Exp $
+#	$Id: Makefile,v 1.5 1999/10/05 06:00:53 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -42,6 +42,7 @@ INSTALL = install
 #	has an error that prohibits turning on -pedantic-errors)
 #
 CFLAGS=-g 				\
+	$(OPTFLAGS)			\
 	-Wall				\
 	-Wmissing-prototypes		\
 	-Wmissing-declarations		\
