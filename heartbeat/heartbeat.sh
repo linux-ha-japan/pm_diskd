@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.33 2001/02/07 07:10:20 alan Exp $
+#	$Id: heartbeat.sh,v 1.34 2001/02/25 18:39:58 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -268,7 +268,10 @@ case "$1" in
 	;;
 
   restart)
+        sleeptime=`ha_parameter deadtime`
 	StopHA
+        sleep 2
+        sleep $sleeptime
 	StartHA
 	;;
 
@@ -286,6 +289,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.34  2001/02/25 18:39:58  alan
+#  Added code to sleep for "enough" seconds during a restart to ensure that
+#  takeover happens like it should.
+#
 #  Revision 1.33  2001/02/07 07:10:20  alan
 #  Added code to verify that all resources are idle when starting heartbeat.
 #

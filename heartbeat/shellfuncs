@@ -3,6 +3,7 @@
 #
 : ${HA_DIR=/etc/ha.d}
 : ${HA_RCDIR=$HA_DIR/rc.d}
+: ${HA_CF=$HA_DIR/ha.cf}
 : ${HA_FIFO=/var/run/heartbeat-fifo}
 : ${HA_BIN=/usr/lib/heartbeat}
 : ${HA_DATEFMT="%Y/%m/%d_%T "}
@@ -64,4 +65,21 @@ ha_clustermsg() {
 `cat`
 <<<
 !MSG
+}
+
+ha_parameter() {
+  VALUE=`sed -e 's%[ 	][ 	]*% %' -e 's%^ %%' -e 's%#.*%%'   $HA_CF |
+  grep -i "^$1 " | sed 's%[^ ]* %%'`
+  if
+    [ "X$VALUE" = X ]
+  then
+    
+    case $1 in
+      keepalive)	VALUE=2;;
+      deadtime)
+			ka=`ha_parameter keepalive`
+			VALUE=`expr $ka '*' 2 '+' 1`;;
+    esac
+  fi
+  echo $VALUE
 }
