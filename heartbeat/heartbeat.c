@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.91 2000/11/12 04:29:22 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.92 2000/11/12 21:12:48 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3281,6 +3281,10 @@ init_watchdog(void)
 	if (watchdogfd < 0 && watchdogdev != NULL) {
 		watchdogfd = open(watchdogdev, O_WRONLY);
 		if (watchdogfd >= 0) {
+			if (fcntl(watchdogfd, F_SETFD, FD_CLOEXEC)) {
+				ha_perror("Error setting the "
+				"close-on-exec flag for watchdog");
+			}
 			ha_log(LOG_NOTICE, "Using watchdog device: %s"
 			       , watchdogdev);
 			tickle_watchdog();
@@ -3903,6 +3907,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.92  2000/11/12 21:12:48  alan
+ * Set the close-on-exec bit for the watchdog file descriptor.
+ *
  * Revision 1.91  2000/11/12 04:29:22  alan
  * Fixed: syslog/file simultaneous logging.
  * 	Added a group for API clients.
