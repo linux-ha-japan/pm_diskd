@@ -250,7 +250,7 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 		cl_log(LOG_DEBUG, "apphb_client_new: channel: 0x%x"
 		" pid=%ld"
 		,	GPOINTER_TO_UINT(ch)
-		,	ch->farside_pid);
+		,	(long)ch->farside_pid);
 	}
 	ret->source = G_main_add_IPC_Channel(G_PRIORITY_DEFAULT
 	,	ch, FALSE, apphb_dispatch, (gpointer)ret
@@ -541,7 +541,7 @@ apphb_new_dispatch(IPC_Channel* src, gpointer user)
 		cl_log(LOG_DEBUG, "apphb_new_dispatch: IPC_channel: 0x%x"
 		" pid=%ld"
 		,	GPOINTER_TO_UINT(src)
-		,	src->farside_pid);
+		,	(long)src->farside_pid);
 	}
 
 	if (src != NULL) {
