@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.25 2002/09/17 18:53:37 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.26 2002/09/24 17:24:46 msoffen Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -226,8 +226,8 @@ controlfifo2msg(FILE * f)
 	&&	strcmp(buf, MSG_END) != 0) {
 
 		/* This shouldn't happen but it does on FreeBSD! */
-		/* FIXME (FreeBSD gets a newline) !! */
-		if (*buf == '\n') {
+		/* FIXME (FreeBSD gets a newline and blank lines) !! */
+		if ((*buf == '\n') || (*buf == EOS)) {
 			continue;
 		}
 
@@ -244,6 +244,8 @@ controlfifo2msg(FILE * f)
 	}
 	if ((type = ha_msg_value(ret, F_TYPE)) == NULL) {
 		ha_log(LOG_ERR, "No type (controlfifo2msg)");
+		ha_log(LOG_INFO, "[%s] %ld chars", buf, (long)strlen(buf));
+		ha_log_message(ret);
 		ha_msg_del(ret);
 		return(NULL);
 	}
@@ -530,6 +532,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.26  2002/09/24 17:24:46  msoffen
+ * Changed to log the bogus packet and accept blank packets / carriage returns
+ * and just return.
+ *
  * Revision 1.25  2002/09/17 18:53:37  alan
  * Put in a fix to keep mach_down from doing anything with ping node information.
  * Also put in a change to make lmb's last portability fix more portable ;-)
