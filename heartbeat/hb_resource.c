@@ -288,8 +288,6 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				if (nice_failback) {
 					setenv(HANICEFAILBACK, "yes", 1);
 				}
-				/* Make sure we perform as expected */
-				setenv("LC_ALL","POSIX",1);
 				
 				if (ANYDEBUG) {
 					ha_log(LOG_DEBUG
@@ -1732,6 +1730,10 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.16  2003/03/18 11:39:10  lars
+ * Back out overly eager experimental change from hb_resource.c again which
+ * sneaked into the last commit.
+ *
  * Revision 1.15  2003/03/18 11:36:25  lars
  * Patch by Adam Li <adam.li@intel.com>:
  *
