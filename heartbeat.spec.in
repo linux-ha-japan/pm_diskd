@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.43 2002/11/30 15:45:54 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.44 2003/01/28 10:37:21 lars Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -526,6 +526,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %attr (200, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api/ipfail.req
 %attr (600, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api/ipfail.rsp
 %doc @mandir@/man8/heartbeat.8*
+%doc @mandir@/man8/apphbd.8*
 %doc doc/AUTHORS 
 %doc doc/COPYING 
 %doc doc/ChangeLog 

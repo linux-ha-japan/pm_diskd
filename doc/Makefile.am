@@ -38,7 +38,7 @@ OTHER_DOCS              = AUTHORS COPYING ChangeLog \
 
 doc_DATA		= $(OTHER_DOCS) $(txtfiles) $(htmlfiles) 
 
-man_MANS		= heartbeat.8
+man_MANS		= heartbeat.8 apphbd.8
 
 EXTRA_DIST = $(htmlfiles) $(man_MANS) $(OTHER_DOCS)
 
