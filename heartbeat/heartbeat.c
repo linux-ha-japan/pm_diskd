@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.71 2000/07/17 19:27:52 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.72 2000/07/20 16:51:54 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -368,7 +368,7 @@ void	process_resources(struct ha_msg* msg, struct node_info * thisnode);
 void	request_msg_rexmit(struct node_info *, unsigned long lowseq, unsigned long hiseq);
 void	check_rexmit_reqs(void);
 void	mark_node_dead(struct node_info* hip);
-void	mark_link_dead(struct node_info* hip, struct link *lnk);
+void	change_link_status(struct node_info* hip, struct link *lnk, const char * new);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
 pid_t	get_running_hb_pid(void);
 void	make_daemon(void);
@@ -1189,7 +1189,8 @@ master_status_process(void)
 				lnk->lastupdate = messagetime;
 				/* Is this from a link which was down? */
 				if (strcasecmp(lnk->status, LINKUP) != 0) {
-					strcpy(lnk->status, LINKUP);
+					change_link_status(thisnode, lnk, LINKUP);
+				
 					ha_log(LOG_INFO
 					,	"Link %s:%s: status %s"
 					,	thisnode->nodename
@@ -1695,7 +1696,9 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 					sprintf(ename, "HA_%s", msg->names[j]);
 					setenv(ename, msg->values[j], 1);
 				}
-				setenv(OLDSTATUS, ostatus, 1);
+				if (ostatus) {
+					setenv(OLDSTATUS, ostatus, 1);
+				}
 				if (nice_failback) {
 					setenv(HANICEFAILBACK, "yes", 1);
 				}
@@ -1994,7 +1997,7 @@ check_for_timeouts(void)
 				i++;
 				continue;
 			}
-			mark_link_dead(hip, lnk);
+			change_link_status(hip, lnk, DEADSTATUS);
 			i++;
 		}
 	}
@@ -2197,13 +2200,33 @@ send_local_status(void)
 
 /* Mark the given link dead */
 void
-mark_link_dead(struct node_info *hip, struct link *lnk)
+change_link_status(struct node_info *hip, struct link *lnk, const char * newstat)
 {
-	/* FIXME: Do something useful */
-	/* We need to send out a message that the API can capture */
-	strcpy(lnk->status, DEADSTATUS);
+	struct ha_msg *	lmsg;
+	char		timestamp[16];
+
+	if ((lmsg = ha_msg_new(6)) == NULL) {
+		ha_log(LOG_ERR, "no memory to mark link dead");
+		return;
+	}
+
+	strcpy(lnk->status, newstat);
 	ha_log(LOG_WARNING, "Link %s:%s %s.", hip->nodename
 	,	lnk->name, lnk->status);
+
+	sprintf(timestamp, "%lx", time(NULL));
+
+	if (	ha_msg_add(lmsg, F_TYPE, T_IFSTATUS) == HA_FAIL
+	||	ha_msg_add(lmsg, F_NODE, hip->nodename) == HA_FAIL
+	||	ha_msg_add(lmsg, F_IFNAME, lnk->name) == HA_FAIL
+	||	ha_msg_add(lmsg, F_STATUS, lnk->status) == HA_FAIL) {
+		ha_log(LOG_ERR, "no memory to mark link dead");
+		ha_msg_del(lmsg);
+		return;
+	}
+	heartbeat_monitor(lmsg, KEEPIT, "<internal>");
+	notify_world(lmsg, NULL);
+	ha_msg_del(lmsg);
 }
 
 /* Mark the given node dead */
@@ -3441,6 +3464,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.72  2000/07/20 16:51:54  alan
+ * More API fixes.
+ * The new API code now deals with interfaces changes, too...
+ *
  * Revision 1.71  2000/07/17 19:27:52  alan
  * Fixed a bug in stonith code (it didn't always kill telnet command)
  *

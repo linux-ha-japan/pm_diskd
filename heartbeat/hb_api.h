@@ -68,23 +68,11 @@ struct llc_ops {
  *
  *	cbf:		callback function.
  *
- *	node:		the name of the node to get the interface updates for
- *			If node is NULL, it will receive notification for all
- *			nodes.
- *	
- *	iface:		The name of the interface to receive updates for.  If
- *			iface is NULL, it will receive notification for all
- *			interfaces.
- *
- *		If NULL is passed for both "node" and "iface", then "cbf" would
- *		be called for interface status change against any node in
- *		the cluster. 
  *
  *	p:		private data - later passed to callback.
  */
 
 	int             (*set_ifstatus_callback) (ll_cluster_t*
-,			const char * node, const char * iface
 ,			llc_ifstatus_callback_t cbf, void * p);
  
 

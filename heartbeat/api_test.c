@@ -67,7 +67,7 @@ static int		enqueue_msg(struct ha_msg*);
 static struct ha_msg*	dequeue_msg(void);
 static gen_callback_t*	search_gen_callback(const char * type, llc_private_t*);
 static int		add_gen_callback(const char * msgtype
-,	llc_private_t*, llc_msg_callback_t , void*);
+,	llc_private_t*, llc_msg_callback_t, void*);
 static int		del_gen_callback(llc_private_t*, const char * msgtype);
 
 static struct ha_msg*	read_api_msg(void);
@@ -82,8 +82,6 @@ set_nstatus_callback (ll_cluster_t*
 ,		llc_nstatus_callback_t cbf, 	void * p);
 static int
 		set_ifstatus_callback (ll_cluster_t* ci
-,		const char *node
-,		const char *iface
 ,		llc_ifstatus_callback_t cbf, void * p);
 static int init_nodewalk (ll_cluster_t*);
 static const char * nextnode (ll_cluster_t* ci);
@@ -920,8 +918,6 @@ set_nstatus_callback (ll_cluster_t* ci
  */
 static int
 set_ifstatus_callback (ll_cluster_t* ci
-,		const char *node
-,		const char *iface
 ,		llc_ifstatus_callback_t cbf, void * p)
 {
 	llc_private_t*	pi = ci->ll_cluster_private;
@@ -1432,6 +1428,14 @@ NodeStatus(const char * node, const char * status, void * private)
 	fprintf(stderr, "Status update: Node %s now has status %s\n"
 	,	node, status);
 }
+void LinkStatus(const char * node, const char *, const char *, void*);
+void
+LinkStatus(const char * node, const char * lnk, const char * status
+,	void * private)
+{
+	fprintf(stderr, "Link Status update: Link %s/%s now has status %s\n"
+	,	node, lnk, status);
+}
 
 void gotsig(int nsig);
 int quitnow = 0;
@@ -1460,6 +1464,7 @@ main(int argc, char ** argv)
 	hb->llc_ops->signon(hb, NULL);
 
 	hb->llc_ops->set_nstatus_callback(hb, NodeStatus, NULL);
+	hb->llc_ops->set_ifstatus_callback(hb, LinkStatus, NULL);
 
 #if 0
 	fmask = LLC_FILTER_RAW;
