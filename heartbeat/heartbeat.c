@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.170 2002/04/07 13:54:06 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.171 2002/04/09 06:37:27 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -427,8 +427,8 @@ void	process_resources(struct ha_msg* msg, struct node_info * thisnode);
 void	request_msg_rexmit(struct node_info *, unsigned long lowseq
 ,		unsigned long hiseq);
 void	check_rexmit_reqs(void);
-void	mark_node_dead(struct node_info* hip, enum deadreason reason);
-void	takeover_from_node(const char * nodename, enum deadreason reason);
+void	mark_node_dead(struct node_info* hip);
+void	takeover_from_node(const char * nodename);
 void	change_link_status(struct node_info* hip, struct link *lnk
 ,		const char * new);
 static	void CreateInitialFilter(void);
@@ -441,7 +441,7 @@ void	send_to_all_media(char * smsg, int len);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
 				const char *iface);
 int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
-void	Initiate_Reset(Stonith* s, const char * nodename, enum deadreason);
+void	Initiate_Reset(Stonith* s, const char * nodename);
 void	healed_cluster_partition(struct node_info* node);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
@@ -451,7 +451,7 @@ void	process_clustermsg(FILE * f);
 void	process_registermsg(FILE * f);
 void	nak_rexmit(unsigned long seqno, const char * reason);
 void	req_our_resources(int getthemanyway);
-void	giveup_resources(int);
+void	giveup_resources(void);
 void	go_standby(enum standby who);
 void	make_realtime(void);
 void	make_normaltime(void);
@@ -1406,6 +1406,8 @@ void LookForClockJumps(void);
 
 static int			ClockJustJumped = 0;
 
+static gboolean FinalShutdown(gpointer p);
+
 /* The master status process */
 void
 master_status_process(void)
@@ -1425,7 +1427,6 @@ master_status_process(void)
 
 	send_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
 
-	signal(SIGTERM, giveup_resources);
 	set_proc_title("%s: master status process", cmdname);
 
 	/* We open it this way to keep the open from hanging... */
@@ -1768,6 +1769,24 @@ APIclients_input_destroy(gpointer user_data)
 {
 }
 
+static gboolean
+FinalShutdown(gpointer p)
+{
+	if (procinfo->restart_after_shutdown) {
+		ha_log(LOG_INFO, "Resource shutdown completed"
+		".  Restart triggered.");
+	}
+	/* Tell init process we're going away */
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Sending SIGQUIT to pid %d"
+		,       processes[0]);
+	}
+	kill(processes[0], SIGQUIT);
+	cleanexit(0);
+	/* NOTREACHED*/
+	return FALSE;
+}
+
 /*
  * Process a message coming in from our status FIFO
  */
@@ -1947,30 +1966,19 @@ process_clustermsg(FILE * f)
 				ha_log(LOG_DEBUG
 				,	"Received T_SHUTDONE from ourselves.");
 		    	}
-			if (procinfo->restart_after_shutdown) {
-				ha_log(LOG_INFO, "Resource shutdown completed"
-				".  Restart triggered.");
-			}
 	    		heartbeat_monitor(msg, action, iface);
-			/* Tell init process we're going away */
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG, "Sending SIGQUIT to pid %d"
-				,       processes[0]);
-			}
-			kill(processes[0], SIGQUIT);
-			cleanexit(0);
+			/* Trigger final shutdown in a second */
+			g_timeout_add(1000, FinalShutdown, NULL);
 		}else{
-			/* Keep stale packets from changing status */
-			thisnode->rmt_lastupdate = msgtime;
-			thisnode->local_lastupdate = messagetime;
-			thisnode->status_seqno = seqno;
-	    		if (ANYDEBUG) {
-		    		ha_log(LOG_DEBUG
-				,	"Received T_SHUTDONE from '%s':"
-				" now marked dead."
-				,	thisnode->nodename);
-		    	}
-	    		mark_node_dead(thisnode, HBSHUTDOWN);
+			thisnode->has_resources = FALSE;
+			other_is_stable = 0;
+			other_holds_resources= NO_RSC;
+
+		    	ha_log(LOG_INFO
+			,	"Received shutdown notice from '%s'"
+			". Resources being acquired."
+			,	thisnode->nodename);
+			takeover_from_node(thisnode->nodename);
 		}
 	}
 
@@ -2344,7 +2352,8 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	}
 	if (strcasecmp(type, T_SHUTDONE) == 0) {
 		if (thisnode != curnode) {
-			other_is_stable = 1;
+			other_is_stable = 0;
+			other_holds_resources = NO_RSC;
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG
 				, "process_resources(4): %s"
@@ -2773,7 +2782,6 @@ KillTrackedProcess(ProcTrack* p, void * data)
 
 struct StonithProcHelper {
 	char *		nodename;
-	enum deadreason	r;
 };
 	
 
@@ -2786,10 +2794,10 @@ StonithProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslog
 	if (signo != 0 || exitcode != 0) {
 		ha_log(LOG_ERR, "STONITH of %s failed.  Retrying..."
 		,	(const char*) p->privatedata);
-		Initiate_Reset(config->stonith, h->nodename, h->r);
+		Initiate_Reset(config->stonith, h->nodename);
 	}else{
 		/* We need to finish taking over the other side's resources */
-		takeover_from_node(h->nodename, h->r);
+		takeover_from_node(h->nodename);
 	}
 	g_free(h->nodename);	h->nodename=NULL;
 	g_free(p->privatedata);	p->privatedata = NULL;
@@ -2799,7 +2807,8 @@ static const char *
 StonithProcessName(ProcTrack* p)
 {
 	static char buf[100];
-	snprintf(buf, sizeof(buf), "STONITH %s", (const char*)p->privatedata);
+	struct StonithProcHelper *	h = p->privatedata;
+	snprintf(buf, sizeof(buf), "STONITH %s", h->nodename);
 	return buf;
 }
 
@@ -2898,7 +2907,11 @@ term_sig(int sig)
 void
 term_action(void)
 {
-	signal_all(SIGTERM);
+	if (curproc->type == PROC_MST_STATUS) {
+		giveup_resources();
+	}else{
+		signal_all(SIGTERM);
+	}
 }
 
 static const char *
@@ -3296,7 +3309,7 @@ check_for_timeouts(void)
 		||	strcmp(hip->status, DEADSTATUS) == 0 ) {
 			continue;
 		}
-		mark_node_dead(hip, HBTIMEOUT);
+		mark_node_dead(hip);
 	}
 
 	/* Check all links status of all nodes */
@@ -3626,7 +3639,7 @@ change_link_status(struct node_info *hip, struct link *lnk, const char * newstat
 
 /* Mark the given node dead */
 void
-mark_node_dead(struct node_info *hip, enum deadreason reason)
+mark_node_dead(struct node_info *hip)
 {
 	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
 
@@ -3642,28 +3655,28 @@ mark_node_dead(struct node_info *hip, enum deadreason reason)
 	}
 	standby_running = 0L;
 
-	if (reason == HBSHUTDOWN) {
-		int	i;
-		/* Mark all links of 'hip' as DEAD */
-		for( i = 0; i < hip->nlinks; i++) {
-			change_link_status(hip, &hip->links[i]
-			,	DEADSTATUS);
-		}
+	strncpy(hip->status, DEADSTATUS, sizeof(hip->status));
+	if (!hip->has_resources
+	||	(nice_failback && other_holds_resources == NO_RSC)) {
+		ha_log(LOG_INFO, "Dead node %s held no resources."
+		,	hip->nodename);
 	}else{
 		/* We shouldn't do these if it's a 'ping' node */
 		standby_running = 0L;
 		/* We have to Zap them before we take the resources */
 		/* This often takes a few seconds. */
 		if (config->stonith) {
-			Initiate_Reset(config->stonith, hip->nodename, reason);
+			Initiate_Reset(config->stonith, hip->nodename);
+			/* It will call takeover_from_node() later */
 			return;
+		}else{
+			takeover_from_node(hip->nodename);
 		}
 	}
-	takeover_from_node(hip->nodename, reason);
 }
 
 void
-takeover_from_node(const char * nodename, enum deadreason reason)
+takeover_from_node(const char * nodename)
 {
 	struct node_info *	hip = lookup_node(nodename);
 	struct ha_msg *	hmsg;
@@ -3683,10 +3696,7 @@ takeover_from_node(const char * nodename, enum deadreason reason)
 	||	ha_msg_add(hmsg, F_SEQ, "1") != HA_OK
 	||	ha_msg_add(hmsg, F_TIME, timestamp) != HA_OK
 	||	ha_msg_add(hmsg, F_ORIG, hip->nodename) != HA_OK
-	||	ha_msg_add(hmsg, F_STATUS, "dead") != HA_OK
-	||	ha_msg_add(hmsg, F_COMMENT
-	,		reason == HBTIMEOUT ? "timeout" : "shutdown")
-	==	HA_FAIL) {
+	||	ha_msg_add(hmsg, F_STATUS, "dead") != HA_OK) {
 		ha_log(LOG_ERR, "no memory to mark node dead");
 		ha_msg_del(hmsg);
 		return;
@@ -3694,16 +3704,6 @@ takeover_from_node(const char * nodename, enum deadreason reason)
 
 	heartbeat_monitor(hmsg, KEEPIT, "<internal>");
 	notify_world(hmsg, hip->status);
-	strncpy(hip->status, DEADSTATUS, sizeof(hip->status));
-
-	if (reason == HBSHUTDOWN) {
-		int	i;
-		/* Mark all links of 'hip' as DEAD now */
-		for( i = 0; i < hip->nlinks; i++) {
-			change_link_status(hip, &hip->links[i]
-			,	DEADSTATUS);
-		}
-	}
 
 	/*
 	 * We delay until the STONITH completes successfully.
@@ -3732,12 +3732,12 @@ takeover_from_node(const char * nodename, enum deadreason reason)
 }
 
 void
-Initiate_Reset(Stonith* s, const char * nodename, enum deadreason reason)
+Initiate_Reset(Stonith* s, const char * nodename)
 {
 	const char*	result = "bad";
 	struct ha_msg*	hmsg;
 	int		pid;
-	int		success = 0;
+	int		exitcode = 0;
 	struct StonithProcHelper *	h;
 	/*
 	 * We need to fork because the stonith operations block for a long
@@ -3749,10 +3749,10 @@ Initiate_Reset(Stonith* s, const char * nodename, enum deadreason reason)
 				return;
 		default:
 				h = g_new(struct StonithProcHelper, 1);
-				h->r = reason;
 				h->nodename = g_strdup(nodename);
 				NewTrackedProc(pid, 1, PT_LOGVERBOSE, h
 				,	&StonithProcessTrackOps);
+				/* StonithProcessDied is called when done */
 				return;
 
 		case 0:		/* Child */
@@ -3770,25 +3770,28 @@ Initiate_Reset(Stonith* s, const char * nodename, enum deadreason reason)
 	,	nodename
 	,	s->s_ops->getinfo(s, ST_DEVICEID));
 
-	switch (s->s_ops->reset_req(s, ST_GENERIC_RESET
-	,		nodename)){
+	switch (s->s_ops->reset_req(s, ST_GENERIC_RESET, nodename)){
 
 	case S_OK:
 		result="OK";
 		ha_log(LOG_INFO
 		,	"node %s now reset.", nodename);
-		success = 1;
-			break;
+		exitcode = 0;
+		break;
 
 	case S_BADHOST:
 		ha_log(LOG_ERR
 		,	"Device %s cannot reset host %s."
 		,	s->s_ops->getinfo(s, ST_DEVICEID)
 		,	nodename);
+		exitcode = 100;
+		result = "badhost";
 		break;
 
 	default:
 		ha_log(LOG_ERR, "Host %s not reset!", nodename);
+		exitcode = 1;
+		result = "bad";
 	}
 
 	if ((hmsg = ha_msg_new(6)) == NULL) {
@@ -3799,7 +3802,7 @@ Initiate_Reset(Stonith* s, const char * nodename, enum deadreason reason)
 	&& 	ha_msg_add(hmsg, F_TYPE, T_STONITH)    == HA_OK
 	&&	ha_msg_add(hmsg, F_NODE, nodename) == HA_OK
 	&&	ha_msg_add(hmsg, F_APIRESULT, result) == HA_OK) {
-		/* Send a Stonith request */
+		/* Send a Stonith message */
 		if (send_cluster_msg(hmsg) != HA_OK) {
 			ha_log(LOG_ERR, "cannot send " T_STONITH
 			" request for %s", nodename);
@@ -3809,7 +3812,7 @@ Initiate_Reset(Stonith* s, const char * nodename, enum deadreason reason)
 		,	"Cannot send reset reply message [%s] for %s", result
 		,	nodename);
 	}
-	exit(success ? 0 : 1);
+	exit (exitcode);
 }
 
 void
@@ -3822,7 +3825,7 @@ healed_cluster_partition(struct node_info *t)
 	/* This is cleaner than lots of other options. */
 	/* And, it really should work every time... :-) */
 	procinfo->restart_after_shutdown = 1;
-	giveup_resources(0);
+	giveup_resources();
 }
 
 struct fieldname_map {
@@ -4067,7 +4070,7 @@ go_standby(enum standby who)
 }
 
 void
-giveup_resources(int dummy)
+giveup_resources(void)
 {
 	FILE *		rkeys;
 	char		cmd[MAXLINE];
@@ -4105,14 +4108,9 @@ giveup_resources(int dummy)
 		case -1:	ha_log(LOG_ERR, "Cannot fork.");
 				return;
 
-				/*
-				 * We shouldn't block here, because then we
-				 * aren't sending heartbeats out...
-				 */
 		default:
 				/* FIXME!  We can now do better! */
 				ANONPROC(pid, "giveup_resources");
-				waitpid(pid, NULL, 0);
 				return;
 
 		case 0:		/* Child */
@@ -4688,7 +4686,7 @@ make_daemon(void)
 	(void)signal(SIGHUP,  reread_config_sig);
 	(void)signal(SIGALRM, false_alarm_sig);
 
-	(void)signal(SIGTERM, signal_all);
+	(void)signal(SIGTERM, term_sig);
 	siginterrupt(SIGTERM, 1);
 	umask(022);
 	close(FD_STDIN);
@@ -4873,6 +4871,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 			thisnode->local_lastupdate = 0L;
 			thisnode->status_seqno = 0L;
 			thisnode->status_gen = 0L;
+			thisnode->has_resources = TRUE;
 		}
 		t->generation = gen;
 	}
@@ -5551,6 +5550,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.171  2002/04/09 06:37:27  alan
+ * Fixed the STONITH code so it works again ;-)
+ *
+ * Also tested (and fixed) the case of graceful shutdown nodes not getting
+ * STONITHed.  We also don't STONITH nodes which had no resources at
+ * the time they left the cluster, at least when nice_failback is set.
+ *
  * Revision 1.170  2002/04/07 13:54:06  alan
  * This is a pretty big set of changes ( > 1200 lines in plain diff)
  *

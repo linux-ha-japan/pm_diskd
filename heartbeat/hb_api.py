@@ -638,6 +638,9 @@ class hb_api:
 
         return self.ReplyFIFO.fileno()
 
+    def fileno(self):
+        return self.get_inputfd()
+
     def msgready(self):
 
         '''Returns TRUE if a message is waiting to be read.'''

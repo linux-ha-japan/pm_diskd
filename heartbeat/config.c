@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.61 2002/03/28 02:42:58 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.62 2002/04/09 06:37:26 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -754,6 +754,7 @@ add_node(const char * value, int nodetype)
 	strncpy(hip->status, INITSTATUS, sizeof(hip->status));
 	strncpy(hip->nodename, value, sizeof(hip->nodename));
 	hip->rmt_lastupdate = 0L;
+	hip->has_resources = TRUE;
 	hip->anypacketsyet  = 0;
 	hip->local_lastupdate = times(&proforma_tms);
 	hip->track.nmissing = 0;
@@ -1329,6 +1330,13 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.62  2002/04/09 06:37:26  alan
+ * Fixed the STONITH code so it works again ;-)
+ *
+ * Also tested (and fixed) the case of graceful shutdown nodes not getting
+ * STONITHed.  We also don't STONITH nodes which had no resources at
+ * the time they left the cluster, at least when nice_failback is set.
+ *
  * Revision 1.61  2002/03/28 02:42:58  alan
  * Fixed a bug where having an error on a media directive which was not on the
  * first occurance on the line made us unload the module prematurely, and then

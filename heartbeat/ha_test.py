@@ -265,7 +265,7 @@ if __name__ == '__main__':
         reply.send(api)
 
     hb = hb_api()
-    hb.signon(CTS.AppID)
+    hb.signon()
 
     #	Set up response functions to automatically reply to pings when
     #	they arrive.
