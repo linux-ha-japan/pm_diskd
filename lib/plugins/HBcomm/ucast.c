@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.7 2002/10/21 10:17:19 horms Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.8 2002/11/21 15:46:03 lars Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -317,7 +317,7 @@ ucast_open(struct hb_media* mp)
 		return(HA_FAIL);
 	}
 	LOG(PIL_INFO, "ucast heartbeat started on port %d interface %s to %s"
-	,	localudpport, mp->name, inet_ntoa(ei->addr.sin_addr));
+	,	localudpport, ei->interface, inet_ntoa(ei->addr.sin_addr));
 	return(HA_OK);
 }
 
@@ -447,12 +447,13 @@ HB_make_send_sock(struct hb_media * mp)
 		 * This is so we can have redundant NICs, and heartbeat on both
 		 */
 		struct ifreq i;
-		strcpy(i.ifr_name,  mp->name);
+		strcpy(i.ifr_name,  ei->interface);
 
 		if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE
 		,	&i, sizeof(i)) == -1) {
 			LOG(PIL_CRIT
-			, "Error setting socket option SO_BINDTODEVICE: %s"
+			, "Error setting option SO_BINDTODEVICE(w) on %s: %s"
+			,	i.ifr_name
 			,	strerror(errno));
 			close(sockfd);
 			return(-1);

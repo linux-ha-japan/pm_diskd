@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.70 2002/10/18 07:16:08 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.71 2002/11/21 15:46:03 lars Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -744,7 +744,8 @@ add_option(const char *	option, const char * value)
 			g_assert(mp->type[0] != '(');
 			g_assert(mp->description[0] != '(');
 			mp->vf = funs;
-			mp->name = strdup(value);
+			if (!mp->name)
+				mp->name = strdup(value);
 			++nummedia;
 			PILIncrIFRefCount(PluginLoadingSystem
 			,	HB_COMM_TYPE_S, option, +1);
@@ -1397,6 +1398,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.71  2002/11/21 15:46:03  lars
+ * Fix for ucast.c suggested by Sam O'Connor.
+ *
  * Revision 1.70  2002/10/18 07:16:08  alan
  * Put in Horms big patch plus a patch for the apcmastersnmp code where
  * a macro named MIN returned the MAX instead.  The code actually wanted
