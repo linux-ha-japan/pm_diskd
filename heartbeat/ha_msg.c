@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.28 2002/09/20 02:09:50 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.29 2002/09/26 06:09:38 horms Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -271,9 +271,14 @@ msgfromstream(FILE * f)
 
 	clearerr(f);
 	/* Skip until we find a MSG_START (hopefully we skip nothing) */
-	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
-	&&	strcmp(buf, MSG_START) != 0) {
-		/* Nothing */
+	while(1) {
+		getsret = fgets(buf, MAXLINE, f);
+		if(!getsret) {
+			break;
+		}
+		if(!strcmp(buf, MSG_START)) {
+			break;
+		}
 	}
 
 	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
@@ -286,8 +291,22 @@ msgfromstream(FILE * f)
 	}
 
 	/* Add Name=value pairs until we reach MSG_END or EOF */
-	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
-	&&	strcmp(buf, MSG_END) != 0) {
+	while(1) {
+		getsret = fgets(buf, MAXLINE, f);
+		if(!getsret) {
+			break;
+		}
+
+		if(strlen(buf) > MAXLINE - 2) {
+			ha_log(LOG_DEBUG, "msgfromstream: message may be "
+					"too long and thus truncated: [%s]",
+					buf);
+		}
+
+		if(!strcmp(buf, MSG_END)) {
+			break;
+		}
+
 
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
@@ -446,6 +465,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.29  2002/09/26 06:09:38  horms
+ * log a debug message if it looks like an feild in a heartbeat message has been truncated
+ *
  * Revision 1.28  2002/09/20 02:09:50  alan
  * Switched heartbeat to do everything with longclock_t instead of clock_t.
  * Switched heartbeat to be configured fundamentally from millisecond times.
