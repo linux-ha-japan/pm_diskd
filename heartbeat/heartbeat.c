@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.10 1999/10/05 04:03:42 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.11 1999/10/05 04:09:45 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1149,8 +1149,9 @@ initialize_heartbeat()
 	localdie = NULL;
 	starttime = time(NULL);
 
-	if (stat(FIFONAME, &buf) < 0) {
+	if (stat(FIFONAME, &buf) < 0 ||	!S_ISFIFO(buf.st_mode)) {
 		ha_log(LOG_ERR, "Creating FIFO %s.", FIFONAME);
+		unlink(FIFONAME);
 		if (mkfifo(FIFONAME, FIFOMODE) < 0) {
 			ha_perror("Cannot make fifo %s.", FIFONAME);
 			return(HA_FAIL);
@@ -2595,6 +2596,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.11  1999/10/05 04:09:45  alanr
+ * Fixed a problem reported by Thomas Hepper where heartbeat won't start if a regular
+ * file by the same name as the FIFO exists.  Now I just remove it...
+ *
  * Revision 1.10  1999/10/05 04:03:42  alanr
  * added code to implement the -r (restart already running heartbeat process) option.
  * It seems to work and everything!
