@@ -9,8 +9,6 @@
 #include <hb_api.h>
 #include <hb_api_core.h>
 
-#define	API_FIFO_DIR	VAR_RUN_D "/heartbeat-api" /* Or something better ;-)  FIXME!! */
-#define	API_FIFO_LEN	(sizeof(API_FIFO_DIR)+32)
 
 typedef struct client_process {
 	char		client_id[32];
@@ -123,7 +121,7 @@ api_process_request(struct ha_msg * msg)
 	 *	Sign on a new client.
 	 */
 
-	if (strcmp(reqtype, API_NEWCLIENT) == 0) {
+	if (strcmp(reqtype, API_SIGNON) == 0) {
 		api_add_client(msg);
 		if (ha_msg_mod(resp, F_APIRESULT, API_SUCCESS) != HA_OK) {
 			ha_log(LOG_ERR
@@ -136,6 +134,7 @@ api_process_request(struct ha_msg * msg)
 			,	"api_process_request: cannot add client");
 			return;
 		}
+		ha_log(LOG_INFO, "Signing client %d on to API", client->pid);
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;
@@ -146,7 +145,13 @@ api_process_request(struct ha_msg * msg)
 		ha_log(LOG_ERR, "api_process_request: msg from non-client");
 		return;
 	}
-	if (strcmp(reqtype, API_SETFILTER) == 0) {
+	if (strcmp(reqtype, API_SIGNOFF) == 0) {
+		/* We send them no reply */
+		ha_log(LOG_INFO, "Signing client %d off", client->pid);
+		api_remove_client(client);
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}else if (strcmp(reqtype, API_SETFILTER) == 0) {
 	/*
 	 *	Record the types of messages desired by this client
 	 *		(desired_types)
@@ -156,7 +161,6 @@ api_process_request(struct ha_msg * msg)
 		if ((cfmask = ha_msg_value(msg, F_FILTERMASK)) == NULL
 		||	(sscanf(cfmask, "%x", &mask) != 1)
 		||	(mask&ALLTREATMENTS) == 0) {
-ha_log(LOG_ERR, "Sending badreq reply to setfilter message\n");
 			goto bad_req;
 		}
 
@@ -174,8 +178,6 @@ ha_log(LOG_ERR, "Sending badreq reply to setfilter message\n");
 			ha_msg_del(resp); resp=NULL;
 			return;
 		}
-ha_log(LOG_ERR, "Sending OK reply to setfilter message\n");
-ha_log_message(resp);
 		api_send_client_msg(client, resp);
 		ha_msg_del(resp); resp=NULL;
 		return;

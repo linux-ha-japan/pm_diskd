@@ -29,7 +29,8 @@
 
 #define NR_TYPES 3
 
-#define	API_NEWCLIENT		"signon"
+#define	API_SIGNON		"signon"
+#define	API_SIGNOFF		"signoff"
 #define	API_SETFILTER		"setfilter"
 #	define	F_FILTERMASK	"fmask"
 #define	API_NODELIST		"nodelist"
@@ -47,6 +48,9 @@
 #define	API_FAILURE		"fail"
 #define	API_BADREQ		"badreq"
 #define	API_MORE		"ok/more"
+
+#define	API_FIFO_DIR	VAR_RUN_D "/heartbeat-api" /* Or something better ;-)  FIXME!! */
+#define	API_FIFO_LEN	(sizeof(API_FIFO_DIR)+32)
 void api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface);
 void api_process_request(struct ha_msg *msg);
 
