@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.34 2001/02/25 18:39:58 alan Exp $
+#	$Id: heartbeat.sh,v 1.35 2001/02/25 18:45:59 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -113,8 +113,7 @@ init_watchdog() {
   # What do they think /dev/watchdog is named?
   MISCDEV=`grep ' misc$' /proc/devices | cut -c1-4`
   MISCDEV=`echo $MISCDEV`
-  WATCHDEV=`grep -v '^#' $CONFIG | grep watchdog |
-	sed s'%^[ 	]*watchdog[ 	]*%%'`
+  WATCHDEV=`ha_parameter watchdog`
   WATCHDEV=`echo $WATCHDEV`
   if
     [ "X$WATCHDEV" != X ]
@@ -270,8 +269,8 @@ case "$1" in
   restart)
         sleeptime=`ha_parameter deadtime`
 	StopHA
-        sleep 2
         sleep $sleeptime
+        sleep 10 # allow resource takeover to complete (hopefully).
 	StartHA
 	;;
 
@@ -289,6 +288,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.35  2001/02/25 18:45:59  alan
+#  Changed the watchdog code to use the new ha_parameter function.
+#
 #  Revision 1.34  2001/02/25 18:39:58  alan
 #  Added code to sleep for "enough" seconds during a restart to ensure that
 #  takeover happens like it should.
