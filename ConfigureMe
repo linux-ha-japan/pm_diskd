@@ -37,6 +37,11 @@ ConfigureLinux() {
   then
     distro=SuSE
     PACKAGECMD="make rpm"
+  elif
+    [ -f /etc/redhat-release -a -s /etc/redhat-release ] 
+  then
+    distro=RedHat
+    PACKAGECMD="make rpm"
   else
     distro="Generic"
   fi
