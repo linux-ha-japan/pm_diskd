@@ -32,6 +32,10 @@
 
 #define MAX_FUNC_NAME 20
 
+#define	MALLOC(n)	malloc(n)
+#define MALLOCT(t)	(t*)(malloc(sizeof(t)))
+#define FREE(p)		{free(p); p = NULL;}
+
 struct symbol_str {
     char name[MAX_FUNC_NAME];
     void** function;
@@ -74,22 +78,23 @@ stonith_new(const char * type)
 
 	bindtextdomain(ST_TEXTDOMAIN, LOCALEDIR);
 
-	s = malloc(sizeof(Stonith));
+	s = MALLOCT(Stonith);
 
-	if(s == NULL)
+	if (s == NULL) {
 		return(NULL);
+	}
 
-	s->s_ops = malloc(sizeof(struct stonith_ops));
+	s->s_ops = MALLOCT(struct stonith_ops);
 
-	if(s->s_ops == NULL) {
+	if (s->s_ops == NULL) {
 		free(s);
 		return(NULL);
 	}
 
-	obj_path = malloc((strlen(STONITH_MODULES) + strlen(type) + 4) 
+	obj_path = (char*) MALLOC((strlen(STONITH_MODULES) + strlen(type) + 4) 
 				* sizeof(char));
 
-	if(obj_path == NULL) {
+	if (obj_path == NULL) {
 		free(s->s_ops);
 		free(s);
 		return(NULL);
@@ -97,7 +102,7 @@ stonith_new(const char * type)
 	
 	sprintf(obj_path,"%s/%s.so", STONITH_MODULES, type);
 
-	if((s->dlhandle = dlopen(obj_path, RTLD_LAZY|RTLD_GLOBAL)) == NULL) {
+	if ((s->dlhandle = dlopen(obj_path, RTLD_LAZY|RTLD_GLOBAL)) == NULL) {
 		syslog(LOG_ERR, "%s: %s\n", __FUNCTION__, dlerror());
 		free(s->s_ops);
 		free(s);
@@ -126,7 +131,7 @@ stonith_new(const char * type)
 
 	ret = symbol_load(syms, NR_STONITH_FNS, &s->dlhandle);
 	
-	if(ret != 0) {
+	if (ret != 0) {
 		free(s->s_ops);
 		free(s);
 		free(obj_path);
@@ -147,13 +152,9 @@ stonith_types(void)
 	char ** list;
 	struct dirent **namelist;
 	int n, i;
+	static char **	lastret = NULL;
+	static int	lastcount = 0;
 
-	list = malloc(sizeof(char *));
-
-	if(list == NULL) {
-		syslog(LOG_ERR, "%s: malloc failed.", __FUNCTION__);
-		return(NULL);
-	}
 
 	n = scandir(STONITH_MODULES, &namelist, &so_select, 0);
 	if (n < 0) {
@@ -161,11 +162,33 @@ stonith_types(void)
 		return(NULL);
 	}
 
-	for(i=0;i<n;i++) { 
+	/* Clean up from the last time we got called. */
+	if (lastret != NULL) {
+		char **	cp = lastret;
+		for (;*cp; ++cp) {
+			FREE(*cp)
+		}
+		if (lastcount != n) {
+			free(lastret);
+			lastret = NULL;
+		}
+	}
+	if (lastret) {
+		list = lastret;
+	}else{
+		list = (char **)MALLOC((n+1)*sizeof(char *));
+	}
+
+	if (list == NULL) {
+		syslog(LOG_ERR, "%s: malloc failed.", __FUNCTION__);
+		return(NULL);
+	}
+
+	for(i=0; i<n; i++) { 
 		int len = strlen(namelist[i]->d_name);
 
-		list[i] = malloc(len * sizeof(char));
-		if(list[i] == NULL) {
+		list[i] = (char*)  MALLOC(len * sizeof(char));
+		if (list[i] == NULL) {
 			syslog(LOG_ERR, "%s: malloc/1 failed.", __FUNCTION__);
 			return(NULL);
 		}
@@ -178,6 +201,8 @@ stonith_types(void)
 	}
 
 	list[i] = NULL;
+	lastret = list;
+	lastcount = n;
 
 	return list;
 }
@@ -187,8 +212,9 @@ static int so_select (const struct dirent *dire) {
 	const char *end = &dire->d_name[strlen(dire->d_name) - 3];
 	const char *obj_end = ".so";
 
-	if(strcmp(end, obj_end) == 0)
+	if (strcmp(end, obj_end) == 0){
 		return 1;
+	}
 
 	return 0;
 }
