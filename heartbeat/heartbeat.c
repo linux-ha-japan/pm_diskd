@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.96 2001/03/06 21:11:05 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.97 2001/03/11 03:16:12 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -551,7 +551,7 @@ ha_timestamp(void)
 	now = time(NULL);
 	ttm = localtime(&now);
 
-	sprintf(ts, "%04d/%02d/%02d_%02d:%02d:%02d"
+	snprintf(ts, sizeof(ts), "%04d/%02d/%02d_%02d:%02d:%02d"
 	,	ttm->tm_year+1900, ttm->tm_mon+1, ttm->tm_mday
 	,	ttm->tm_hour, ttm->tm_min, ttm->tm_sec);
 	return(ts);
@@ -569,18 +569,25 @@ ha_error(const char *	msg)
 void
 ha_log(int priority, const char * fmt, ...)
 {
-	va_list ap;
-	FILE *	fp = NULL;
-	char *	fn = NULL;
-	char buf[MAXLINE];
+	va_list		ap;
+	FILE *		fp = NULL;
+	char *		fn = NULL;
+	char		buf[MAXLINE];
+	int		logpri = LOG_PRI(priority);
+	const char *	pristr;
 
 	va_start(ap, fmt);
 	vsnprintf(buf, MAXLINE, fmt, ap);
 	va_end(ap);
 
+	if (logpri < 0 || logpri >= DIMOF(ha_log_priority)) {
+		pristr = "(undef)";
+	}else{
+		pristr = ha_log_priority[logpri];
+	}
+
 	if (config && config->log_facility >= 0) {
-		syslog(priority, "%s: %s"
-		,	ha_log_priority[LOG_PRI(priority)], buf);
+		syslog(priority, "%s: %s", pristr,  buf);
 	}
 
 	if (config) {
@@ -609,7 +616,7 @@ ha_log(int priority, const char * fmt, ...)
 		}
 
 		fprintf(fp, "heartbeat: %s %s: %s\n", ha_timestamp()
-		,	ha_log_priority[LOG_PRI(priority)], buf);
+		,	pristr,  buf);
 
 		if (fp != stderr) {
 			fclose(fp);
@@ -3971,6 +3978,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.97  2001/03/11 03:16:12  alan
+ * Fixed the problem with mcast not incrementing nummedia.
+ * Installed mcast module in the makefile.
+ * Made the code for printing things a little more cautious about data it is
+ * passed as a parameter.
+ *
  * Revision 1.96  2001/03/06 21:11:05  alan
  * Added initdead (initial message) dead time to heartbeat.
  *

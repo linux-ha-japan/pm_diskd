@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.47 2001/03/08 14:37:03 alan Exp $
+#	$Id: Makefile,v 1.48 2001/03/11 03:16:12 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -104,7 +104,7 @@ H_OBJLIST = 	heartbeat.o		\
 		lock.o			\
 		module.o
 
-COMM_OBJS = ping.o serial.o udp.o 
+COMM_OBJS = ping.o serial.o udp.o mcast.o
 
 AUTH_OBJS =	md5.o sha1.o crc.o
 

@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.1 2001/01/16 21:53:39 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.2 2001/03/11 03:16:12 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -231,6 +231,7 @@ int hb_dev_parse(const char *line)
 			return(HA_FAIL);
 		}
 		sysmedia[nummedia] = mp;
+		++nummedia;
 	}
 
 	return(HA_OK);
@@ -724,6 +725,12 @@ static int get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.2  2001/03/11 03:16:12  alan
+ * Fixed the problem with mcast not incrementing nummedia.
+ * Installed mcast module in the makefile.
+ * Made the code for printing things a little more cautious about data it is
+ * passed as a parameter.
+ *
  * Revision 1.1  2001/01/16 21:53:39  alan
  * Added mcast comm code and APC stonith code and updated version #, etc.
  *
