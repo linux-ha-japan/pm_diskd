@@ -6,7 +6,11 @@ etc/init.d
 etc/ha.d/rc.d
 usr/lib/heartbeat
 usr/lib/heartbeat/plugins
+usr/include/heartbeat
+usr/include/clplumbing
+usr/include/ocf
 var/lock/subsys
 var/run
-var/lib/heartbeat/
-
+var/lib/heartbeat
+var/lib/heartbeat/api
+var/lib/heartbeat/casual

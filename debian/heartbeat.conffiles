@@ -1,2 +1,13 @@
 /etc/init.d/heartbeat
 /etc/logrotate.d/heartbeat
+/etc/ha.d/rc.d/ip-request
+/etc/ha.d/rc.d/ip-request-resp
+/etc/ha.d/rc.d/ask_resources
+/etc/ha.d/rc.d/status
+/etc/ha.d/resource.d/AudibleAlarm
+/etc/ha.d/resource.d/Filesystem
+/etc/ha.d/resource.d/IPaddr
+/etc/ha.d/resource.d/MailTo
+/etc/ha.d/resource.d/Raid1
+/etc/ha.d/README.config
+/etc/ha.d/shellfuncs

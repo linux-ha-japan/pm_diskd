@@ -24,6 +24,30 @@ Description: Interface for remotely powering down a node in the cluster.
  machine in the cluster is not using a resource, pull the plug on the
  other machine. It's simple and reliable, albeit admittedly brutal.
 
+Package: heartbeat-stonith-dev
+Architecture: any
+Depends: heartbeat-pils (= ${Source-Version})
+Description: Interface for remotely powering down a node in the cluster.
+ Headers and Libraries for developing modules to work with Stonigh
+
+Package: heartbeat-pils
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: Plugin and Interface Loading System
+ PILS is an generalized and portable open source Plugin and Interface
+ Loading System.  PILS was developed as part of the Open Cluster Framework
+ reference implementation, and is designed to be directly usable by a wide
+ variety of other applications.  PILS manages both plugins (loadable
+ objects), and the interfaces these plugins implement.  PILS is designed to
+ support any number of plugins implementing any number of interfaces.
+
+Package: heartbeat-pils-dev
+Architecture: any
+Depends: heartbeat-pils (= ${Source-Version})
+Description: Plugin and Interface Loading System
+ Headers and Libraries for developing modules to work with
+
+
 Package: heartbeat
 Architecture: any
 Depends: ${shlibs:Depends}, logrotate, sysklogd
@@ -36,3 +60,10 @@ Description: Subsystem for High-Availability Linux
  It implements the following kinds of heartbeats:
    * Bidirectional Serial Rings ("raw" serial ports)
    * UDP/IP broadcast (ethernet, etc)
+
+Package: heartbeat-dev
+Architecture: any
+Depends: heartbeat (= ${Source-Version}), heartbeat-stonith-dev (= ${Source-Version})
+Description: Subsystem for High-Availability Linux
+ Headers and Libraries for developing modules to work with 
+ High-Availabiluty Linux

@@ -60,6 +60,11 @@ install: build
 	cd `pwd`/debian/tmp/etc/ha.d/resource.d \
 	  && ln -s /usr/sbin/ldirectord ldirectord
 
+	# We don't install fifos. Rather they are created
+	# by postinst scripts.
+	(cd `pwd`/debian/tmp/var/lib/heartbeat/ && \
+		rm -f api/*.req api/*.rsp fifo register )
+
 	dh_movefiles --source=debian/tmp
 
 # Build architecture-independent files here.
