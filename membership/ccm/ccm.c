@@ -2120,6 +2120,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 			/* nothing to do. Just forget the message */
 			break;
 		default:
+			break;
 	}
 }
 
