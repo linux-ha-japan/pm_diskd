@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.30 2001/04/22 19:04:47 horms Exp $
+# $Id: ldirectord,v 1.31 2001/04/29 01:40:37 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -168,14 +168,12 @@ B<checktype = >I<negotiate>|I<connect>|I<N>|I<off>
 
 Type of check to perform. Negotiate sends a request and matches a receive
 string. Connect only attemts to make a TCP/IP connection, thus the the
-request and receive strings may be omitted.  Type of check to perform.
-Negotiate means to send request and expect receive strings. Connect means
-raw tcp/ip connection, here the request and receive string can be omitted.
-If checktype is a number then negotiate and connect is combined so that
-after each N connect attempts one negotiate attempt is performed. This is
-useful to check often if a service answers and in much longer intervalls a
-negotiating check is done.  Off means no checking will take place and no
-real or fallback servers will be activated. Default is I<negotiate>.
+request and receive strings may be omitted.  If checktype is a number then
+negotiate and connect is combined so that after each N connect attempts one
+negotiate attempt is performed. This is useful to check often if a service
+answers and in much longer intervalls a negotiating check is done.  Off
+means no checking will take place and no real or fallback servers will be
+activated. Default is I<negotiate>.
 
 B<service = http>|B<https>|B<ftp>|B<none>
 
@@ -549,7 +547,7 @@ sub read_config
 
 			my (%vsrv, @rsrv);
 			if ($ip_port) {
-				$vsrv{checktype} = "connect";
+				$vsrv{checktype} = "negotiate";
 			        $vsrv{protocol} = "tcp";
 			} else {
 			        $vsrv{fwm} = $fwm;
@@ -1284,6 +1282,7 @@ sub check_http
 {
 	use LWP::UserAgent;
 	my ($v, $r) = @_;
+	
 	my $ua = new LWP::UserAgent;
 	$ua->agent("LinuxDirector/0.1 ".$ua->agent);
 	$ua->timeout($$v{negotiatetimeout});
