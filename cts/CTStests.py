@@ -533,8 +533,8 @@ class StandbyTest(CTSTest):
 
             if self.CM.Env.has_key("DoStandby"):
                 flag=self.CM.Env["DoStandby"]
-                if type(flag) == types.IntType and not flag:
-                    return None
+                if type(flag) == types.IntType:
+		    return flag
                 if not re.match("[yt]", flag, re.I):
                     return None
             #
