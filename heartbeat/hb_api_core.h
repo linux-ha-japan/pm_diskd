@@ -96,6 +96,7 @@ typedef struct client_process {
 #	define	F_NODENAME	"node"
 #define	API_NODELIST_END	"nodelist-end"
 #define	API_NODESTATUS		"nodestatus"
+#define	API_NODETYPE		"nodetype"
 
 #define	API_IFLIST		"iflist"
 #	define	F_IFNAME	"ifname"
@@ -158,6 +159,9 @@ int api_nodelist (const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason);
 
 int api_nodestatus (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+int api_nodetype (const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason);
 
 int api_ifstatus (const struct ha_msg* msg, struct ha_msg* resp

@@ -95,6 +95,7 @@ struct api_query_handler query_handler_list [] = {
 	{ API_SETSIGNAL, api_setsignal },
 	{ API_NODELIST, api_nodelist },
 	{ API_NODESTATUS, api_nodestatus },
+	{ API_NODETYPE, api_nodetype },
 	{ API_IFSTATUS, api_ifstatus },
 	{ API_IFLIST, api_iflist },
 };
@@ -356,6 +357,40 @@ api_nodestatus(const struct ha_msg* msg, struct ha_msg* resp
 			return I_API_IGN;
 		}
 		return I_API_RET;
+}
+
+/**********************************************************************
+ * API_NODESTATUS: Return the status of the given node
+ *********************************************************************/
+
+int
+api_nodetype(const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+	const char *		cnode;
+	struct node_info *	node;
+	const char *		ntype;
+
+	if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
+	|| (node = lookup_node(cnode)) == NULL) {
+		*failreason = "EINVAL";
+		return I_API_BADREQ;
+	}
+	switch (node->nodetype) {
+		case PINGNODE:		ntype = "ping";
+					break;
+		case NORMALNODE:	ntype = "normal";
+					break;
+		default:		ntype = "unknown";
+					break;
+	}
+			
+	if (ha_msg_add(resp, F_NODETYPE, ntype) != HA_OK) {
+		ha_log(LOG_ERR
+		,	"api_nodetype: cannot add field");
+		return I_API_IGN;
+	}
+	return I_API_RET;
 }
 
 /**********************************************************************

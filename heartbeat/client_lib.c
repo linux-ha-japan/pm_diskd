@@ -156,6 +156,7 @@ static int init_nodewalk (ll_cluster_t*);
 static const char * nextnode (ll_cluster_t* ci);
 static int init_ifwalk (ll_cluster_t* ci, const char * host);
 static const char *	get_nodestatus(ll_cluster_t*, const char *host);
+static const char *	get_nodetype(ll_cluster_t*, const char *host);
 static const char *	get_ifstatus(ll_cluster_t*, const char *host
 ,	const char * intf);
 static int		get_inputfd(ll_cluster_t*);
@@ -828,6 +829,69 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
 	&&	strcmp(result, API_OK) == 0
 	&&	(status = ha_msg_value(reply, F_STATUS)) != NULL) {
+                memset(statbuf, 0, sizeof(statbuf));
+		strncpy(statbuf, status, sizeof(statbuf) - 1);
+		ret = statbuf;
+	}else{
+		ret = NULL;
+	}
+	ZAPMSG(reply);
+
+	return ret;
+}
+
+/*
+ * Return the type of the given node.
+ */
+
+static const char *
+get_nodetype(ll_cluster_t* lcl, const char *host)
+{
+	struct ha_msg*		request;
+	struct ha_msg*		reply;
+	const char *		result;
+	const char *		status;
+	static char		statbuf[128];
+	const char *		ret;
+	llc_private_t*		pi;
+
+	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_api_log(LOG_ERR, "get_nodetype: bad cinfo");
+		return NULL;
+	}
+	pi = (llc_private_t*)lcl->ll_cluster_private;
+
+	if (!pi->SignedOn) {
+		ha_api_log(LOG_ERR, "not signed on");
+		return NULL;
+	}
+
+	if ((request = hb_api_boilerplate(API_NODETYPE)) == NULL) {
+		return NULL;
+	}
+	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
+		ha_api_log(LOG_ERR, "get_nodetype: cannot add field");
+		ZAPMSG(request);
+		return NULL;
+	}
+
+	/* Send message */
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_api_perror("Can't send message to RequestFIFO");
+		return NULL;
+	}
+	ZAPMSG(request);
+
+	/* Read reply... */
+	if ((reply=read_api_msg(pi)) == NULL) {
+		ZAPMSG(request);
+		return NULL;
+	}
+	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
+	&&	strcmp(result, API_OK) == 0
+	&&	(status = ha_msg_value(reply, F_NODETYPE)) != NULL) {
                 memset(statbuf, 0, sizeof(statbuf));
 		strncpy(statbuf, status, sizeof(statbuf) - 1);
 		ret = statbuf;
@@ -1734,6 +1798,7 @@ static struct llc_ops heartbeat_ops = {
 	nextnode,		/* nextnode */
 	end_nodewalk,		/* end_nodewalk */
 	get_nodestatus,		/* node_status */
+	get_nodetype,		/* node_type */
 	init_ifwalk,		/* init_ifwalk */
 	nextif,			/* nextif */
 	end_ifwalk,		/* end_ifwalk */
