@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.29 2002/10/22 13:18:58 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.30 2003/01/31 10:02:09 lars Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -460,8 +460,8 @@ STATIC	const char *
 ha_msg_seq(void)
 {
 	static char seq[32];
-	static int seqno = 1;
-	sprintf(seq, "%x", seqno);
+	static seqno_t seqno = 1;
+	sprintf(seq, "%lx", seqno);
 	++seqno;
 	return(seq);
 }
@@ -548,6 +548,16 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.30  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.29  2002/10/22 13:18:58  alan
  * Changed a few calls to ha_error(... to ha_log(LOG_ERR,...
  *

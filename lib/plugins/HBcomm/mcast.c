@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.11 2002/10/21 10:17:19 horms Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.12 2003/01/31 10:02:09 lars Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -135,6 +135,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 	(void)(PILPluginInitFun)PIL_PLUGIN_INIT;
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
+	(void)_mcast_Id;
 
 	PluginImports = imports;
 	OurPlugin = us;
@@ -818,6 +819,16 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.12  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.11  2002/10/21 10:17:19  horms
  * hb api clients may now be built outside of the heartbeat tree
  *

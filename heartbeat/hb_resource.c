@@ -718,9 +718,9 @@ AuditResources(void)
 const char *
 decode_resources(int i)
 {
-
-	return (i < 0 || i >= DIMOF(rsc_msg))?  "huh?" : rsc_msg[i];
+	return (i < 0 || i >= DIMOF(rsc_msg))?  "(undefined)" : rsc_msg[i];
 }
+
 int
 encode_resources(const char *p)
 {
@@ -1725,6 +1725,16 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.11  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.10  2003/01/25 01:19:52  ram
  * 1. Fixed a bug in heartbeat. Heartbeat does not send out a stonith completion
  * 	event if stonith device is not configured. Fixed it and made it

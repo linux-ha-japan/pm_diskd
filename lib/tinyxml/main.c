@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include "gXMLparse.h"
-#define DIMOF(a)	(sizeof(a)/sizeof(a[0]))
 
 const char * testxml[] =
 {

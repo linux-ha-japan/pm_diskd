@@ -25,9 +25,6 @@
 #include "string.h"
 #include "ctype.h"
 #include "XMLchars.h"
-#define	DIMOF(a)		(sizeof(a)/sizeof(a[0]))
-#define	STRLEN(conststr)	(sizeof(conststr)-1)
-#define	EOS			((char)'\0')
 
 static GString* gXML_strencode(GString* string);
 /*	Precondition:  Function is passed a GString

@@ -93,7 +93,7 @@ int apphb_unregister(void);
  * EINVAL:	illegal/invalid hbms value
  *
  */
-int apphb_setinterval(int hbms);
+int apphb_setinterval(unsigned long hbms);
 
 /*
  * apphb_setwarn: set heartbeat warning time
@@ -108,7 +108,7 @@ int apphb_setinterval(int hbms);
  *
  *
  */
-int apphb_setwarn(int hbms);
+int apphb_setwarn(unsigned long hbms);
 
 /*
  * apphb_hb: application heartbeat call.

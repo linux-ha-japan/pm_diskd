@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.28 2003/01/08 21:14:08 msoffen Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.29 2003/01/31 10:02:09 lars Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -43,8 +43,6 @@ static const char _bcast_Id [] = "$Id: bcast.c,v 1.28 2003/01/08 21:14:08 msoffe
 #if defined(SO_BINDTODEVICE)
 #	include <net/if.h>
 #endif
-
-#define	EOS	'\0'
 
 #define PIL_PLUGINTYPE          HB_COMM_TYPE
 #define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
@@ -777,6 +775,16 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.29  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.28  2003/01/08 21:14:08  msoffen
  * Fixed problems that prevented compiling with -Wtraditional
  *

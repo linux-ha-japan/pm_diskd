@@ -187,7 +187,7 @@ apphb_unregister(void)
 
 /* Set application heartbeat interval (in milliseconds) */
 int
-apphb_setinterval(int hbms)
+apphb_setinterval(unsigned long hbms)
 {
 	struct apphb_msmsg	msg;
 	struct IPC_MESSAGE	Msg;
@@ -195,10 +195,6 @@ apphb_setinterval(int hbms)
 
 	if (hbcomm == NULL || hbstatus != IPC_OK) {
 		errno = ESRCH;
-		return -1;
-	}
-	if (hbms < 0) {
-		errno = EINVAL;
 		return -1;
 	}
 	strncpy(msg.msgtype, SETINTERVAL, sizeof(msg.msgtype));
@@ -221,7 +217,7 @@ apphb_setinterval(int hbms)
 }
 /* Set application heartbeat warning time (in milliseconds) */
 int
-apphb_setwarn(int hbms)
+apphb_setwarn(unsigned long hbms)
 {
 	struct apphb_msmsg	msg;
 	struct IPC_MESSAGE	Msg;

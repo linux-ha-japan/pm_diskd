@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.74 2003/01/16 00:49:47 msoffen Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.75 2003/01/31 10:02:09 lars Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -1159,7 +1159,7 @@ set_stonith_info(const char * value)
 	Stonith *	s;
 	char		StonithType [MAXLINE];
 	char		StonithFile [MAXLINE];
-	int		tlen;
+	size_t		tlen;
 	int		rc;
 
 	vp += strspn(vp, WHITESPACE);
@@ -1224,7 +1224,7 @@ set_stonith_host_info(const char * value)
 	Stonith *	s;
 	char		StonithType [MAXLINE];
 	char		StonithHost [HOSTLENG];
-	int		tlen;
+	size_t		tlen;
 	int		rc;
 	struct utsname	u;
 	
@@ -1321,8 +1321,8 @@ add_client_child(const char * directive)
 	const char *		uidp;
 	const char *		cmdp;
 	char			chuid[64];
-	int			uidlen;
-	int			cmdlen;
+	size_t			uidlen;
+	size_t			cmdlen;
 	char*			command;
 	struct passwd*		pw;
 
@@ -1394,6 +1394,16 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.75  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.74  2003/01/16 00:49:47  msoffen
  * Created static variable instead of "run time" allocation for config variable
  * becuase on Solaris the variable wasn't being created with proper memory

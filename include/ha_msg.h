@@ -22,7 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.10 2003/01/25 01:19:53 ram Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.11 2003/01/31 10:02:09 lars Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 
@@ -32,7 +32,7 @@ static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.10 2003/01/25 01:19:53 ram
 struct ha_msg {
 	int	nfields;
 	int	nalloc;
-	int	stringlen;	/* #bytes needed to convert this to a string
+	size_t	stringlen;	/* #bytes needed to convert this to a string
 				 * including the '\0' character at the end. */
 	char **	names;
 	int  *	nlens;

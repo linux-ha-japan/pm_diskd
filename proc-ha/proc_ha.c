@@ -1,5 +1,5 @@
 /*
- * $Id: proc_ha.c,v 1.3 1999/10/05 06:01:00 alanr Exp $
+ * $Id: proc_ha.c,v 1.4 2003/01/31 10:02:10 lars Exp $
  *
  * Linux-HA /proc interface
  *
@@ -44,10 +44,6 @@
 /*	Advice appreciated... :-) */
 
 
-#define	DIMOF(a)	(sizeof(a)/sizeof(a[0])	)
-/* String length of a constant string */
-#define	C_STRLEN(s)	(DIMOF(s)-1)	/* Subtract 1 for NULL byte */
-
 #include <linux/malloc.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
@@ -55,6 +51,7 @@
 #include <linux/proc_fs.h>
 #include <linux/errno.h>
 #include <linux/types.h>
+#include <portability.h>
 
 #if LINUX_VERSION_CODE >= VERSION_CODE(2,1,0)
 #  include <asm/uaccess.h>
@@ -949,6 +946,16 @@ void cleanup_module(void)
 
 /****************************************************
  * $Log: proc_ha.c,v $
+ * Revision 1.4  2003/01/31 10:02:10  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.3  1999/10/05 06:01:00  alanr
  * Added RPM Cflags to Makefiles
  *

@@ -1629,7 +1629,7 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 }
 
 static char	APILogBuf[MAXLINE] = "";
-int		BufLen = 0;
+size_t		BufLen = 0;
 
 static void
 ClearLog(void)
@@ -1648,7 +1648,7 @@ APIError(ll_cluster_t* lcl)
 static void
 ha_api_log(int priority, const char * fmt, ...)
 {
-	int	len;
+	size_t	len;
         va_list ap;
         char buf[MAXLINE];
  

@@ -22,8 +22,8 @@
  */
 
 #define	EOS			'\0'
-#define	DIMOF(a)		(sizeof(a)/sizeof(a[0]))
-#define	STRLEN(conststr)	((sizeof(conststr)/sizeof(char))-1)
+#define	DIMOF(a)		((int) (sizeof(a)/sizeof(a[0])) )
+#define	STRLEN(conststr)	((int)(sizeof(conststr)/sizeof(char))-1)
 
 /* This is consistent with OpenBSD, and is a good choice anyway */
 #define	TIME_T	unsigned long

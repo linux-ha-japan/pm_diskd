@@ -113,9 +113,9 @@ struct apphb_client {
 	uid_t			uid;		/* application UID */
 	gid_t			gid;		/* application GID */
 	guint			timerid;	/* timer source id */
-	long			timerms;	/* heartbeat timeout in ms */
+	unsigned long		timerms;	/* heartbeat timeout in ms */
 	longclock_t		lasthb;		/* Last HB time */
-	long			warnms;		/* heartbeat warntime in ms */
+	unsigned long		warnms;		/* heartbeat warntime in ms */
 	gboolean		missinghb;	/* True if missing a hb */
 	GCHSource*		source;
 	IPC_Channel*		ch;
@@ -148,10 +148,10 @@ static void apphb_putrc(apphb_client_t* client, int rc);
 static gboolean	apphb_timer_popped(gpointer data);
 static gboolean	tickle_watchdog_timer(gpointer data);
 static apphb_client_t* apphb_client_new(struct IPC_CHANNEL* ch);
-static int apphb_client_register(apphb_client_t* client, void* Msg, int len);
+static int apphb_client_register(apphb_client_t* client, void* Msg, size_t len);
 static gboolean apphb_read_msg(apphb_client_t* client);
-static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
-void apphb_process_msg(apphb_client_t* client, void* msg,  int length);
+static int apphb_client_hb(apphb_client_t* client, void * msg, size_t msgsize);
+void apphb_process_msg(apphb_client_t* client, void* msg,  size_t length);
 static int authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
 
 /* "event source" functions for client communication */
@@ -273,10 +273,10 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 
 /* Process client registration message */
 static int
-apphb_client_register(apphb_client_t* client, void* Msg,  int length)
+apphb_client_register(apphb_client_t* client, void* Msg,  size_t length)
 {
 	struct apphb_signupmsg*	msg = Msg;
-	int			namelen = -1;
+	size_t			namelen = 0;
 	uid_t			uidlist[1];
 	gid_t			gidlist[1];
 	IPC_Auth*		clientauth;
@@ -359,7 +359,7 @@ apphb_client_remove(gpointer Client)
 
 /* Client requested disconnect */
 static int
-apphb_client_disconnect(apphb_client_t* client , void * msg, int msgsize)
+apphb_client_disconnect(apphb_client_t* client , void * msg, size_t msgsize)
 {
 	/* We can't delete it right away... */
 	client->deleteme=TRUE;
@@ -369,11 +369,11 @@ apphb_client_disconnect(apphb_client_t* client , void * msg, int msgsize)
 
 /* Client requested new timeout interval */
 static int
-apphb_client_set_timeout(apphb_client_t* client, void * Msg, int msgsize)
+apphb_client_set_timeout(apphb_client_t* client, void * Msg, size_t msgsize)
 {
 	struct apphb_msmsg*	msg = Msg;
 
-	if (msgsize < sizeof(*msg) || msg->ms < 0) {
+	if (msgsize < sizeof(*msg)) {
 		return EINVAL;
 	}
 	client->timerms = msg->ms;
@@ -382,11 +382,11 @@ apphb_client_set_timeout(apphb_client_t* client, void * Msg, int msgsize)
 
 /* Client requested new warntime interval */
 static int
-apphb_client_set_warntime(apphb_client_t* client, void * Msg, int msgsize)
+apphb_client_set_warntime(apphb_client_t* client, void * Msg, size_t msgsize)
 {
 	struct apphb_msmsg*	msg = Msg;
 
-	if (msgsize < sizeof(*msg) || msg->ms < 0) {
+	if (msgsize < sizeof(*msg)) {
 		return EINVAL;
 	}
 	client->warnms = msg->ms;
@@ -397,7 +397,7 @@ apphb_client_set_warntime(apphb_client_t* client, void * Msg, int msgsize)
 
 /* Client heartbeat received */
 static int
-apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
+apphb_client_hb(apphb_client_t* client, void * Msg, size_t msgsize)
 {
 	if (client->missinghb) {
 		apphb_notify(client, APPHB_HBAGAIN);
@@ -466,7 +466,7 @@ apphb_read_msg(apphb_client_t* client)
 struct hbcmd {
 	const char *	msg;
 	gboolean	senderrno;
-	int		(*fun)(apphb_client_t* client, void* msg, int len);
+	int		(*fun)(apphb_client_t* client, void* msg, size_t len);
 };
 
 /*
@@ -483,14 +483,13 @@ struct hbcmd	hbcmds[] =
 
 /* Process a message from an app heartbeat client process */
 void
-apphb_process_msg(apphb_client_t* client, void* Msg,  int length)
+apphb_process_msg(apphb_client_t* client, void* Msg,  size_t length)
 {
 	struct apphb_msg *	msg = Msg;
 	const int		sz1	= sizeof(msg->msgtype)-1;
 	int			rc	= EINVAL;
 	gboolean		sendrc	= TRUE;
 	int			j;
-
 
 	if (length < sizeof(*msg)) {
 		return;

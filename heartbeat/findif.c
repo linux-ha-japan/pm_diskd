@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.19 2002/10/31 19:10:48 msoffen Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.20 2003/01/31 10:02:09 lars Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -105,7 +105,6 @@ void ValidateNetmaskBits (char *netmaskbits, long *netmask);
 const char *	cmdname = "findif";
 void usage(void);
 
-#define EOS	'\0'
 #define DELIM	'/'
 #define	BAD_NETMASK	(~0L)
 #define	BAD_BROADCAST	(0L)
@@ -199,8 +198,8 @@ int
 SearchUsingProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
 ,	 char *best_if, unsigned long *best_netmask, char *errmsg)
 {
-	long    dest, gw, flags, refcnt, use, metric, mask;
-	int	best_metric = INT_MAX;
+	long    flags, refcnt, use, metric, dest, gw, mask;
+	long	best_metric = LONG_MAX;
 	
 	char	buf[2048];
 	char	interface[MAXSTR];
@@ -223,7 +222,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in, struct in_addr *addr_ou
 			,	PROCROUTE, buf);
 			return(1);
 		}
-		if ((in->s_addr&mask) == (dest&mask)
+		if ( (in->s_addr&mask) == (in_addr_t)(dest&mask)
 		&&	metric < best_metric) {
 			best_metric = metric;
 			*best_netmask = mask;
@@ -232,7 +231,7 @@ SearchUsingProcRoute (char *address, struct in_addr *in, struct in_addr *addr_ou
 	}
 	fclose(routefd);
 
-	if (best_metric == INT_MAX) {
+	if (best_metric == LONG_MAX) {
 		sprintf(errmsg, "No route to %s\n", address);
 		return(1); 
 	}
@@ -597,6 +596,16 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.20  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.19  2002/10/31 19:10:48  msoffen
  * Corrected the find route with "ROUTE" command handles the default route properly.
  *

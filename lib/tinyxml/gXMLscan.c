@@ -23,8 +23,6 @@
 #include "glibconfig.h"
 #include "XMLchars.h"
 
-#define EOS     '\0'    /* End of string - the NULL character */
-
 /* States */
 // this state enumeration is used for the state and action
 // tables 
@@ -418,7 +416,6 @@ static gchar
 gXMLLookupEscape(const char * s)
 {
 
-#define	DIMOF(a)	(sizeof(a)/sizeof(a[0]))
 	static GHashTable*	map = NULL;
 	
 	int			j;

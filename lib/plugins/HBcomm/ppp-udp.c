@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.9 2002/11/20 11:01:33 lars Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.10 2003/01/31 10:02:09 lars Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -117,10 +117,9 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.9 2002/11/20 11:01:33 lar
 #if defined(SO_BINDTODEVICE)
 #	include <net/if.h>
 #endif
+#include <portability.h>
 #include <heartbeat.h>
 #include <clplumbing/cl_signal.h>
-
-#define	EOS	'\0'
 
 struct ip_private {
 	struct hb_media *next;		/* Next UDP/PPP interface */
@@ -1213,6 +1212,16 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.10  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.9  2002/11/20 11:01:33  lars
  * Fixed a CVS merge artifact. (Bad horms! ;-)
  *

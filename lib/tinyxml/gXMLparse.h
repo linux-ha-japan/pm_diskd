@@ -24,6 +24,7 @@
 #define G_XML_PARSE_H
 
 #include <glib.h>
+#include <portability.h>
 #include "gXML.h"
 #include "gXMLwrap.h"
 #include "gXMLscan.h"

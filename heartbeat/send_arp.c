@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.12 2002/09/12 14:06:18 msoffen Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.13 2003/01/31 10:02:09 lars Exp $";
 /* 
  * send_arp
  * 
@@ -95,7 +95,7 @@ main(int argc, char *argv[])
     netmask = argv[5];
     
 #ifdef HAVE_LIBNET_1_0_API
-    if ((ip = libnet_name_resolve(argv[2], 1)) == -1) {
+    if ((ip = libnet_name_resolve(argv[2], 1)) == -1UL) {
         syslog(LOG_ERR, "Cannot resolve IP address\n");
         exit(EXIT_FAILURE);
     }
@@ -232,6 +232,16 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.13  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.12  2002/09/12 14:06:18  msoffen
  * Removed a write to stderr of ".", really served no purpose and always ran.
  * It was a carryover from the old send_arp.c.

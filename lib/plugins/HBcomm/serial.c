@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.21 2002/10/22 17:41:58 alan Exp $";
+const static char _serial_c_Id [] = "$Id: serial.c,v 1.22 2003/01/31 10:02:09 lars Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -655,6 +655,16 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.22  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.21  2002/10/22 17:41:58  alan
  * Added some documentation about deadtime, etc.
  * Switched one of the sets of FIFOs to IPC channels.

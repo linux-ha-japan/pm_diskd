@@ -22,7 +22,7 @@
  *
  */
 
-static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.4 2002/11/22 07:04:39 horms Exp $";
+static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.5 2003/01/31 10:02:09 lars Exp $";
 
 
 #define _USE_BSD
@@ -369,14 +369,14 @@ hb_signal_reread_config_action(void)
 			,	(unsigned long)buf.st_mtime
 			,	(unsigned long)config->cfg_time);
 		}
-		if (buf.st_mtime != config->cfg_time) {
+		if ((TIME_T)buf.st_mtime != config->cfg_time) {
 			hb_trigger_restart(TRUE);
 			/* We'll wait for the SIGQUIT */
 			return;
 		}
 		if (stat(KEYFILE, &buf) < 0) {
 			ha_perror("Cannot stat " KEYFILE);
-		}else if (buf.st_mtime != config->auth_time) {
+		}else if ((TIME_T)buf.st_mtime != config->auth_time) {
 			config->rereadauth = 1;
 			ha_log(LOG_INFO, "Rereading authentication file.");
 			signal_children = 1;

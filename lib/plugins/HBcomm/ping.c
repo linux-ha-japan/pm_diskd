@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.13 2002/10/18 07:16:10 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.14 2003/01/31 10:02:09 lars Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -73,8 +73,6 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.13 2002/10/18 07:16:10 alan Exp 
 #else
 #	define	ICMP_HDR_SZ	8
 #endif
-
-#define	EOS	'\0'
 
 #define PIL_PLUGINTYPE          HB_COMM_TYPE
 #define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
@@ -168,6 +166,8 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 {
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
+	(void)_udp_Id;
+
 	/* Force the compiler to do a little type checking */
 	(void)(PILPluginInitFun)PIL_PLUGIN_INIT;
 

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.237 2003/01/17 08:31:52 msoffen Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.238 2003/01/31 10:02:09 lars Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -349,8 +349,8 @@ static void	check_comm_isup(void);
 
 static int	send_local_status(void);
 static int	set_local_status(const char * status);
-static void	request_msg_rexmit(struct node_info *, unsigned long lowseq
-,		unsigned long hiseq);
+static void	request_msg_rexmit(struct node_info *, seqno_t lowseq
+,		seqno_t hiseq);
 static void	check_rexmit_reqs(void);
 static void	mark_node_dead(struct node_info* hip);
 static void	change_link_status(struct node_info* hip, struct link *lnk
@@ -364,17 +364,17 @@ static IPC_Message* hb_new_ipcmsg(const void* data, int len, IPC_Channel* ch
 static void	send_to_all_media(const char * smsg, int len);
 static int	should_drop_message(struct node_info* node
 ,		const struct ha_msg* msg, const char *iface);
-static int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
+static int	is_lost_packet(struct node_info * thisnode, seqno_t seq);
 static void	cause_shutdown_restart(void);
 static gboolean	CauseShutdownRestart(gpointer p);
 static void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
-,		unsigned long seq);
+,		seqno_t seq);
 static void	init_xmit_hist (struct msg_xmit_hist * hist);
 static void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
 static void	process_clustermsg(FILE * f);
 static void	process_registermsg(FILE * f);
-static void	nak_rexmit(unsigned long seqno, const char * reason);
-static int	IncrGeneration(unsigned long * generation);
+static void	nak_rexmit(seqno_t seqno, const char * reason);
+static int	IncrGeneration(seqno_t * generation);
 static void	process_control_packet(struct msg_xmit_hist* msghist
 ,	struct ha_msg * msg);
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
@@ -1465,7 +1465,7 @@ process_clustermsg(FILE * f)
 	int			action;
 	longclock_t		messagetime;
 	const char *		cseq;
-	unsigned long		seqno = 0;
+	seqno_t			seqno = 0;
 
 
 
@@ -2056,7 +2056,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 		,	centry->command);
 	}else{
 		const char *	devnull = "/dev/null";
-		int	j;
+		unsigned int	j;
 		struct rlimit		oflimits;
 		CL_SIGNAL(SIGCHLD, SIG_DFL);
 		alarm(0);
@@ -2159,7 +2159,7 @@ hb_trigger_restart(int quickrestart)
 static void
 restart_heartbeat(void)
 {
-	int			j;
+	unsigned int		j;
 	pid_t			curpid = getpid();
 	struct rlimit		oflimits;
 	int			killsig = SIGTERM;
@@ -2190,7 +2190,7 @@ restart_heartbeat(void)
 	CL_IGNORE_SIG(SIGTERM);
 
 	/* Kill our child processes */
-	for (j=0; j < procinfo->nprocs; ++j) {
+	for (j=0; j < (unsigned int)procinfo->nprocs; ++j) {
 		pid_t	pid = procinfo->info[j].pid;
 		if (pid != curpid) {
 			ha_log(LOG_INFO, "Killing process %d with signal %d"
@@ -3183,8 +3183,8 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	const char *		to = ha_msg_value(msg, F_TO);
 	const char *		type = ha_msg_value(msg, F_TYPE);
 	const char *		cgen = ha_msg_value(msg, F_HBGENERATION);
-	unsigned long		seq;
-	unsigned long		gen = 0;
+	seqno_t			seq;
+	seqno_t			gen = 0;
 	int			IsToUs;
 	int			j;
 	int			isrestart = 0;
@@ -3197,7 +3197,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 		/* Is this a sequence number rexmit NAK? */
 		if (strcasecmp(type, T_NAKREXMIT) == 0) {
 			const char *	cnseq = ha_msg_value(msg, F_FIRSTSEQ);
-			unsigned long	nseq;
+			seqno_t		nseq;
 			if (cnseq  == NULL || sscanf(cnseq, "%lx", &nseq) != 1
 			||	nseq <= 0) {
 				ha_log(LOG_ERR
@@ -3304,9 +3304,9 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	/* Is it newer than the last packet we got? */
 
 	if (seq > t->last_seq) {
-		unsigned long	k;
-		unsigned long	nlost;
-		nlost = ((unsigned long)(seq - (t->last_seq+1)));
+		seqno_t	k;
+		seqno_t	nlost;
+		nlost = ((seqno_t)(seq - (t->last_seq+1)));
 		ha_log(LOG_WARNING, "%lu lost packet(s) for [%s] [%lu:%lu]"
 		,	nlost, thisnode->nodename, t->last_seq, seq);
 
@@ -3329,7 +3329,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 				++t->nmissing;
 			}else{
 				int		minmatch = -1;
-				unsigned long	minseq = INT_MAX;
+				seqno_t		minseq = INT_MAX;
 				/*
 				 * Replace the lowest numbered missing seqno
 				 * with this one
@@ -3410,7 +3410,7 @@ process_control_packet(struct msg_xmit_hist*	msghist
 	const char *	type;
 	int		len;
 	const char *	cseq;
-	unsigned long	seqno = -1;
+	seqno_t		seqno = -1;
 	const  char *	to;
 	int		IsToUs;
 
@@ -3477,7 +3477,7 @@ process_control_packet(struct msg_xmit_hist*	msghist
  * If so, clean up after it.
  */
 static int
-is_lost_packet(struct node_info * thisnode, unsigned long seq)
+is_lost_packet(struct node_info * thisnode, seqno_t seq)
 {
 	struct seqtrack *	t = &thisnode->track;
 	int			j;
@@ -3508,8 +3508,8 @@ is_lost_packet(struct node_info * thisnode, unsigned long seq)
 }
 
 static void
-request_msg_rexmit(struct node_info *node, unsigned long lowseq
-,	unsigned long hiseq)
+request_msg_rexmit(struct node_info *node, seqno_t lowseq
+,	seqno_t hiseq)
 {
 	struct ha_msg*	hmsg;
 	char		low[16];
@@ -3605,7 +3605,7 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 /* Add a packet to a channel's transmit history */
 static void
 add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
-,	unsigned long seq)
+,	seqno_t seq)
 {
 	int	slot;
 
@@ -3636,9 +3636,9 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 {
 	const char *	cfseq;
 	const char *	clseq;
-	unsigned long	fseq = 0;
-	unsigned long	lseq = 0;
-	unsigned long	thisseq;
+	seqno_t		fseq = 0;
+	seqno_t		lseq = 0;
+	seqno_t		thisseq;
 	int		firstslot = hist->lastmsg-1;
 	int		rexmit_pkt_count = 0;
 
@@ -3669,7 +3669,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			 * Otherwise it's a bug ;-)
 			 */
 			ha_log(LOG_WARNING
-			,	"Rexmit of seq %lu requested. %d is max."
+			,	"Rexmit of seq %lu requested. %lu is max."
 			,	thisseq, hist->hiseq);
 			continue;
 		}
@@ -3741,7 +3741,7 @@ NextReXmit:/* Loop again */;
 	}
 }
 static void
-nak_rexmit(unsigned long seqno, const char * reason)
+nak_rexmit(seqno_t seqno, const char * reason)
 {
 	struct ha_msg*	msg;
 	char	sseqno[32];
@@ -3832,7 +3832,7 @@ ParseTestOpts()
 #endif
 
 static int
-IncrGeneration(unsigned long * generation)
+IncrGeneration(seqno_t * generation)
 {
 	char		buf[GENLEN+1];
 	int		fd;
@@ -3890,6 +3890,16 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.238  2003/01/31 10:02:09  lars
+ * Various small code cleanups:
+ * - Lots of "signed vs unsigned" comparison fixes
+ * - time_t globally replaced with TIME_T
+ * - All seqnos moved to "seqno_t", which defaults to unsigned long
+ * - DIMOF() definition centralized to portability.h and typecast to int
+ * - EOS define moved to portability.h
+ * - dropped inclusion of signal.h from stonith.h, so that sigignore is
+ *   properly defined
+ *
  * Revision 1.237  2003/01/17 08:31:52  msoffen
  * Updated to match current procftpd (in an attempt to get
  * setproctitle working on Solaris).
