@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.16 2003/02/07 08:37:18 horms Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.17 2003/04/03 17:36:33 msoffen Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -47,13 +47,19 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.16 2003/02/07 08:37:18 horms Exp
 #	include <netinet/in_systm.h>
 #endif /* HAVE_NETINET_IN_SYSTM_H */
 
-#ifdef HAVE_NETINET_IP_VAR_H
-#	include <netinet/ip_var.h>
-#endif /* HAVE_NETINET_IP_VAR_H */
+#ifdef HAVE_NETINET_IP_H
+#	include <netinet/ip.h>
+#endif /* HAVE_NETINET_IP_H */
+
+#include <netinet/ip_icmp.h>
 
 #ifdef HAVE_NETINET_IP_H
 #	include <netinet/ip.h>
 #endif /* HAVE_NETINET_IP_H */
+
+#ifdef HAVE_NETINET_IP_VAR_H
+#	include <netinet/ip_var.h>
+#endif /* HAVE_NETINET_IP_VAR_H */
 
 #ifdef HAVE_NETINET_IP_COMPAT_H
 #	include <netinet/ip_compat.h>
@@ -63,7 +69,6 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.16 2003/02/07 08:37:18 horms Exp
 #	include <netinet/ip_fw.h>
 #endif /* HAVE_NETINET_IP_FW_H */
 
-#include <netinet/ip_icmp.h>
 #include <netdb.h>
 #include <heartbeat.h>
 #include <HBcomm.h>
