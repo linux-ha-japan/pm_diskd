@@ -39,6 +39,8 @@ RPMstonith=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-stonith-$(VERSION)-$(RPMREL)
 RPMpils=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-pils-$(VERSION)-$(RPMREL).i386.rpm
 RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-ldirectord-$(VERSION)-$(RPMREL).i386.rpm
 
+ALL_RPMS = $(RPMSRC) $(RPM386) $(RPMstonith) $(RPMldir) $(RPMpils)
+
 AUTOMAKE_OPTIONS	= foreign
 ##ACLOCAL                 = aclocal -I $(auxdir)
 
@@ -54,6 +56,8 @@ SUBDIRS                 = libltdl doc debian replace include lib \
 DIST_SUBDIRS                 = libltdl doc debian replace include lib \
                         telecom ldirectord heartbeat \
                         cts linux-ha membership contrib config
+
+HANDY_DOCS = doc/ChangeLog doc/GettingStarted.html doc/DirectoryMap.txt
 
 # Pass these to configure when running "make distcheck"
 DISTCHECK_CONFIGURE_FLAGS = --with-initdir=prefix
@@ -72,7 +76,7 @@ handy: drpm handy-copy
 handy-copy:
 	cd doc; $(MAKE) ChangeLog
 	rm -f $(WEBDIR)/ChangeLog
-	cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(RPMstonith) $(RPMldir) $(RPMpils) $(WEBDIR)
+	cp $(HANDY_DOCS) $(TARFILE) $(ALL_RPMS) $(WEBDIR)
 
 
 
