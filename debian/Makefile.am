@@ -26,12 +26,12 @@ EXTRA_DIST	        = changelog control copyright dpkg-checkbuild \
                           heartbeat-ldirectord.postinst \
                           heartbeat-ldirectord.postrm \
                           heartbeat-pils.dirs heartbeat-pils.files \
-			  heartbeat-pils-dev.files \
+			  heartbeat-pils-dev.dirs heartbeat-pils-dev.files \
                           heartbeat-stonith.dirs heartbeat-stonith.files \
 			  heartbeat-stonith-dev.files \
                           heartbeat-stonith.postinst heartbeat.conffiles \
                           heartbeat.dirs heartbeat.files \
-			  heartbeat-dev.files \
+			  heartbeat-dev.dirs heartbeat-dev.files \
                           heartbeat.postinst heartbeat.postrm \
 			  rules
 
