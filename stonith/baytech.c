@@ -115,6 +115,8 @@ static int RPCLogout(struct BayTech * bt);
 static void RPCkillcomm(struct BayTech * bt);
 
 static int	RPC_set_configfile(Stonith *, const char * cfgname);
+static const char*	RPC_confi_syntax(Stonith*);
+static const char*	RPC_conff_syntax(Stonith*);
 static int	RPC_provide_config_info(Stonith *, const char * info);
 static int	RPC_parse_config_info(struct BayTech* bt, const char * info);
 static const char * RPC_idinfo(Stonith* s);
@@ -840,6 +842,23 @@ RPC_idinfo(Stonith * s)
 
 	return(bt->idinfo);
 }
+static const char*
+RPC_confi_syntax(Stonith* s)
+{
+	return
+	"IP-address login password\n"
+	"The IP-address and login are white-space delimited.";
+}
+
+static const char*
+RPC_conff_syntax(Stonith* s)
+{
+	return
+	"IP-address login password\n"
+	"The IP-address and login are white-space delimited. "
+	"All three items must be on one line. "
+	"Blank lines and lines beginning with # are ignored";
+}
 /*
  *	Baytech Stonith destructor...
  */
@@ -888,7 +907,9 @@ baytech_del(Stonith *s) {
 static struct stonith_ops	BayTech_ops = {
 	baytech_del,		/* delete		*/
 	RPC_set_configfile,	/* set_config_file	*/
+	RPC_conff_syntax,	/* conf_file_syntax	*/
 	RPC_provide_config_info,/* provide_config_info	*/
+	RPC_confi_syntax,	/* conf_info	*/
 	RPC_idinfo,		/* devid		*/
 	RPC_status,		/* status		*/
 	RPC_reset_host,		/* reset_host		*/

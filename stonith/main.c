@@ -8,7 +8,7 @@
 #include <syslog.h>
 #include "stonith.h"
 
-#define	OPTIONS	"F:p:t:sSlv"
+#define	OPTIONS	"F:p:t:sSlvL"
 
 void usage(const char * cmd);
 
@@ -36,6 +36,7 @@ main(int argc, char** argv)
 	int		status = 0;
 	int		silent = 0;
 	int		listhosts = 0;
+	int		listtypes = 0;
 
 	extern char *	optarg;
 	extern int	optind, opterr, optopt;
@@ -56,6 +57,9 @@ main(int argc, char** argv)
 				break;
 
 		case 'l':	++listhosts;
+				break;
+
+		case 'L':	++listtypes;
 				break;
 
 		case 'p':	parameters = optarg;
@@ -81,7 +85,8 @@ main(int argc, char** argv)
 		++errors;
 	}
 	argcount = argc - optind;
-	if (!(argcount == 1 || (argcount < 1 && (status||listhosts)))) {
+	if (!(argcount == 1 || (argcount < 1
+	&& (status||listhosts||listtypes)))) {
 		++errors;
 	}
 
@@ -108,6 +113,8 @@ main(int argc, char** argv)
 			syslog(LOG_ERR
 			,	"Invalid config file for %s device."
 			,	SwitchType);
+			syslog(LOG_ERR, "Config file syntax: %s"
+			,	s->s_ops->conf_file_syntax(s));
 			s->s_ops->delete(s);
 			exit(rc);
 		}
@@ -116,6 +123,8 @@ main(int argc, char** argv)
 			syslog(LOG_ERR
 			,	"Invalid config info for %s device"
 			,	SwitchType);
+			syslog(LOG_ERR, "Config info syntax: %s"
+			,	s->s_ops->conf_info_syntax(s));
 			s->s_ops->delete(s);
 			exit(rc);
 		}
@@ -151,6 +160,20 @@ main(int argc, char** argv)
 				printf("%s\n", *this);
 			}
 			s->s_ops->free_hostlist(hostlist);
+		}
+	}
+	if (listtypes) {
+		const char **	typelist;
+
+		typelist = stonith_types();
+		if (s == NULL) {
+			syslog(LOG_ERR, "Could not list Stonith types.");
+		}else{
+			const char **	this;
+
+			for(this=typelist; *this; ++this) {
+				printf("%s\n", *this);
+			}
 		}
 	}
 

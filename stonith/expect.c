@@ -8,6 +8,9 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <sys/times.h>
+#ifdef _POSIX_PRIORITY_SCHEDULING
+#	include <sched.h>
+#endif
 
 #include "expect.h"
 
@@ -118,8 +121,8 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 				 * If we already had a match (matchto is
 				 * greater than zero), we look for a match
 				 * of the tail of the pattern matched so far
-				 * (with the current character) against the head
-				 * of the pattern.
+				 * (with the current character) against the
+				 * head of the pattern.
 				 */
 
 				/*
@@ -129,8 +132,8 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 				 */
 
 				for (curlen = (this->matchto)
-				;	nomatch && curlen >= 0;
-					--curlen) 				{
+				;	nomatch && curlen >= 0
+				;	--curlen) 			{
 					const char *	tail;
 					tail=(this->string)
 					+	this->matchto
@@ -158,6 +161,10 @@ ExpectToken(int	fd, struct Etoken * toklist, int to_secs, char * buf
 	return(-1);
 }
 
+/*
+ * Start a process with its stdin and stdout redirected to pipes
+ * so the parent process can talk to it.
+ */
 int
 StartProcess(const char * cmd, int * readfd, int * writefd)
 {
@@ -199,7 +206,23 @@ StartProcess(const char * cmd, int * readfd, int * writefd)
 				dup2(rdpipe[1], 1);
 				close(rdpipe[0]);
 				close(rdpipe[1]);
-
+#if defined(SCHED_OTHER)
+			{
+				/*
+				 * Try and (re)set our scheduling to "normal"
+				 * Sometimes our callers run in soft
+				 * real-time mode.  The program we exec might
+				 * not be very well behaved - this is bad for
+				 * operation in high-priority (soft real-time)
+				 * mode.  In particular, telnet is prone to
+				 * going into infinite loops when killed.
+				 */
+				struct sched_param	sp;
+				memset(&sp, 0, sizeof(sp));
+				sp.sched_priority = 0;
+				sched_setscheduler(0, SCHED_OTHER, &sp);
+			}
+#endif
 				execlp("/bin/sh", "sh", "-c", cmd, NULL);
 				perror("cannot exec shell!");
 				exit(1);
