@@ -31,7 +31,7 @@
 #include <errno.h>
 #include <apphb.h>
 
-void doatest(void);
+void doatest(int delaysecs);
 int
 main(int argc,char ** argv)
 {
@@ -43,7 +43,7 @@ main(int argc,char ** argv)
 	}
 
 	if (max == 1)  {
-		doatest();
+		doatest(0);
 		return 0;
 	}
 
@@ -51,7 +51,7 @@ main(int argc,char ** argv)
 		switch(fork()){
 
 		case 0:
-			doatest();
+			doatest(5);
 			exit(0);
 			break;
 		case -1:
@@ -66,14 +66,17 @@ main(int argc,char ** argv)
 	return(0);
 }
 void
-doatest(void)
+doatest(int delaysecs)
 {
 	int	j;
 	int	rc;
 
 	
-	fprintf(stderr, "Sleep 5 (%ld)\n", (long)(getpid()));
-	sleep(5);
+	if (delaysecs) {
+		fprintf(stderr, "Sleep %d (%ld)\n"
+		,	delaysecs, (long)(getpid()));
+		sleep(delaysecs);
+	}
 	fprintf(stderr, "Client starting - pid: %ld\n", (long) getpid());
 	rc = apphb_register("test program", "normal");
 	if (rc < 0) {

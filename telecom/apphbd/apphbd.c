@@ -106,6 +106,8 @@
 #endif
 
 const char *	cmdname = "apphbd";
+#define		DBGMIN		1
+#define		DBGDETAIL	2
 int		debug = 0;
 
 
@@ -262,6 +264,10 @@ apphb_prepare(gpointer Src, GTimeVal*now, gint*timeout, gpointer Client)
 		apphb_client_remove(client);
 		return FALSE;
 	}
+	if (debug >= DBGDETAIL) {
+		 syslog(LOG_DEBUG, "apphb_prepare: client: %ld\n"
+		,	(long)client->pid);
+	}
 	return FALSE;
 }
 
@@ -273,6 +279,10 @@ apphb_check(gpointer Src, GTimeVal*now, gpointer Client)
 	apphb_client_t*		client  = Client;
 
 
+	if (debug >= DBGDETAIL) {
+		syslog(LOG_DEBUG, "apphb_check: client: %ld, revents: 0x%x"
+		,	(long)client->pid, src->revents);
+	}
 	client->ch->ops->resume_io(client->ch);
 
 	return src->revents != 0
@@ -286,16 +296,24 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 	GPollFD*		src = Src;
 	apphb_client_t*		client  = Client;
 
+	if (debug >= DBGDETAIL) {
+		syslog(LOG_DEBUG, "apphb_dispatch: client: %ld, revents: 0x%x"
+		,	(long)client->pid, src->revents);
+	}
 	if (src->revents & G_IO_HUP) {
 		apphb_notify(client, APPHB_HUP);
 		client->deleteme = TRUE;
-		return FALSE;
+		return TRUE;
 	}
 
 	client->ch->ops->resume_io(client->ch);
 
 	while (client->ch->ops->is_message_pending(client->ch)) {
-		apphb_read_msg(client);
+		if (client->ch->ch_status == IPC_DISCONNECT) {
+			client->deleteme = TRUE;
+		}else{
+			apphb_read_msg(client);
+		}
 	}
 	return TRUE;
 }
@@ -410,6 +428,17 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 	client->uid = msg->uid;
 	client->gid = msg->gid;
 
+	if (debug >= DBGMIN) {
+		syslog(LOG_DEBUG
+		,	"apphb_client_register: client: [%s]/[%s] pid %ld"
+		" (uid,gid) = (%ld,%ld)\n"
+		,	client->appname
+		,	client->appinst
+		,	(long)client->pid
+		,	(long)client->uid
+		,	(long)client->gid);
+	}
+
 	/* Tell the plugins something happened */
 	for (j=0; j < n_Notification_Plugins; ++j) {
 		NotificationPlugins[j]->cregister(client->pid
@@ -424,6 +453,10 @@ apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 void
 apphb_client_remove(apphb_client_t* client)
 {
+	if (debug >= DBGMIN) {
+		syslog(LOG_DEBUG, "apphb_client_remove: client: %ld\n"
+		,	(long)client->pid);
+	}
 	if (client->sourceid) {
 		g_source_remove(client->sourceid);
 		client->sourceid=0;
@@ -586,6 +619,9 @@ static gboolean
 apphb_new_prepare(gpointer src, GTimeVal*now, gint*timeout
 ,	gpointer user)
 {
+	if (debug >= DBGDETAIL) {
+		syslog(LOG_DEBUG, "apphb_new_prepare");
+	}
 	return FALSE;
 }
 
@@ -594,6 +630,10 @@ static gboolean
 apphb_new_check(gpointer Src, GTimeVal*now, gpointer user)
 {
 	GPollFD*	src = Src;
+	if (debug >= DBGDETAIL) {
+		syslog(LOG_DEBUG, "apphb_new_check: revents: 0x%x"
+		,	src->revents);
+	}
 	return src->revents != 0;
 }
 
@@ -604,7 +644,12 @@ apphb_new_dispatch(gpointer Src, GTimeVal*now, gpointer user)
 {
 	struct IPC_WAIT_CONNECTION*		conn = user;
 	struct IPC_CHANNEL*			newchan;
+	GPollFD*				src = Src;
 
+	if (debug >= DBGMIN) {
+		syslog(LOG_DEBUG, "apphb_new_dispatch: revents: 0x%x"
+		,	src->revents);
+	}
 	newchan = conn->ops->accept_connection(conn, NULL);
 	if (newchan != NULL) {
 		/* This sets up comm channel w/client
@@ -676,7 +721,7 @@ extern pid_t getsid(pid_t);
  */
 GMainLoop*	mainloop = NULL;
 
-#define OPTARGS	"sSrRw:n:"
+#define OPTARGS	"sSrRwd:n:"
 int
 main(int argc, char ** argv)
 {
@@ -707,6 +752,9 @@ main(int argc, char ** argv)
 			case 'n':		/* Plugin */
 			load_notification_plugin(optarg);
 			break;
+
+			case 'd':		/* Debug */
+			debug += 1;
 		}
 	}
 
@@ -826,6 +874,7 @@ make_daemon(void)
 	getsid(0);
 	for (j=0; j < 3; ++j) {
 		close(j);
+		(void)open("/dev/null", j == 0 ? O_RDONLY : O_RDONLY);
 	}
 
 	IGNORESIG(SIGINT);
