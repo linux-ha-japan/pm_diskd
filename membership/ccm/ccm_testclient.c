@@ -48,7 +48,7 @@ my_ms_events(oc_ed_t event, void *cookie,
 			event==OC_EV_MS_NEW_MEMBERSHIP?"NEW MEMBERSHIP":
 		        event==OC_EV_MS_NOT_PRIMARY?"NOT PRIMARY":
 			event==OC_EV_MS_PRIMARY_RESTORED?"PRIMARY RESTORED":
-			event==OC_EV_MS_PRIMARY_RESTORED?"EVICTED":
+			event==OC_EV_MS_EVICTED?"EVICTED":
 			      "NO QUORUM MEMBERSHIP");
 
 	if(OC_EV_MS_EVICTED == event) {
