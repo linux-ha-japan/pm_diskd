@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.31 2001/08/10 05:39:26 horms Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.32 2001/08/10 06:05:21 horms Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -140,7 +140,8 @@ generic_symbol_load(const char * module
 	char modlen = strlen(module);
 	char modulename[MAX_FUNC_NAME];
 
-	strncpy(modulename, module, sizeof(modulename));
+        bzero(modulename, sizeof(modulename));
+	strncpy(modulename, module, sizeof(modulename) - 1);
 	if (modlen > STRLEN(MODULESUFFIX)
 	&&	strcmp(MODULESUFFIX
 		,	modulename+modlen-(STRLEN(MODULESUFFIX)+1))) {
