@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.16 2001/06/03 08:26:15 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.17 2001/06/04 16:53:39 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -468,7 +468,6 @@ module_init(void)
     _module_error = multi_init_error;
     return HA_FAIL;
 }
-#define NEWMODULECODE 1
 #ifdef NEWMODULECODE
 /*
  *	Herein lie many fragments and pieces of the new module loading scheme...
@@ -628,9 +627,9 @@ ml_get_module_list	/* Return (sorted) list of available module names */
  *
  * THINGS IN THIS DESIGN WHICH ARE KNOWN TO BE BROKEN...
  *
- * I think the AutoLoad environment still has some unnecessary global variables implied
- * by it's interfaces...  It could be improved.
- *
+ * I think the MLModuleEnv/MLModuleSet environment may still has some
+ * unnecessary global variables implied by it's interfaces...  It needs to
+ * be improved/finished.
  *
  *************************************************************************************
  */
@@ -639,10 +638,11 @@ typedef int				ML_rc;	/* Return code from Module functions */
 typedef struct mlModuleImports_s	MLModuleImports;
 typedef struct mlModuleOps_s		MLModuleOps;
 typedef struct mlModule_s		MLModule;
+typedef struct mlModuleSet_s		MLModuleSet;
 
 
 /*
- * struct mlModule_s (typedef MLModule) is the structure which represents a
+ * struct mlModule_s (typedef MLModule) is the structure which represents/defines a
  * module, and is used to identify which module is being referred to in
  * various function calls.
  *
@@ -690,6 +690,7 @@ struct mlModuleImports_s {
 	void	(*log)	(int priority, const char * fmt, ...); // Logging function
 };
 
+MLModuleSet*	NewMLModuleSet(const char * basemoduledirectory);
 
 /************************************************************************************
  *
@@ -707,27 +708,25 @@ struct mlModuleImports_s {
 
 typedef struct mlModEnv_s		MLModEnv;
 
-extern MLModEnv* NewMLModuleEnvironment(const char * moduletype
-					, const char* moduledirectory
-					, MLModuleImports * imports);
-/*
- * MLEnableModClassAutoLoading is called once to enable automatic module loading
- * by the class of module requested.
- */
-extern ML_rc	MLEnableModClassAutoLoading(const char *basemoduledirectory
-		,	MLModuleImports* imports);
+extern MLModEnv* NewMLModuleEnvironment(MLModuleSet* globalenv
+	,	const char * moduletype
+	,	const char* moduledirectory
+	,	MLModuleImports * imports);
 
-extern MLModEnv*	MLModuleEnvironment(const char * moduletype);
+extern MLModEnv*	MLModuleEnvironment(MLModEnv* env, const char * moduletype);
 
 /*
  * MLForEachEnv calls 'fun2call' once for each environment in
  * the autoload module environment.
  */
-extern void	MLForEachEnv(void (*fun2call)(MLModEnv*, void*private), void *private);
+extern void	MLForEachEnv(MLModuleSet* envset
+		,	void (*fun2call)(MLModEnv*, void*private)
+		,	void *private);
 
 struct mlModEnv_s {
 	const char *		moduletype;
 	const char *		basemoduledirectory;
+	MLModuleSet*		globalenv;
 	MLModuleImports*	imports;
 	void*			moduleinfo;	/* Private data */
 
@@ -752,7 +751,15 @@ struct mlModEnv_s {
  * Each plugin handler registers and deals with plugins of a given type.
  *
  * Such a plugin must be loaded before any modules of it's type can be loaded.
- * PluginHandlers will be autoloaded, however, if certain conditions are met...
+ *
+ * In order to load any module of type "foo", we must load a plugin of type
+ * "PluginHandler" named "foo".  This plugin then handles the registration of
+ * all plugins of type foo.
+ *
+ * To bootstrap, we load a plugin of type "PluginHandler" named "PluginHander"
+ * during the initialization of the module system.
+ *
+ * PluginHandlers will be autoloaded if certain conditions are met...
  *
  * If a PluginHandler is to be autoloaded, it must be one plugin handler per file,
  * and the file named according to the type of the plugin it implements, and loaded
