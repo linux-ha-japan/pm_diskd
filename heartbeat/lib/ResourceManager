@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager,v 1.9 2001/02/07 07:01:02 alan Exp $
+#	$Id: ResourceManager,v 1.10 2001/02/07 07:10:21 alan Exp $
 #
 #	New haresources format:
 #
@@ -284,6 +284,7 @@ VerifyAllIdle() {
     if
       we_own_resource $rsc
     then
+      echo "ERROR: Resource $rsc is active, and should not be." >&2
       ha_log "ERROR: Resource $rsc is active, and should not be."
       rc=`expr $rc + 1`
     fi
@@ -316,10 +317,13 @@ esac
 
 #
 #	$Log: ResourceManager,v $
+#	Revision 1.10  2001/02/07 07:10:21  alan
+#	Added code to verify that all resources are idle when starting heartbeat.
+#
 #	Revision 1.9  2001/02/07 07:01:02  alan
 #	Added a verifyallidle action to the ResourceManger for use in
 #	startup scripts.
-#
+#	
 #	Revision 1.8  2001/02/01 11:52:05  alan
 #	Change things to that things occur in the right order.
 #	We need to not start timing message reception until we're completely started.

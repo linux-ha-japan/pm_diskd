@@ -1,10 +1,10 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.32 2000/12/23 05:08:59 horms Exp $
+#	$Id: heartbeat.sh,v 1.33 2001/02/07 07:10:20 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
-# Author:       Alan Robertson	<alanr@suse.com>
+# Author:       Alan Robertson	<alanr@unix.sh>
 #
 #		This script works correctly under SuSE, Debian,
 #		Conectiva and a few others.  Please let me know if it
@@ -178,6 +178,7 @@ start_heartbeat() {
 
 StartHA() {
   echo -n "Starting High-Availability services: "
+  $HA_BIN/ResourceManager verifyallidle
   if
     [ $USE_MODULES = 1 ]
   then
@@ -285,6 +286,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.33  2001/02/07 07:10:20  alan
+#  Added code to verify that all resources are idle when starting heartbeat.
+#
 #  Revision 1.32  2000/12/23 05:08:59  horms
 #  Cleaned up debian flims
 #
