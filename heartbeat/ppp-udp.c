@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.6 1999/10/25 15:35:03 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.7 2000/05/17 13:01:49 alan Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -19,9 +19,9 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.6 1999/10/25 15:35:03 ala
  *
  *	But unlike both of those two methods, this one is a real pain in the
  *	neck, because of the interactions with starting, stopping and hanging
- *	pppd processes.  The current version appears to be quite robust with
- *	respect to various kinds of problems, but time will really tell
- *	the tale on this one.
+ *	pppd processes.  The current version appears to work reasonably well
+ *	with respect to various kinds of problems, but appears to still have
+ *	problems.  As a result, this method is not recommended.
  *
  *	Addressing:
  *	We require that all the PPP links be given private (non-routable)
@@ -1159,6 +1159,11 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.7  2000/05/17 13:01:49  alan
+ * Changed argv[0] and cmdname to be shorter.
+ * Changed ha parsing function to close ha.cf.
+ * Changed comments in ppp-udp so that it notes the current problems.
+ *
  * Revision 1.6  1999/10/25 15:35:03  alan
  * Added code to move a little ways along the path to having error recovery
  * in the heartbeat protocol.

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.9 2000/05/09 00:38:44 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.10 2000/05/17 13:01:49 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -446,6 +446,7 @@ parse_ha_resources(const char * cfgfile)
 			rc = HA_FAIL;
 		}
 	}
+	fclose(f);
 	return(rc);
 }
 

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.48 2000/05/11 22:47:50 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.49 2000/05/17 13:01:49 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -532,8 +532,8 @@ initialize_heartbeat()
 /*
  *	Optimal starting order:
  *		master_status_process();
- *		read_child();
  *		write_child();
+ *		read_child();
  *		control_process(FILE * f);
  *
  */
@@ -1897,6 +1897,11 @@ main(int argc, const char ** argv)
 	pid_t	running_hb_pid = get_running_hb_pid();
 
 	cmdname = argv[0];
+	if ((cmdname = strrchr(cmdname, '/')) != NULL) {
+		++cmdname;
+		argv[0] = cmdname;
+	}
+
 	Argc = argc;
 	Argv = argv;
 
@@ -2754,6 +2759,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.49  2000/05/17 13:01:49  alan
+ * Changed argv[0] and cmdname to be shorter.
+ * Changed ha parsing function to close ha.cf.
+ * Changed comments in ppp-udp so that it notes the current problems.
+ *
  * Revision 1.48  2000/05/11 22:47:50  alan
  * Minor changes, plus code to put in hooks for the new API.
  *
