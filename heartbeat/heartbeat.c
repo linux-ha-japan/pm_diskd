@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.253 2003/04/18 07:48:28 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.254 2003/04/23 01:31:16 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -485,6 +485,9 @@ void
 hb_versioninfo(void)
 {
 	static int	everprinted=0;
+	char		cmdline[MAXLINE];
+	char		buf[MAXLINE];
+	FILE	 	*f;
 
 	ha_log(LOG_INFO, "%s: version %s", cmdname, VERSION);
 
@@ -495,37 +498,34 @@ hb_versioninfo(void)
 	 * under load.
 	 * FIXME!  We really need fork anyway...
 	 */
-	if (ANYDEBUG && !everprinted) {
-		char	cmdline[MAXLINE];
-		char	buf[MAXLINE];
-		FILE *	f;
-
-		/*
-		 * Do 'strings' on ourselves, and look for version info...
-		 */
-
-		/* This command had better be well-behaved! */
-
-		snprintf(cmdline, MAXLINE
-			/* Break up the string so RCS won't react to it */
-		,	"strings %s/%s | grep '^\\$"
-			"Id" ": .*\\$' | sort -u"
-		,	HALIB, cmdname);
-
-
-		if ((f = popen(cmdline, "r")) == NULL) {
-			ha_perror("Cannot run: %s", cmdline);
-			return;
-		}
-		while (fgets(buf, MAXLINE, f)) {
-			++everprinted;
-			if (buf[strlen(buf)-1] == '\n') {
-				buf[strlen(buf)-1] = EOS;
-			}
-			ha_log(LOG_INFO, "%s", buf);
-		}
-		pclose(f);
+	if (!(ANYDEBUG && !everprinted)) {
+		return;
 	}
+
+	/*
+	 * Do 'strings' on ourselves, and look for version info...
+	 */
+
+	/* This command had better be well-behaved! */
+	snprintf(cmdline, MAXLINE
+		/* Break up the string so RCS won't react to it */
+	,	"strings %s/%s | grep '^\\$Id" ": .*\\$' | sort -u"
+	,	HALIB, cmdname);
+
+	if ((f = popen(cmdline, "r")) == NULL) {
+		ha_perror("Cannot run: %s", cmdline);
+		return;
+	}
+
+	while (fgets(buf, MAXLINE, f)) {
+		++everprinted;
+		if (buf[strlen(buf)-1] == '\n') {
+			buf[strlen(buf)-1] = EOS;
+		}
+		ha_log(LOG_INFO, "%s", buf);
+	}
+
+	pclose(f);
 }
 
 /* Look up the interface in the node struct, returning the link info structure*/
@@ -4020,6 +4020,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.254  2003/04/23 01:31:16  horms
+ * Return early to avoid excessive indenting
+ *
  * Revision 1.253  2003/04/18 07:48:28  alan
  * Fixed the string length of a message to be retransmitted.
  *
