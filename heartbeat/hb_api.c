@@ -80,6 +80,7 @@
 #include <hb_api.h>
 #include <hb_api_core.h>
 #include <hb_config.h>
+#include <hb_resource.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -119,6 +120,9 @@ static int api_iflist (const struct ha_msg* msg, struct ha_msg* resp
 static int api_get_parameter (const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason);
 
+static int api_get_resources (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
 void ProcessAnAPIRequest(client_proc_t* client);
 
 struct api_query_handler query_handler_list [] = {
@@ -131,6 +135,7 @@ struct api_query_handler query_handler_list [] = {
 	{ API_IFSTATUS, api_ifstatus },
 	{ API_IFLIST, api_iflist },
 	{ API_GETPARM, api_get_parameter},
+	{ API_GETRESOURCES, api_get_resources},
 };
 
 extern int	UseOurOwnPoll;
@@ -185,6 +190,7 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
 	(void)_hb_config_h_Id;
+	(void)_heartbeat_private_h_Id;
 
 	api_flush_pending_msgQ();
 
@@ -567,9 +573,28 @@ api_get_parameter (const struct ha_msg* msg, struct ha_msg* resp
 	if ((pvalue = GetParameterValue(pname)) != NULL) {
 		if (ha_msg_mod(resp, F_PVALUE, pvalue)) {
 			ha_log(LOG_ERR
-			,	"api_ifstatus: cannot add "
+			,	"api_parameter: cannot add "
 			F_PVALUE " field to message");
 		}
+	}
+	return I_API_RET;
+}
+static int
+api_get_resources (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+	const char *		ret;
+
+	if (!DoManageResources) {
+		*failreason = "EINVAL";
+		return I_API_BADREQ;
+	}
+
+	ret = hb_rsc_resource_state();
+	if (ha_msg_mod(resp, F_RESOURCES, ret) != HA_OK) {
+		ha_log(LOG_ERR
+		,	"api_get_resources: cannot add " F_RESOURCES
+		" field to message");
 	}
 	return I_API_RET;
 }

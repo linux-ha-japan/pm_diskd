@@ -404,6 +404,18 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 	takeover_from_node(hip->nodename);
 }
 
+const char *
+hb_rsc_resource_state(void)
+{
+	if (	other_is_stable && !takeover_in_progress && going_standby == NOT
+	&&	standby_running == 0L
+	&&	resourcestate == HB_R_STABLE) {
+		return decode_resources(procinfo->i_hold_resources);
+	}else{
+		return "transition";
+	}
+}
+
 /*
  * Here starts the nice_failback thing. The main purpouse of
  * nice_failback is to create a controlled failback. This
@@ -1874,6 +1886,10 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.29  2003/07/03 23:09:42  alan
+ * Added a new API call to return the current state of cluster
+ * resources: all, local, foreign, or transition.
+ *
  * Revision 1.28  2003/07/01 10:12:26  horms
  * Use defines for node types rather than arbitary strings
  *

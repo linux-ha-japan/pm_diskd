@@ -103,6 +103,7 @@ typedef struct client_process {
 #define	API_IFLIST_END		"iflist-end"
 #define	API_IFSTATUS		"ifstatus"
 #define	API_GETPARM		"getparm"
+#define	API_GETRESOURCES	"getrsc"
 
 
 #define	API_OK			"OK"

@@ -42,23 +42,25 @@ extern enum hb_rsc_state resourcestate;
 extern enum standby	going_standby;
 extern longclock_t	standby_running;
 extern longclock_t	local_takeover_time;
+extern int		DoManageResources;
 /* Also: procinfo->i_hold_resources */
 
 /* Resource-related functions */
 
-void	notify_world(struct ha_msg * msg, const char * ostatus);
-void	PerformQueuedNotifyWorld(GHook* g);
-int	parse_ha_resources(const char * cfgfile);
-int 	encode_resources(const char *p);
+void		notify_world(struct ha_msg * msg, const char * ostatus);
+void		PerformQueuedNotifyWorld(GHook* g);
+int		parse_ha_resources(const char * cfgfile);
+int 		encode_resources(const char *p);
 const char * 	decode_resources(int);
-void	comm_up_resource_action(void);
-void	process_resources(const char * type, struct ha_msg* msg
+void		comm_up_resource_action(void);
+void		process_resources(const char * type, struct ha_msg* msg
 ,		struct node_info * thisnode);
-void	takeover_from_node(const char * nodename);
-void	req_our_resources(int getthemanyway);
-void	ask_for_resources(struct ha_msg *msg);
-void AuditResources(void);
-void	QueueRemoteRscReq(RemoteRscReqFunc, struct ha_msg* data);
-void	hb_rsc_recover_dead_resources(struct node_info* hip);
+void		takeover_from_node(const char * nodename);
+void		req_our_resources(int getthemanyway);
+void		ask_for_resources(struct ha_msg *msg);
+void		AuditResources(void);
+void		QueueRemoteRscReq(RemoteRscReqFunc, struct ha_msg* data);
+void		hb_rsc_recover_dead_resources(struct node_info* hip);
+const char *	hb_rsc_resource_state(void);
 
 #endif

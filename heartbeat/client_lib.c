@@ -161,6 +161,7 @@ static const char *	get_nodetype(ll_cluster_t*, const char *host);
 static const char *	get_ifstatus(ll_cluster_t*, const char *host
 ,	const char * intf);
 static char *		get_parameter(ll_cluster_t*, const char* pname);
+static const char *	get_resources(ll_cluster_t*);
 static int		get_inputfd(ll_cluster_t*);
 static int		msgready(ll_cluster_t*);
 static int		setfmode(ll_cluster_t*, int mode);
@@ -974,6 +975,60 @@ get_parameter(ll_cluster_t* lcl, const char* pname)
 	&&	strcmp(result, API_OK) == 0
 	&&	(pvalue = ha_msg_value(reply, F_PVALUE)) != NULL) {
 		ret = strdup(pvalue);
+	}else{
+		ret = NULL;
+	}
+	ZAPMSG(reply);
+
+	return ret;
+}
+
+static const char *	
+get_resources(ll_cluster_t* lcl)
+{
+	struct ha_msg*		request;
+	struct ha_msg*		reply;
+	const char *		result;
+	const char *		rvalue;
+	char *			ret;
+	llc_private_t*		pi;
+
+	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_api_log(LOG_ERR, "get_resources: bad cinfo");
+		return NULL;
+	}
+	pi = (llc_private_t*)lcl->ll_cluster_private;
+
+	if (!pi->SignedOn) {
+		ha_api_log(LOG_ERR, "not signed on");
+		return NULL;
+	}
+
+	if ((request = hb_api_boilerplate(API_GETRESOURCES)) == NULL) {
+		return NULL;
+	}
+
+	/* Send message */
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_api_perror("Can't send message to RequestFIFO");
+		return NULL;
+	}
+	ZAPMSG(request);
+
+	/* Read reply... */
+	if ((reply=read_api_msg(pi)) == NULL) {
+		ZAPMSG(request);
+		return NULL;
+	}
+	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
+	&&	strcmp(result, API_OK) == 0
+	&&	(rvalue = ha_msg_value(reply, F_RESOURCES)) != NULL) {
+		static char		retvalue[64];
+		strncpy(retvalue, rvalue, sizeof(retvalue)-1);
+		retvalue[DIMOF(retvalue)-1] = EOS;
+		ret = retvalue;
 	}else{
 		ret = NULL;
 	}
@@ -1899,6 +1954,7 @@ static struct llc_ops heartbeat_ops = {
 	get_keepalive,		/* get_keepalive */
 	get_mynodeid,		/* get_mynodeid */
 	get_logfacility,	/* suggested logging facility */
+	get_resources,		/* Get current resource allocation */
 	APIError,		/* errormsg */
 };
 

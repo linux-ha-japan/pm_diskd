@@ -259,6 +259,17 @@ struct llc_ops {
  */
 	int (*get_logfacility)(ll_cluster_t *);
 
+/*
+ *	Return the current resource ownership status.
+ *
+ *	NOTE:  this call will fail if heartbeat isn't
+ *	managing resources.  It can return "all", "local" or "foreign", or
+ *	"transition".  This call will eventually go away when we rewrite the
+ *	resource management code.  "transition" means that things are
+ *	currently changing.
+ */
+	const char * (*get_resources)(ll_cluster_t *);
+
 
 	const char * (*errmsg)(ll_cluster_t*);
 };
