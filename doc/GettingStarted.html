@@ -275,6 +275,13 @@ from said interface.  Consult
 <a href="ipfail-diagram.pdf">ipfail-diagram.pdf</a> for a graphical 
 representation of this idea.
 <br><br></li>
+<li><b>Turn on nice_failback</b><br>
+ipfail will only operate if heartbeat has been configured to use nice_failback.
+In ha.cf, set the nice_failback option to "on" instead of "off" like so:
+<blockquote>
+nice_failback on
+</blockquote>
+</li>
 <li><b>Configure your ha.cf to start ipfail.</b><br>
 Add a line like the following to ha.cf (assuming your compile PREFIX is /usr)
 <blockquote>
