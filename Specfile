@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.76 2000/12/23 05:08:59 horms Exp $
+#	$Id: Specfile,v 1.77 2001/01/05 18:58:17 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -63,6 +63,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
      Juan Pedro Paredes Caballero <juampe@retemail.es>
 
 + Version 0.4.9 Beta series
+  + Incorporated off-by-1 stonith fix from Andreas Piesk <apiesk@virbus.de>
   + Made media modules and authentication modules dynamically loadable.
   + Incorporated new ldirectord version
   + Added STONITH API library

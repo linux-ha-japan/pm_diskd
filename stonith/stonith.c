@@ -108,7 +108,7 @@ stonith_new(const char * type)
 		return(NULL);
 	}
 
-	obj_path = (char*) MALLOC((strlen(STONITH_MODULES) + strlen(type) + 4) 
+	obj_path = (char*) MALLOC((strlen(STONITH_MODULES) + strlen(type) + 5)
 				* sizeof(char));
 
 	if (obj_path == NULL) {
