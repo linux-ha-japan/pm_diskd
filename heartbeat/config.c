@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.91 2003/07/01 16:16:55 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.92 2003/07/01 16:56:04 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -80,6 +80,7 @@ const static char * _hb_config_c_Id = "$Id: config.c,v 1.91 2003/07/01 16:16:55 
 #define KEY_GEN_METH	 "hbgenmethod"
 #define KEY_REALTIME	 "realtime"
 #define KEY_DEBUGLEVEL	 "debug"
+#define KEY_NORMALPOLL	 "normalpoll"
 
 static int add_normal_node(const char *);
 static int set_hopfudge(const char *);
@@ -103,6 +104,7 @@ static int add_client_child(const char *);
 static int set_generation_method(const char *);
 static int set_realtime(const char *);
 static int set_debuglevel(const char *);
+static int set_normalpoll(const char *);
 
 /*
  * Each of these parameters is is automatically recorded by
@@ -136,6 +138,7 @@ struct directive {
 , {KEY_GEN_METH,  set_generation_method, TRUE, "file", "protocol generation computation method"}
 , {KEY_REALTIME,  set_realtime, TRUE, "true", "enable realtime behavior?"}
 , {KEY_DEBUGLEVEL,set_debuglevel, TRUE, "0", "debug level"}
+, {KEY_NORMALPOLL,set_normalpoll, TRUE, "true", "Use system poll(2) function?"}
 };
 
 static const struct WholeLineDirective {
@@ -1509,6 +1512,18 @@ set_debuglevel(const char * value)
 }
 
 static int
+set_normalpoll(const char * value)
+{
+	int	normalpoll=TRUE;
+	int	ret = str_to_boolean(value, &normalpoll);
+	if (ret == HA_OK) {
+		extern int UseOurOwnPoll;
+		UseOurOwnPoll = !normalpoll;
+	}
+	return ret;
+}
+
+static int
 add_client_child(const char * directive)
 {
 	struct client_child*	child;
@@ -1590,6 +1605,10 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.92  2003/07/01 16:56:04  alan
+ * Added code to allow us to specify whether to use normal or alternative
+ * poll methods.
+ *
  * Revision 1.91  2003/07/01 16:16:55  alan
  * Put in changes to set and record defaults so they can be
  * retrieved by applications, plugins, and the config dump code.
