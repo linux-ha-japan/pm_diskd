@@ -21,28 +21,30 @@ CMD=$1
 #	$HA_dest, $HA_ipaddr and $HA_ok are fields from the message
 #
 REQNODE=$HA_dest
-IPADDR=$HA_ipaddr
+RSCGRPNAME=$HA_ipaddr
 RESPONSE=$HA_ok
-if
-  [  "$CMD" != $US ] ||
-  case $IPADDR in
-    *.*.*.*)	false;;
-    *)		true;;
-  esac
-then
-  cat <<-!EOF
-	Usage: $0 "$US"
-	$0 will take control of the given IP address using $TAKE
+
+# Really a resource group name...
+case "$RSCGRPNAME" in
+    ?*)		false;;
+    *)
+  	cat <<-!EOF
+	$0 will take control the specified resource group using $TAKE.
+	
+	$0 was invoked with these arguments:
+	$*
+	And this is the HA_ environment:
 	!EOF
-  exit 1
-fi
+	env | grep '^HA_'
+	exit 1;;
+esac
 if
   [ "X$REQNODE" != "X$HA_CURHOST" ]
 then
   exit 0; # We didn't request this IP address...  Ignore the response.
 fi
-ha_log "received $US $IPADDR $RESPONSE"
+ha_log "received $US $RSCGRPNAME $RESPONSE"
 case $RESPONSE in
-  OK)	$TAKE takegroup $IPADDR;;
+  OK)	$TAKE takegroup $RSCGRPNAME;;
   *);;
 esac
