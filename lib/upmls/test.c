@@ -63,11 +63,13 @@ ML_MODULE_INIT(MLModule*us, MLModuleImports* imports, void *user_ptr)
 	imports->log(ML_DEBUG, "Registering our plugins");
 
 	/*  Register our plugins */
-	ret = imports->register_plugin(us
+	ret = imports->register_plugin
+	(	us
 	,	MODTYPE
 	,	MODNAME
-	,	&OurPiOps
-	,	(void **)&OurPi
+	,	&OurPiOps	/* Exported plugin operations */
+	,	NULL		/* Plugin Close function */
+	,	&OurPi
 	,	(void**)&OurPiImports
 	,	NULL);
 	imports->log(ML_DEBUG, "Returning %d", ret);

@@ -10,7 +10,7 @@ main(int argc, char ** argv)
 
 
 	u = NewMLModuleUniv(MOD);
-	MLsetdebuglevel(100);
+	MLSetDebugLevel(100);
 
 	printf("Load of foo: %d\n", MLLoadModule(u, "Plugin", "test", NULL));
 	printf("Error = [%s]\n", lt_dlerror());

@@ -1,5 +1,6 @@
 #include <portability.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <string.h>
 #include <dirent.h>
 
@@ -18,6 +19,7 @@
 #include "../../libltdl/config.h"
 
 #define NEW(type)		(g_new(type,1))
+#define	ZAP(obj)	memset(obj, 0, sizeof(*obj))
 #define DELETE(obj)	{g_free(obj); obj = NULL;}
 
 #define MODULESUFFIX	LTDL_SHLIB_EXT
@@ -26,19 +28,16 @@ static int	ModuleDebugLevel = 5;
 
 #define DEBUGMODULE	(ModuleDebugLevel > 0)
 
-static const char * ml_module_version(void);
 
 
 static ML_rc PluginPlugin_module_init(MLModuleUniv* univ);
 
-static int ml_GetDebugLevel(void);
-static void ml_close (MLModule*);
 static char** MLModTypeListModules(MLModuleType* mtype, int* modcount);
 
 
 void	DelMLModuleUniv(MLModuleUniv*);
 /*
- *	These DelA* functions primarily called from hash_table_foreach, but
+ *	These RmA* functions primarily called from hash_table_foreach, but
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  *
@@ -48,11 +47,11 @@ void	DelMLModuleUniv(MLModuleUniv*);
  *		NULL
  *
  *	For example:
- *		DelAMLModuleType takes
+ *		RmAMLModuleType takes
  *			string name
  *			MLModuleType* object with the given name.
  */
-static void	DelAMLModuleType
+static void	RmAMLModuleType
 (	gpointer modtname	/* Name of this module type */
 ,	gpointer modtype	/* MLModuleType* */
 ,	gpointer notused
@@ -64,11 +63,11 @@ static MLModuleType* NewMLModuleType
 );
 static void	DelMLModuleType(MLModuleType*);
 /*
- *	These DelA* functions primarily called from hash_table_foreach, but
+ *	These RmA* functions primarily called from hash_table_foreach, but
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  */
-static void	DelAMLModule
+static void	RmAMLModule
 (	gpointer modname	/* Name of this module  */
 ,	gpointer module		/* MLModule* */
 ,	gpointer notused
@@ -91,11 +90,11 @@ static int MLModmodrefcount(MLModuleType* mltype, const char * modulename
 static MLPluginUniv*	NewMLPluginUniv(MLModuleUniv*);
 static void		DelMLPluginUniv(MLPluginUniv*);
 /*
- *	These DelA* functions primarily called from hash_table_foreach, but
+ *	These RmA* functions primarily called from hash_table_foreach, but
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  */
-static void		DelAMLPluginType
+static void		RmAMLPluginType
 (	gpointer pitypename	/* Name of this plugin type  */
 ,	gpointer pitype		/* MLPluginType* */
 ,	gpointer notused
@@ -108,11 +107,12 @@ static MLPluginType*	NewMLPluginType
 );
 static void		DelMLPluginType(MLPluginType*);
 /*
- *	These DelA* functions primarily called from hash_table_foreach, but
- *	not necessarily, so they have gpointer arguments.  When calling
+ *	These RmA* functions are designed to be  called from
+ *	hash_table_foreach, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
+ *	They can be called from other places safely also.
  */
-static void		DelAMLPlugin
+static void		RmAMLPlugin
 (	gpointer piname		/* Name of this plugin */
 ,	gpointer module		/* MLPlugin* */
 ,	gpointer notused
@@ -122,50 +122,61 @@ static MLPlugin*	NewMLPlugin
 (	MLPluginType*	plugintype
 ,	const char*	pluginname
 ,	void *		exports
+,	MLPluginFun	closefun
 ,	void*		ud_plugin
 );
 static void		DelMLPlugin(MLPlugin*);
+static ML_rc	close_pipi_plugin(MLPlugin*, void*);
 
 
 
-static void close_a_plugin
-(	gpointer pluginname	/* Name of this plugin (not used) */
-,	gpointer vplugin	/* MLPlugin we want to close */
-,	gpointer NotUsed
-);
 
+/*
+ *	For consistency, we show up as a module in our our system.
+ *
+ *	Here are our exports as a module.
+ *
+ */
+static const char *	ML_MLModuleVersion(void);
+static void		ML_MLModuleClose (MLModule*);
 
 static const MLModuleOps ModExports =
-{	ml_module_version
-,	ml_GetDebugLevel
-,	MLsetdebuglevel
-,	ml_close
+{	ML_MLModuleVersion
+,	MLGetDebugLevel		/* also directly exported */
+,	MLSetDebugLevel		/* also directly exported */
+,	ML_MLModuleClose
 };
 
-static ML_rc MLregister_module(MLModule* modinfo
-,	const MLModuleOps* commonops);
+/*	Prototypes for the functions that we export to every module */
+static ML_rc MLregister_module(MLModule* modinfo, const MLModuleOps* mops);
 static ML_rc MLunregister_module(MLModule* modinfo);
 static ML_rc
-MLRegisterAPlugin
+MLRegisterPlugin
 (	MLModule*	modinfo
-,	const char *	plugintype	/* Type of plugin	*/
-,	const char *	pluginname	/* Name of plugin	*/
-,	void*	Ops		/* Info (functions) exported
-					   by this plugin	*/
-,	void**		pluginid	/* Plugin id 	(OP)	*/
-,	void**	Imports		/* Functions imported by
-					 this plugin	(OP)	*/
-,	void*		ud_plugin	/* plugin user data */
+,	const char *	plugintype	/* Type of plugin		*/
+,	const char *	pluginname	/* Name of plugin		*/
+,	void*		Ops		/* Ops exported by this plugin	*/
+,	MLPluginFun	closefunc	/* Ops exported by this plugin	*/
+,	MLPlugin**	pluginid	/* Plugin id 	(OP)		*/
+,	void**		Imports		/* Functions imported by
+					 this plugin	(OP)		*/
+,	void*		ud_plugin	/* plugin user data 		*/
 );
-
-static ML_rc	MLunregister_plugin(void* pluginid);
+static ML_rc	MLunregister_plugin(MLPlugin* pluginid);
 static void	MLLog(MLLogLevel priority, const char * fmt, ...);
 
+
+/*
+ *	This is the set of functions that we export to every module
+ *
+ *	That also makes it the set of functions that every module imports.
+ *
+ */
 
 static MLModuleImports MLModuleImportSet =
 {	MLregister_module	/* register_module */
 ,	MLunregister_module	/* unregister_module */
-,	MLRegisterAPlugin	/* register_plugin */
+,	MLRegisterPlugin	/* register_plugin */
 ,	MLunregister_plugin	/* unregister_plugin */
 ,	MLLoadModule		/* load_module */
 ,	MLLog			/* Logging function */
@@ -175,16 +186,13 @@ static ML_rc	pipi_register_plugin(MLPlugin* newpi
 		,		void** imports);
 static ML_rc	pipi_unregister_plugin(MLPlugin* plugin);
 
-#if 0
-static MLPluginType*	pipi_new_plugintype(MLPluginUniv*);
-static void		pipi_del_plugintype(MLPluginType*);
-static void		pipi_del_while_walk(gpointer key, gpointer value
-,				gpointer user_data);
-#endif
-
 /*
- *	Functions exported by the Plugin plugins whose name is plugin
- *	(The PluginPlugin plugin)
+ *	For consistency, the master plugin manager is a plugin in the system
+ *	Below is our set of exported Plugin functions.
+ *
+ *	Food for thought:  This is the plugin manager whose name is plugin.
+ *	This makes it the Plugin Plugin plugin ;-)
+ *		(or the Plugin/Plugin plugin if you prefer)
  */
 
 static MLPluginOps  PiExports =
@@ -192,15 +200,20 @@ static MLPluginOps  PiExports =
 ,	pipi_unregister_plugin
 };
 
-static int PiRefCount(MLPlugin * pih);
-static int PiModRefCount(MLPlugin*epiinfo,int plusminus);
-static void PiUnloadIfPossible(MLPlugin *epiinfo);
 
+
+/*
+ * Below is the set of functions we export to every plugin manager.
+ */
+
+static int	PiRefCount(MLPlugin * pih);
+static int	PiModRefCount(MLPlugin*epiinfo,int plusminus);
+static void	PiForceUnregister(MLPlugin *epiinfo);
 
 static MLPluginImports PIHandlerImports = {
 	PiRefCount,
 	PiModRefCount,
-	PiUnloadIfPossible,
+	PiForceUnregister,
 };
 
 /*****************************************************************************
@@ -227,8 +240,7 @@ NewMLModule(	MLModuleType* mtype
 static void
 DelMLModule(MLModule*mod)
 {
-	g_free(mod->module_name);
-	mod->module_name=NULL;
+	DELETE(mod->module_name);
 
 	mod->moduletype = NULL;
 	if (g_hash_table_size(mod->Plugins) > 0) {
@@ -247,7 +259,8 @@ DelMLModule(MLModule*mod)
 	mod->dlinitfun = NULL;
 	mod->ud_module = NULL;
 
-	g_free(mod); mod=NULL;
+	ZAP(mod);
+	DELETE(mod);
 }
 
 
@@ -277,20 +290,18 @@ NewMLModuleType(MLModuleUniv* moduleuniv
 static void
 DelMLModuleType(MLModuleType*mtype)
 {
-	g_free(mtype->moduletype);
-	mtype->moduletype=NULL;
+	DELETE(mtype->moduletype);
 
 	if (g_hash_table_size(mtype->Modules) > 0) {
 		MLLog(ML_CRIT, "DelMLModuleType: Modules not empty");
 	}
-	g_hash_table_foreach(mtype->Modules, DelAMLModule, NULL);
+	g_hash_table_foreach(mtype->Modules, RmAMLModule, NULL);
 	g_hash_table_destroy(mtype->Modules);
-	mtype->Modules = NULL;
-	mtype->moduniv = NULL;
-	g_free(mtype);	mtype=NULL;
+	ZAP(mtype);
+	DELETE(mtype);
 }
 /*
- *	These DelA* functions primarily called from hash_table_foreach, 
+ *	These RmA* functions primarily called from hash_table_foreach, 
  *	so they have gpointer arguments.  This *not necessarily* clause
  *	is why they do the g_hash_table_lookup_extended call instead of
  *	just deleting the key.  When called from outside, the key *
@@ -298,7 +309,7 @@ DelMLModuleType(MLModuleType*mtype)
  *	of the key.
  */
 static void
-DelAMLModule	/* IsA GHFunc: required for g_hash_table_foreach() */
+RmAMLModule	/* IsA GHFunc: required for g_hash_table_foreach() */
 (	gpointer modname	/* Name of this module  */
 ,	gpointer module		/* MLModule* */
 ,	gpointer notused	
@@ -314,7 +325,7 @@ DelAMLModule	/* IsA GHFunc: required for g_hash_table_foreach() */
 	,	modname, &key, &module)) {
 		g_hash_table_remove(Mtype->Modules, key);
 		DelMLModule(module);
-		g_free(key);
+		DELETE(key);
 	}else{
 		g_assert_not_reached();
 	}
@@ -326,7 +337,7 @@ NewMLModuleUniv(const char * basemoduledirectory)
 	MLModuleUniv*	ret = NEW(MLModuleUniv);
 
 	if (!g_path_is_absolute(basemoduledirectory)) {
-		g_free(ret); ret = NULL;
+		DELETE(ret);
 		return(ret);
 	}
 	ret->rootdirectory = g_strdup(basemoduledirectory);
@@ -341,23 +352,22 @@ void
 DelMLModuleUniv(MLModuleUniv* moduniv)
 {
 
-	g_free(moduniv->rootdirectory);
-	moduniv->rootdirectory = NULL;
+	DELETE(moduniv->rootdirectory);
 
 	if (g_hash_table_size(moduniv->ModuleTypes) > 0) {
 		MLLog(ML_CRIT, "DelMLModuleUniv: ModuleTypes not empty");
 	}
-	g_hash_table_foreach(moduniv->ModuleTypes, DelAMLModuleType, NULL);
+	g_hash_table_foreach(moduniv->ModuleTypes, RmAMLModuleType, NULL);
 	g_hash_table_destroy(moduniv->ModuleTypes);
 	moduniv->ModuleTypes = NULL;
 	DelMLPluginUniv(moduniv->piuniv);
 	moduniv->piuniv = NULL;
 	moduniv->imports = NULL;
-	g_free(moduniv);	moduniv=NULL;
+	DELETE(moduniv);
 }
 
 /*
- *	These DelA* functions primarily called from hash_table_foreach, 
+ *	These RmA* functions primarily called from hash_table_foreach, 
  *	so they have gpointer arguments.  This *not necessarily* clause
  *	is why they do the g_hash_table_lookup_extended call instead of
  *	just deleting the key.  When called from outside, the key *
@@ -365,7 +375,7 @@ DelMLModuleUniv(MLModuleUniv* moduniv)
  *	of the key.
  */
 static void	/* IsA GHFunc: required for g_hash_table_foreach() */
-DelAMLModuleType
+RmAMLModuleType
 (	gpointer modtname	/* Name of this module type */
 ,	gpointer modtype	/* MLModuleType* */
 ,	gpointer notused
@@ -385,7 +395,7 @@ DelAMLModuleType
 
 		g_hash_table_remove(Moduniv->ModuleTypes, key);
 		DelMLModuleType(modtype);
-		g_free(key);
+		DELETE(key);
 	}else{
 		g_assert_not_reached();
 	}
@@ -428,7 +438,8 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	/* We can call register_module, since it doesn't depend on us... */
 	rc = imports->register_module(pipi_module, &ModExports);
 	if (rc != ML_OK) {
-		MLLog(ML_CRIT, "register_module() failed in init: %d",	rc);
+		MLLog(ML_CRIT, "register_module() failed in init: %s"
+		,	ML_strerror(rc));
 		return(rc);
 	}
 	/*
@@ -447,55 +458,40 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	 */
 
 	/* The first argument is the MLPluginType* */
-	piinfo = NewMLPlugin(pitype, PLUGIN_PLUGIN, &PiExports, NULL);
+	piinfo = NewMLPlugin(pitype, PLUGIN_PLUGIN, &PiExports
+	,	close_pipi_plugin, NULL);
 	pipi_register_plugin(piinfo, &dontcare);
 
-	/* FIXME (unfinished module) (?) */
 	return(ML_OK);
 }/*PluginPlugin_module_init*/
 
 
 /* Return current PiPi "module" version (not very interesting for us) */
 static const char *
-ml_module_version(void)
+ML_MLModuleVersion(void)
 {
 	return("1.0");
 }
 
 /* Return current PiPi debug level */
-static int
-ml_GetDebugLevel(void)
+int
+MLGetDebugLevel(void)
 {
 	return(ModuleDebugLevel);
 }
 
 /* Set current PiPi debug level */
 void
-MLsetdebuglevel (int level)
+MLSetDebugLevel (int level)
 {
 	ModuleDebugLevel = level;
 }
 
-/* Close/shutdown the Module (as best we can...) */
+/* Close/shutdown our MLModule (the plugin manager plugin module) */
+/* All our plugins will have already been shut down and unregistered */
 static void
-ml_close (MLModule* module)
+ML_MLModuleClose (MLModule* module)
 {
-	/* Need to find all the plugins associated with this Module...  */
-	GHashTable*	pi = module->Plugins;
-
-	/* Try to close each plugin associated with this module */
-	g_hash_table_foreach(pi, close_a_plugin, NULL);
-
-	/* FIXME:  There is no doubt more cleanup work to do... */
-
-	/*
-	 * In particular, we need to check our reference count
-	 * unload our module if we can, and remove ourself from our
-	 * parent...
-	 */
-	 if (module->refcnt <= 0) {
-		 DelAMLModule(module->module_name, module, NULL);
-	 }
 }
 
 /*****************************************************************************
@@ -509,6 +505,7 @@ static MLPlugin*
 NewMLPlugin(MLPluginType*	plugintype
 	,	const char*	pluginname
 	,	void *		exports
+	,	MLPluginFun	closefun
 	,	void*		ud_plugin)
 {
 	MLPlugin*	ret = NULL;
@@ -528,6 +525,7 @@ NewMLPlugin(MLPluginType*	plugintype
 		ret->pluginname = g_strdup(pluginname);
 		g_hash_table_insert(plugintype->plugins
 		,	g_strdup(ret->pluginname), ret);
+		ret->pi_close = closefun;
 		ret->refcnt = 0;
 	}
 	return ret;
@@ -535,12 +533,11 @@ NewMLPlugin(MLPluginType*	plugintype
 static void
 DelMLPlugin(MLPlugin* pi)
 {
-	g_free(pi->pluginname);
-	pi->pluginname = NULL;
+	DELETE(pi->pluginname);
 	if (pi->refcnt > 0) {
 		MLLog(ML_CRIT, "DelMLPlugin: refcnt not zero");
 	}
-	g_free(pi); pi = NULL;
+	DELETE(pi);
 }
 
 static MLPluginType*
@@ -550,6 +547,7 @@ NewMLPluginType(MLPluginUniv*univ, const char * typename
 	MLPluginType*	pipi_types;
 	MLPlugin*	pipi_ref;
 	MLPluginType*	ret = NEW(MLPluginType);
+	ret->typename = g_strdup(typename);
 	ret->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	ret->ud_pi_type = user_data;
 	ret->universe = univ;
@@ -572,17 +570,15 @@ DelMLPluginType(MLPluginType*pit)
 	if (g_hash_table_size(pit->plugins) > 0) {
 		MLLog(ML_CRIT, "DelMLPluginType: plugins not empty");
 	}
-	g_hash_table_foreach(pit->plugins, DelAMLPlugin, NULL);
+	g_hash_table_foreach(pit->plugins, RmAMLPlugin, NULL);
+	DELETE(pit->typename);
 	g_hash_table_destroy(pit->plugins);
-	pit->ud_pi_type = NULL;
-	pit->universe = NULL;
-	pit->pipi_ref = NULL;
-
-	g_free(pit); pit = NULL;
+	ZAP(pit);
+	DELETE(pit); pit = NULL;
 }
 
 /*
- *	These DelA* functions primarily called from hash_table_foreach, 
+ *	These RmA* functions primarily called from hash_table_foreach, 
  *	so they have gpointer arguments.  This *not necessarily* clause
  *	is why they do the g_hash_table_lookup_extended call instead of
  *	just deleting the key.  When called from outside, the key *
@@ -590,7 +586,7 @@ DelMLPluginType(MLPluginType*pit)
  *	of the key.
  */
 static void	/* IsAGHFunc: required for g_hash_table_foreach() */
-DelAMLPlugin
+RmAMLPlugin
 (	gpointer piname	/* Name of this plugin */
 ,	gpointer pi	/* MLPlugin* */
 ,	gpointer notused
@@ -609,61 +605,10 @@ DelAMLPlugin
 	,	piname, &key, &pi)) {
 		g_hash_table_remove(Pitype->plugins, key);
 		DelMLPlugin(Pi);
-		g_free(key);
+		DELETE(key);
 	}else{
 		g_assert_not_reached();
 	}
-}
-
-/*
- * close_a_plugin:	Close (unregister) a plugin if possible
- *
- * Although this code deals with plugins, strangely enough its
- * part of the module code...
- *
- * The observant reader will note that this code looks pretty indirect.
- *
- * The reason why it's so indirect is that we have no knowledge of how to
- * shut down a plugin of a given type.  However, every PluginPlugin
- * (plugin manager) exports an interface which will close down any plugin
- * of the type it manages.
- *
- * It is required for it to understand the Ops which plugins of the type it
- * manages export so it will be able to know how to do that.
- *
- * The interface of this module is dicated by what g_hash_table_foreach()
- * expects.
- */
-
-static void	/* IsA GHFunc: required for g_hash_table_foreach() */
-close_a_plugin
-(	gpointer pluginname	/* Name of this plugin (not used) */
-,	gpointer vplugin	/* MLPlugin we want to close */
-,	gpointer NotUsed
-)
-{
-	MLPlugin*	plugin = vplugin;
-	MLPluginType*	pitype;		/* Our plugin type */
-	MLPlugin*	pipi_ref;	/* Pointer to our plugin handler */
-	const MLPluginOps* exports;	/* PluginPlugin operations  for the
-					 * type of plugin we are
-					 */
-
-	pitype =  plugin->plugintype;	/* Find our base plugin type */
-	g_assert(pitype != NULL);
-
-	/* Find the PluginPlugin that manages us */
-	pipi_ref = pitype->pipi_ref;
-
-	g_assert(pipi_ref != NULL);
-
-	/* Find the exported functions from that PIPI */
-	exports =  pipi_ref->exports;
-
-	g_assert(exports != NULL && exports->UnRegisterPlugin != NULL);
-
-	/* Now, ask that function to shut us down properly and close us up */
-	exports->UnRegisterPlugin(plugin);
 }
 
 
@@ -693,56 +638,19 @@ pipi_unregister_plugin(MLPlugin* plugin)
 	if (g_hash_table_lookup_extended(pitype->plugins
 	,	pitype->plugins, &origkey, &value)) {
 		g_hash_table_remove(pitype->plugins, plugin->pluginname);
-		g_free(origkey);
+		DELETE(origkey);
 	}
 	DelMLPlugin(plugin);
 	return ML_OK;
 }
 
-
-#if 0
-static MLPluginType*
-pipi_new_plugintype(MLPluginUniv* pluginuniv)
+/*	Called to close the Plugin manager for type Plugin */
+static ML_rc
+close_pipi_plugin(MLPlugin* us, void* ud_plugin)
 {
-	MLPluginType*	ret = NEW(MLPluginType);
-
-	ret->ud_pi_type = NULL;
-	ret->universe = pluginuniv;
-
-	/* FIXME: Need to set pipi_ref - our managing plugin plugin */
-	/* (kind of a pain) */
-	ret->pipi_ref = NULL;
-
-	ret->plugins = g_hash_table_new(g_str_hash, g_str_equal);
-
-	if (!ret->plugins) {
-		g_free(ret);
-		ret = NULL;
-	}
-	return(ret);
+	/* Nothing much to do */
+	return ML_OK;
 }
-
-/* Destroy a MLPluginType object - Whack it! */
-static void
-pipi_del_plugintype(MLPluginType* univ)
-{
-	GHashTable*	t = univ->plugins;
-	g_hash_table_foreach(t, &pipi_del_while_walk, t);
-	g_hash_table_destroy(t);
-	univ->plugins = NULL;
-	DELETE(univ);
-}
-
-static void
-pipi_del_while_walk(gpointer key, gpointer value, gpointer user_data)
-{
-	GHashTable* t = user_data;
-	g_hash_table_remove(t, key);
-	g_free(key);
-	DelMLPlugin((MLPlugin*)value); value = NULL;
-}
-
-#endif
 
 /* Return the reference count for this plugin */
 static int
@@ -750,24 +658,23 @@ PiRefCount(MLPlugin * epiinfo)
 {
 	return epiinfo->refcnt;
 }
-
  
 /* Return the reference count for this plugin */
 static int
 PiModRefCount(MLPlugin*epiinfo, int plusminus)
 {
 	epiinfo->refcnt += plusminus;
-	if (epiinfo->refcnt < 0) {
+	if (epiinfo->refcnt <= 0) {
+		/* Unregister this plugin? FIXME!! */
 		epiinfo = 0;
 	}
 	return epiinfo->refcnt;
 }
 
 static void
-PiUnloadIfPossible(MLPlugin *epiinfo)
+PiForceUnregister(MLPlugin *id)
 {
-	g_assert_not_reached();
-	/*FIXME!*/
+	RmAMLPlugin(id->pluginname, id, NULL);
 }
 
 static ML_rc
@@ -780,17 +687,8 @@ MLregister_module(MLModule* modinfo, const MLModuleOps* commonops)
 static ML_rc
 MLunregister_module(MLModule* modinfo)
 {
-	/*FIXME!*/
-	g_assert_not_reached();
-	return ML_OOPS;
-}
-
-static ML_rc
-MLunregister_plugin(void* pluginid)
-{
-	/*FIXME!*/
-	g_assert_not_reached();
-	return ML_OOPS;
+	RmAMLModule(modinfo->module_name, modinfo, NULL);
+	return ML_OK;
 }
 
 /* General logging function (not really UPMLS-specific) */
@@ -820,6 +718,27 @@ MLLog(MLLogLevel priority, const char * format, ...)
 	va_end (args);
 }
 
+static const char * ML_strerrmsgs [] =
+{	"Success"
+,	"Invalid Parameters"
+,	"Bad module/plugin type"
+,	"Duplicate entry (module/plugin name/type)"
+,	"Oops happens"
+,	"No such module/plugin/plugin type"
+};
+
+const char *
+ML_strerror(ML_rc rc)
+{
+	int	irc = (int) rc;
+	static	char buf[128];
+
+	if (irc < 0 || irc >= DIMOF(ML_strerrmsgs)) {
+		snprintf(buf, sizeof(buf), "return code %d (?)", irc);
+		return buf;
+	}
+	return ML_strerrmsgs[irc];
+}
 
 
 /*
@@ -871,7 +790,7 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 	}
 
 	/* Make sure we can read and execute the module file */
-	/* (this test is probably superfluous wrt lt_dlopen) */
+	/* This test is nice, because dlopen reasons aren't return codes */
 
 	if (access(ModulePath, R_OK|X_OK) != 0) {
 		if (DEBUGMODULE) {
@@ -971,18 +890,19 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 #define REPORTERR(msg)	MLLog(ML_CRIT, "%s", msg)
 
 /*
- *	It may be the case that this function needs to be split into
- *	a couple of functions in order to avoid code duplication
+ *	Register a plugin.
+ *
+ *	This function is exported to modules for their use.
  */
-
 static ML_rc
-MLRegisterAPlugin(MLModule* modinfo
+MLRegisterPlugin(MLModule* modinfo
 ,	const char *	plugintype	/* Type of plugin	*/
 ,	const char *	pluginname	/* Name of plugin	*/
 ,	void*		Ops		/* Info (functions) exported
 					   by this plugin	*/
-,	void**		pluginid	/* Plugin id 	(OP)	*/
-,	void**	Imports		/* Functions imported by
+,	MLPluginFun	close_func	/* Close function for plugin */
+,	MLPlugin**	pluginid	/* Plugin id 	(OP)	*/
+,	void**		Imports		/* Functions imported by
 					 this plugin	(OP)	*/
 ,	void*		ud_plugin	/* Optional user_data */
 )
@@ -1050,14 +970,79 @@ MLRegisterAPlugin(MLModule* modinfo
 
 	/* Now we have all the information anyone could possibly want ;-) */
 
-	piinfo = NewMLPlugin(pitype, pluginname, Ops, ud_plugin);
+	piinfo = NewMLPlugin(pitype, pluginname, Ops, close_func, ud_plugin);
 	g_hash_table_insert(pitype->plugins, g_strdup(pluginname), piinfo);
 	*pluginid = piinfo;
 
 	/* Call the registration function for our plugin type */
 	rc = piops->RegisterPlugin(piinfo, Imports);
 
-	/* FIXME! need to increment the ref count for the plugin manager */
+	/* Increment reference count of plugin manager */
+	PiModRefCount(pipiinfo, 1);
+	return rc;
+}
+
+/*
+ * Method:
+ *
+ *	Verify plugin is valid.
+ *
+ *	Call plugin close function.
+ *
+ *	Call plugin manager unregister function
+ *
+ *	Call RmAMLPlugin to remove from PluginType table, and
+ *		free plugin object.
+ *
+ */
+
+static ML_rc
+MLunregister_plugin(MLPlugin* id)
+{
+	MLPluginType*	t;
+	MLPluginUniv*	u;
+	ML_rc		rc;
+	MLPlugin*	pipi_info;	/* Pointer to our plugin handler */
+	const MLPluginOps* exports;	/* PluginPlugin operations  for the
+					 * type of plugin we are
+					 */
+
+	if (	 id == NULL
+	||	(t = id->plugintype) == NULL
+	||	(u = t->universe) == NULL
+	|| 	id->pluginname == NULL
+	||	id->pi_close == NULL) {
+		MLLog(ML_WARN, "MLunregister_plugin: bad pluginid");
+		return ML_INVAL;
+	}
+
+
+	/* Call the close function supplied by the plugin */
+
+	if ((rc=id->pi_close(id, id->ud_plugin)) != ML_OK) {
+		MLLog(ML_WARN, "PluginClose on %s/%s returned %s"
+		,	t->typename, id->pluginname
+		,	ML_strerror(rc));
+	}
+
+	/* Find the PluginPlugin that manages us */
+	pipi_info = t->pipi_ref;
+
+	g_assert(pipi_info != NULL);
+
+	/* Find the exported functions from that PIPI */
+	exports =  pipi_info->exports;
+
+	g_assert(exports != NULL && exports->UnRegisterPlugin != NULL);
+
+	/* Call the plugin manager unregister function */
+	exports->UnRegisterPlugin(id);
+
+	RmAMLPlugin(id->pluginname, id, NULL);
+
+	/* Decrement reference count of plugin manager */
+	PiModRefCount(pipi_info, -1);
+
 	return rc;
 }
 
@@ -1084,22 +1069,22 @@ DelMLPluginUniv(MLPluginUniv* piuniv)
 	if (g_hash_table_size(piuniv->pitypes) > 0) {
 		MLLog(ML_CRIT, "DelMLPluginUniv: pitypes not empty");
 	}
-	g_hash_table_foreach(piuniv->pitypes, DelAMLPluginType, NULL);
+	g_hash_table_foreach(piuniv->pitypes, RmAMLPluginType, NULL);
 	g_hash_table_destroy(piuniv->pitypes);
 	piuniv->pitypes = NULL;
 	piuniv->moduniv = NULL;
 }
 
 /*
- *	These DelA* functions primarily called from hash_table_foreach, 
+ *	These RmA* functions primarily called from hash_table_foreach, 
  *	so they have gpointer arguments.  This *not necessarily* clause
  *	is why they do the g_hash_table_lookup_extended call instead of
- *	just deleting the key.  When called from outside, the key *
+ *	just deleting the key.  When called from outside, the key
  *	may not be pointing at the key to actually free, but a copy
  *	of the key.
  */
 static void	/* IsA GHFunc: required for g_hash_table_foreach() */
-DelAMLPluginType
+RmAMLPluginType
 (	gpointer typename	/* Name of this plugin type  */
 ,	gpointer pitype		/* MLPluginType* */
 ,	gpointer notused
@@ -1108,9 +1093,9 @@ DelAMLPluginType
 	gpointer	key;
 	MLPluginType*	Pitype = pitype;
 	MLPluginUniv*	Piuniv = Pitype->universe;
+
 	/*
-	 * This function is usually but not always called by
-	 * g_hash_table_foreach()
+	 * We are not always called by g_hash_table_foreach()
 	 */
 
 	if (g_hash_table_lookup_extended(Piuniv->pitypes
