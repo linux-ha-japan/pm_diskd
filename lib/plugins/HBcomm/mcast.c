@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.2 2001/09/07 16:18:17 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.3 2002/01/17 15:21:23 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -668,15 +668,16 @@ static int
 set_mcast_if(int sockfd, char *ifname)
 {
 	int rc;
-	struct ip_mreq mreq;
+	struct in_addr addr;
 
 	/* Zero out the struct... we only care about the address... */
-	memset(&mreq, 0, sizeof(mreq));
+	memset(&addr, 0, sizeof(addr));
 
-	rc = if_getaddr(ifname, &mreq.imr_interface);
+	rc = if_getaddr(ifname, &addr);
 	if (rc == -1)
 		return -1;
-	return setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_IF, (void*)&mreq, sizeof(mreq));
+	return setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_IF
+	,	(void*)&addr, sizeof(addr));
 }
 
 /* join_mcast_group is used to join a multicast group.  the group is
@@ -808,6 +809,9 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.3  2002/01/17 15:21:23  alan
+ * Put in Ram Pai's patch for the bug in the multicast code.
+ *
  * Revision 1.2  2001/09/07 16:18:17  alan
  * Updated ping.c to conform to the new plugin loading system.
  * Changed log messages in bcast, mcast, ping and serial to use the
