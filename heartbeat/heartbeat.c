@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.231 2002/11/22 07:04:39 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.232 2002/11/26 08:26:31 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1187,6 +1187,12 @@ master_status_process(void)
 		cl_log(LOG_DEBUG
 		,	"Starting local status message @ %ld ms intervals"
 		,	config->heartbeat_ms);
+	}
+
+	for(j = 0; j < nummedia; j++) {
+		G_main_add_IPC_Channel(
+			PRI_CLUSTERMSG, sysmedia[j]->wchan[P_WRITEFD], FALSE
+		,	NULL, NULL, NULL);
 	}
 
 	/* Things to do on a periodic basis... */
@@ -3901,6 +3907,9 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.232  2002/11/26 08:26:31  horms
+ * process latent ipc information as neccessary
+ *
  * Revision 1.231  2002/11/22 07:04:39  horms
  * make lots of symbols static
  *
