@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.23 2000/06/12 22:06:30 alan Exp $
+#	$Id: heartbeat.sh,v 1.24 2000/06/12 22:07:59 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -180,7 +180,7 @@ StartHA() {
 }
 
 #
-#	Ask heartbeat to stop.  It will give up it's resources...
+#	Ask heartbeat to stop.  It will give up its resources...
 #
 StopHA() {
   echo -n "Stopping High-Availability services: "
@@ -252,6 +252,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.24  2000/06/12 22:07:59  alan
+#  Spelling correction in a comment.
+#
 #  Revision 1.23  2000/06/12 22:06:30  alan
 #  Finished updating the code for restart.
 #
