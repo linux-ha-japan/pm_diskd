@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.85 2000/09/01 06:27:49 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.86 2000/09/01 21:10:46 marcelo Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -279,6 +279,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.85 2000/09/01 06:27:
 #include <ha_msg.h>
 #include <hb_api_core.h>
 #include <test.h>
+#include <hb_module.h>
 
 #define OPTARGS		"dkrRsvC:"
 
@@ -325,10 +326,13 @@ void		(*localdie)(void);
 
 
 struct hb_media*	sysmedia[MAXMEDIA];
-const struct hb_media_fns** HB_media;
-extern const int	num_hb_media_types;
+extern struct hb_media_fns** hbmedia_types;
+extern int	num_hb_media_types;
+extern int	num_auth_types;
 int			nummedia = 0;
 int			status_pipe[2];	/* The Master status pipe */
+
+extern struct auth_type** ValidAuths;
 
 const char *ha_log_priority[8] = {
 	"EMERG",
@@ -2682,6 +2686,9 @@ main(int argc, const char ** argv)
 	extern int	optind;
 	pid_t		running_hb_pid = get_running_hb_pid();
 
+	num_hb_media_types = 0;
+	num_auth_types = 0;
+
 	if ((cmdname = strrchr(argv[0], '/')) != NULL) {
 		++cmdname;
 		argv[0] = cmdname;
@@ -2736,7 +2743,19 @@ main(int argc, const char ** argv)
 		usage();
 	}
 
+	hbmedia_types = ha_malloc(sizeof(struct hbmedia_types **));
 
+	if(hbmedia_types == NULL) {
+		ha_log(LOG_ERR, "Allocation of hbmedia_types failed.");
+		cleanexit(1);
+	}
+	
+	ValidAuths = ha_malloc(sizeof(struct auth_type **));
+
+	if(ValidAuths == NULL) { 
+		ha_log(LOG_ERR, "Allocation of ValidAuths failed.");
+		cleanexit(1);
+	}
 
 	setenv(HADIRENV, HA_D, 1);
 	setenv(DATEFMT, HA_DATEFMT, 1);
@@ -2744,12 +2763,17 @@ main(int argc, const char ** argv)
 
 	init_procinfo();
 
+	if(module_init() == HA_FAIL) { 
+		ha_log(LOG_ERR, "Heartbeat not started: error reading modules.");
+		return(HA_FAIL);
+	}
+
 	/* Perform static initialization for all our heartbeat medium types */
 	for (j=0; j < num_hb_media_types; ++j) {
-		if (HB_media[j]->init() != HA_OK) {
+		if (hbmedia_types[j]->init() != HA_OK) {
 			ha_log(LOG_ERR
 			,	"Initialization failure for %s channel"
-			,	HB_media[j]->type);
+			,	hbmedia_types[j]->type);
 			return(HA_FAIL);
 		}
 	}
@@ -3663,6 +3687,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.86  2000/09/01 21:10:46  marcelo
+ * Added dynamic module support
+ *
  * Revision 1.85  2000/09/01 06:27:49  alan
  * Added code to force a status update when we restart.
  *

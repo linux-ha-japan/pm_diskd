@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.2 2000/08/13 15:44:43 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.3 2000/09/01 21:10:46 marcelo Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -59,47 +59,62 @@ struct ping_private {
 };
 
 
-STATIC int	ping_init(void);
+STATIC int	hb_dev_init(void);
 STATIC struct hb_media*
-		ping_new(const char* interface);
-STATIC int	ping_open(struct hb_media* mp);
-STATIC int	ping_close(struct hb_media* mp);
+		hb_dev_new(const char* interface);
+STATIC int	hb_dev_open(struct hb_media* mp);
+STATIC int	hb_dev_close(struct hb_media* mp);
 STATIC struct ha_msg*
-		ping_read(struct hb_media* mp);
-STATIC int	ping_write(struct hb_media* mp, struct ha_msg* msg);
+		hb_dev_read(struct hb_media* mp);
+STATIC int	hb_dev_write(struct hb_media* mp, struct ha_msg* msg);
 
 STATIC struct ping_private *
 		new_ping_interface(const char * host);
 STATIC int in_cksum (u_short * buf, int nbytes);
 
-
-const struct hb_media_fns	ping_media_fns =
-{	"ping"			/* type */
-,	"ping membership"	/* description */
-,	1			/* Yep. a ping medium */
-,	ping_init		/* init */
-,	ping_new		/* new */
-,	NULL			/* parse */
-,	ping_open		/* open */
-,	ping_close		/* close */
-,	ping_read		/* read */
-,	ping_write		/* write */
-};
+STATIC int hb_dev_mtype (char **buffer);
+STATIC int hb_dev_descr (char **buffer);
+STATIC int hb_dev_isping (void);
 
 
 #define		ISPINGOBJECT(mp)	((mp) && ((mp)->vf == (void*)&ping_media_fns))
-#define		PINGASSERT(mp)	ASSERT(ISPINGOBJECT(mp))
+//#define		PINGASSERT(mp)	ASSERT(ISPINGOBJECT(mp))
+#define		PINGASSERT(mp)
 
+STATIC int hb_dev_mtype (char **buffer) { 
+	
+	*buffer = ha_malloc((strlen("ping") * sizeof(char)) + 1);
+
+	strcpy(*buffer, "ping");
+
+	return strlen("ping");
+}
+
+STATIC int hb_dev_descr (char **buffer) { 
+
+	const char *str = "ping membership";	
+
+	*buffer = ha_malloc((strlen(str) * sizeof(char)) + 1);
+
+	strcpy(*buffer, str);
+
+	return strlen(str);
+}
+
+/* Yes, a ping device */
+
+STATIC int hb_dev_isping (void) {
+	return 1;
+}
 
 STATIC int
-ping_init(void)
+hb_dev_init(void)
 {
 	(void)_heartbeat_h_Id;
 	(void)_udp_Id;
 	(void)_ha_msg_h_Id;
 	return(HA_OK);
 }
-
 
 STATIC struct ping_private *
 new_ping_interface(const char * host)
@@ -138,7 +153,7 @@ new_ping_interface(const char * host)
  *	Name of host is passed as a parameter
  */
 STATIC struct hb_media *
-ping_new(const char * host)
+hb_dev_new(const char * host)
 {
 	struct ping_private*	ipi;
 	struct hb_media *	ret;
@@ -155,7 +170,6 @@ ping_new(const char * host)
 		name = ha_malloc(strlen(host)+1);
 		strcpy(name, host);
 		ret->name = name;
-		ret->vf = &ping_media_fns;
 		add_node(host, PINGNODE);
 
 	}else{
@@ -169,7 +183,7 @@ ping_new(const char * host)
  */
 
 STATIC int
-ping_close(struct hb_media* mp)
+hb_dev_close(struct hb_media* mp)
 {
 	struct ping_private * ei;
 	int	rc = HA_OK;
@@ -190,7 +204,7 @@ ping_close(struct hb_media* mp)
  */
 
 STATIC struct ha_msg *
-ping_read(struct hb_media* mp)
+hb_dev_read(struct hb_media* mp)
 {
 	struct ping_private *	ei;
 	char			buf[MAXLINE+ICMP_HDR_SZ];
@@ -255,7 +269,7 @@ ping_read(struct hb_media* mp)
  */
 
 STATIC int
-ping_write(struct hb_media* mp, struct ha_msg * msg)
+hb_dev_write(struct hb_media* mp, struct ha_msg * msg)
 {
 	struct ping_private *	ei;
 	int			rc;
@@ -359,7 +373,7 @@ ping_write(struct hb_media* mp, struct ha_msg * msg)
  *	Open ping socket.
  */
 STATIC int
-ping_open(struct hb_media* mp)
+hb_dev_open(struct hb_media* mp)
 {
 	struct ping_private * ei;
 	int sockfd;

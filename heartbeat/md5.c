@@ -21,10 +21,13 @@
 #include <string.h>		/* for memcpy() */
 #include <sys/types.h>		/* for stupid systems */
 #include <netinet/in.h>		/* for ntohl() */
+#include <heartbeat.h>
+#include <hb_md5.h>
 
 #define md5byte unsigned char
 #define UWORD32 unsigned long
 
+extern unsigned char result[MAXLINE];
 
 struct MD5Context {
 	UWORD32 buf[4];
@@ -32,10 +35,31 @@ struct MD5Context {
 	UWORD32 in[16];
 };
 
-void MD5Init(struct MD5Context *context);
-void MD5Update(struct MD5Context *context, md5byte const *buf, unsigned len);
-void MD5Final(unsigned char digest[16], struct MD5Context *context);
+void MD5Init(MD5Context *context);
+void MD5Update(MD5Context *context, md5byte const *buf, unsigned len);
+void MD5Final(unsigned char digest[16], MD5Context *context);
 void MD5Transform(UWORD32 buf[4], UWORD32 const in[16]);
+
+
+const unsigned char* hb_auth_calc(const struct auth_info *t, const char * text);
+int hb_auth_atype (char **);
+int hb_auth_nkey(void);
+
+int hb_auth_atype (char **buffer) 
+{
+	*buffer = ha_malloc((strlen("md5") * sizeof(char)) + 1);
+
+	strcpy(*buffer, "md5");
+
+	return strlen("md5");
+}
+
+/* Pretty dumb */
+
+int hb_auth_nkey(void) 
+{ 
+	return 1;
+}
 
 
 #define byteSwap(buf,words)
@@ -45,7 +69,7 @@ void MD5Transform(UWORD32 buf[4], UWORD32 const in[16]);
  * initialization constants.
  */
 void
-MD5Init(struct MD5Context *ctx)
+MD5Init(MD5Context *ctx)
 {
 	ctx->buf[0] = 0x67452301ul;
 	ctx->buf[1] = 0xefcdab89ul;
@@ -61,7 +85,7 @@ MD5Init(struct MD5Context *ctx)
  * of bytes.
  */
 void
-MD5Update(struct MD5Context *ctx, md5byte const *buf, unsigned len)
+MD5Update(MD5Context *ctx, md5byte const *buf, unsigned len)
 {
 	UWORD32 t;
 
@@ -101,7 +125,7 @@ MD5Update(struct MD5Context *ctx, md5byte const *buf, unsigned len)
  * 1 0* (64-bit count of bits processed, MSB-first)
  */
 void
-MD5Final(md5byte digest[16], struct MD5Context *ctx)
+MD5Final(md5byte digest[16], MD5Context *ctx)
 {
 	int count = ctx->bytes[0] & 0x3f;	/* Number of bytes in ctx->in */
 	md5byte *p = (md5byte *)ctx->in + count;
@@ -231,4 +255,64 @@ MD5Transform(UWORD32 buf[4], UWORD32 const in[16])
 	buf[1] += b;
 	buf[2] += c;
 	buf[3] += d;
+}
+
+const unsigned char * hb_auth_calc(const struct auth_info *t, const char * text)
+{
+
+	MD5Context context;
+	unsigned char digest[MD5_DIGESTSIZE];
+	const char * key = t->key;
+	/* inner padding - key XORd with ipad */
+	unsigned char k_ipad[65];    
+	/* outer padding - * key XORd with opad */
+	unsigned char k_opad[65];    
+	unsigned char tk[MD5_DIGESTSIZE];
+	int i, text_len, key_len;
+
+	(void)_heartbeat_h_Id;
+	(void)_ha_msg_h_Id;
+
+	text_len = strlen(text);
+	key_len = strlen(key);
+	
+	/* if key is longer than MD5_BLOCKSIZE bytes reset it to key=MD5(key) */
+	if (key_len > MD5_BLOCKSIZE) { 
+		MD5Context      tctx;   
+		MD5Init(&tctx);
+		MD5Update(&tctx, key, key_len);
+		MD5Final(tk, &tctx); 
+
+		key = tk;
+		key_len = MD5_DIGESTSIZE;
+	}       
+	/* start out by storing key in pads */
+	bzero(k_ipad, sizeof k_ipad);
+	bzero(k_opad, sizeof k_opad);
+	bcopy(key, k_ipad, key_len);
+	bcopy(key, k_opad, key_len);
+
+	/* XOR key with ipad and opad values */
+	for (i=0; i<MD5_BLOCKSIZE; i++) {
+		k_ipad[i] ^= 0x36;
+		k_opad[i] ^= 0x5c;
+	}       
+	/* perform inner MD5 */
+	MD5Init(&context);                   /* init context for 1st pass */
+	MD5Update(&context, k_ipad, MD5_BLOCKSIZE);     /* start with inner pad */
+	MD5Update(&context, text, text_len); /* then text of datagram */
+	MD5Final(digest, &context);          /* finish up 1st pass */
+	/* perform outer MD5 */
+	MD5Init(&context);                   /* init context for 2nd pass */
+	MD5Update(&context, k_opad, MD5_BLOCKSIZE);     /* start with outer pad */
+	MD5Update(&context, digest, MD5_DIGESTSIZE);     /* then results of 1st hash */
+
+	MD5Final(digest, &context);          /* finish up 2nd pass */
+	/* And show the result in human-readable form */
+	result[0] = '\0';
+	for (i = 0; i < MD5_DIGESTSIZE; i++) {
+		sprintf(tk, "%02x", digest[i]);
+		strcat(result, tk);
+	}
+	return(result);
 }

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.10 2000/08/13 04:36:16 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.11 2000/09/01 21:10:46 marcelo Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -54,41 +54,54 @@ struct ip_private {
 };
 
 
-STATIC int	udp_init(void);
+STATIC int	hb_dev_init(void);
 STATIC struct hb_media*
-		udp_new(const char* interface);
-STATIC int	udp_open(struct hb_media* mp);
-STATIC int	udp_close(struct hb_media* mp);
+		hb_dev_new(const char* interface);
+STATIC int	hb_dev_open(struct hb_media* mp);
+STATIC int	hb_dev_close(struct hb_media* mp);
 STATIC struct ha_msg*
-		udp_read(struct hb_media* mp);
-STATIC int	udp_write(struct hb_media* mp, struct ha_msg* msg);
+		hb_dev_read(struct hb_media* mp);
+STATIC int	hb_dev_write(struct hb_media* mp, struct ha_msg* msg);
 STATIC int	HB_make_receive_sock(struct hb_media* ei);
 STATIC int	HB_make_send_sock(struct hb_media * mp);
 STATIC struct ip_private *
 		new_ip_interface(const char * ifn, int port);
+STATIC int hb_dev_descr (char** buffer);
+STATIC int hb_dev_mtype (char** buffer);
+STATIC int hb_dev_isping (void);
 
-
-const struct hb_media_fns	ip_media_fns =
-{	"udp"			/* type */
-,	"UDP/IP broadcast"	/* description */
-,	0			/* Not a ping medium */
-,	udp_init		/* init */
-,	udp_new			/* new */
-,	NULL			/* parse */
-,	udp_open		/* open */
-,	udp_close		/* close */
-,	udp_read		/* read */
-,	udp_write		/* write */
-};
-
-int	udpport;
+extern int	udpport;
 
 #define		ISUDPOBJECT(mp)	((mp) && ((mp)->vf == (void*)&ip_media_fns))
-#define		UDPASSERT(mp)	ASSERT(ISUDPOBJECT(mp))
+//#define		UDPASSERT(mp)	ASSERT(ISUDPOBJECT(mp))
+#define		UDPASSERT(mp)
 
+STATIC int hb_dev_mtype (char** buffer) { 
+	
+	*buffer = ha_malloc((strlen("udp") * sizeof(char)) + 1);
+
+	strcpy(*buffer, "udp");
+
+	return strlen("udp");
+}
+
+STATIC int hb_dev_descr (char **buffer) { 
+
+	const char* str = "UDP/IP broadcast";	
+
+	*buffer = ha_malloc((strlen(str) * sizeof(char)) + 1);
+
+	strcpy(*buffer, str);
+
+	return strlen(str);
+}
+
+STATIC int hb_dev_isping (void) {
+    return 0;
+}
 
 STATIC int
-udp_init(void)
+hb_dev_init(void)
 {
 	(void)_heartbeat_h_Id;
 	(void)_udp_Id;
@@ -102,7 +115,7 @@ udp_init(void)
  *	Name of interface is passed as a parameter
  */
 STATIC struct hb_media *
-udp_new(const char * intf)
+hb_dev_new(const char * intf)
 {
 	char	msg[MAXLINE];
 	struct ip_private*	ipi;
@@ -122,7 +135,6 @@ udp_new(const char * intf)
 		name = ha_malloc(strlen(intf)+1);
 		strcpy(name, intf);
 		ret->name = name;
-		ret->vf = &ip_media_fns;
 
 	}else{
 		ha_free(ipi);
@@ -134,7 +146,7 @@ udp_new(const char * intf)
  *	Open UDP/IP broadcast heartbeat interface
  */
 STATIC int
-udp_open(struct hb_media* mp)
+hb_dev_open(struct hb_media* mp)
 {
 	struct ip_private * ei;
 
@@ -145,7 +157,7 @@ udp_open(struct hb_media* mp)
 		return(HA_FAIL);
 	}
 	if ((ei->rsocket = HB_make_receive_sock(mp)) < 0) {
-		udp_close(mp);
+		hb_dev_close(mp);
 		return(HA_FAIL);
 	}
 	ha_log(LOG_NOTICE, "UDP heartbeat started on port %d interface %s"
@@ -157,7 +169,7 @@ udp_open(struct hb_media* mp)
  *	Close UDP/IP broadcast heartbeat interface
  */
 STATIC int
-udp_close(struct hb_media* mp)
+hb_dev_close(struct hb_media* mp)
 {
 	struct ip_private * ei;
 	int	rc = HA_OK;
@@ -182,7 +194,7 @@ udp_close(struct hb_media* mp)
  */
 
 STATIC struct ha_msg *
-udp_read(struct hb_media* mp)
+hb_dev_read(struct hb_media* mp)
 {
 	struct ip_private *	ei;
 	char			buf[MAXLINE];
@@ -214,7 +226,7 @@ udp_read(struct hb_media* mp)
  */
 
 STATIC int
-udp_write(struct hb_media* mp, struct ha_msg * msgptr)
+hb_dev_write(struct hb_media* mp, struct ha_msg * msgptr)
 {
 	struct ip_private *	ei;
 	int			rc;
@@ -461,6 +473,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.11  2000/09/01 21:10:46  marcelo
+ * Added dynamic module support
+ *
  * Revision 1.10  2000/08/13 04:36:16  alan
  * Added code to make ping heartbeats work...
  * It looks like they do, too ;-)

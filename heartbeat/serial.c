@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.17 2000/08/13 04:36:16 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.18 2000/09/01 21:10:46 marcelo Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -49,46 +49,60 @@ struct serial_private {
         struct hb_media * next;   
 };
 
+extern int serial_baud;
+extern int baudrate;
+
 /* Used to maintain a list of our serial ports in the ring */
 STATIC struct hb_media*		lastserialport;
 
 
-STATIC struct hb_media*	serial_new(const char * value);
-STATIC struct ha_msg*	serial_read(struct hb_media*mp);
+STATIC struct hb_media*	hb_dev_new(const char * value);
+STATIC struct ha_msg*	hb_dev_read(struct hb_media*mp);
 STATIC char *		ttygets(char * inbuf, int length
 ,				struct serial_private *tty);
-STATIC int		serial_write(struct hb_media*mp, struct ha_msg *msg);
-STATIC int		serial_open(struct hb_media* mp);
+STATIC int		hb_dev_write(struct hb_media*mp, struct ha_msg *msg);
+STATIC int		hb_dev_open(struct hb_media* mp);
 STATIC int		ttysetup(int fd);
 STATIC int		opentty(char * serial_device);
-STATIC int		serial_close(struct hb_media* mp);
-STATIC int		serial_init(void);
+STATIC int		hb_dev_close(struct hb_media* mp);
+STATIC int		hb_dev_init(void);
 STATIC void		serial_localdie(void);
-
-
-/* Exported to the world */
-const struct hb_media_fns	serial_media_fns =
-{	"serial"		/* type */
-,	"serial ring"		/* description */
-,	0			/* Not a ping medium */
-,	serial_init		/* init */
-,	serial_new		/* new */
-,	NULL			/* parse */
-,	serial_open		/* open */
-,	serial_close		/* close */
-,	serial_read		/* read */
-,	serial_write		/* write */
-};
-int		serial_baud;	/* Also exported... */
-int		baudrate;	/* Also exported... */
+STATIC int		hb_dev_mtype (char **buffer);
+STATIC int		hb_dev_descr (char **buffer);
+STATIC int		hb_dev_isping (void);
 
 #define		IsTTYOBJECT(mp)	((mp) && ((mp)->vf == (void*)&serial_media_fns))
-#define		TTYASSERT(mp)	ASSERT(IsTTYOBJECT(mp))
+//#define		TTYASSERT(mp)	ASSERT(IsTTYOBJECT(mp))
+#define		TTYASSERT(mp)
 #define		RTS_WARNTIME	3600
+
+STATIC int hb_dev_mtype (char **buffer) { 
+	
+	*buffer = ha_malloc((strlen("serial") * sizeof(char)) + 1);
+
+	strcpy(*buffer, "serial");
+
+	return strlen("serial");
+}
+
+STATIC int hb_dev_descr (char **buffer) { 
+
+	const char *str = "serial ring";	
+
+	*buffer = ha_malloc((strlen(str) * sizeof(char)) + 1);
+
+	strcpy(*buffer, str);
+
+	return strlen(str);
+}
+
+STATIC int hb_dev_isping (void) {
+	return 0;
+}
 
 /* Initialize global serial data structures */
 STATIC int
-serial_init(void)
+hb_dev_init(void)
 {
 	(void)_serial_c_Id;
 	(void)_heartbeat_h_Id;
@@ -102,7 +116,7 @@ serial_init(void)
 
 /* Process a serial port declaration */
 STATIC struct hb_media *
-serial_new(const char * port)
+hb_dev_new(const char * port)
 {
 	char	msg[MAXLINE];
 	struct	stat	sbuf;
@@ -140,7 +154,6 @@ serial_new(const char * port)
 			sp->ttyname = (char *)ha_malloc(strlen(port)+1);
 			strcpy(sp->ttyname, port);
 			ret->name = sp->ttyname;
-			ret->vf = &serial_media_fns;
 			ret->pd = sp;
 		}else{
 			ha_free(ret);
@@ -154,7 +167,7 @@ serial_new(const char * port)
 }
 
 STATIC int
-serial_open(struct hb_media* mp)
+hb_dev_open(struct hb_media* mp)
 {
 	struct serial_private*	sp;
 	char			msg[MAXLINE];
@@ -174,7 +187,7 @@ serial_open(struct hb_media* mp)
 }
 
 STATIC int
-serial_close(struct hb_media* mp)
+hb_dev_close(struct hb_media* mp)
 {
 	struct serial_private*	sp;
 	int rc;
@@ -270,7 +283,7 @@ serial_localdie(void)
 
 /* This process does all the writing to our tty ports */
 STATIC int
-serial_write(struct hb_media*mp, struct ha_msg*m)
+hb_dev_write(struct hb_media*mp, struct ha_msg*m)
 {
 	char *		str;
 
@@ -323,7 +336,7 @@ serial_write(struct hb_media*mp, struct ha_msg*m)
 
 /* This process does all the reading from our tty ports */
 STATIC struct ha_msg *
-serial_read(struct hb_media*mp)
+hb_dev_read(struct hb_media*mp)
 {
 	char buf[MAXLINE];
 	struct hb_media*	sp;
@@ -446,6 +459,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.18  2000/09/01 21:10:46  marcelo
+ * Added dynamic module support
+ *
  * Revision 1.17  2000/08/13 04:36:16  alan
  * Added code to make ping heartbeats work...
  * It looks like they do, too ;-)

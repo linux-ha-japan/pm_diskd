@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.29 2000/09/01 06:07:43 alan Exp $
+#	$Id: Makefile,v 1.30 2000/09/01 21:09:12 marcelo Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -30,6 +30,9 @@ HAPPP=$(VARRUN)/ppp.d
 INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
 LOGROTATESCRIPT=$(LOGROTATED)/$(PKG)
 RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
+COMM_MODULES_DIR=$(HALIB)/modules/comm/
+AUTH_MODULES_DIR=$(HALIB)/modules/auth/
+
 
 # Can't include the Build Root as a part of the compilation process
 B_HA=$(DESTDIR)/etc/ha.d
@@ -70,6 +73,8 @@ CFLAGS=-g 				\
 
 LDFLAGS = -fident
 
+SHAREDFLAGS = -ldl -rdynamic
+
 HEARTBEAT = heartbeat
 H_OBJLIST = 	heartbeat.o		\
 		auth.o			\
@@ -79,12 +84,17 @@ H_OBJLIST = 	heartbeat.o		\
 		ha_msg.o		\
 		ha_msg_internal.o	\
 		lock.o			\
-		md5.o			\
-		ping.o		\
-		ppp-udp.o		\
-		serial.o		\
-		sha1.o			\
-		udp.o
+		module.o
+
+COMM_MODULES =	serial.so \
+			udp.so \
+			ppp-udp.so \
+			ping.so
+
+AUTH_MODULES =	md5.so \
+			sha1.so \
+			crc.so
+
 H_HDRS    = heartbeat.h ha_msg.h hb_api.h hb_api_core.h
 HBLIBS=	../stonith/libstonith.a
 LIBS=
@@ -105,7 +115,7 @@ LIBS = $(CLIENTLIB) $(CLIENTSO)
 
 LIBCMDS = $(HEARTBEAT) $(SENDARP) $(FINDIF) $(LDIRECTORD) api_test
 
-PRODUCTS = $(LIBCMDS) $(LIBS)
+PRODUCTS = $(LIBCMDS) $(LIBS) modules
 
 LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 
@@ -120,13 +130,22 @@ SPECSRC = Specfile
 all: $(PRODUCTS)
 
 $(HEARTBEAT): $(H_OBJLIST) $(H_HDRS) $(HBLIBS)
-	$(CC) $(LDFLAGS) $(H_OBJLIST) $(HBLIBS) -o $(HEARTBEAT)
+	$(CC) $(SHAREDFLAGS) $(LDFLAGS) $(H_OBJLIST) $(HBLIBS) -o $(HEARTBEAT)
 
 $(CLIENTLIB): $(CLIENTOBJS)
 	ar rc $(CLIENTLIB) $(CLIENTOBJS)
 
 $(CLIENTSO): $(CLIENTLIB)
 	ld -shared -o $(CLIENTSO) --whole-archive $(CLIENTLIB)
+
+modules: serial.o udp.o ppp-udp.o ping.o md5.o sha1.o crc.o
+	$(CC) -shared -o serial.so serial.o
+	$(CC) -shared -o udp.so udp.o
+	$(CC) -shared -o ppp-udp.so ppp-udp.o
+	$(CC) -shared -o ping.so ping.o
+	$(CC) -shared -o md5.so md5.o
+	$(CC) -shared -o sha1.so sha1.o
+	$(CC) -shared -o crc.so crc.o
 
 api_test: api_test.o $(CLIENTLIB)
 	$(CC) $(LDFLAGS) api_test.o $(CLIENTLIB) -o api_test
@@ -150,6 +169,10 @@ install_bin: all
 	$(INSTALL) -cm 755 $(RCCMDS) $(HARCD)
 	$(INSTALL) -cm 755 $(RESOURCECMDS) $(RESOURCEDIR)
 	$(INSTALL) -cm 755 $(ROOTFILES) $(HA)
+	mkdir -p $(COMM_MODULES_DIR)
+	mkdir -p $(AUTH_MODULES_DIR)
+	$(INSTALL) -cm 755 $(COMM_MODULES) $(COMM_MODULES_DIR)
+	$(INSTALL) -cm 755 $(AUTH_MODULES) $(AUTH_MODULES_DIR)
 	if [ ! -d  $(BUILD_ROOT)/$(INITD) ]; then mkdir -p $(BUILD_ROOT)/$(INITD); fi
 	$(INSTALL) -cm 755 heartbeat.sh $(INITSCRIPT)
 	[ -d $(LOGROTATED) ] && \
@@ -160,7 +183,7 @@ install_lib: all
 	$(INSTALL) -cm 755 $(LIBS) $(GENLIB)
 
 clean:	
-	rm -f *.o *.swp .*.swp core make.out
+	rm -f *.o *.swp .*.swp core make.out *.so
 	rm -f $(PRODUCTS)
 
 pristene: clean

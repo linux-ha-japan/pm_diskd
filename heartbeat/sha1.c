@@ -19,18 +19,34 @@ A million repetitions of "a"
 
 #include <stdio.h>
 #include <string.h>
+#include <heartbeat.h>
+#include <hb_sha1.h>
 
-typedef struct {
-    unsigned long state[5];
-    unsigned long count[2];
-    unsigned char buffer[64];
-} SHA1_CTX;
+extern unsigned char result[MAXLINE];
 
 void SHA1Transform(unsigned long state[5], unsigned char buffer[64]);
 void SHA1Init(SHA1_CTX* context);
 void SHA1Update(SHA1_CTX* context, unsigned char* data, unsigned int len);
 void SHA1Final(unsigned char digest[20], SHA1_CTX* context);
 
+const unsigned char *
+hb_auth_calc (const struct auth_info *info, const char * text);
+int hb_auth_atype(char **buffer);
+int hb_auth_nkey(void);
+
+int hb_auth_nkey(void) 
+{ 
+	return 1;
+}
+
+int hb_auth_atype(char **buffer) 
+{
+	*buffer = ha_malloc((strlen("sha1") * sizeof(char)) + 1);
+
+	strcpy(*buffer, "sha1");
+
+	return strlen("sha1");
+}
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
 /* blk0() and blk() perform the initial expand. */
@@ -172,4 +188,66 @@ unsigned char finalcount[8];
 #ifdef SHA1HANDSOFF  /* make SHA1Transform overwrite it's own static vars */
     SHA1Transform(context->state, context->buffer);
 #endif
+}
+
+
+const unsigned char *
+hb_auth_calc (const struct auth_info *info, const char * text)
+{
+	SHA1_CTX ictx, octx ;
+	unsigned char   isha[SHA_DIGESTSIZE]; 
+	unsigned char 	osha[SHA_DIGESTSIZE];
+	unsigned char   tk[SHA_DIGESTSIZE];
+	unsigned char   buf[SHA_BLOCKSIZE];
+	int	i, text_len, key_len;
+	const char * key = info->key;
+
+	(void) _heartbeat_h_Id;
+	(void) _ha_msg_h_Id;
+
+	text_len = strlen(text);
+	key_len = strlen(key);
+
+	if (key_len > SHA_BLOCKSIZE) {
+		SHA1_CTX         tctx ;
+		SHA1Init(&tctx);
+		SHA1Update(&tctx, (unsigned char *)key, key_len);
+		SHA1Final((unsigned char *)key, &tctx);
+		key = tk;
+		key_len = SHA_DIGESTSIZE;
+	}
+
+	/**** Inner Digest ****/
+
+	SHA1Init(&ictx) ;
+
+	/* Pad the key for inner digest */
+	for (i = 0 ; i < key_len ; ++i) buf[i] = key[i] ^ 0x36 ;
+	for (i = key_len ; i < SHA_BLOCKSIZE ; ++i) buf[i] = 0x36 ;
+
+	SHA1Update(&ictx, buf, SHA_BLOCKSIZE) ;
+	SHA1Update(&ictx, (unsigned char *)text, text_len) ;
+
+	SHA1Final(isha, &ictx) ;
+
+	/**** Outter Digest ****/
+
+	SHA1Init(&octx) ;
+
+	/* Pad the key for outter digest */
+
+	for (i = 0 ; i < key_len ; ++i) buf[i] = key[i] ^ 0x5C ;
+	for (i = key_len ; i < SHA_BLOCKSIZE ; ++i) buf[i] = 0x5C ;
+
+	SHA1Update(&octx, buf, SHA_BLOCKSIZE) ;
+	SHA1Update(&octx, isha, SHA_DIGESTSIZE) ;
+	SHA1Final(osha, &octx) ;
+
+	result[0] = '\0';
+	for (i = 0; i < SHA_DIGESTSIZE; i++) {
+		sprintf(tk, "%02x", osha[i]);
+		strcat(result, tk);
+	}
+
+	return(result);
 }

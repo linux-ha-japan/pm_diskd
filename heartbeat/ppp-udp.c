@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.11 2000/08/13 04:36:16 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.12 2000/09/01 21:10:46 marcelo Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -126,16 +126,16 @@ struct ip_private*	pppref = NULL;
 static int		ppp_countdown = PPPCOUNT;
 
 
-STATIC int	ppp_udp_init(void);
+STATIC int	hb_dev_init(void);
 STATIC void	ppp_localdie(void);
 STATIC struct hb_media*
-		ppp_udp_new(const char* tty, const char* ipaddr);
-STATIC int	ppp_udp_parse(const char * line);
-STATIC int	ppp_udp_open(struct hb_media* mp);
-STATIC int	ppp_udp_close(struct hb_media* mp);
+		hb_dev_new(const char* tty, const char* ipaddr);
+STATIC int	hb_dev_parse(const char * line);
+STATIC int	hb_dev_open(struct hb_media* mp);
+STATIC int	hb_dev_close(struct hb_media* mp);
 STATIC struct ha_msg*
-		ppp_udp_read(struct hb_media* mp);
-STATIC int	ppp_udp_write(struct hb_media* mp, struct ha_msg *msg);
+		hb_dev_read(struct hb_media* mp);
+STATIC int	hb_dev_write(struct hb_media* mp, struct ha_msg *msg);
 STATIC int	ppp_udp_make_receive_sock(struct hb_media* ei);
 STATIC int	ppp_udp_make_send_sock(struct hb_media * mp);
 STATIC int	ppp_udp_open_write(struct hb_media * mp);
@@ -150,28 +150,41 @@ STATIC struct hb_media*
 		last_udp_ppp_interface;
 STATIC void save_ppp_info(struct hb_media * mp);
 STATIC void check_ppp_info(int sig);
-
-const struct hb_media_fns	ppp_udp_media_fns =
-{	"ppp-udp"		/* type */
-,	"Serial ring running PPP/UDP" /* description */
-,	0			/* Not a ping medium */
-,	ppp_udp_init		/* init */
-,	NULL			/* new */
-,	ppp_udp_parse		/* parse */
-,	ppp_udp_open		/* open */
-,	ppp_udp_close		/* close */
-,	ppp_udp_read		/* read */
-,	ppp_udp_write		/* write */
-};
+STATIC int hb_dev_mtype (char **buffer);
+STATIC int hb_dev_descr (char **buffer);
+STATIC int hb_dev_isping (void);
 
 extern int	udpport;	/* Shared with udp.c */
 
 #define		ISUDPOBJECT(mp)	((mp) && ((mp)->vf == (void*)&ppp_udp_media_fns))
-#define		PPPUDPASSERT(mp)	ASSERT(ISUDPOBJECT(mp))
+//#define		PPPUDPASSERT(mp)	ASSERT(ISUDPOBJECT(mp))
+#define PPPUDPASSERT(mp) 
+STATIC int hb_dev_mtype (char **buffer)
+{
+	*buffer = ha_malloc((strlen("ppp-udp") * sizeof(char)) + 1);
 
+	strcpy(*buffer, "ppp-udp");
+
+	return strlen("ppp-udp");
+}
+
+STATIC int hb_dev_descr (char **buffer)
+{
+	const char *str = "Serial ring running PPP/UDP";
+
+	*buffer = ha_malloc((strlen(str) * sizeof(char)) + 1);
+
+	strcpy(*buffer, str);
+
+	return strlen(str);
+}
+
+STATIC int hb_dev_isping (void) { 
+	return 0;
+}
 
 STATIC int
-ppp_udp_init(void)
+hb_dev_init(void)
 {
 	(void)_heartbeat_h_Id;
 	(void)_ppp_udp_Id;
@@ -186,7 +199,7 @@ ppp_udp_init(void)
  *	Name of interface is passed as a parameter
  */
 STATIC struct hb_media *
-ppp_udp_new(const char* tty, const char* ipaddr)
+hb_dev_new(const char* tty, const char* ipaddr)
 {
 	struct ip_private*	ipi;
 	struct hb_media *	ret;
@@ -217,7 +230,6 @@ ppp_udp_new(const char* tty, const char* ipaddr)
 		}
 		strcpy(name, tty);
 		ret->name = name;
-		ret->vf = &ppp_udp_media_fns;
 		ipi->next = last_udp_ppp_interface;
 		ipi->next = ret;
 		ipi->rsocket = ipi->wsocket = -1;
@@ -240,7 +252,7 @@ ppp_udp_new(const char* tty, const char* ipaddr)
  */
 
 STATIC int
-ppp_udp_parse(const char * line)
+hb_dev_parse(const char * line)
 {
 	const char *	bp = line;
 
@@ -283,7 +295,7 @@ ppp_udp_parse(const char * line)
 		if (!is_valid_local_addr(ip)) {
 			return(HA_FAIL);
 		}
-		if ((mp = ppp_udp_new(tty, ip)) == NULL)  {
+		if ((mp = hb_dev_new(tty, ip)) == NULL)  {
 			return(HA_FAIL);
 		}
 		sysmedia[nummedia] = mp;
@@ -388,7 +400,7 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
  *	Open PPP-UDP/IP heartbeat interface
  */
 STATIC int
-ppp_udp_open(struct hb_media* mp)
+hb_dev_open(struct hb_media* mp)
 {
 	struct ip_private * ei;
 
@@ -564,7 +576,7 @@ ppp_udp_open_read(struct hb_media * mp)
 	}
 	save_ppp_info(mp);
 	if ((ei->rsocket = ppp_udp_make_receive_sock(mp)) < 0) {
-		ppp_udp_close(mp);
+		hb_dev_close(mp);
 		return(HA_FAIL);
 	}
 	return(HA_OK);
@@ -574,7 +586,7 @@ ppp_udp_open_read(struct hb_media * mp)
  *	Close PPP-UDP/IP heartbeat interface
  */
 STATIC int
-ppp_udp_close(struct hb_media* mp)
+hb_dev_close(struct hb_media* mp)
 {
 	struct ip_private * ei;
 	int	rc = HA_OK;
@@ -616,7 +628,7 @@ ppp_udp_close(struct hb_media* mp)
  */
 
 STATIC struct ha_msg *
-ppp_udp_read(struct hb_media* mp)
+hb_dev_read(struct hb_media* mp)
 {
 	struct ip_private *	ei;
 	char			buf[MAXLINE];
@@ -650,7 +662,7 @@ ppp_udp_read(struct hb_media* mp)
 			}
 			if (errcount > ERRTHRESH) {
 				/* Kill PPPd.  The writer will restart it */
-				ppp_udp_close(mp);
+				hb_dev_close(mp);
 			}
 		}
 		return(NULL);
@@ -718,7 +730,7 @@ ppp_udp_read(struct hb_media* mp)
  */
 
 STATIC int
-ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
+hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 {
 	struct ip_private *	ei;
 	int			rc;
@@ -756,7 +768,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 	if (ei->ppp_pid > 0 && (kill(ei->ppp_pid, 0)< 0 && errno == ESRCH)) {
 		/* Our PPP process has died.  Start a new one */
 		ha_log(LOG_DEBUG, "PPPd process %d is gone.", ei->ppp_pid);
-		ppp_udp_close(mp);
+		hb_dev_close(mp);
 		ppp_udp_open_write(mp);
 	}
 
@@ -811,7 +823,7 @@ ppp_udp_write(struct hb_media* mp, struct ha_msg* hmsg)
 		,	"Too many errors sending to %s... closing..."
 		,	inet_ntoa(ei->addr.sin_addr));
 		/* This will cause PPPd to restart */
-		ppp_udp_close(mp);
+		hb_dev_close(mp);
 		ha_free(pkt);
 		return(HA_FAIL);
 	}else{
@@ -1046,7 +1058,7 @@ check_ppp_info(int sig)
 			 */
 			ha_log(LOG_ERR
 			,	"PPPd pid %d may be wedged", ei->ppp_pid);
-			ppp_udp_close(ppp_hbmedia);
+			hb_dev_close(ppp_hbmedia);
 			ppp_countdown = PPPCOUNT;
 		}
 	}
@@ -1058,7 +1070,7 @@ check_ppp_info(int sig)
 		ha_log(LOG_NOTICE
 		       , "PPP/UDP reader closing socket [%s]", ppp_path);
 		ppp_ts = NULLTS;
-		ppp_udp_close(ppp_hbmedia);
+		hb_dev_close(ppp_hbmedia);
 	}else{
 		alarm(ALARMCNT);
 	}
@@ -1185,6 +1197,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.12  2000/09/01 21:10:46  marcelo
+ * Added dynamic module support
+ *
  * Revision 1.11  2000/08/13 04:36:16  alan
  * Added code to make ping heartbeats work...
  * It looks like they do, too ;-)
