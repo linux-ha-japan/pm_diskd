@@ -223,8 +223,8 @@ api_audit_clients(void)
 
 
 		if (kill(client->pid, 0) < 0 && errno == ESRCH) {
-			ha_log(LOG_INFO, "api_audit_clients: client %d died"
-			,	(int) client->pid);
+			ha_log(LOG_INFO, "api_audit_clients: client %ld died"
+			,	(long) client->pid);
 			api_remove_client(client, "died");
 			client=NULL;
 		}
@@ -279,7 +279,8 @@ api_signoff(const struct ha_msg* msg, struct ha_msg* resp
 { 
 		/* We send them no reply */
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "Signing client %d off", (int) client->pid);
+			ha_log(LOG_DEBUG, "Signing client %ld off"
+			,	(long) client->pid);
 		}
 		api_remove_client(client, "signoff");
 		return I_API_IGN;
@@ -591,9 +592,9 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 	/* See if they correctly stated their client id information... */
 	if (client != fromclient) {
 		ha_log(LOG_ERR, "Client mismatch! (impersonation?)");
-		ha_log(LOG_INFO, "pids (%d vs %d), Client IDs (%s vs %s)"
-		,	(int) client->pid
-		,	(int) fromclient->pid
+		ha_log(LOG_INFO, "pids (%ld vs %ld), Client IDs (%s vs %s)"
+		,	(long) client->pid
+		,	(long) fromclient->pid
 		,	client->client_id
 		,	fromclient->client_id);
 		ha_msg_del(resp); resp=NULL;
@@ -739,8 +740,8 @@ api_process_registration(struct ha_msg * msg)
 		return;
 	}
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Signing on API client %d (%s)"
-		,	(int) client->pid
+		ha_log(LOG_DEBUG, "Signing on API client %ld (%s)"
+		,	(long) client->pid
 		,	(client->iscasual? "'casual'" : client->client_id));
 	}
 	api_send_client_msg(client, resp);
@@ -798,8 +799,8 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 
 	if ((msgstring = msg2string(msg)) == NULL) {
 		ha_log(LOG_ERR
-		,	"api_send_client_message: msg2string failed client %d"
-		,	(int) client->pid);
+		,	"api_send_client_message: msg2string failed client %ld"
+		,	(long) client->pid);
 		return;
 	}
 
@@ -853,8 +854,8 @@ api_flush_msgQ(client_proc_t* client)
 		if ((rc=write(fd, msgstring, msglen)) != msglen) {
 			if (rc >= 0 || errno != EAGAIN) {
 				ha_perror("Cannot write message to client"
-				" %d (write failure %d)"
-				,	(int) clientpid, rc);
+				" %ld (write failure %d)"
+				,	(long) clientpid, rc);
 			}
 			break;
 		}
@@ -867,13 +868,13 @@ api_flush_msgQ(client_proc_t* client)
 	nsig = (writeok ? client->signal : 0);
 
 	if (close(fd) < 0) {
-		ha_perror("Client %d close failure in api_flush_msgQ"
-		,	(int) client->pid);
+		ha_perror("Client %ld close failure in api_flush_msgQ"
+		,	(long) client->pid);
 	}
 
 	if (kill(clientpid, nsig) < 0 && errno == ESRCH) {
-		ha_log(LOG_INFO, "api_send_client: client %d died"
-		,	(int) client->pid);
+		ha_log(LOG_INFO, "api_send_client: client %ld died"
+		,	(long) client->pid);
 
 		closereason = "died";
 
@@ -986,7 +987,8 @@ api_remove_client(client_proc_t* req, const char * reason)
 		}
 		prev = client;
 	}
-	ha_log(LOG_ERR,	"api_remove_client: could not find pid [%d]", (int) req->pid);
+	ha_log(LOG_ERR,	"api_remove_client: could not find pid [%ld]"
+	,	(long) req->pid);
 }
 
 static void
@@ -1057,7 +1059,7 @@ api_add_client(struct ha_msg* msg)
 	}
 	if (pid <= 0  || (kill(pid, 0) < 0 && errno == ESRCH)) {
 		ha_log(LOG_WARNING
-		,	"api_add_client: bad pid [%d]", (int) pid);
+		,	"api_add_client: bad pid [%ld]", (long) pid);
 		return 0;
 	}
 	fromid = ha_msg_value(msg, F_FROMID);
@@ -1071,14 +1073,14 @@ api_add_client(struct ha_msg* msg)
 			return 0;
 		}else{
 			ha_log(LOG_ERR
-			,	"client pid %d [%s] died (api_add_client)"
-			,	(int) client->pid, fromid);
+			,	"client pid %ld [%s] died (api_add_client)"
+			,	(long) client->pid, fromid);
 		}
 		api_remove_client(client, "bad add request");
 	}
 	if ((client = MALLOCT(client_proc_t)) == NULL) {
 		ha_log(LOG_ERR
-		,	"unable to add client pid %d [no memory]", (int) pid);
+		,	"unable to add client pid %ld [no memory]", (long) pid);
 		return 0;
 	}
 	/* Zap! */
@@ -1217,8 +1219,8 @@ HostSecurityIsOK(void)
 
 	if (s.st_uid != our_uid) {
 		ha_log(LOG_ERR
-		,	"FIFO %s not owned by uid %d.", FIFONAME
-		,	(int) our_uid);
+		,	"FIFO %s not owned by uid %ld.", FIFONAME
+		,	(long) our_uid);
 		return 0;
 	}
 
@@ -1254,8 +1256,8 @@ HostSecurityIsOK(void)
 	/* Let's make sure it's owned by us... */
 	if (s.st_uid != our_uid) {
 		ha_log(LOG_ERR
-		,	"FIFO %s not owned by uid %d.", API_REGFIFO
-		,	(int) our_uid);
+		,	"FIFO %s not owned by uid %ld.", API_REGFIFO
+		,	(long) our_uid);
 		return 0;
 	}
 
@@ -1282,8 +1284,8 @@ HostSecurityIsOK(void)
 
 	if (s.st_uid != our_uid) {
 		ha_log(LOG_ERR
-		,	"Directory %s not owned by uid %d.", CASUALCLIENTDIR
-		,	(int) our_uid);
+		,	"Directory %s not owned by uid %ld.", CASUALCLIENTDIR
+		,	(long) our_uid);
 		return 0;
 	}
 
@@ -1333,8 +1335,8 @@ HostSecurityIsOK(void)
 
 	if (s.st_uid != our_uid) {
 		ha_log(LOG_ERR
-		,	"Directory %s not owned by uid %d.", NAMEDCLIENTDIR
-		,	(int) our_uid);
+		,	"Directory %s not owned by uid %ld.", NAMEDCLIENTDIR
+		,	(long) our_uid);
 		return 0;
 	}
 
@@ -1371,7 +1373,7 @@ ClientSecurityIsOK(client_proc_t* client)
 
 	if (kill(client->pid, 0) < 0 && errno == ESRCH) {
 		ha_log(LOG_ERR
-		,	"Client pid %d does not exist", (int) client->pid);
+		,	"Client pid %ld does not exist", (long) client->pid);
 		return(0);
 	}
 	client_uid = pid2uid(client->pid);
@@ -1427,9 +1429,9 @@ ClientSecurityIsOK(client_proc_t* client)
 
 	if (client_uid != s.st_uid) {
 		ha_log(LOG_ERR
-		,	"Client pid %d is not uid %ld like they"
+		,	"Client pid %ld is not uid %ld like they"
 		" must be to write FIFO %s"
-		,	(int)client->pid, (long)s.st_uid, fifoname);
+		,	(long)client->pid, (long)s.st_uid, fifoname);
 		return 0;
 	}
 
@@ -1484,9 +1486,9 @@ ClientSecurityIsOK(client_proc_t* client)
 
 	if (client_uid != s.st_uid) {
 		ha_log(LOG_ERR
-		,	"Client pid %d is not uid %ld like they"
+		,	"Client pid %ld is not uid %ld like they"
 		" must be to read FIFO %s"
-		,	(int)client->pid, (long)s.st_uid, fifoname);
+		,	(long)client->pid, (long)s.st_uid, fifoname);
 		return 0;
 	}
 	return 1;
@@ -1569,8 +1571,8 @@ ProcessAnAPIRequest(client_proc_t*	client)
 	if (kill(client->pid, 0) < 0 &&	errno == ESRCH) {
 		/* Oops... he's dead */
 		ha_log(LOG_INFO
-		,	"Client pid %d died (input)"
-		,	(int)client->pid);
+		,	"Client pid %ld died (input)"
+		,	(long)client->pid);
 		api_remove_client(client, "died");
 		return;
 	}
@@ -1581,8 +1583,8 @@ ProcessAnAPIRequest(client_proc_t*	client)
 		/* EOF? */
 		if (feof(client->input_fifo)) {
 			ha_log(LOG_INFO
-			,	"EOF from client pid %d "
-			,	(int)client->pid);
+			,	"EOF from client pid %ld"
+			,	(long)client->pid);
 			api_remove_client(client, "EOF");
 			return;
 		}
@@ -1594,11 +1596,12 @@ ProcessAnAPIRequest(client_proc_t*	client)
 		}
 
 		/* None of the above... */
-		ha_log(LOG_INFO, "No message from pid %d ", (int)client->pid);
+		ha_log(LOG_INFO, "No message from pid %ld"
+		,	(long)client->pid);
 
 		if (ferror(client->input_fifo)) {
-			ha_perror("API FIFO read error: pid %d"
-			,	(int)client->pid);
+			ha_perror("API FIFO read error: pid %ld"
+			,	(long)client->pid);
 			clearerr(client->input_fifo);
 		}
 		++consecutive_failures;
@@ -1609,8 +1612,8 @@ ProcessAnAPIRequest(client_proc_t*	client)
 		 */
 		if (consecutive_failures >= 10) {
 			ha_log(LOG_ERR
-			,	"Removing client pid %d "
-			,	(int)client->pid);
+			,	"Removing client pid %ld"
+			,	(long)client->pid);
 			api_remove_client(client, "noinput");
 			consecutive_failures = 0;
 		}
