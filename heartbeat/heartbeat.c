@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.62 2000/06/15 05:51:41 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.63 2000/06/15 06:03:50 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -485,7 +485,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.62 2000/06/15 05:51:41 alan Exp $$' | sort -u"
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.63 2000/06/15 06:03:50 alan Exp $$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -1767,7 +1767,7 @@ dump_proc_stats(volatile struct process_info * proc)
 	,	proc->nbytes_alloc, proc->nbytes_req, proc->pid, ct);
 
 	ha_log(LOG_INFO, "RealMalloc stats: %lu total malloc bytes."
-	" pid %d/%s]", proc->mallocbytes, proc->pid, ct);
+	" pid [%d/%s]", proc->mallocbytes, proc->pid, ct);
 }
 void
 dump_all_proc_stats()
@@ -3494,6 +3494,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.63  2000/06/15 06:03:50  alan
+ * Missing '[' in debug message.  pretty low priority.
+ *
  * Revision 1.62  2000/06/15 05:51:41  alan
  * Added a little more version info when debugging is turned on.
  *
