@@ -1,13 +1,5 @@
 --- configure.in	Mon Oct  7 15:31:58 2002
 +++ configure.out	Mon Oct  7 15:38:59 2002
-@@ -758,6 +758,7 @@
-  dnl do not change this line #7!
-  dnl do not change this line #8!
-  dnl do not change this line #9!
-+	m4_include([config/snmp_subagent.m4]) 
-  dnl do not change this line #0!
-  dnl do not change this line #a!
-  dnl do not change this line #b!
 @@ -981,8 +981,10 @@
  dnl do not change this line #1!
  dnl do not change this line #2!
