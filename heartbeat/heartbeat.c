@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.245 2003/03/28 16:09:03 lars Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.246 2003/03/28 16:49:43 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -935,10 +935,6 @@ fifo_child(IPC_Channel* chan)
 
 	for (;;) {
 
-		if (msg) {
-			ha_msg_del(msg);
-			msg = NULL;
-		}
 		
 		msg = controlfifo2msg(fifo);
 
@@ -954,11 +950,12 @@ fifo_child(IPC_Channel* chan)
 				fifoofd = -1;
 			}
 			m = hamsg2ipcmsg(msg, chan);
-			if (!m) {
-				continue;
+			if (m) {
+				/* Send frees "m" "at the right time" */
+				chan->ops->send(chan, m);
 			}
-			/* Send frees "m" "at the right time" */
-			chan->ops->send(chan, m);
+			ha_msg_del(msg);
+			msg = NULL;
 			
 		}else if (feof(fifo)) {
 			if (ANYDEBUG) {
@@ -4007,6 +4004,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.246  2003/03/28 16:49:43  alan
+ * Removed a memory leak introduced by the previous change.
+ *
  * Revision 1.245  2003/03/28 16:09:03  lars
  * Restructured loop a bit to stop my head from spinning.
  *
