@@ -22,6 +22,7 @@
  *
  */
 #include <portability.h>
+#include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 #include <sys/types.h>
@@ -116,7 +117,7 @@ static void	StartNextRemoteRscReq(void);
 static void	InitRemoteRscReqQueue(void);
 static int	send_standby_msg(enum standby state);
 static void 	send_stonith_msg(const char *, const char *);
-static void	go_standby(enum standby who);
+static void	go_standby(enum standby who, int resourceset);
 static int	send_local_starting(void);
 
 static	void	RscMgmtProcessRegistered(ProcTrack* p);
@@ -1197,7 +1198,7 @@ ask_for_resources(struct ha_msg *msg)
 				ha_log(LOG_INFO
 				,	"standby: %s can take our resources"
 				,	from);
-				go_standby(ME);
+				go_standby(ME, HB_ALL_RSC);
 				/* Our child proc sends a "done" message */
 				/* after all the resources are released	*/
 			}else{
@@ -1228,7 +1229,7 @@ ask_for_resources(struct ha_msg *msg)
 				,	from);
 				/* go_standby gets *all* resources */
 				/* req_our_resources(TRUE); */
-				go_standby(OTHER);
+				go_standby(OTHER, HB_ALL_RSC);
 				going_standby = DONE;
 			}else{
 				message_ignored = 1;
@@ -1288,18 +1289,40 @@ countbystatus(const char * status, int matchornot)
 	return count;
 }
 
-
+static int
+rscset_complement(int resourceset)
+{
+	switch (resourceset) {
+		case HB_FOREIGN_RSC:	
+			return HB_LOCAL_RSC;
+		case HB_LOCAL_RSC:
+			return HB_FOREIGN_RSC;
+		case HB_NO_RSC:
+			return HB_ALL_RSC;
+		case HB_ALL_RSC:
+			return HB_NO_RSC;
+	}
+	return HB_ALL_RSC;
+}
 
 
 static void
-go_standby(enum standby who)
+go_standby(enum standby who, int resourceset) /* Which resources to give up */
 {
-	FILE *		rkeys;
-	char		cmd[MAXLINE];
-	char		buf[MAXLINE];
-	int		finalrc = HA_OK;
-	int		rc = 0;
-	pid_t		pid;
+	FILE *			rkeys;
+	char			cmd[MAXLINE];
+	char			buf[MAXLINE];
+	int			finalrc = HA_OK;
+	int			rc = 0;
+	pid_t			pid;
+	int			actresources;	/* Resources to act on */
+	const char *		querycmd;
+
+#define	ACTION_ACQUIRE	0
+#define	ACTION_GIVEUP	1
+	int			action;		/* Action to take */
+	static const char*	actionnames[2] = {"acquire", "give up"};
+	static const char*	actioncmds [2] = {"takegroup", "givegroup"};
 
 	/*
 	 * We consider them unstable because they're about to pick up
@@ -1310,7 +1333,11 @@ go_standby(enum standby who)
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "go_standby: other is unstable");
 		}
+		action = ACTION_GIVEUP;
+	}else{
+		action = ACTION_ACQUIRE;
 	}
+
 	/* We need to fork so we can make child procs not real time */
 
 	switch((pid=fork())) {
@@ -1319,16 +1346,11 @@ go_standby(enum standby who)
 				return;
 
 				/*
-				 * We shouldn't block here, because then we
+				 * We cant't block here, because then we
 				 * aren't sending heartbeats out...
 				 */
 		default:	
-				if (who == ME) {
-					HB_RSCMGMTPROC(pid, "go_standby");
-				}else{
-					HB_RSCMGMTPROC(pid, "go_standby");
-				}
-				/* waitpid(pid, NULL, 0); */
+				HB_RSCMGMTPROC(pid, "go_standby");
 				return;
 
 		case 0:		/* Child */
@@ -1339,8 +1361,8 @@ go_standby(enum standby who)
 	setpgid(0,0);
 	CL_SIGNAL(SIGCHLD, SIG_DFL);
 
+
 	if (who == ME) {
-		procinfo->i_hold_resources = HB_NO_RSC;
 		/* Make sure they know what we're doing and that we're
 		 * not done yet (not stable)
 		 * Since heartbeat doesn't guarantee message ordering
@@ -1348,49 +1370,85 @@ go_standby(enum standby who)
 		 * happens if it gets out of order is that we get
 		 * a funky warning message (or maybe two).
 		 */
-		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources], 0, "standby");
+		
+		procinfo->i_hold_resources = rscset_complement(resourceset);
+		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
+		,	0, "standby");
 	}
+
+	/* Figure out which resources to inquire about */
+	switch(resourceset) {
+
+		case HB_FOREIGN_RSC:	
+		actresources = (who == ME ? HB_FOREIGN_RSC : HB_LOCAL_RSC);
+		break;
+
+		case HB_LOCAL_RSC:
+		actresources = (who == ME ? HB_LOCAL_RSC : HB_FOREIGN_RSC);
+		break;
+
+		case HB_ALL_RSC:
+		actresources = HB_ALL_RSC;
+		break;
+
+		default:
+			ha_log(LOG_ERR, "no resources to %s"
+			,	actionnames[action]);
+			exit(10);
+	}
+
+	/* Figure out what command to issue to get resource list... */
+	switch (actresources) {
+		case HB_FOREIGN_RSC:
+			querycmd =  "otherkeys";
+			break;
+		case HB_LOCAL_RSC:
+			querycmd =  "ourkeys";
+			break;
+		case HB_ALL_RSC:
+			querycmd =  "allkeys";
+			break;
+	}
+
+	ha_log(LOG_INFO
+	,	"%s %s HA resources (standby)."
+	,	actionnames[action]
+	,	rsc_msg[actresources]);
+
+	if (ANYDEBUG) {
+		ha_log(LOG_INFO, "go_standby: who: %d resource set: %s"
+		,	who, rsc_msg[actresources]);
+		ha_log(LOG_INFO, "go_standby: (query/action): (%s/%s)"
+		,	querycmd, actioncmds[action]);
+	}
+
 	/*
 	 *	We could do this ourselves fairly easily...
 	 */
 
-	sprintf(cmd, HALIB "/ResourceManager listkeys '.*'");
+	sprintf(cmd, HALIB "/ResourceManager %s", querycmd);
 
 	if ((rkeys = popen(cmd, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot run command %s", cmd);
 		return;
 	}
-	ha_log(LOG_INFO
-	,	"%s all HA resources (standby)."
-	,	who == ME ? "Giving up" : "Acquiring");
 
 	while (fgets(buf, MAXLINE, rkeys) != NULL) {
 		if (buf[strlen(buf)-1] == '\n') {
 			buf[strlen(buf)-1] = EOS;
 		}
-		if (who == ME) {
-			sprintf(cmd, HALIB "/ResourceManager givegroup %s",buf);
-		}else{
-			if (who == OTHER) {
-				sprintf(cmd, HALIB
-					"/ResourceManager takegroup %s", buf);
-			}
-		}
+		sprintf(cmd, HALIB "/ResourceManager %s %s"
+		,	actioncmds[action], buf);
 		if ((rc=system(cmd)) != 0) {
 			ha_log(LOG_ERR, "%s returned %d", cmd, rc);
 			finalrc=HA_FAIL;
 		}
 	}
 	pclose(rkeys);
-	if (ANYDEBUG) {
-		ha_log(LOG_INFO, "go_standby: who: %d", who);
-	}
-	if (who == ME) {
-		ha_log(LOG_INFO, "All HA resources relinquished (standby).");
-	}else if (who == OTHER) {
-		procinfo->i_hold_resources |= HB_FOREIGN_RSC;
-		ha_log(LOG_INFO, "All resources acquired (standby).");
-	}
+	ha_log(LOG_INFO, "%s HA resource %s completed (standby)."
+	,	rsc_msg[actresources]
+	,	action == ACTION_ACQUIRE ? "acquisition" : "release");
+
 	send_standby_msg(DONE);
 	exit(rc);
 
@@ -1755,6 +1813,10 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.19  2003/05/17 01:43:25  alan
+ * Changed the standby code to allow for the possibility of failing
+ * back to a "balanced" mode...
+ *
  * Revision 1.18  2003/04/16 22:31:22  alan
  * Fixed a timing window bug for resource acquisition with !nice_failback.
  * Sometimes if the other node goes down just as the current node is coming up,
