@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <ctype.h>
 #include <lock.h>
 #include <heartbeat.h>
 
@@ -46,6 +47,8 @@
 #define	DEVDIR	"/dev/"
 #define	DEVLEN	(sizeof(DEVDIR)-1)
 
+static void raw_device (const char *dev, char *dest_name, size_t size);
+
 /* The code in this file originally written by Guenther Thomsen */
 /* Somewhat mangled by Alan Robertson */
 
@@ -59,13 +62,30 @@
  * other negative value, if something unexpected happend (failure anyway)
  */
 
+static void
+raw_device (const char *serial_device, char *dest_name, size_t size)
+{
+	char*		dp	= dest_name;
+	const char*	sp	= serial_device+DEVLEN;
+	const char* 	dpend	= dp + size - 1;
+
+	while (*sp != '\0' && dp < dpend) {
+		if (isalnum(*sp))
+			*dp++ = *sp;
+		sp++;
+	}
+	*dp = EOS;
+}
 
 int
 ttylock(const char *serial_device)
 {
+	char rawname[64];
+
 	(void)_ha_msg_h_Id;
 	(void)_heartbeat_h_Id;
-	return(DoLock("LCK..", serial_device+DEVLEN));
+	raw_device (serial_device, rawname, sizeof(rawname));
+	return(DoLock("LCK..", rawname));
 }
 
 /*
@@ -79,7 +99,10 @@ ttylock(const char *serial_device)
 int
 ttyunlock(const char *serial_device)
 {
-	return(DoUnlock("LCK..", serial_device+DEVLEN));
+	char rawname[64];
+
+	raw_device (serial_device, rawname, sizeof(rawname));
+	return(DoUnlock("LCK..", rawname));
 }
 
 /* This is what the FHS standard specifies for the size of our lock file */
