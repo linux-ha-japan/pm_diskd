@@ -1,32 +1,33 @@
 Source: heartbeat
+Build-Depends: debhelper
 Section: utils
 Priority: optional
-Maintainer: Juan Pedro Paredes Caballero <juampe@retemail.es>
-Standards-Version: 3.0.1
+Maintainer: Simon Horman <horms@vergenet.net>
+Standards-Version: 3.5.2
 
 Package: heartbeat-ldirectord
 Architecture: any
 Depends: libwww-perl, libnet-ssleay-perl, logrotate, ipvsadm
-Description: 
-  ldirectord is a stand-alone daemon to monitor services of real
-  for virtual services provided by The Linux Virtual Server
-  (http://www.linuxvirtualserver.org/). It is simple to install
-  and works with the heartbeat code (http://www.linux-ha.org/).
+Description: Monitors virtual services provided by LVS.
+ ldirectord is a stand-alone daemon to monitor services of real
+ for virtual services provided by The Linux Virtual Server
+ (http://www.linuxvirtualserver.org/). It is simple to install
+ and works with the heartbeat code (http://www.linux-ha.org/).
 
 Package: heartbeat-stonith
 Architecture: any
 Depends: ${shlibs:Depends}
-Description: 
-  The STONITH module (a.k.a. STOMITH) provides an extensible interface for
-  remotely powering down a node in the cluster.  The idea is quite simple:
-  When the software running on one machine wants to make sure another
-  machine in the cluster is not using a resource, pull the plug on the
-  other machine. It's simple and reliable, albeit admittedly brutal.
+Description: Interface for remotely powering down a node in the cluster.
+ The STONITH module (a.k.a. STOMITH) provides an extensible interface for
+ remotely powering down a node in the cluster.  The idea is quite simple:
+ When the software running on one machine wants to make sure another
+ machine in the cluster is not using a resource, pull the plug on the
+ other machine. It's simple and reliable, albeit admittedly brutal.
 
 Package: heartbeat
 Architecture: any
 Depends: ${shlibs:Depends}, logrotate, sysklogd
-Description: Heartbeat subsystem for High-Availability Linux
+Description: Subsystem for High-Availability Linux
  heartbeat is a basic heartbeat subsystem for Linux-HA.
  It will run scripts at initialisation, and when machines go up or down.
  This version will also perform IP address takeover using gratuitous ARPs.
@@ -35,4 +36,3 @@ Description: Heartbeat subsystem for High-Availability Linux
  It implements the following kinds of heartbeats:
    * Bidirectional Serial Rings ("raw" serial ports)
    * UDP/IP broadcast (ethernet, etc)
-   * Bidirectional Serial PPP/UDP Rings (using PPP)

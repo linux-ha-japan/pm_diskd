@@ -1,5 +1,5 @@
-etc/ha.d/resource.d/ldirectord
-etc/init.d/ldirectord
+/etc/ha.d/resource.d/ldirectord
+/etc/init.d/ldirectord
 usr/share/doc/heartbeat-ldirectord/ldirectord.cf
 etc/logrotate.d/ldirectord
 usr/share/man/man8/ldirectord.8.gz

@@ -1,12 +1,6 @@
-This package was debianised by Juan Pedro Paredes Caballero <juampe@retemail.es> on
-Wed, 22 Nov 2000 04:08:58 +0100.
+Thanks to Juan Pedro Paredes Caballero <juampe@retemail.es> and Paolo
+Molaro <lupus@debian.org> for helping to make this debian package possile.
 
-It was downloaded from http://linux-ha.org/download
-
-Upstream Author(s): 
-Thanks to Paolo Molaro <lupus@debian.org> for heartbeat_0.4.6-2.diff
-
-
-Copyright:
-
-<Must follow here>
+Heartbeat is released under the terms of the GNU General Public Licence, a
+copy of which should be available in /usr/share/common-licenses/GPL on
+Debian GNU/Linux systems.

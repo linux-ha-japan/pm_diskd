@@ -1,5 +1,5 @@
 #! /bin/sh
-# postinst script for heartbeat
+# postinst script for heartbeat-stonith
 #
 # see: dh_installdeb(1)
 
@@ -23,22 +23,7 @@ set -e
 #     `abort-remove' or `abort-deconfigure'.
 
 case "$1" in
-    configure)
-	if grep -q '^haclient:' /etc/group
-	then
-		adduser --system --group --no-create-home \
-			--gecos "Heartbeat System Account" \
-			--disabled-password haclient > /dev/null
-	fi
-	chgrp haclient /var/lib/heartbeat/casual \
-	  /var/lib/heartbeat/register
-	mknod -m 644 /var/lib/heartbeat/fifo p
-	mknod -m 644 /var/lib/heartbeat/register p
-	update-rc.d heartbeat defaults >/dev/null
-    ;;
-
-    abort-upgrade|abort-remove|abort-deconfigure)
-
+    abort-upgrade|abort-remove|abort-deconfigure|configure)
     ;;
 
     *)
@@ -53,5 +38,3 @@ esac
 #DEBHELPER#
 
 exit 0
-
-
