@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.7 1999/10/10 20:11:56 alanr Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.8 1999/10/25 15:35:03 alan Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,8 +10,6 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.7 1999/10/10 20:11:56 alan
 
 #define		MINFIELDS	20
 #define		CRNL		"\r\n"
-
-int add_msg_auth(struct ha_msg * msg);
 
 /*
  *	Heartbeat messaging object.
@@ -368,10 +366,11 @@ ha_log_message (const struct ha_msg *m)
 #define	SEQ	"seq"
 #define	LOAD1	"load1"
 
-/* The value functions are allowed (encouraged even) to return static data */
+/* The value functions are expected to return pointers to static data */
 struct default_vals {
 	const char *	name;
 	const char * 	(*value)(void);
+	int		seqfield;
 };
 
 STATIC	const char * ha_msg_seq(void);
@@ -382,11 +381,11 @@ STATIC	const char * ha_msg_ttl(void);
 
 /* Each of these functions returns static data requiring copying */
 struct default_vals defaults [] = {
-	{F_ORIG,	ha_msg_from},
-	{F_SEQ,		ha_msg_seq},
-	{F_TIME,	ha_msg_timestamp},
-	{F_LOAD,	ha_msg_loadavg},
-	{F_TTL,		ha_msg_ttl},
+	{F_ORIG,	ha_msg_from,	0},
+	{F_SEQ,		ha_msg_seq,	1},
+	{F_TIME,	ha_msg_timestamp,0},
+	{F_LOAD,	ha_msg_loadavg, 1},
+	{F_TTL,		ha_msg_ttl, 0},
 };
 
 /* Reads from control fifo, and creates a new message from it */
@@ -396,8 +395,10 @@ controlfifo2msg(FILE * f)
 {
 	char		buf[MAXLINE];
 	char *		getsret;
+	const char*	type;
 	struct ha_msg*	ret;
 	int		j;
+	int		noseqno;
 
 	/* Skip until we find a MSG_START (hopefully we skip nothing) */
 	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
@@ -409,14 +410,6 @@ controlfifo2msg(FILE * f)
 		ha_error("msgfromstream: cannot get message");
 		return(NULL);
 	}
-	/* Add our default name=value pairs */
-	for (j=0; j < DIMOF(defaults); ++j) {
-		if (ha_msg_add(ret, defaults[j].name, defaults[j].value())
-		!=	HA_OK)  {
-			ha_msg_del(ret);
-			return(NULL);
-		}
-	}
 
 	/* Add Name=value pairs until we reach MSG_END or EOF */
 	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
@@ -426,6 +419,35 @@ controlfifo2msg(FILE * f)
 		if (ha_msg_add_nv(ret, buf) != HA_OK) {
 			ha_error("NV failure (controlfifo2msg):");
 			ha_error(buf);
+			ha_msg_del(ret);
+			return(NULL);
+		}
+	}
+	if ((type = ha_msg_value(ret, F_TYPE)) == NULL) {
+		ha_log(LOG_ERR, "No type (controlfifo2msg)");
+		ha_msg_del(ret);
+		return(NULL);
+	}
+
+	noseqno = (strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1) == 0);
+
+	/* Add our default name=value pairs */
+	for (j=0; j < DIMOF(defaults); ++j) {
+
+		/*
+		 * Should we skip putting a sequence number on this packet?
+		 *
+		 * We don't want requests for retransmission to be subject
+		 * to being retransmitted according to the protocol.  They
+		 * need to be outside the normal retransmission protocol.
+		 * To accomplish that, we avoid giving them sequence numbers.
+		 */
+		if (noseqno && defaults[j].seqfield) {
+			continue;
+		}
+
+		if (ha_msg_add(ret, defaults[j].name, defaults[j].value())
+		!=	HA_OK)  {
 			ha_msg_del(ret);
 			return(NULL);
 		}
@@ -474,11 +496,11 @@ add_msg_auth(struct ha_msg * m)
 
 	sprintf(authstring, "%d %s", config->authnum, authtoken);
 
-	if (!ha_msg_add(m, F_AUTH, authstring)) {
-		return(HA_FAIL);
-	}
-	return(HA_OK);
+	/* It will add it if it's not there yet, or modify it if it is */
+
+	return(ha_msg_mod(m, F_AUTH, authstring));
 }
+
 int
 isauthentic(const struct ha_msg * m)
 {
@@ -493,6 +515,9 @@ isauthentic(const struct ha_msg * m)
 	if (m->stringlen >= sizeof(msgbody)) {
 		return(0);
 	}
+
+	/* Reread authentication? */
+	check_auth_change(config);
 
 	msgbody[0] = EOS;
 	for (j=0; j < m->nfields; ++j) {
@@ -620,6 +645,12 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.8  1999/10/25 15:35:03  alan
+ * Added code to move a little ways along the path to having error recovery
+ * in the heartbeat protocol.
+ * Changed the code for serial.c and ppp-udp.c so that they reauthenticate
+ * packets they change the ttl on (before forwarding them).
+ *
  * Revision 1.7  1999/10/10 20:11:56  alanr
  * New malloc/free (untested)
  *

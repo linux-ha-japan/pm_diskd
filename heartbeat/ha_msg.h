@@ -1,7 +1,7 @@
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H
 
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.2 1999/09/26 14:01:03 alanr Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.3 1999/10/25 15:35:03 alan Exp $";
 #include <stdio.h>
 /*
  *	Intracluster message object (struct ha_msg)
@@ -34,9 +34,13 @@ struct ha_msg {
 #define	F_COMMENT	"info"		/* Comment */
 #define	F_TTL		"ttl"		/* Time To Live */
 #define F_AUTH          "auth"		/* Authentication string */
+#define F_FIRSTSEQ      "firstseq"	/* Lowest seq # to retransmit */
+#define F_LASTSEQ       "lastseq"	/* Highest seq # to retransmit */
 
 
 #define	T_STATUS	"status"	/* Message type = Status */
+#define	T_REXMIT	"NS_rexmit"	/* Message type = Retransmit request */
+#define	NOSEQ_PREFIX	"NS_"		/* Give no sequence number */
 
 
 /* Allocate new (empty) message */

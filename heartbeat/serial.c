@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.5 1999/10/10 20:12:54 alanr Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.6 1999/10/25 15:35:03 alan Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -346,6 +346,9 @@ serial_write(struct hb_media*mp, struct ha_msg*m)
 		ha_log(LOG_DEBUG, str);
 	}
 	wrc = write(ourtty, str, size);
+	if (DEBUGPKTCONT) {
+		ha_log(LOG_DEBUG, "write returned %d", wrc);
+	}
 
 	if (wrc != size) {
 		char msg[MAXLINE];
@@ -362,16 +365,16 @@ STATIC struct ha_msg *
 serial_read(struct hb_media*mp)
 {
 	char buf[MAXLINE];
+	struct hb_media*	sp;
 	struct serial_private*	thissp;
 	struct ha_msg*		ret;
-	int			ttl;
-	const char *		ttl_s;
-	char			nttl[8];
-	char *			newmsg;
+	char *			newmsg = NULL;
+	int			newmsglen = 0;
 	int			startlen;
 	const char *		start = MSG_START;
 	const char *		end = MSG_START;
 	int			endlen;
+	struct serial_private*	spp;
 
 	TTYASSERT(mp);
 	thissp = (struct serial_private*)mp->pd;
@@ -403,36 +406,51 @@ serial_read(struct hb_media*mp)
 			return(NULL);
 		}
 	}
-
 	/* Should this message should continue around the ring? */
-	if (!should_ring_copy_msg(ret)) {
+
+	if (!isauthentic(ret) || !should_ring_copy_msg(ret)) {
 		/* Avoid infinite loops... Ignore this message */
 		return(ret);
 	}
-	if ((ttl_s = ha_msg_value(ret, F_TTL)) == NULL) {
-		return(NULL);
-	}
-	ttl = atoi(ttl_s);
-	sprintf(nttl, "%d", ttl-1);
 
-	ha_msg_mod(ret, F_TTL, nttl);
+	/* Forward message to other port in ring (if any) */
+	for (sp=lastserialport; sp; sp=spp->next) {
+		TTYASSERT(sp);
+		spp = (struct serial_private*)sp->pd;
+		if (sp == mp) {
+			/* That's us! */
+			continue;
+		}
 
-	if ((newmsg = msg2string(ret)) == NULL) {
-		ha_error("Cannot convert new message to string");
-	}else{
-		struct hb_media*	sp;
-		int			msglen = strlen(newmsg);
-		struct serial_private*	spp;
-		/* Forward message to other port in ring (if any) */
-		for (sp=lastserialport; sp; sp=spp->next) {
-			TTYASSERT(sp);
-			spp = (struct serial_private*)sp->pd;
-			if (sp == mp) {
-				/* That's us! */
+		/* Modify message, decrementing TTL (and reauthenticate it) */
+		if (newmsglen) {
+			const char *		ttl_s;
+			int			ttl;
+			char			nttl[8];
+
+			/* Decrement TTL in the message before forwarding */
+			if ((ttl_s = ha_msg_value(ret, F_TTL)) == NULL) {
+				return(ret);
+			}
+			ttl = atoi(ttl_s);
+			sprintf(nttl, "%d", ttl-1);
+			ha_msg_mod(ret, F_TTL, nttl);
+
+			/* Re-authenticate message */
+			add_msg_auth(ret);
+
+			if ((newmsg = msg2string(ret)) == NULL) {
+				ha_error("Cannot convert serial msg to string");
 				continue;
 			}
-			write(sp->wpipe[P_WRITEFD], newmsg, msglen);
+			newmsglen = strlen(newmsg);
 		}
+		if (newmsglen) {
+			write(sp->wpipe[P_WRITEFD], newmsg, newmsglen);
+		}
+	}
+
+	if (newmsglen) {
 		ha_free(newmsg);
 	}
 	return(ret);
@@ -467,6 +485,12 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.6  1999/10/25 15:35:03  alan
+ * Added code to move a little ways along the path to having error recovery
+ * in the heartbeat protocol.
+ * Changed the code for serial.c and ppp-udp.c so that they reauthenticate
+ * packets they change the ttl on (before forwarding them).
+ *
  * Revision 1.5  1999/10/10 20:12:54  alanr
  * New malloc/free (untested)
  *

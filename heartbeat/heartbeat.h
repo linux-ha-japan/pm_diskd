@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.9 1999/10/10 22:23:05 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.10 1999/10/25 15:35:03 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -207,6 +207,7 @@ struct hb_media_fns {
 struct msg_xmit_hist {
 	struct ha_msg*		msgq[MAXMSGHIST];
 	int			seqnos[MAXMSGHIST];
+	time_t			lastxmits[MAXMSGHIST];
 	int			lastmsg;
 	int			hiseq;
 	int			lowseq; /* one less than min actually present */
@@ -270,6 +271,7 @@ extern void		cleanexit(int exitcode);
 extern void		check_auth_change(struct sys_config *);
 extern void		(*localdie)(void);
 extern int		should_ring_copy_msg(struct ha_msg* m);
+extern int		add_msg_auth(struct ha_msg * msg);
 extern unsigned char * 	calc_cksum(const char * authmethod, const char * key, const char * value);
 struct auth_type *	findauth(const char * type);
 void*		ha_malloc(size_t size);

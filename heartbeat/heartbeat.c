@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.23 1999/10/19 13:55:36 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.24 1999/10/25 15:35:03 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -267,7 +267,6 @@ void	init_procinfo(void);
 int	initialize_heartbeat(void);
 void	init_status_alarm(void);
 void	ding(int sig);
-void	dump_msg(const struct ha_msg *msg);
 void	dump_proc_stats(volatile struct process_info * proc);
 void	dump_all_proc_stats(void);
 void	check_node_timeouts(void);
@@ -788,14 +787,13 @@ parse_authfile(void)
 
 	/* Allow for us to reread the file without restarting... */
 	config->authmethod = NULL;
+	config->authnum = -1;
 	for (j=0; j < MAXAUTH; ++j) {
 		if (config->auth_config[j].key != NULL) {
 			ha_free(config->auth_config[j].key);
 			config->auth_config[j].key=NULL;
 		}
-		if (config->auth_config[j].auth != NULL) {
-			config->auth_config[j].auth = NULL;
-		}
+		config->auth_config[j].auth = NULL;
 	}
 
 	while(fgets(buf, MAXLINE, f) != NULL) {
@@ -1392,12 +1390,15 @@ control_process(FILE * fp)
 			continue;
 		}
 
-		if ((cseq = ha_msg_value(msg, F_SEQ)) == NULL
-		||	sscanf(cseq, "%lx", &seqno) != 1 || seqno <= 0) {
-
-			ha_log(LOG_ERR, "control_process: bad sequence number");
-			ha_msg_del(msg);
-			continue;
+		if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
+			if (sscanf(cseq, "%lx", &seqno) != 1
+			||	seqno <= 0) {
+				ha_log(LOG_ERR, "control_process: "
+				"bad sequence number");
+				smsg = NULL;
+				ha_msg_del(msg);
+				continue;
+			}
 		}
 		/* Convert it to a string and log original msg for re-xmit */
 		smsg = msg2string(msg);
@@ -1407,7 +1408,10 @@ control_process(FILE * fp)
 			ha_msg_del(msg);
 			continue;
 		}
-		add2_xmit_hist (&msghist, msg, seqno);
+		/* Remember all messages with sequence numbers */
+		if (cseq != NULL) {
+			add2_xmit_hist (&msghist, msg, seqno);
+		}
 
 		len = strlen(smsg);
 
@@ -1419,7 +1423,10 @@ control_process(FILE * fp)
 			write(sysmedia[j]->wpipe[P_WRITEFD], smsg, len);
 		}
 		ha_free(smsg);
-		/* Note that we don't throw away "msg" here - it's saved above */
+		/* We don't throw away "msg" here if it's saved above */
+		if (cseq == NULL) {
+			ha_msg_del(msg);
+		}
 	}
 	/* That's All Folks... */
 }
@@ -1476,9 +1483,6 @@ master_status_process(void)
 			,	"master_status_process: missing from/ts/type");
 			continue;
 		}
-
-		/* Reread authentication? */
-		check_auth_change(config);
 
 		if (!isauthentic(msg)) {
 			ha_log(LOG_DEBUG
@@ -1566,6 +1570,11 @@ master_status_process(void)
 			if (thisnode == curnode) {
 				tickle_watchdog();
 			}
+		}else if (strcasecmp(type, T_REXMIT) == 0) {
+			ha_log(LOG_DEBUG, "Got an " T_REXMIT ".");
+			if (ANYDEBUG) {
+				ha_log_message(msg);
+			}
 		}else{
 			notify_world(msg, thisnode->status);
 		}
@@ -1581,6 +1590,7 @@ check_auth_change(struct sys_config *conf)
 			ha_log(LOG_ERR
 			,	"Authentication reparsing error, exiting.");
 			signal_all(SIGTERM);
+			cleanexit(1);
 		}
 		conf->rereadauth = 0;
 	}
@@ -2290,7 +2300,8 @@ main(int argc, const char ** argv)
 	if (killrunninghb) {
 
 		if (running_hb_pid < 0) {
-			fprintf(stderr, "ERROR: Heartbeat not currently running.\n");
+			fprintf(stderr
+			,	"ERROR: Heartbeat not currently running.\n");
 			cleanexit(1);
 		}
 			
@@ -2302,7 +2313,7 @@ main(int argc, const char ** argv)
 			}while (kill(running_hb_pid, 0) >= 0);
 			cleanexit(0);
 		}
-		fprintf(stderr, "ERROR: Could not kill pid %d", running_hb_pid);
+		fprintf(stderr, "ERROR: Could not kill pid %d",running_hb_pid);
 		perror(" ");
 		cleanexit(1);
 	}
@@ -2323,7 +2334,7 @@ main(int argc, const char ** argv)
 	}
 
 	/*
-	 *	We should perform an "exec" of ourselves in an attempt to restart.
+	 *	We should perform an "exec" of ourselves to restart.
 	 */
 
 	if (WeAreRestarting) {
@@ -2604,13 +2615,6 @@ should_ring_copy_msg(struct ha_msg *m)
 	return(1);
 }
 
-void
-dump_msg(const struct ha_msg *msg)
-{
-	char *	s = msg2string(msg);
-	ha_log(LOG_DEBUG, "Message dump: %s", s);
-	ha_free(s);
-}
 
 /*
  *	Right now, this is a little too simple.  There is no provision for
@@ -2633,14 +2637,20 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	struct seqtrack *	t = &thisnode->track;
 	const char *		cseq = ha_msg_value(msg, F_SEQ);
 	const char *		to = ha_msg_value(msg, F_TO);
+	const char *		type = ha_msg_value(msg, F_TYPE);
 	unsigned long		seq;
 	int			IsToUs;
 	int			j;
 
+	/* Some packet types shouldn't have sequence numbers */
+	if (type != NULL && strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1) 
+	==	0) {
+		return(KEEPIT);
+	}
 
 	if (cseq  == NULL || sscanf(cseq, "%lx", &seq) != 1 ||	seq <= 0) {
 		ha_log(LOG_ERR, "should_drop_message: bad sequence number");
-		dump_msg(msg);
+		ha_log_message(msg);
 		return(DROPIT);
 	}
 
@@ -2683,7 +2693,34 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 			t->last_seq = seq;
 			ha_log(LOG_ERR, "lost a lot of packets!");
 			return(IsToUs ? KEEPIT : DROPIT);
+		}else{
+			struct ha_msg*	hmsg;
+			char	low[16];
+			char	high[16];
+			if ((hmsg = ha_msg_new(6)) == NULL) {
+				ha_log(LOG_ERR, "no memory for " T_REXMIT);
+			}
+
+			sprintf(low, "%lu", t->last_seq+1L);
+			sprintf(high, "%lu", seq-1L);
+
+
+			if (	hmsg != NULL
+			&& 	ha_msg_add(hmsg, F_TYPE, T_REXMIT) == HA_OK
+			&&	ha_msg_add(hmsg, F_TO,thisnode->nodename)==HA_OK
+			&&	ha_msg_add(hmsg, F_FIRSTSEQ, low) == HA_OK
+			&&	ha_msg_add(hmsg, F_LASTSEQ, high) == HA_OK) {
+				/* Send a re-transmit request */
+				if (send_cluster_msg(hmsg) == HA_FAIL) {
+					ha_log(LOG_ERR, "cannot send " T_REXMIT
+					" request to %s", thisnode->nodename);
+				}
+			}else{
+				ha_log(LOG_ERR, "no memory for " T_REXMIT);
+			}
+			ha_msg_del(hmsg);
 		}
+
 		/* Try and Record each of the missing sequence numbers */
 		for(k = t->last_seq+1; k < seq; ++k) {
 			if (t->nmissing < MAXMISSING-1) {
@@ -2768,7 +2805,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg)
 	/* This is a duplicate packet (or a really old one we lost track of) */
 	if (DEBUGPKT) {
 		ha_log(LOG_DEBUG, "should_drop_message: Duplicate packet");
-		dump_msg(msg);
+		ha_log_message(msg);
 	}
 	return(DROPIT);
 
@@ -2785,6 +2822,7 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 	for (j=0; j< MAXMSGHIST; ++j) {
 		hist->msgq[j] = NULL;
 		hist->seqnos[j] = 0;
+		hist->lastxmits[j] = 0L;
 	}
 }
 
@@ -2811,6 +2849,7 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 	}
 	hist->msgq[slot] = msg;
 	hist->seqnos[slot] = seq;
+	hist->lastxmits[slot] = time(NULL);
 	hist->lastmsg = slot;
 }
 
@@ -2826,6 +2865,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.24  1999/10/25 15:35:03  alan
+ * Added code to move a little ways along the path to having error recovery
+ * in the heartbeat protocol.
+ * Changed the code for serial.c and ppp-udp.c so that they reauthenticate
+ * packets they change the ttl on (before forwarding them).
+ *
  * Revision 1.23  1999/10/19 13:55:36  alan
  * Changed comments about being red hat compatible
  * Also, changed heartbeat.c to be both SuSE and Red Hat compatible in it's -s

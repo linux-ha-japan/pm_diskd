@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.5 1999/10/10 20:12:47 alanr Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.6 1999/10/25 15:35:03 alan Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -89,7 +89,7 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.5 1999/10/10 20:12:47 ala
 #define	EOS	'\0'
 
 struct ip_private {
-	struct hb_media *next;	/* Next UDP/PPP interface */
+	struct hb_media *next;		/* Next UDP/PPP interface */
 	char *		ipaddr;		/* The (local) IP address we use */
         char *		interface;      /* Interface name */
         char *		far_addr;	/* Far end address as a string */
@@ -656,18 +656,9 @@ ppp_udp_read(struct hb_media* mp)
 	}
 
 	/* Should this message should continue around the ring? */
-	if (should_ring_copy_msg(ret)) {
-		const char *	ttl_s;
-		int		ttl;
-		char		nttl[8];
+	if (isauthentic(ret) && should_ring_copy_msg(ret)) {
+		int		ttl_mod=0;
 		struct hb_media* mpp;
-		if ((ttl_s = ha_msg_value(ret, F_TTL)) == NULL) {
- 			return(ret);
-	        }
-		ttl = atoi(ttl_s);
-		sprintf(nttl, "%d", ttl-1);
-
-        	ha_msg_mod(ret, F_TTL, nttl);
 
 		/* Forward message to other port in ring (if any) */
 
@@ -679,6 +670,21 @@ ppp_udp_read(struct hb_media* mp)
 				/* That's us! */
 				continue;
 			}
+			if (!ttl_mod) {
+				char		nttl[8];
+				const char *	ttl_s;
+				int		ttl;
+				if ((ttl_s = ha_msg_value(ret, F_TTL)) == NULL){
+					return(ret);
+				}
+				ttl = atoi(ttl_s);
+				sprintf(nttl, "%d", ttl-1);
+        			ha_msg_mod(ret, F_TTL, nttl);
+				/* Re-authenticate message */
+				add_msg_auth(ret);
+				ttl_mod=1;
+			}
+
 			/* Write to the next port in the ring */
 			mp->vf->write(mpp, ret);
 			mpp=eip->next;
@@ -1153,6 +1159,12 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.6  1999/10/25 15:35:03  alan
+ * Added code to move a little ways along the path to having error recovery
+ * in the heartbeat protocol.
+ * Changed the code for serial.c and ppp-udp.c so that they reauthenticate
+ * packets they change the ttl on (before forwarding them).
+ *
  * Revision 1.5  1999/10/10 20:12:47  alanr
  * New malloc/free (untested)
  *
