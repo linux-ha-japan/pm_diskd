@@ -38,7 +38,7 @@ apigid			= @APIGID@
 gliblib			= @GLIBLIB@
 
 
-CFLAGS			= @CFLAGS@	\
+CFLAGS			= @CFLAGS@ $(AM_CFLAGS)	\
 -DVAR_RUN_D='"$(havarrundir)"'	\
 -DVAR_LIB_D='"$(havarlibdir)"'		\
 -DHA_D='"$(hadir)"'			\
@@ -77,25 +77,25 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \
 			-dlopen self
 
-heartbeat_CFLAGS	= $(AM_CFLAGS)
+heartbeat_CFLAGS	= $(CFLAGS)
 
 send_arp_SOURCES	= send_arp.c
 send_arp_CFLAGS		= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
 send_arp_LDADD	 	= @LIBNETLIBS@
 
 #I didn't seem to need these lines.  Let me know if you do ;-)
-#send_arp.o: $(send_arp_SOURCES)
-#	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(send_arp_SOURCES) \
-#		-o $$old_pwd/$@  $(send_arp_CFLAGS) )
+send_arp.o: $(send_arp_SOURCES)
+	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(send_arp_SOURCES) \
+		-o $$old_pwd/$@  $(send_arp_CFLAGS) )
 
 get_hw_addr_SOURCES	= get_hw_addr.c
 get_hw_addr_CFLAGS	 	= @LIBNETDEFINES@ $(CFLAGS) $(INCLUDES)
 get_hw_addr_LDADD	 	= @LIBNETLIBS@
 
 #I didn't seem to need these lines.  Let me know if you do ;-)
-#get_hw_addr.o: $(get_hw_addr_SOURCES)
-#	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(get_hw_addr_SOURCES) \
-#		-o $$old_pwd/$@ $(get_hw_addr_CFLAGS) )
+get_hw_addr.o: $(get_hw_addr_SOURCES)
+	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(get_hw_addr_SOURCES) \
+		-o $$old_pwd/$@ $(get_hw_addr_CFLAGS) )
 
 findif_SOURCES		= findif.c
 findif_LDADD		=$(top_builddir)/replace/libreplace.la
