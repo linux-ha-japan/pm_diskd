@@ -1,0 +1,128 @@
+Here's what you need to do to run CTS
+
+Configure the two "cluster" machines with their logging of heartbeat
+messages redirected via syslog to the third machine.  Let's call it the
+exerciser...  Configure syslog on the cluster machines accordingly.
+	(see the mini-HOWTOs at the end for more details)
+
+The exerciser needs to be able to ssh over to the cluster nodes as root
+without a password challenge.  Configure ssh accordingly.
+	(see the mini-HOWTOs at the end for more details)
+
+The test software is called cts and is in the (surprise!) cts directory.
+It's in the tarball, but not installed anywhere.
+
+The cts system consists of the following files:
+CM_fs.py        - ignore this - it's for failsafe
+CM_hb.py        - interacts with heartbeat
+CTS.py          - the core common code for testing
+CTSaudits.py    - performs audits at the end of each test
+CTSlab.py       - defines the "lab" (test) environment
+CTStests.py     - contains the definitions of the tests
+
+I think you'll only need to modify the CTSlab.py file...
+
+There's a line in the Stonith class for performing a stonith in your lab
+environment.  You'll need to use the ssh stonith type.  I'll need to make
+sure that plugin is in this new release, eh?  ;-)
+
+def __init__(self, sttype="baytech", parm="10.10.10.100 admin admin"
+    ,   path="/usr/sbin/stonith"):
+
+There are more elegant ways to do this, but this is easiest (even if
+sleaziest) ;-)
+
+Actually, switching to that reset mechanism as default for testing is
+probably a good idea anyway...
+
+You need to supply the system with your list of nodes:
+
+        Environment = CtsLab(["sgi1", "sgi2"])
+
+is what it looks like now...
+
+This line of code:
+
+    overall, detailed = tests.run(5000)
+
+tells it to run 5000 tests chosen at random from the default list of tests.
+In my environment, each test averages something like 2 minutes.  This means
+that the sequence will take around a week to run.
+
+This default list comes from this statement:
+        Tests = TestList(cm)
+
+TestList is defined in CTStests.py  It looks like it has appropriate values.
+
+The one thing you can't test with this version of CTS is cluster partition
+merging.  That's what a couple of our users have been having trouble with.
+That (currently) has to be tested by hand...
+
+==============
+Mini HOWTOs:
+==============
+
+--------------------------------------------------------------------------------
+How to redirect linux-HA logging the way CTS wants it using syslog
+--------------------------------------------------------------------------------
+
+1)	Redirect each machines to go (at least) to syslog local7:
+
+	Change /etc/ha.d/ha.cf on each test machine to say this:
+
+logfacility local7
+
+	(you can also log to a dedicated local file with logfile if you want)
+
+2)	Change /etc/syslog.conf to redirect local7 on each of your slave
+	machines to redirect to your testmonitor machine by adding this line
+	somewhere near the top of /etc/syslog.conf
+
+local7.*                                @testmonitor-machine 
+
+3)	Change syslog on the testmonitor-machine to accept remote
+	logging requests. You do this by making sure it gets invoked with
+	the "-r" option On SuSE Linux you need to change /etc/rc.config
+	to put have this line for SYSLOGD_PARAMS:
+
+SYSLOGD_PARAMS="-r"
+
+4)	Change on the testmonitor-machine to redirect messages
+	from local7 into /var/log/ha-log by adding this line to
+	/etc/syslog.conf 
+
+local7.*			-/var/log/ha-log
+
+	and then (on SuSE) run this command:
+
+/etc/rc.d/syslog restart
+
+	Use the corresponding function for your distro.
+
+--------------------------------------------------------------------------------
+How to make OpenSSH allow you to login as root across the network without
+a password.
+--------------------------------------------------------------------------------
+
+All our scripts run ssh -l root, so you don't have to do any of your testing
+logged in as root on the test machine
+
+1)	Grab your key from the testmonitor-machine:
+	take the single line out of ~/.ssh/identity.pub
+	and put it into root's authorized_keys file.
+	Run this command on each of the "test" machines as root:
+
+ssh -v -l myid testmonitor-machine cat /home/myid/.ssh/identity.pub \
+	>> ~root/.ssh/authorized_keys
+
+	You will probably have to provide your password, and possibly say
+	"yes" to some questions about accepting the identity of the test machines
+
+	To test this, try this command from the testmonitor-machine for each
+	of your testmachines:
+
+ssh -l root testmachine1
+
+If this works, without prompting for a password, you're in business...
+If not, you need to look at the ssh/openssh documentation and the output from
+the -v options above...
