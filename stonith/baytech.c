@@ -181,13 +181,20 @@ void *	st_new(void);
 
 /* Look for any of the given patterns.  We don't care which */
 
+#define	MAXSAVE	512
 static int
 RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout)
 {
 	int	rc;
-	if ((rc = ExpectToken(bt->rdfd, tlist, timeout, NULL, 0)) < 0) {
-		syslog(LOG_ERR, _("Did not find string: '%s' from" DEVICE ".")
+	char	savebuf[MAXSAVE];
+	savebuf[MAXSAVE-1] = EOS;
+	savebuf[0] = EOS;
+
+	if ((rc = ExpectToken(bt->rdfd, tlist, timeout, savebuf, MAXSAVE)) < 0){
+		syslog(LOG_ERR, _("Did not find string: '%s' from " DEVICE ".")
 		,	tlist[0].string);
+		syslog(LOG_ERR, _("Got '%s' from " DEVICE " instead.")
+		,	savebuf);
 		RPCkillcomm(bt);
 		return(-1);
 	}
