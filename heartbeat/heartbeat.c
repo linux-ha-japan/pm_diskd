@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.105 2001/05/15 19:52:50 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.106 2001/05/20 04:37:35 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -473,7 +473,7 @@ init_procinfo()
 void
 ha_versioninfo(void)
 {
-	int	everprinted=0;
+	static int	everprinted=0;
 
 	ha_log(LOG_INFO, "%s: version %s", cmdname, VERSION);
 
@@ -494,7 +494,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-			/* Break up te string so RCS won't react to it */
+			/* Break up the string so RCS won't react to it */
 		,	"strings %s/%s | grep '^\\$"
 			"Id" ": .*\\$' | sort -u"
 		,	HALIB, cmdname);
@@ -3980,6 +3980,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.106  2001/05/20 04:37:35  alan
+ * Fixed a bug in the ha_versioninfo() function where a variable
+ * was supposed to be static, but wasn't...
+ *
  * Revision 1.105  2001/05/15 19:52:50  alan
  * More portability fixes from David Lee
  *
