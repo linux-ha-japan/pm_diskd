@@ -51,10 +51,12 @@ void dup_reg_test(void);
 
 #define APPNAME_LEN 256
 #define OPTARGS "n:p:i:l:dF"
-#define USAGE_STR "Usage: [-n heartbeat number]\
-[-p process number]\
-[-l delay seconds]\
-[-f heartbeat interval(ms)][-d] [-F]"
+#define USAGE_STR "Usage: [-n heartbeat number] \
+[-p process number] \
+[-l delay seconds] \
+[-i heartbeat interval(ms)] \
+[-d](debug information) \
+[-F](enable failure cases)"
 
 int
 main(int argc,char ** argv)
