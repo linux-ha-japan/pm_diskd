@@ -3,5 +3,8 @@ Makefile
 HardwareGuide
 GettingStarted
 Requirements
+rsync
+faqntips
 ChangeLog
 .*.swp
+

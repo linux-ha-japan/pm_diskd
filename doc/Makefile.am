@@ -21,8 +21,11 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 docdir 			= $(datadir)/@HEARTBEATPKG@
 
-htmlfiles		= HardwareGuide.html GettingStarted.html \
-Requirements.html
+htmlfiles		= HardwareGuide.html	\
+			GettingStarted.html	\
+			Requirements.html	\
+			faqntips.html		\
+			rsync.html
 
 SPECSRC 		= $(top_builddir)/heartbeat.spec
 
