@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.86 2001/02/22 10:29:44 lars Exp $
+#	$Id: Specfile,v 1.87 2001/02/27 20:53:05 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -64,6 +64,9 @@ machine. It's simple and reliable, albeit admittedly brutal.
      Andreas Piesk's <a.piesk@gmx.net>, Chris Wright <chris@wirex.com>
 
 + Version 0.4.9 Beta series
+  + Added Brian Martin's client API library fix <bmartin@penguincomputing.com>
+  + Fixed stonith library to support the RPC-3A.  Critical information
+	provided by Juri Haberland <juri.haberland@innominate.com>
   + Added checks that complain if all resources aren't idle on startup.
     This is a *very* common error. <alanr@unix.sh>
   + Fixed a bug relating to not properly handshaking when starting

@@ -45,18 +45,29 @@
  */
 
 struct BayTech {
-	const char *	BTid;
-	char *		idinfo;
-	char *		unitid;
-	pid_t		pid;
-	int		rdfd;
-	int		wrfd;
-	int		config;
-	char *		device;
-	char *		user;
-	char *		passwd;
+	const char *			BTid;
+	char *				idinfo;
+	char *				unitid;
+	const struct BayTechModelInfo*	modelinfo;
+	pid_t				pid;
+	int				rdfd;
+	int				wrfd;
+	int				config;
+	char *				device;
+	char *				user;
+	char *				passwd;
 };
 
+struct BayTechModelInfo {
+		const char *	type;		/* Baytech model info */
+		int		socklen;	/* Length of socket name string */
+};
+
+static struct BayTechModelInfo ModelInfo [] = {
+		{"RPC-5", 18},	/* This first model will be the default */
+		{"RPC-3A", 10},
+		{NULL, 0},
+};
 static const char * BTid = "BayTech-Stonith";
 static const char * NOTbtid = "Hey, dummy this has been destroyed (BayTech)";
 
@@ -111,7 +122,8 @@ static struct Etoken LoginOK[] =	{ {"RPC", 0, 0}, {"Invalid password", 1, 0}
 					,	{NULL,0,0}};
 static struct Etoken GTSign[] =		{ {">", 0, 0} ,{NULL,0,0}};
 static struct Etoken Menu[] =		{ {"Menu:", 0, 0} ,{NULL,0,0}};
-static struct Etoken Temp[] =		{ {"emperature: ", 0, 0} ,{NULL,0,0}};
+static struct Etoken TempBreak[] =	{ {"emperature: ", 0, 0}
+					,	{"reaker: ", 0, 0} ,{NULL,0,0}};
 static struct Etoken PowerApplied[] =	{ {"ower applied to outlet", 0, 0}
 					,	{NULL,0,0}};
 /* Accept either a CR/NL or an NL/CR */
@@ -224,6 +236,7 @@ RPCLogin(struct BayTech * bt)
 	static char	IDbuf[128];
 	char *		idptr = IDinfo;
 	char *		delim;
+	int		j;
 
 
 	EXPECT(EscapeChar, 10);
@@ -248,6 +261,7 @@ RPCLogin(struct BayTech * bt)
 	}
 	snprintf(IDbuf, sizeof(IDbuf), "BayTech %s", idptr);
 	REPLSTR(bt->idinfo, IDbuf);
+
 	
 	/* Look for the unit id info */
 	EXPECT(UnitId, 10);
@@ -255,6 +269,15 @@ RPCLogin(struct BayTech * bt)
 	delim = IDbuf + strcspn(IDbuf, WHITESPACE);
 	*delim = EOS;
 	REPLSTR(bt->unitid, IDbuf);
+	bt->modelinfo = &ModelInfo[0];
+
+	for (j=1; ModelInfo[j].type != NULL; ++j) {
+		if (strcasecmp(ModelInfo[j].type, IDbuf) == 0) {
+			bt->modelinfo = &ModelInfo[j];
+			break;
+		}
+	}
+
 
 	/* Expect "username>" */
 	EXPECT(login, 2);
@@ -486,6 +509,10 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 	int	sockno;
 	char	sockname[32];
 	int	ret = -1;
+	char  format[32];
+
+	snprintf(format, sizeof(format), "%%7d       %%%dc"
+	,	bt->modelinfo->socklen);
 
 	/* Verify that we're in the top-level menu */
 	SEND("\r");
@@ -508,7 +535,7 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 	SEND("STATUS\r");
 
 	/* Expect: "emperature:" so we can skip over it... */
-	EXPECT(Temp, 5);
+	EXPECT(TempBreak, 5);
 	EXPECT(CRNL, 5);
 
 	/* Looks Good!  Parse the status output */
@@ -517,9 +544,9 @@ RPCNametoOutlet(struct BayTech* bt, const char * name)
 		NameMapping[0] = EOS;
 		SNARF(NameMapping, 5);
 		if (sscanf(NameMapping
-		,	"%7d       %18c",&sockno, sockname) == 2) {
+		,	format, &sockno, sockname) == 2) {
 
-			char *	last = sockname+18;
+			char *	last = sockname+bt->modelinfo->socklen;
 			*last = EOS;
 			--last;
 
@@ -585,6 +612,8 @@ st_hostlist(Stonith  *s)
 	int		numnames = 0;
 	char **		ret = NULL;
 	struct BayTech*	bt;
+	char  format[32];
+
 
 	if (!ISBAYTECH(s)) {
 		syslog(LOG_ERR, "invalid argument to RPC_list_hosts");
@@ -597,6 +626,9 @@ st_hostlist(Stonith  *s)
 	}
 	bt = (struct BayTech*) s->pinfo;
 
+
+	snprintf(format, sizeof(format), "%%7d       %%%dc"
+	,	bt->modelinfo->socklen);
 
 	if (RPCRobustLogin(bt) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
@@ -624,7 +656,7 @@ st_hostlist(Stonith  *s)
 	SEND("STATUS\r");
 
 	/* Expect: "emperature:" so we can skip over it... */
-	NULLEXPECT(Temp, 5);
+	NULLEXPECT(TempBreak, 5);
 	NULLEXPECT(CRNL, 5);
 
 	/* Looks Good!  Parse the status output */
@@ -635,9 +667,9 @@ st_hostlist(Stonith  *s)
 		NameMapping[0] = EOS;
 		NULLSNARF(NameMapping, 5);
 		if (sscanf(NameMapping
-		,	"%7d       %18c",&sockno, sockname) == 2) {
+		,	format, &sockno, sockname) == 2) {
 
-			char *	last = sockname+18;
+			char *	last = sockname+bt->modelinfo->socklen;
 			char *	nm;
 			*last = EOS;
 			--last;
@@ -973,7 +1005,7 @@ st_new(void)
 	bt->idinfo = NULL;
 	bt->unitid = NULL;
 	REPLSTR(bt->idinfo, DEVICE);
-	REPLSTR(bt->unitid, "unknown");
+	bt->modelinfo = &ModelInfo[0];
 
 	return((void *)bt);
 }
