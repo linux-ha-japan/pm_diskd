@@ -60,7 +60,6 @@
 int
 ttylock(const char *serial_device)
 {
-  fprintf(stderr, "locking %s", serial_device);
 	return(DoLock("LCK..", serial_device+DEVLEN));
 }
 
