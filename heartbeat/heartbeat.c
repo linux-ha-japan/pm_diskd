@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.99 2001/03/16 03:01:12 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.100 2001/04/19 13:41:54 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1001,7 +1001,6 @@ control_process(FILE * fp)
 		int		IsToUs;
 
 		if (msg == NULL) {
-			ha_log(LOG_ERR, "control_process: NULL message");
 			continue;
 		}
 		if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
@@ -3980,6 +3979,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.100  2001/04/19 13:41:54  alan
+ * Removed the two annoying "error" messages that occur when heartbeat
+ * is shut down.  They are: "controlfifo2msg: cannot create message"
+ * and "control_process: NULL message"
+ *
  * Revision 1.99  2001/03/16 03:01:12  alan
  * Put in a fix to Norbert Steinl's problem with the logger facility
  * and priority being wrong.

@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.5 2000/09/10 03:48:52 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.6 2001/04/19 13:41:54 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -186,7 +186,6 @@ controlfifo2msg(FILE * f)
 	}
 
 	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
-		ha_error("controlfifo2msg: cannot create message");
 		return(NULL);
 	}
 
@@ -443,6 +442,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.6  2001/04/19 13:41:54  alan
+ * Removed the two annoying "error" messages that occur when heartbeat
+ * is shut down.  They are: "controlfifo2msg: cannot create message"
+ * and "control_process: NULL message"
+ *
  * Revision 1.5  2000/09/10 03:48:52  alan
  * Fixed a couple of bugs.
  * - packets that were already authenticated didn't get reauthenticated correctly.
