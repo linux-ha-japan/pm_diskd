@@ -16,13 +16,14 @@ checkinterval=1
 fallback=127.0.0.1:80
 autoreload=yes
 #logfile="/var/log/ldirectord.log"
+quiescent=yes
 
 # A sample virual with a fallback that will override the gobal setting
 virtual=192.168.6.240:80
         real=192.168.6.2:80 gate
         real=192.168.6.3:80 gate
         real=192.168.6.6:80 gate
- 	 fallback=127.0.0.1:80 gate
+ 	fallback=127.0.0.1:80 gate
         service=http
         request="index.html"
         receive="Test Page"
