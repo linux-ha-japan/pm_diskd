@@ -18,6 +18,26 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
+/*
+ * Currently the client-side heartbeat API needs to write in the /var/lock
+ * directory.  This has implications for the euid, egid that we run as.
+ * Expect to set make your binaries setgid to uucp, or allow the uid
+ * they run as to join the group uucp (or whatever your local system
+ * has it set up as).
+ *
+ * Additionally, you must belong to the group hbapi.  Fortunately, UNIX
+ * group permissions are quite flexible, and you can do both.
+ */
+
+/*
+ * Known deficiencies of this API:
+ *
+ * Each of the various set..callback functions should probably return
+ * the current callback and private data parameter, so the caller can
+ * restore them later.
+ *
+ */
+
 #ifndef __HB_API_H
 #	define __HB_API_H 1
 #include <ha_msg.h>
@@ -178,6 +198,7 @@ struct llc_ops {
  *************************************************************************
  *
  *	setfmode: Set filter mode.  Analagous to promiscous mode in TCP.
+ *		Gotta be root to turn on debugging!
  *
  *	LLC_FILTER_DEFAULT (default)
  *		In this mode, all messages destined for this pid
