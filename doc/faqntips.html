@@ -5,7 +5,7 @@
    <meta name="GENERATOR" content="Mozilla/4.77 [en] (X11; U; Linux 2.4.8 i686) [Netscape]">
    <title>Faq'n Tips</title>
 </head>
-<body bgcolor="#FFFFFF">
+<body>
 
 <center><b>Faq'n Tips</b></center>
 
@@ -71,16 +71,16 @@ segment ?</a></li>
 <br>&nbsp;
 <ol>
 <li>
-<a NAME="FAQ"></a>Quit your bellyachin'!&nbsp; We needed a "catch-all"
+<a NAME="FAQ">Quit your bellyachin'!</a>&nbsp; We needed a "catch-all"
 document to supply useful information in a way that was easily referenced
 and would grow without a lot of work.&nbsp; It's closer to a FAQ than anything
 else.</li>
 
 <li>
-<a NAME="what_is_it"></a>HA (High availability Cluster) - This is a cluster
+<a NAME="what_is_it">HA (High availability Cluster)</a> - This is a cluster
 that allows a host (or hosts) to become Highly Available, that means if
 one node goes down (or a service on that node goes down) another node can
-pick up the service or node and take over from the failed machine. <a href="http://www.linux-ha.org">http://linux-ha.org</a></li>
+pick up the service or node and take over from the failed machine. <a href="http://www.linux-ha.org">http://linux-ha.org</a>
 
 <br>Computing Cluster - This is what a Beowulf cluster is. It allows distributed
 computing over off the shelf components. In this case it is usually cheap
@@ -89,9 +89,10 @@ IA32 machines. <a href="http://www.beowulf.org">http://www.beowulf.org/</a>
 does. In this scenario you have one machine with load balances requests
 to a certain server (apache for example) over a farm of servers. <a href="http://www.linuxvirtualserver.org">www.linuxvirtualserver.org</a>
 <br>All of these sites have howtos etc. on them. For a general overview
-on clustering under Linux, look at the Clustering HOWTO.
+on clustering under Linux, look at the Clustering HOWTO.</li>
+
 <li>
-<a NAME="res_scr"></a>Resource scripts are basically (extended) System
+<a NAME="res_scr">Resource scripts</a> are basically (extended) System
 V init scripts. They have to support stop, start, and status operations.&nbsp;
 In the future we will also add support for a "monitor" operation for monitoring
 services as you requested. The IPaddr script implements this new "monitor"
@@ -99,9 +100,9 @@ operation now (but heartbeat doesn't use that function of it). For more
 info see Resource HOWTO.</li>
 
 <li>
-<a NAME="mon"></a>Heartbeat itself was not designed for monitoring various
+<a NAME="mon">Heartbeat itself was not designed for monitoring</a> various
 resources. If you need to monitor some resources (for example, availability
-of WWW server) you need some third party software. Good solution is mon.</li>
+of WWW server) you need some third party software. Mon is a reasonable solution.
 
 <br>1. Get mon
 <br>http://kernel.org/software/mon/
@@ -114,12 +115,12 @@ make install).
 ping computers, connect to various ports, monitor WWW, MySQL etc. In case
 of dysfunction of some resources it triggers some scripts.
 <p>4. Unpack mon in some directory. Best starting point is README file.
-Complete documentation is in &lt;dir>/doc, where &lt;dir> is place where
+Complete documentation is in &lt;dir&gt;/doc, where &lt;dir&gt; is place where
 you unpacked mon package.
 <p>5. For a fast start do following steps:
-<br>copy all subdirs found in &lt;dir> to /usr/lib/mon
+<br>copy all subdirs found in &lt;dir&gt; to /usr/lib/mon
 <br>create dir /etc/mon
-<br>copy auth.cf from &lt;dir>/etc to /etc/mon
+<br>copy auth.cf from &lt;dir&gt;/etc to /etc/mon
 <p>Now, mon is prepared to work. You need to create your own mon.cf file,
 where you should point to resources mon should watch and actions mon will
 start in case
@@ -129,28 +130,28 @@ can find explanation how to use it.
 <br>All alert scripts are placed in /usr/lib/mon/alert.d/. Those are scripts
 triggered in case something went wrong. In case you are using ipvs on theirs
 homepage (www.linuxvirtualserver.org) you can find scripts for adding and
-removing servers from ipvs list.
+removing servers from ipvs list.</li>
 <li>
-<a NAME="nettools"></a>This isn't a problem with heartbeat, but rather
+<a NAME="nettools">This isn't a problem with heartbeat</a>, but rather
 is caused by various versions of net-tools.&nbsp; Upgrade to the most recent
 version of net-tools and it will go away.&nbsp; You can test it with ifconfig
 manually.</li>
 
 <li>
-<a NAME="manyIPs"></a>Instead of failing over many IP addresses, just fail
-over one router address.&nbsp; On your router, do the equivalent of "route
+<a NAME="manyIPs">Instead of failing over many IP addresses, just fail
+over one router address</a>.&nbsp; On your router, do the equivalent of "route
 add -net x.x.x.0/24 gw x.x.x.2", where x.x.x.2 is the cluster IP address
 controlled by heartbeat.&nbsp; Then, make every address within x.x.x.0/24
 that you wish to failover a permanent alias of lo0 on BOTH cluster nodes.&nbsp;
 This is done via "ifconfig lo:2 x.x.x.3 netmask 255.255.255.255 -arp" etc....</li>
 
 <li>
-<a NAME="serial"></a>It will work, however if anything makes your ethernet
-/ IP stack fail, you will lose both connections. You definitely should
+<a NAME="serial">It will work</a>, however if anything makes your ethernet
+/ IP stack fail, you may lose both connections. You definitely should
 run the cables differently, depending on how important your data is...</li>
 
 <li>
-<a NAME="nice_failback"></a>Normal failback mode:</li>
+<a NAME="nice_failback">Normal failback mode:</a>
 
 <br>In this mode, one of the two machines is designated as the preferred
 provider of a given resource group. If that machine is up, then it will
@@ -165,18 +166,20 @@ Instead, there is an affinity between a resource group and whatever machine
 it is currently running on. Failovers occur *only* when a machine which
 is providing a service goes out of service. There is no concept of failback
 in this mode. This mode minimizes service interruptions, but cannot run
-an active-active configuration.
-<li>
-<a NAME="firewall"></a>To make heartbeat work with ipchains, you must accept
-incoming and outgoing traffic on 694 UDP port. Add something like</li>
+an active-active configuration.</li>
 
-<br>/sbin/ipchains -A output -i ethN -p udp -s &lt;source_IP> -d &lt;dest_IP>&nbsp;
--j ACCEPT
-<br>/sbin/ipchains -A input -i ethN -p udp -s &lt;source_IP> -d &lt;dest_IP>&nbsp;
--j ACCEPT
 <li>
-<a NAME="heavy_load"></a>Since the default probably isn't reasonable for
-most linux systems under heavy load (sorry!), here is suggestion:</li>
+<a NAME="firewall">To make heartbeat work with ipchains</a>, you must accept
+incoming and outgoing traffic on 694 UDP port. Add something like
+
+<br>/sbin/ipchains -A output -i ethN -p udp -s &lt;source_IP&gt; -d &lt;dest_IP&gt;&nbsp;
+-j ACCEPT
+<br>/sbin/ipchains -A input -i ethN -p udp -s &lt;source_IP&gt; -d &lt;dest_IP&gt;&nbsp;
+-j ACCEPT</li>
+
+<li>
+<a NAME="heavy_load">Since the default probably isn't reasonable for
+most linux systems under heavy load</a> (sorry!), here is suggestion:
 
 <br>Set deadtime to 60 seconds or higher
 <br>Set warntime to whatever you *want* your deadtime to be.
@@ -185,35 +188,39 @@ most linux systems under heavy load (sorry!), here is suggestion:</li>
 a heartbeat.
 <br>Set your deadtime to 1.5-2 times that amount.&nbsp; Set warntime to
 that amount.
-<br>Continue to monitor logs for warnings about long heartbeat times.
+<br>Continue to monitor logs for warnings about long heartbeat times.</li>
+
 <li>
-<a NAME="authkeys"></a>It's probably a permissions problem on authkeys.&nbsp;
+<a NAME="authkeys">It's probably a permissions problem on authkeys.</a>&nbsp;
 It wants it to be read only mode (400, 600 or 700).&nbsp; Depending on
 where and when it discovers the problem, the message will wind up in different
-places.</li>
+places.
 
 <br>But, it tends to be in
-<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; a) stdout/stderr
-<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; b) wherever you specified
-in your setup
-<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; c) /var/log/messages
+<ol>
+<li>stdout/stderr</li>
+<li>wherever you specified in your setup</li>
+<li>/var/log/messages</li>
+</ol>
+</li>
+
 <li>
-<a NAME="multiple_clusters"></a>Use multicast and give each its own multicast
+<a NAME="multiple_clusters">Use multicast</a> and give each its own multicast
 group. If you need to/want to use broadcast, then run each cluster on
 different port numbers.</li>
 
 <li>
-<a NAME="CVS"></a>There&nbsp; is&nbsp; a&nbsp; CVS repository for Linux-HA.
-You can find it at cvs.linux-ha.org.&nbsp; Read&nbsp; only&nbsp; access
+<a NAME="CVS">There is a CVS repository for Linux-HA.</a>
+You can find it at cvs.linux-ha.org.&nbsp; Read-only access
 is via login guest, password guest, module name linux-ha. More details
 are to be found in the announcement&nbsp; email.&nbsp; It is also available
 through the web using viewcvs at <a href="http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/">http://cvs.linux-ha.org/viewcvs/viewcvs.cgi/linux-ha/</a></li>
 
 <li>
-<a NAME="other_os"></a>Heartbeat is currently being ported to use automake.</li>
+<a NAME="other_os">Heartbeat is currently being ported to use automake.</a></li>
 
 <li>
-<a NAME="last_hope"></a>Please be sure that you read all documentation
+<a NAME="last_hope">Please be sure that you read all documentation</a>
 and searched mail list archives. If you still can't find a solution you
 can post questions to the mailing list. Please include following:</li>
 
@@ -221,21 +228,29 @@ can post questions to the mailing list. Please include following:</li>
 <li>
 What OS are you running.</li>
 
-<li>
-What version (distro/kernel).</li>
+<li>What version (distro/kernel).</li>
 
-<li>
-How did you install heartbeat (tar.gz, rpm, src.rpm or manual installation)
-.</li>
+<li>How did you install heartbeat (tar.gz, rpm, src.rpm or manual installation)</li>
 
-<li>
-Include the of your logs which describes errors.&nbsp; Send them as attachments.</li>
+<li>Include your configuration files from BOTH machines. You can omit authkeys.</li>
+<li>Include the of your logs which describes errors.&nbsp; Send them as attachments.
 
 <br>Please don't send "cleaned up" logs.&nbsp; The real logs have more
 information in them than cleaned up versions.&nbsp; Always include at least
 a little irrelevant data before and after the events in question so that
 we know nothing was missed.&nbsp; Don't edit the logs unless you really
-have some super-secret high-security reason for doing so.</ul>
+have some super-secret high-security reason for doing so.
+<p>
+This means you need to send 6 or 8 files.  Include 6 if your debug
+output goes into the same file as your normal output and 8 otherwise.
+For each machine you need to send:
+<ul><li>ha.cf</li>
+    <li>haresources</li>
+    <li>normal logs</li>
+    <li>debug logs (perhaps)</li>
+</ul>
+</li>
+</ul>
 </ol>
 
 <hr width="100%">
