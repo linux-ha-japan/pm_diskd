@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.41 2002/03/08 03:18:16 horms Exp $
+# $Id: ldirectord,v 1.42 2002/03/13 02:25:58 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -350,7 +350,7 @@ sub init
 	# install signal handlers (this covers TERM)
 	my $i;
 	for $i (keys %SIG) {
-		$SIG{"$i"} = \&ld_term;
+		$SIG{"$i"} = \&ld_handler_term;
 	}
 
 	# except CHLD, USR1, USR2 and __WARN__
@@ -359,8 +359,11 @@ sub init
 	$SIG{'USR2'} = "DEFAULT";
 	$SIG{'__WARN__'} = "DEFAULT";
 
+	# handle PIPE separately as it probably should be ignored
+	$SIG{'PIPE'} = \&ld_handler_ignore;
+
 	# HUP is actually used
-	$SIG{'HUP'} = \&ld_hup;
+	$SIG{'HUP'} = \&ld_handler_hup;
 
 	# search for the correct configuration file
 	if ( !defined $ARGV[0] ) {
@@ -458,9 +461,9 @@ sub init_error
 }
 
 
-# ld_term
+# ld_handler_term
 # If we get a sinal then log it and quit
-sub ld_term
+sub ld_handler_term
 {
         my ($signal) = (@_);
 	print STDERR "ldirectord $CFGNAME received signal: $signal\n";
@@ -479,7 +482,13 @@ sub ld_term
 }
 
 
-sub ld_hup
+sub ld_handler_ignore
+{
+	my ($signal) = (@_);
+	&ld_log("Ignoring signal: $signal");
+	
+}
+sub ld_handler_hup
 {
         my ($signal) = (@_);
 	&ld_log("Reloading Linux Director Daemon config on signal: $signal");
@@ -1310,7 +1319,7 @@ sub ld_cmd_children
 sub ld_stop
 {
 	foreach my $v (@VIRTUAL) {
-		my $real = $$v{real};
+		y $real = $$v{real};
 		foreach my $r (@$real) {
 			if ($$r{status}>0) {
 				&system_wrapper("$IPVSADM -d $$v{proto} " . &get_virtual($v) . " -r $$r{server}:$$r{port}");
@@ -1471,15 +1480,16 @@ sub check_pop3
 
 sub check_imap
 {
-	use Net::IMAP::Simple;
+	use Mail::IMAPClient;
 	my ($v, $r) = @_;
 	
-	my $imap = new Net::IMAP::Simple($$r{server});
-	if ($imap) {
-		service_set($v, $r, "up");
+	my $imap = new Mail::IMAPClient(Server => $$r{server}, Port=>$$r{port},
+					Timeout => $$v{negotiatetimeout});
+	if ($@) {
+		service_set($v, $r, "down");
 		return 1;
 	} else {
-		service_set($v, $r, "down");
+		service_set($v, $r, "up");
 		return 0;
 	}
 }
