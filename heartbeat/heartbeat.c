@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.183 2002/04/14 09:20:53 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.184 2002/04/15 16:48:13 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1610,6 +1610,7 @@ LookForClockJumps(void)
 	}else{
 		ClockJustJumped = 0;
 	}
+	lastnow = now;
 }
 
 static gboolean
@@ -1871,8 +1872,6 @@ MSPFinalShutdown(gpointer p)
 	cleanexit(0);
 	/* NOTREACHED*/
 	return FALSE;
-		kill(processes[0], SIGQUIT);
-		cleanexit(0);
 }
 
 /*
@@ -2151,8 +2150,7 @@ process_clustermsg(FILE * f)
 			other_holds_resources= NO_RSC;
 
 		    	ha_log(LOG_INFO
-			,	"Received shutdown notice from '%s'"
-			". Resources being acquired."
+			,	"Received shutdown notice from '%s'."
 			,	thisnode->nodename);
 			takeover_from_node(thisnode->nodename);
 		}
@@ -3263,6 +3261,10 @@ term_action(void)
 			/* Kill our managed children... */
 			ForEachProc(&ManagedChildTrackOps, KillTrackedProcess
 			,	GINT_TO_POINTER(SIGTERM));
+			ForEachProc(&RscMgmtProcessTrackOps, KillTrackedProcess
+			,	GINT_TO_POINTER(SIGKILL));
+			/* Trigger final shutdown in a second */
+			g_timeout_add(1000, MSPFinalShutdown, NULL);
 		}
 		
 	}else if (curproc->type == PROC_CONTROL) {
@@ -3369,6 +3371,9 @@ parent_debug_usr2_action(void)
 void
 trigger_restart(int quickrestart)
 {
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "Triggering Restart (%d)", quickrestart);
+	}
 	procinfo->restart_after_shutdown = 1;
 	procinfo->giveup_resources = (quickrestart ? FALSE : TRUE);
 	if (kill(master_status_pid, SIGTERM) >= 0) {
@@ -3481,9 +3486,17 @@ reread_config_action(void)
 			ha_perror("Cannot stat " CONFIG_NAME);
 			return;
 		}
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			,	"stat of %s: %lu versus old %lu"
+			,	CONFIG_NAME
+			,	(unsigned long)buf.st_mtime
+			,	(unsigned long)config->cfg_time);
+		}
 		if (buf.st_mtime != config->cfg_time) {
 			trigger_restart(TRUE);
 			/* We'll wait for the SIGQUIT */
+			return;
 		}
 		if (stat(KEYFILE, &buf) < 0) {
 			ha_perror("Cannot stat " KEYFILE);
@@ -4072,6 +4085,15 @@ takeover_from_node(const char * nodename)
 	if (hip == 0) {
 		return;
 	}
+	if (shutdown_in_progress) {
+		ha_log(LOG_INFO
+		,	"Resource takeover cancelled - shutdown in progress.");
+		return;
+	}else{
+		ha_log(LOG_INFO
+		,	"Resources being acquired from %s."
+		,	hip->nodename);
+	}
 	if ((hmsg = ha_msg_new(6)) == NULL) {
 		ha_log(LOG_ERR, "no memory to mark node dead");
 		return;
@@ -4095,7 +4117,7 @@ takeover_from_node(const char * nodename)
 	notify_world(hmsg, hip->status);
 
 	/*
-	 * STONITH has already successfully completed...
+	 * STONITH has already successfully completed, or wasn't needed...
 	 */
 	if (nice_failback) {
 
@@ -4499,6 +4521,7 @@ giveup_resources(void)
 		ha_log(LOG_INFO, "giveup_resources: current status: %s"
 		,	curnode->status);
 	}
+	shutdown_in_progress =1;
 	DisableProcLogging();	/* We're shutting down */
 	/* Kill all our managed children... */
 	ForEachProc(&ManagedChildTrackOps, KillTrackedProcess
@@ -4512,7 +4535,6 @@ giveup_resources(void)
 		send_resources_held(rsc_msg[procinfo->i_hold_resources]
 		,	0, "shutdown");
 	}
-	shutdown_in_progress =1;
 	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)", getpid());
 
 	/* We need to fork so we can make child procs not real time */
@@ -5651,7 +5673,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			/* Found it!	Let's send it again! */
 			firstslot = msgslot -1;
 			foundit=1;
-			if (1) {
+			if (ANYDEBUG) {
 				ha_log(LOG_INFO, "Retransmitting pkt %lu"
 				,	thisseq);
 			}
@@ -6018,6 +6040,15 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.184  2002/04/15 16:48:13  alan
+ * Fixed a bug in the handling of shutdowns where if both machines were shutting down
+ * simultaneously, one or both would take over the others resources, even
+ * though they were shutting down.  This showed up with the cluster partitioning tests.
+ *
+ * Fixed a bug in the -r restart code, where it didn't follow through
+ * and finish the shutdown at all.  The necessary SIGQUIT wasn't sent, and
+ * some of the processes weren't killed.
+ *
  * Revision 1.183  2002/04/14 09:20:53  alan
  * Changed reaper_action() to have a waitflags argument, and now
  * we wait for children to die rather than fooling with signals
