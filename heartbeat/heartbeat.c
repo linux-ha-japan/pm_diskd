@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.137 2001/10/02 04:22:45 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.138 2001/10/02 05:12:19 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -252,7 +252,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.137 2001/10/02 04:22
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
@@ -3477,7 +3477,7 @@ make_daemon(void)
 {
 	long		pid;
 	FILE *		lockfd;
-        sigset_t        sigset;
+        sigset_t        oursigset;
 
 
 
@@ -3521,10 +3521,10 @@ make_daemon(void)
 		}
 	}
 
-        sigemptyset(&sigset);
-        sigaddset(&sigset, SIGHUP);
-        sigaddset(&sigset, SIGTERM);
-        if (sigprocmask(SIG_UNBLOCK, &sigset, NULL) < 0) {
+        sigemptyset(&oursigset);
+        sigaddset(&oursigset, SIGHUP);
+        sigaddset(&oursigset, SIGTERM);
+        if (sigprocmask(SIG_UNBLOCK, &oursigset, NULL) < 0) {
         fprintf(stderr,
                 "%s: could not unblock SIGHUP and SIGTERM signals\n"
                 ,       cmdname);
@@ -4232,6 +4232,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.138  2001/10/02 05:12:19  alan
+ * Various portability fixes (make warnings go away) for Solaris.
+ *
  * Revision 1.137  2001/10/02 04:22:45  alan
  * Fixed a minor bug regarding reporting how late a heartbeat is when there is no previous
  * heartbeat to compare it to.  In that circumstance, it shouldn't report at all.

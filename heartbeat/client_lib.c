@@ -307,7 +307,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		ha_perror("uname failure");
 		return HA_FAIL;
 	}
-        bzero(OurNode, sizeof(OurNode));
+        memset(OurNode, 0, sizeof(OurNode));
 	strncpy(OurNode, un.nodename, sizeof(OurNode) -1 );
 
 	/* Crank out the boilerplate */

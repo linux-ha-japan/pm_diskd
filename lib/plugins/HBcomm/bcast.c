@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.5 2001/09/07 16:18:17 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.6 2001/10/02 05:12:19 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -439,7 +439,7 @@ bcast_make_receive_sock(struct hb_media * mp) {
 
 	BCASTASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
-	bzero(&(my_addr), sizeof(my_addr));	/* zero my address struct */
+	memset(&(my_addr), 0, sizeof(my_addr));	/* zero my address struct */
 	my_addr.sin_family = AF_INET;		/* host byte order */
 	my_addr.sin_port = htons(ei->port);	/* short, network byte order */
 	my_addr.sin_addr.s_addr = INADDR_ANY;	/* auto-fill with my IP */
@@ -680,6 +680,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.6  2001/10/02 05:12:19  alan
+ * Various portability fixes (make warnings go away) for Solaris.
+ *
  * Revision 1.5  2001/09/07 16:18:17  alan
  * Updated ping.c to conform to the new plugin loading system.
  * Changed log messages in bcast, mcast, ping and serial to use the

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.5 2001/09/27 17:02:34 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.6 2001/10/02 05:12:19 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -25,6 +25,7 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.5 2001/09/27 17:02:34 alan
  */
 
 #include <portability.h>
+#include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,10 +35,9 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.5 2001/09/27 17:02:34 alan
 #include <sys/stat.h>
 #include <signal.h>
 #include <time.h>
-#include <unistd.h>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
-#include <sys/fcntl.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
 #include <sys/param.h>
@@ -568,6 +568,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.6  2001/10/02 05:12:19  alan
+ * Various portability fixes (make warnings go away) for Solaris.
+ *
  * Revision 1.5  2001/09/27 17:02:34  alan
  * Shortened alarm time in write in serial.c
  * Put in a handful of Solaris warning-elimination patches.
