@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.1 2000/06/30 21:33:07 alan Exp $
+#	$Id: Makefile,v 1.2 2000/07/16 22:14:38 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -69,7 +69,6 @@ CFLAGS=-g 				\
 STONITH = stonith
 E_OBJLIST =	expect.o	\
 		baytech.o	\
-		main.o		\
 		stonith.o	
 
 E_HDRS    =	expect.h stonith.h
@@ -85,8 +84,11 @@ SPECSRC = Specfile
 
 all: $(PRODUCTS)
 
-$(STONITH): $(E_OBJLIST) $(E_HDRS)
-	$(CC) $(LDFLAGS) $(E_OBJLIST) $(LIBS) -o $(STONITH)
+libstonith.o: $(E_OBJLIST) $(E_HDRS)
+	$(LD) -r $(LDFLAGS) $(E_OBJLIST) $(LIBS) -o libstonith.o
+
+$(STONITH): libstonith.o main.o
+	$(CC) main.o libstonith.o -o stonith
 
 $(E_OBJLIST) : $(E_HDRS)
 

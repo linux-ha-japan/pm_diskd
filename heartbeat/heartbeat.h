@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.25 2000/07/16 20:42:53 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.26 2000/07/16 22:14:38 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -36,6 +36,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.25 2000/07/16 20:42:
 #endif
 
 #include <ha_msg.h>
+#include <stonith.h>
 
 
 #define	MAXLINE		1024
@@ -205,6 +206,7 @@ struct sys_config {
         int     use_dbgfile;            /* Flag to use the debug file*/
 	int	rereadauth;		/* 1 if we need to reread auth file */
 	int	authnum;
+	Stonith*	stonith;	/* Stonith method */
 	struct auth_info* authmethod;	/* auth_config[authnum] */
 	struct node_info  nodes[MAXNODE];
 	struct auth_info  auth_config[MAXAUTH];

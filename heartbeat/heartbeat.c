@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.69 2000/07/16 20:42:53 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.70 2000/07/16 22:14:37 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -378,7 +378,6 @@ pid_t	get_running_hb_pid(void);
 void	make_daemon(void);
 void	heartbeat_monitor(struct ha_msg * msg, int status, const char * iface);
 void	send_to_all_media(char * smsg, int len);
-void	init_monitor(void);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
 				const char *iface);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
@@ -476,7 +475,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.69 2000/07/16 20:42:53 alan Exp $$' | sort -u"
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.70 2000/07/16 22:14:37 alan Exp $$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -2262,12 +2261,41 @@ mark_node_dead(struct node_info *hip)
 			/* part 2 is done by the mach_down script... */
 			req_our_resources();
 		}
+
+		/* This often takes a few seconds. */
+		if (config->stonith) {
+			Stonith * s = config->stonith;
+			ha_log(LOG_INFO
+			,	"Resetting node %s with [%s]"
+			,	hip->nodename
+			,	s->s_ops->devid(s));
+
+			switch (s->s_ops->reset_host(s, hip->nodename)) {
+
+			case S_OK:
+				ha_log(LOG_INFO
+				,	"node %s now reset.", hip->nodename);
+				break;
+
+			case S_BADHOST:
+				ha_log(LOG_ERR
+				,	"Device %s cannot reset host %s."
+				,	s->s_ops->devid(s)
+				,	hip->nodename);
+				break;
+
+			default:
+				ha_log(LOG_ERR
+				,	"Host %s not reset!"
+				,	hip->nodename);
+			}
+		
+		}
 	}
 	hip->anypacketsyet = 1;
 	ha_msg_del(hmsg);
 }
 
-#define	MONFILE "/proc/ha/.control"
 struct fieldname_map {
 	const char *	from;
 	const char *	to;
@@ -2285,39 +2313,9 @@ struct fieldname_map fmap [] = {
 	{F_AUTH,	NULL},
 };
 
-static int	monfd = -1;
 
-#define		RETRYINTERVAL	(3600*24)	/* Once A Day... */
+#define	RETRYINTERVAL	(3600*24)	/* Once A Day... */
 #define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
-
-void init_monitor()
-{
-	static time_t	lasttry = 0;
-	int		j;
-	time_t	now;
-
-	if (monfd >= 0) {
-		return;
-	}
-	now = time(NULL);
-
-	if ((now - lasttry) < RETRYINTERVAL) {
-		return;
-	}
-
-	if ((monfd = open(MONFILE, O_WRONLY)) < 0) {
-		ha_perror("Cannot open " MONFILE);
-		lasttry = now;
-		return;
-	}
-
-	for (j=0; j < config->nodecount; ++j) {
-		char		mon[MAXLINE];
-		sprintf(mon, "add=?\ntype=node\nnode=%s\n"
-		,	config->nodes[j].nodename);
-		write(monfd, mon, strlen(mon));
-	}
-}
 
 /*
  * Values of msgtype:
@@ -3442,6 +3440,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.70  2000/07/16 22:14:37  alan
+ * Added stonith capabilities to heartbeat.
+ * Still need to make the stonith code into a library...
+ *
  * Revision 1.69  2000/07/16 20:42:53  alan
  * Added the late heartbeat warning code.
  *

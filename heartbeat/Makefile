@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.19 2000/07/11 00:25:52 alan Exp $
+#	$Id: Makefile,v 1.20 2000/07/16 22:14:37 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -57,6 +57,7 @@ CFLAGS=-g 				\
 	-Wwrite-strings			\
 	-Werror				\
 	-I.				\
+	-I../stonith			\
 	-DVERSION='"$(VERS)"'		\
 	-DHA_D='"$(B_HA)"'		\
 	-DHALIB='"$(B_HALIB)"'		\
@@ -80,7 +81,7 @@ H_OBJLIST = 	heartbeat.o		\
 		sha1.o			\
 		ha_malloc.o
 H_HDRS    = heartbeat.h ha_msg.h hb_api.h hb_api_core.h
-LIBS=
+LIBS=	../stonith/libstonith.o
 
 SENDARP =	send_arp
 S_OBJLIST =	send_arp.o

@@ -12,8 +12,8 @@
  *	We guarantee that when we report that the machine has been
  *	rebooted, then it has been (barring misconfiguration or hardware errors)
  *
- *	A machine which we have STONITHed won't do anything more to its peripherials
- *	etc. until it goes through the reboot cycle.
+ *	A machine which we have STONITHed won't do anything more to its
+ *	peripherials etc. until it goes through the reboot cycle.
  */
 
 /*
@@ -37,7 +37,8 @@ typedef struct stonith {
 
 /*
  *	These functions all use syslog(3) for error messages.
- *	Consequently they assume you've done an openlog() to initialize it for them.
+ *	Consequently they assume you've done an openlog() to initialize it
+ *	for them.
  */
 struct stonith_ops {
 	void (*delete)			(Stonith*); /* Destructor */
@@ -45,7 +46,7 @@ struct stonith_ops {
 	int (*set_config_file)		(Stonith *, const char * filename); 
 
 	int (*set_config_info)		(Stonith *, const char * confstring); 
-	const char* (*devid)		(Stonith*);
+	const char* (*devid)		(Stonith*);	/* Never fails */
 
 	/*
 	 * Must call set_config_info or set_config_file before calling any of

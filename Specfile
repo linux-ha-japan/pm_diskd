@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.49 2000/06/21 05:01:57 alan Exp $
+#	$Id: Specfile,v 1.50 2000/07/16 22:14:37 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -23,7 +23,7 @@ It implements the following kinds of heartbeats:
 
 %changelog
 
-* Sun Jun 11 2000 Alan Robertson <alanr@suse.com>,
+* Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
      Guenther Thomsen <thomsen@cs.tu-berlin.de>,
@@ -31,10 +31,8 @@ It implements the following kinds of heartbeats:
      Marcelo Tosatti <marcelo@conectiva.com.br>
      and Horms <horms@vergenet.net>
 
-+ Version 0.4.8  BETA series
-  + There is a serious memory leak in ldirectord vs 1.8. Parallel checking
-    of http-server has been removed until the cause of the memory leak will
-    be found. Use ldirectord vs 1.9 to be safe.
++ Version 0.4.8
+  + Incorporated ldirectord version 1.9 (fixes memory leak)
   + Made the order of resource takeover more rational:  Takeover is now
     left-to-right, and giveup is right-to-left
   + Changed the default port number to our official IANA port number (694)

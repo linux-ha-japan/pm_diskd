@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.13 2000/07/16 20:42:53 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.14 2000/07/16 22:14:37 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -194,7 +194,8 @@ init_config(const char * cfgfile)
 #define	KEY_FACILITY	"logfacility"
 #define	KEY_LOGFILE	"logfile"
 #define	KEY_DBGFILE	"debugfile"
-#define KEY_FAILBACK    "nice_failback"
+#define KEY_FAILBACK	"nice_failback"
+#define KEY_STONITH	"stonith"
 
 int add_node(const char *);
 int set_hopfudge(const char *);
@@ -207,6 +208,7 @@ int set_facility(const char *);
 int set_logfile(const char *);
 int set_dbgfile(const char *);
 int set_nice_failback(const char *);
+int set_stonith_info(const char *);
 
 extern const struct hb_media_fns	ip_media_fns;
 extern const struct hb_media_fns	serial_media_fns;
@@ -236,9 +238,16 @@ struct directive {
 ,	{KEY_FACILITY,  set_facility}
 ,	{KEY_LOGFILE,   set_logfile}
 ,	{KEY_DBGFILE,   set_dbgfile}
-,       {KEY_FAILBACK,  set_nice_failback}
+,	{KEY_FAILBACK,  set_nice_failback}
 };
 
+static const struct WholeLineDirective {
+	const char * type;
+	int (*parse) (const char *line);
+}WLdirectives[] =
+{
+	{KEY_STONITH,  set_stonith_info}
+};
 
 /*
  *	Parse the configuration file and stash away the data
@@ -301,7 +310,7 @@ parse_config(const char * cfgfile, char *nodename)
 		/* Skip over Delimiters */
 		bp += strspn(bp, DELIMS);
 
-		/* Check first for "parse" type (whole line) directives */
+		/* Check first for whole line media-type  directives */
 
 		for (j=0; j < DIMOF(hbmedia_types); ++j) {
 			if (hbmedia_types[j]->parse == NULL)  {
@@ -314,6 +323,21 @@ parse_config(const char * cfgfile, char *nodename)
 				*bp = EOS;
 			}
 		}
+
+		/* Check for "parse" type (whole line) directives */
+
+		for (j=0; j < DIMOF(WLdirectives); ++j) {
+			if (WLdirectives[j].parse == NULL)  {
+				continue;
+			}
+			if (strcmp(directive, WLdirectives[j].type) == 0) {
+				if (WLdirectives[j].parse(bp) != HA_OK) {
+					errcount++;
+				}
+				*bp = EOS;
+			}
+		}
+		/* Now Check for  the options-list stuff */
 		while (*bp != EOS) {
 			optionlength = strcspn(bp, DELIMS);
 			strncpy(option, bp, optionlength);
@@ -477,6 +501,11 @@ islegaldirective(const char *directive)
 			return(HA_OK);
 		}
 	}
+	for (j=0; j < DIMOF(WLdirectives); ++j) {
+		if (strcmp(directive, WLdirectives[j].type) == 0) {
+			return(HA_OK);
+		}
+	}
 	return(HA_FAIL);
 }
 
@@ -493,6 +522,8 @@ add_option(const char *	option, const char * value)
 			return((*Directives[j].add_func)(value));
 		}
 	}
+
+	/* I don't think this loop is ever executed any more... */
 	for (j=0; j < DIMOF(hbmedia_types); ++j) {
 		if (strcmp(option, hbmedia_types[j]->type) == 0
 		&&	hbmedia_types[j]->new != NULL) {
@@ -879,4 +910,60 @@ set_nice_failback(const char * value)
         }
 
         return(HA_OK);
+}
+
+/* set Stonith information */
+int
+set_stonith_info(const char * value)
+{
+	const char *	vp = value;
+	const char *	evp;
+	Stonith *	s;
+	char		StonithType [MAXLINE];
+	char		StonithFile [MAXLINE];
+	int		tlen;
+	int		rc;
+
+	vp += strspn(vp, WHITESPACE);
+	tlen = strcspn(vp, WHITESPACE);
+
+	evp = vp + tlen;
+
+	if (tlen < 1) {
+		ha_log(LOG_ERR, "No Stonith type given");
+		return(HA_FAIL);
+	}
+	if (tlen >= sizeof(StonithType)) {
+		ha_log(LOG_ERR, "Stonith type too long");
+		return(HA_FAIL);
+	}
+
+	strncpy(StonithType, vp, tlen);
+
+	if ((s = stonith_new(StonithType)) == NULL) {
+		ha_log(LOG_ERR, "Invalid Stonith type [%s]", StonithType);
+		return(HA_FAIL);
+	}
+
+	vp = evp + strspn(evp, WHITESPACE);
+	sscanf(vp, "%[^\r\n]",  StonithFile);
+
+	switch ((rc=s->s_ops->set_config_file(s, StonithFile))) {
+		case S_OK:
+			config->stonith = s;
+			s->s_ops->status(s);
+			return(HA_OK);
+
+		case S_BADCONFIG:
+			ha_log(LOG_ERR, "Invalid Stonith config file [%s]"
+			,	StonithFile);
+			break;
+		
+
+		default:
+			ha_log(LOG_ERR, "Unknown Stonith config error [%s] [%d]"
+			,	StonithFile, rc);
+			break;
+	}
+	return(HA_FAIL);
 }
