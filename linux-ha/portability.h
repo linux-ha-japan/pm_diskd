@@ -77,6 +77,12 @@ scandir (const char *directory_name,
 
 #endif /* HAVE_SCANDIR */
 
+#ifndef HAVE_ALPHASORT
+#  include <dirent.h>
+int
+alphasort(const void *dirent1, const void *dirent2);
+#endif /* HAVE_ALPHASORT */
+
 #ifndef HAVE_INET_PTON
   /* We supply a replacement function, but need a prototype */
 int
