@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.28 2003/06/18 03:43:42 horms Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.29 2003/07/02 22:27:00 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -544,8 +544,8 @@ main(int argc, char ** argv) {
 
 		/* Make things a bit more machine-independent */
 		best_netmask = htonl(best_netmask);
+		def_bcast = htonl(def_bcast);
 		if (!OutputInCIDR) {
-			def_bcast = htonl(def_bcast);
 			printf("%s\tnetmask %d.%d.%d.%d\tbroadcast %d.%d.%d.%d\n"
 			,       best_if
 			,       (int)((best_netmask>>24) & 0xff)
@@ -665,6 +665,9 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.29  2003/07/02 22:27:00  alan
+ * Fixed a bug in the broadcast output format for CIDR -C option for findif.
+ *
  * Revision 1.28  2003/06/18 03:43:42  horms
  * spelling
  *
