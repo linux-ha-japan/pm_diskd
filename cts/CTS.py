@@ -141,6 +141,7 @@ class LogWatcher:
         if self.debug:
             print "Debug now on for for log", log
         self.Timeout = int(timeout)
+        self.returnonlymatch = None
         if not os.access(log, os.R_OK):
             raise ValueError("File [" + log + "] not accessible (r)")
 
@@ -151,6 +152,11 @@ class LogWatcher:
         self.size = os.path.getsize(self.filename)
         if not frombeginning:
             self.file.seek(0,2)
+
+    def ReturnOnlyMatch(self, onlymatch=1):
+        '''Mark the place to start watching the log from.
+        '''
+        self.returnonlymatch = onlymatch
 
     def look(self, timeout=None):
         '''Examine the log looking for the given patterns.
@@ -180,8 +186,12 @@ class LogWatcher:
                 if line:
                     for regex in self.regexes:
                         if self.debug: print "Comparing line to ", regex
-                        if re.search(regex, line):
-                            return line
+                        matchobj = re.search(regex, line)
+                        if matchobj:
+                            if self.returnonlymatch:
+                              return matchobj.group(self.returnonlymatch)
+                            else:
+                              return line
             newsize=os.path.getsize(self.filename)
             if self.file.tell() == newsize:
                 if timeout > 0:

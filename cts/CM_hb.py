@@ -51,7 +51,7 @@ class HeartbeatCM(ClusterManager):
         self.update({
             "Name"	     : "heartbeat",
             "DeadTime"	     : 30,
-            "StartCmd"	     : "/usr/lib/heartbeat/heartbeat ",
+            "StartCmd"	     : "/usr/lib/heartbeat/heartbeat -d",
             "StopCmd"	     : "/usr/lib/heartbeat/heartbeat -k",
             "StatusCmd"	     : "/usr/lib/heartbeat/heartbeat -s",
             "RereadCmd"	     : "/usr/lib/heartbeat/heartbeat -r",
@@ -61,10 +61,10 @@ class HeartbeatCM(ClusterManager):
 
             # Patterns to look for in the log files for various occasions...
             "Pat:We_started"   : "Local status now set to: 'active'",
-            "Pat:They_started" : "%s: status active",
+            "Pat:They_started" : "(%s): status active",
             "Pat:We_stopped"   : "Heartbeat shutdown complete",
-            "Pat:They_stopped" : "node %s: is dead",
-            "Pat:All_stopped"  : " %s heartbeat.*Heartbeat shutdown complete",
+            "Pat:They_stopped" : "node (%s): is dead",
+            "Pat:All_stopped"  : " (%s) heartbeat.*Heartbeat shutdown complete",
             "Pat:StandbyOK"    : "Standby process done.*primary",
             "Pat:StandbyNONE"  : "No reply to standby request",
 

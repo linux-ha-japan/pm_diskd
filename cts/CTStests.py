@@ -50,10 +50,10 @@ class CTSTest:
     def __init__(self, cm):
         #self.name="the unnamed test"
         self.Stats = {"calls":0
-	,	"success":0
-	,	"failure":0
-	,	"skipped":0
-	,	"auditfail":0}
+        ,	"success":0
+        ,	"failure":0
+        ,	"skipped":0
+        ,	"auditfail":0}
 
 #        if not issubclass(cm.__class__, ClusterManager):
 #            raise ValueError("Must be a ClusterManager object")
@@ -284,13 +284,13 @@ class StonithTest(CTSTest):
         stopwatch = None
 
 
-	#	Figure out what log message to look for when/if it goes down
+        #	Figure out what log message to look for when/if it goes down
 
         if self.CM.ShouldBeStatus[node] != self.CM["down"]:
             if self.CM.upcount() != 1:
                 stopwatch = (self.theystopped % node)
 
-	#	Figure out what log message to look for when it comes up
+        #	Figure out what log message to look for when it comes up
 
         if (self.CM.upcount() <= 1):
             uppat = self.usstart
@@ -298,14 +298,14 @@ class StonithTest(CTSTest):
             uppat = (self.themstart % node)
 
         upwatch = CTS.LogWatcher(self.CM["LogFileName"], [uppat]
-	,	timeout=self.timeout)
+        ,	timeout=self.timeout)
 
         if stopwatch:
             watch = CTS.LogWatcher(self.CM["LogFileName"], [stopwatch]
             ,	timeout=self.CM["DeadTime"]+10)
             watch.setwatch()
 
-	#	Reset (stonith) the node
+        #	Reset (stonith) the node
 
         StonithWorked=None
         for tries in 1,2,3,4,5:
@@ -317,7 +317,7 @@ class StonithTest(CTSTest):
 
         upwatch.setwatch()
 
-	#	Look() and see if the machine went down
+        #	Look() and see if the machine went down
 
         if stopwatch:
             if watch.look():
@@ -328,7 +328,7 @@ class StonithTest(CTSTest):
         else:
             ret1=1
 
-	#	Look() and see if the machine came back up
+        #	Look() and see if the machine came back up
 
         if upwatch.look():
             ret2=1
@@ -338,7 +338,7 @@ class StonithTest(CTSTest):
 
         self.CM.ShouldBeStatus[node] = self.CM["up"]
 
-	# I can't remember why I put this in here :-(
+        # I can't remember why I put this in here :-(
 
         time.sleep(10)
 
@@ -405,6 +405,65 @@ class IPaddrtest(CTSTest):
         return 1
 
 ###################################################################
+class SimulStart(CTSTest):
+###################################################################
+    '''Start all the nodes ~ simultaneously'''
+    def __init__(self, cm):
+        CTSTest.__init__(self,cm)
+        self.name="SimulStart"
+
+    def __call__(self, dummy):
+        '''Perform the 'SimulStart' test. '''
+        self.incr("calls")
+
+        #	We ignore the "node" parameter...
+
+        #	Shut down all the nodes...
+        for node in self.CM.Env["nodes"]:
+          if self.CM.ShouldBeStatus[node] != self.CM["down"]:
+            self.incr("stops")
+            self.stop = StopTest(self.CM)
+            self.stop(node)
+
+
+         
+	watchpats = [ ]
+	waitingfornodes = { }
+        pat = self.CM["Pat:They_started"]
+        for node in self.CM.Env["nodes"]:
+          thispat = (pat % node)
+          watchpats.append(thispat)
+          waitingfornodes[node] = node
+
+        #	Start all the nodes - at about the same time...
+        watch = CTS.LogWatcher(self.CM["LogFileName"], watchpats
+        ,	timeout=self.CM["DeadTime"]+10)
+	watch.ReturnOnlyMatch()
+
+        watch.setwatch()
+        for node in self.CM.Env["nodes"]:
+          self.CM.StartaCM(node)
+
+	#	We need to look matches to our patterns, and then
+	#	remove the corresponding node from "waitingfornodes".
+	#	We quit when there are no more nodes in "waitingfornodes"
+        while len(waitingfornodes) > 0:
+	  match = watch.look()
+          if not match:
+            return self.failure("did not find start message")
+          if waitingfornodes.has_key(match):
+            del waitingfornodes[match]
+
+ 	return self.success()
+
+    def is_applicable(self):
+        '''SimulStart is always applicable'''
+        return 1
+
+#	Register SimulStart as a good test to run
+AllTestClasses.append(SimulStart)
+
+###################################################################
 class StandbyTest(CTSTest):
 ###################################################################
     '''Put a node in standby mode'''
@@ -442,9 +501,9 @@ class StandbyTest(CTSTest):
     def is_applicable(self):
         '''StandbyTest is applicable when the CM has a Standby command'''
 
-	if not self.CM.has_key("Standby"):
-	   return None
-	else:
+        if not self.CM.has_key("Standby"):
+           return None
+        else:
             return os.access(self.CM["Standby"], os.X_OK)
 
 #	Register StandbyTest as a good test to run
@@ -454,8 +513,8 @@ AllTestClasses.append(StandbyTest)
 def TestList(cm):
     result = []
     for testclass in AllTestClasses:
-	bound_test = testclass(cm)
-	if bound_test.is_applicable():
-		result.append(bound_test)
+        bound_test = testclass(cm)
+        if bound_test.is_applicable():
+        	result.append(bound_test)
     # result = [StandbyTest(cm)]
     return result

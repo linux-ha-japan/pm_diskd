@@ -282,7 +282,7 @@ if __name__ == '__main__':
     from CTS import RandomTests, Scenario, InitClusterManager, PingFest
 
     Environment = CtsLab(["sgi1", "sgi2"])
-    #Environment["RandSeed"] = (1,2,3)
+    #Environment["RandSeed"] = (156, 104, 218)
     Environment["DoStonith"] = 1
     Environment.SupplyDefaults()
 
