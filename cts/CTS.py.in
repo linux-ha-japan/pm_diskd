@@ -473,7 +473,6 @@ class Resource:
         '''
         This member function returns true if our resource is operating
         correctly on the given node in the cluster.
-        on the given node in the cluster.
         Heartbeat does not require this operation, but it might be called
         the Monitor operation, which is what FailSafe calls it.
         For remotely monitorable resources (like IP addresses), they *should*
