@@ -73,6 +73,14 @@
 
 #define	API_FIFO_DIR	VAR_RUN_D "/heartbeat-api"
 #define	API_FIFO_LEN	(sizeof(API_FIFO_DIR)+32)
+
+#define	NAMEDCLIENTDIR	API_FIFO_DIR
+#define	CASUALCLIENTDIR	VAR_RUN_D "/heartbeat-casual"
+
+#ifndef API_REGFIFO
+#	define	API_REGFIFO	VAR_RUN_D "/heartbeat-register"
+#endif
+
 void api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface);
 void api_process_request(struct ha_msg *msg);
 

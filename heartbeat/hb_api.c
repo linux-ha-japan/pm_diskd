@@ -28,11 +28,15 @@
 #include <ha_msg.h>
 #include <hb_api.h>
 #include <hb_api_core.h>
+#include <sys/stat.h>
 
 
 typedef struct client_process {
-	char		client_id[32];
-	pid_t		pid;
+	char		client_id[32];	/* Client identification */
+	pid_t		pid;		/* PID of client process */
+	uid_t		uid;		/* UID of client  process */
+	int		iscasual;	/* 1 if this is a "casual" client */
+	int		input_fifo;	/* Input FIFO file descriptor */
 	int		signal;		/* Defaults to zero */
 	int		desired_types;	/* A bit mask */
 	struct client_process*	next;
@@ -46,12 +50,30 @@ static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
 static void api_remove_client(client_proc_t* client);
 static void api_add_client(struct ha_msg* msg);
 static client_proc_t*	find_client(const char * fromid, const char * pid);
+static int		open_reqfifo(client_proc_t* client);
+static const char *	client_fifo_name(client_proc_t* client, int isreq);
+static	uid_t		pid2uid(pid_t pid);
+static int		ClientSecurityIsOK(client_proc_t* client);
+static int		HostSecurityIsOK(void);
+
+#define	MAXFD	64
+#if  (MAXFD > FD_SETSIZE)
+#	undef MAXFD
+#	define	MAXFD	FD_SETSIZE
+#endif
 
 /*
- * Much of the original structure of this code was due to
+ *	One client pointer per input FIFO.  It's indexed by file
+ *	descriptor, so it's not densely populated.
+ */
+static client_proc_t*	FDclients[MAXFD];
+
+/*
+ * The original structure of this code was due to
  * Marcelo Tosatti <marcelo@conectiva.com.br>
  *
- * It has been significantly mangled by Alan Robertson <alanr@suse.com>
+ * It has been significantly and repeatedly mangled by
+ * Alan Robertson <alanr@unix.sh>
  *
  */
 
@@ -63,6 +85,7 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 {
 	const char*	clientid;
 	client_proc_t*	client;
+	client_proc_t*	nextclient;
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
@@ -82,7 +105,11 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 
 	clientid = ha_msg_value(msg, F_TOID);
 
-	for (client=client_list; client != NULL; client=client->next) {
+	for (client=client_list; client != NULL; client=nextclient) {
+
+		/* "client" could be removed by api_send_client_msg() ! */
+		nextclient=client->next;
+	
 		if (clientid != NULL
 		&&	strcmp(clientid, client->client_id) != 0) {
 			continue;
@@ -96,6 +123,9 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 	}
 }
 
+/*
+ * Process an API request message...
+ */
 void
 api_process_request(struct ha_msg * msg)
 {
@@ -164,6 +194,15 @@ api_process_request(struct ha_msg * msg)
 		ha_log(LOG_ERR, "api_process_request: msg from non-client");
 		return;
 	}
+
+	/* See if this client is (still) properly secured */
+
+	if (!ClientSecurityIsOK(client)) {
+		api_remove_client(client);
+		ha_msg_del(resp); resp=NULL;
+		return;
+	}
+
 	if (strcmp(reqtype, API_SIGNOFF) == 0) {
 		/* We send them no reply */
 		ha_log(LOG_INFO, "Signing client %d off", client->pid);
@@ -206,8 +245,15 @@ api_process_request(struct ha_msg * msg)
 	 */
 		const char *	csignal;
 		unsigned	oursig;
+
 		if ((csignal = ha_msg_value(msg, F_SIGNAL)) == NULL
 		||	(sscanf(csignal, "%u", &oursig) != 1)) {
+			goto bad_req;
+		}
+		/* Validate the signal number in the message ... */
+		if (oursig < 0 || oursig == SIGKILL || oursig == SIGSTOP
+		||	oursig >= 32) {
+			/* These can't be caught (or is a bad signal). */
 			goto bad_req;
 		}
 
@@ -376,11 +422,19 @@ bad_req:
 void
 api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 {
-	char	fifoname[API_FIFO_LEN];
+	const char	* fifoname;
 	FILE*	f;
 
 
-	snprintf(fifoname, sizeof(fifoname), API_FIFO_DIR "/%d", client->pid);
+	/* See if this client is (still) properly secured */
+
+	if (!ClientSecurityIsOK(client)) {
+		api_remove_client(client);
+		client=NULL;
+		return;
+	}
+
+	fifoname = client_fifo_name(client, 0);
 
 	if ((f=fopen(fifoname, "w")) == NULL) {
 		ha_perror("api_send_client: can't open %s", fifoname);
@@ -429,6 +483,11 @@ api_remove_client(client_proc_t* req)
 
 	for (client=client_list; client != NULL; client=client->next) {
 		if (client->pid == req->pid) {
+			if (client->input_fifo > 0) {
+				FDclients[client->input_fifo] = NULL;
+				close(client->input_fifo);
+				client->input_fifo = -1;
+			}
 			if (prev == NULL) {
 				client_list = client->next;
 			}else{
@@ -456,15 +515,22 @@ void
 api_add_client(struct ha_msg* msg)
 {
 	pid_t		pid = 0;
+	int		fifoifd;
 	client_proc_t*	client;
 	const char*	cpid;
 	const char *	fromid;
 
 	
+	/* Not a wonderful place to call it, but not too bad either... */
+
+	if (!HostSecurityIsOK()) {
+		return;
+	}
+
 	if ((cpid = ha_msg_value(msg, F_PID)) != NULL) {
 		pid = atoi(cpid);
 	}
-	if (pid <= 0) {
+	if (pid <= 0  || (kill(pid, 0) < 0 && errno == EEXIST)) {
 		ha_log(LOG_ERR
 		,	"api_add_client: bad pid [%d]", pid);
 		return;
@@ -487,19 +553,45 @@ api_add_client(struct ha_msg* msg)
 		return;
 	}
 	memset(client, 0, sizeof(*client));
+	client->input_fifo = -1;
 	client->pid = pid;
 	client->desired_types = DEFAULTREATMENT;
 	client->signal = 0;
 	if (fromid != NULL) {
 		strncpy(client->client_id, cpid, sizeof(client->client_id));
+		client->iscasual = 0;
 	}else{
 		snprintf(client->client_id, sizeof(client->client_id)
 		,	"%d", pid);
+		client->iscasual = 1;
 	}
 	client->next = client_list;
 	client_list = client;
 	total_client_count++;
+
+	if (!ClientSecurityIsOK(client)) {
+		return;
+	}
+	if ((fifoifd=open_reqfifo(client)) <= 0) {
+		ha_log(LOG_ERR
+		,	"Unable to open API FIFO for client %s"
+		,	client->client_id);
+		api_remove_client(client);
+		return;
+	}
+	if (fifoifd >= MAXFD) {
+		ha_log(LOG_ERR
+		,	"Too many API clients [%d]", total_client_count);
+		api_remove_client(client);
+		return;
+	}
+	client->input_fifo = fifoifd;
+	FDclients[fifoifd] = client;
 }
+
+/*
+ *	Find the client that goes with this client id/pid
+ */
 client_proc_t*
 find_client(const char * fromid, const char * cpid)
 {
@@ -519,4 +611,422 @@ find_client(const char * fromid, const char * cpid)
 		}
 	}
 	return(NULL);
+}
+
+/*
+ *	Return the name of the client FIFO of the given type
+ *		(request or response)
+ */
+static const char *
+client_fifo_name(client_proc_t* client, int isrequest)
+{
+	static char	fifoname[MAXPATHLEN];
+	const char *	dirprefix;
+	const char *	fifosuffix;
+
+	dirprefix = (client->iscasual ? CASUALCLIENTDIR : NAMEDCLIENTDIR);
+	fifosuffix = (isrequest ? ".req" : ".rsp");
+	
+	snprintf(fifoname, sizeof(fifoname), "%s/%s%s"
+	,	dirprefix, client->client_id, fifosuffix);
+	return(fifoname);
+}
+
+/*
+ *	A little about the API FIFO structure...
+ *
+ *	We have two kinds of API clients:  casual and named
+ *
+ *	Casual clients just attach and listen in to messages, and ask
+ *	the status of things. Casual clients are typically used as status
+ *	agents, or debugging agents.
+ *
+ *	They can't send messages, and they are known only by their PID.
+ *	Anyone in the group that owns the casual FIFO directory can use
+ *	the casual API.  Casual clients create and delete their own
+ *	FIFOs for the API (or are cleaned up after by heartbeat ;-))
+ *	Hence, the casual client FIFO directory must be group writable,
+ *	and sticky.
+ *
+ *	Named clients attach and listen in to messages, and they are also
+ *	allowed to send messages to the other clients in the cluster with
+ *	the same name. Named clients typically provide persistent services
+ *	in the cluster.  A cluster manager would be an example
+ *	of such a persistent service.
+ *
+ *	Their FIFOs are pre-created for them, and they
+ *	neither create nor delete them - nor should they be able to.
+ *	The named client FIFO directory must not be writable by group or other.
+ *
+ *	We deliver messages from named clients to clients in the cluster
+ *	which are registered with the same name.  Each named client
+ *	also receives the messages it sends.
+ *
+ *	A client can only register for a given name if their userid is the
+ *	owner of the named FIFO for that name.
+ *
+ *	If a client has permissions to snoop on packets (debug mode),
+ *	then they are allowed to receive all packets, but otherwise only
+ *	clients registered with the same name will receive these messages.
+ *
+ *	It is important, then to make sure that each FIFO is owned by the
+ *	same UID on each machine.
+ */
+
+/*
+ * Our Goal: To be as big a pain in the posterior as we can be
+ */
+
+static int
+HostSecurityIsOK(void)
+{
+	uid_t		our_uid = geteuid();
+	struct stat	s;
+
+	/*
+	 * Check out the Heartbeat internal-use FIFO...
+	 */
+
+	if (stat(FIFONAME, &s) < 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s does not exist", FIFONAME);
+		return(0);
+	}
+
+	/* Is the heartbeat FIFO internal-use pathname a FIFO? */
+
+	if (!S_ISFIFO(s.st_mode)) {
+		ha_log(LOG_ERR
+		,	"%s is not a FIFO", FIFONAME);
+		unlink(FIFONAME);
+		return 0;
+	}
+	/*
+	 * Check to make sure it isn't readable or writable by group or other.
+	 */
+
+	if ((s.st_mode&(S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)) != 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s is not secure.", FIFONAME);
+		return 0;
+	}
+
+	/* Let's make sure it's owned by us... */
+
+	if (s.st_uid != our_uid) {
+		ha_log(LOG_ERR
+		,	"FIFO %s not owned by uid %d.", FIFONAME
+		,	our_uid);
+		return 0;
+	}
+
+	/*
+	 *	Now, let's check out the API registration FIFO
+	 */
+
+	if (stat(API_REGFIFO, &s) < 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s does not exist", API_REGFIFO);
+		return(0);
+	}
+
+	/* Is the registration FIFO pathname a FIFO? */
+
+	if (!S_ISFIFO(s.st_mode)) {
+		ha_log(LOG_ERR
+		,	"%s is not a FIFO", API_REGFIFO);
+		unlink(FIFONAME);
+		return 0;
+	}
+	/*
+	 * Check to make sure it isn't readable or writable by other
+	 * or readable by group.
+	 */
+
+	if ((s.st_mode&(S_IRGRP|S_IROTH|S_IWOTH)) != 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s is not secure.", API_REGFIFO);
+		return 0;
+	}
+
+	/* Let's make sure it's owned by us... */
+	if (s.st_uid != our_uid) {
+		ha_log(LOG_ERR
+		,	"FIFO %s not owned by uid %d.", API_REGFIFO
+		,	our_uid);
+		return 0;
+	}
+
+
+	/* 
+	 * Check out the Casual Client FIFO directory
+	 */
+
+	if (stat(CASUALCLIENTDIR, &s) < 0) {
+		ha_log(LOG_ERR
+		,	"Directory %s does not exist", CASUALCLIENTDIR);
+		return(0);
+	}
+
+	/* Is the Casual Client FIFO directory pathname really a directory? */
+
+	if (!S_ISDIR(s.st_mode)) {
+		ha_log(LOG_ERR
+		,	"%s is not a Directory", CASUALCLIENTDIR);
+		return(0);
+	}
+
+	/* Let's make sure it's owned by us... */
+
+	if (s.st_uid != our_uid) {
+		ha_log(LOG_ERR
+		,	"Directory %s not owned by uid %d.", CASUALCLIENTDIR
+		,	our_uid);
+		return 0;
+	}
+
+	/* Check to make sure it isn't R,W or X by other. */
+
+	if ((s.st_mode&(S_IXOTH|S_IROTH|S_IWOTH)) != 0) {
+		ha_log(LOG_ERR
+		,	"Directory %s is not secure.", CASUALCLIENTDIR);
+		return 0;
+	}
+
+	/* Make sure it *is* executable and writable by group */
+
+	if ((s.st_mode&(S_IXGRP|S_IWGRP)) != (S_IXGRP|S_IWGRP)){
+		ha_log(LOG_ERR
+		,	"Directory %s is not usable.", CASUALCLIENTDIR);
+		return 0;
+	}
+
+	/* Make sure the casual client FIFO directory is sticky */
+
+	if ((s.st_mode&(S_IXGRP|S_IWGRP|S_ISVTX)) != (S_IXGRP|S_IWGRP|S_ISVTX)){
+		ha_log(LOG_ERR
+		,	"Directory %s is not sticky.", CASUALCLIENTDIR);
+		return 0;
+	}
+
+	/* 
+	 * Check out the Named Client FIFO directory
+	 */
+
+	if (stat(NAMEDCLIENTDIR, &s) < 0) {
+		ha_log(LOG_ERR
+		,	"Directory %s does not exist", NAMEDCLIENTDIR);
+		return(0);
+	}
+
+	/* Is the Named Client FIFO directory pathname actually a directory? */
+
+	if (!S_ISDIR(s.st_mode)) {
+		ha_log(LOG_ERR
+		,	"%s is not a Directory", NAMEDCLIENTDIR);
+		return(0);
+	}
+
+	/* Let's make sure it's owned by us... */
+
+	if (s.st_uid != our_uid) {
+		ha_log(LOG_ERR
+		,	"Directory %s not owned by uid %d.", NAMEDCLIENTDIR
+		,	our_uid);
+		return 0;
+	}
+
+	/* Make sure it isn't R,W or X by other, or writable by group */
+
+	if ((s.st_mode&(S_IXOTH|S_IROTH|S_IWOTH|S_IWGRP)) != 0) {
+		ha_log(LOG_ERR
+		,	"Directory %s is not secure.", NAMEDCLIENTDIR);
+		return 0;
+	}
+
+	/* Make sure it *is* executable by group */
+
+	if ((s.st_mode&(S_IXGRP)) != (S_IXGRP)) {
+		ha_log(LOG_ERR
+		,	"Directory %s is not usable.", NAMEDCLIENTDIR);
+		return 0;
+	}
+	return 1;
+}
+
+/*
+ *	We are the security tough-guys.  Or so we hope ;-)
+ */
+static int
+ClientSecurityIsOK(client_proc_t* client)
+{
+	const char *	fifoname;
+	struct stat	s;
+	uid_t		client_uid;
+	uid_t		our_uid;
+
+	/* Does this client even exist? */
+
+	if (kill(client->pid, 0) < 0 && errno == EEXIST) {
+		ha_log(LOG_ERR
+		,	"Client pid %d does not exist", client->pid);
+		return(0);
+	}
+	client_uid = pid2uid(client->pid);
+	our_uid = geteuid();
+
+
+	/*
+	 * Is this client's request FIFO secure? 
+	 */
+
+	fifoname = client_fifo_name(client, 1);
+
+	if (stat(fifoname, &s) < 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s does not exist", fifoname);
+		return(0);
+	}
+
+	/* Is the request FIFO pathname a FIFO? */
+
+	if (!S_ISFIFO(s.st_mode)) {
+		ha_log(LOG_ERR
+		,	"%s is not a FIFO", fifoname);
+		unlink(fifoname);
+		return 0;
+	}
+
+	/*
+	 * Check to make sure it isn't writable by group or other,
+	 * or readable by others.
+	 */
+	if ((s.st_mode&(S_IWGRP|S_IWOTH|S_IROTH)) != 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s is not secure.", fifoname);
+		return 0;
+	}
+
+	/*
+	 * The request FIFO shouldn't be group readable unless it's
+ 	 * grouped to our effective group id, and we aren't root. 
+	 * If we're root, we can read it anyway, so there's no reason
+	 * we should allow it to be group readable.
+	 */
+
+	if ((s.st_mode&S_IRGRP) != 0 && s.st_gid != getegid()
+	&&	geteuid() != 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s is not secure (g+r).", fifoname);
+		return 0;
+	}
+
+	/* Does it look like the given client pid can write this FIFO? */
+
+	if (client_uid != s.st_uid) {
+		ha_log(LOG_ERR
+		,	"Client pid %d is not uid %ld like they"
+		" must be to write FIFO %s"
+		,	client->pid, (long)s.st_uid, fifoname);
+		return 0;
+	}
+
+	/*
+	 * Let's examine the response FIFO...
+	 */
+
+	fifoname = client_fifo_name(client, 0);
+	if (stat(fifoname, &s) < 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s does not exist", fifoname);
+		return 0;
+	}
+
+	/* Is the response FIFO pathname a FIFO? */
+
+	if (!S_ISFIFO(s.st_mode)) {
+		ha_log(LOG_ERR
+		,	"%s is not a FIFO", fifoname);
+		unlink(fifoname);
+		return 0;
+	}
+
+	/*
+	 * Is the response FIFO secure?
+	 */
+
+	/*
+	 * Check to make sure it isn't readable by group or other,
+	 * or writable by others.
+	 */
+	if ((s.st_mode&(S_IRGRP|S_IROTH|S_IWOTH)) != 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s is not secure.", fifoname);
+		return 0;
+	}
+
+	/*
+	 * The response FIFO shouldn't be group writable unless it's
+ 	 * grouped to our effective group id, and we aren't root. 
+	 * If we're root, we can write it anyway, so there's no reason
+	 * we should allow it to be group writable.
+	 */
+	if ((s.st_mode&S_IWGRP) != 0 && s.st_gid != getegid()
+	&&	geteuid() != 0) {
+		ha_log(LOG_ERR
+		,	"FIFO %s is not secure (g+w).", fifoname);
+		return 0;
+	}
+
+	/* Does it look like the given client pid can read this FIFO? */
+
+	if (client_uid != s.st_uid) {
+		ha_log(LOG_ERR
+		,	"Client pid %d is not uid %ld like they"
+		" must be to read FIFO %s"
+		,	client->pid, (long)s.st_uid, fifoname);
+		return 0;
+	}
+	return 1;
+}
+
+/*
+ * Open the request FIFO for the given client.
+ */
+static int
+open_reqfifo(client_proc_t* client)
+{
+	struct stat	s;
+	const char *	fifoname = client_fifo_name(client, 1);
+
+
+	if (client->input_fifo > 0) {
+		return(client->input_fifo);
+	}
+
+	/* How about that! */
+	client->uid = s.st_uid;
+	return(open(fifoname, O_RDONLY|O_NDELAY));
+}
+
+#define	PROC	"/proc/"
+
+static	uid_t
+pid2uid(pid_t pid)
+{
+	struct stat	s;
+	char	procpath[sizeof(PROC)+20];
+
+	snprintf(procpath, sizeof(procpath), "%s%ld", PROC, (long)pid);
+
+	if (stat(procpath, &s) < 0) {
+		return(-1);
+	}
+	/*
+	 * This isn't a perfect test.  On Linux we could look at the
+	 * /proc/$pid/status file for the line that says:
+	 *	Uid:    500     500     500     500 
+	 * and parse it for find out whatever we want to know.
+	 */
+	return s.st_uid;
 }

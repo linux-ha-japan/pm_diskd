@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.27 2000/07/26 05:17:19 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.28 2000/07/29 20:14:21 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -137,6 +137,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.27 2000/07/26 05:17:
 #ifndef FIFONAME
 #	define	FIFONAME	VAR_RUN_D "/heartbeat-fifo"
 #endif
+
 #define	RCSCRIPT		HA_D "/harc"
 #define CONFIG_NAME		HA_D "/ha.cf"
 #define RESOURCE_CFG		HA_D "/haresources"
