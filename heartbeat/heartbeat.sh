@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.29 2000/11/17 13:28:46 alan Exp $
+#	$Id: heartbeat.sh,v 1.30 2000/11/25 13:07:44 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -67,7 +67,7 @@ then
 	$HA_BIN/heartbeat -s
   }
   echo_failure() {
-      echo " Heartbeat failure [rc=$1]. $rc_failed"
+      echo -e " Heartbeat failure [rc=$1]. $rc_failed"
       return $1
   }
   echo_success() {
@@ -278,6 +278,11 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.30  2000/11/25 13:07:44  alan
+#  Fixed a minor bug in the heartbeat startup script for SuSE.
+#  Replaced the makefile with a correct version after it was slammed with
+#  a new/old version by someone who is Debianizing it.
+#
 #  Revision 1.29  2000/11/17 13:28:46  alan
 #  Made the code slightly more SuSE-friendly in its messages.
 #  Increased the release number :-)
