@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.186 2002/04/20 05:36:22 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.187 2002/04/26 21:49:45 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -931,6 +931,7 @@ initialize_heartbeat()
 		}
 	}
 
+ 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL, debug);
 	CoreProcessCount = 0;
 	procinfo->nprocs = 0;
 	ourproc = procinfo->nprocs;
@@ -4739,7 +4740,6 @@ main(int argc, char * argv[], char * envp[])
 	setenv(DATEFMT, HA_DATEFMT, 1);
 	setenv(HAFUNCENV, HA_FUNCS, 1);
 
- 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL, debug);
 	init_procinfo();
 
 	if (module_init() != HA_OK) {
@@ -6041,6 +6041,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.187  2002/04/26 21:49:45  alan
+ * Put in some debug code so that the plugins we load get
+ * the right level of debug turned on in them when we start.
+ *
  * Revision 1.186  2002/04/20 05:36:22  alan
  * Added a little debug for debugging Matt Soffen's authentication
  * problems.

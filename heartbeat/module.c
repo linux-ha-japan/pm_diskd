@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.39 2002/04/09 21:53:27 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.40 2002/04/26 21:49:45 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -123,6 +123,8 @@ module_init(void)
     		return(HA_FAIL);
 	}
 
+ 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL, debug);
+
 
 	if ((rc = PILLoadPlugin(PluginLoadingSystem, "InterfaceMgr", "generic"
 	,	&RegistrationRqsts)) != PIL_OK) {
@@ -134,6 +136,7 @@ module_init(void)
 		,	PIL_strerror(rc));
 		return HA_FAIL;
 	}
+ 	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL, debug);
 
 	/* init completed */
 	++initialised;
