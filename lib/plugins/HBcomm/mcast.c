@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.1 2001/08/10 17:16:44 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.2 2001/09/07 16:18:17 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -119,6 +119,7 @@ static PILInterface*		OurInterface;
 static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
 
+#define LOG	PluginImports->log
 
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
@@ -233,7 +234,7 @@ mcast_parse(const char *line)
 
 	if (*dev != EOS)  {
 		if (!is_valid_dev(dev)) {
-			ha_log(LOG_ERR, "mcast bad device [%s]", dev);
+			LOG(PIL_CRIT, "mcast bad device [%s]", dev);
 			return HA_FAIL;
 		}
 		/* Skip over white space, then grab the multicast group */
@@ -244,12 +245,12 @@ mcast_parse(const char *line)
 		mcast[toklen] = EOS;
 	
 		if (*mcast == EOS)  {
-			ha_log(LOG_ERR, "mcast [%s] missing mcast address",
+			LOG(PIL_CRIT, "mcast [%s] missing mcast address",
 				dev);
 			return(HA_FAIL);
 		}
 		if (!is_valid_mcast_addr(mcast)) {
-			ha_log(LOG_ERR, "mcast [%s] bad addr [%s]", dev, mcast);
+			LOG(PIL_CRIT, "mcast [%s] bad addr [%s]", dev, mcast);
 			return(HA_FAIL);
 		}
 
@@ -261,11 +262,11 @@ mcast_parse(const char *line)
 		token[toklen] = EOS;
 
 		if (*token == EOS)  {
-			ha_log(LOG_ERR, "mcast [%s] missing port", dev);
+			LOG(PIL_CRIT, "mcast [%s] missing port", dev);
 			return(HA_FAIL);
 		}
 		if (get_port(token, &port) == -1) {
-			ha_log(LOG_ERR, " mcast [%s] bad port [%s]", dev, port);
+			LOG(PIL_CRIT, " mcast [%s] bad port [%s]", dev, port);
 			return HA_FAIL;
 		}
 
@@ -277,11 +278,11 @@ mcast_parse(const char *line)
 		token[toklen] = EOS;
 
 		if (*token == EOS)  {
-			ha_log(LOG_ERR, "mcast [%s] missing ttl", dev);
+			LOG(PIL_CRIT, "mcast [%s] missing ttl", dev);
 			return(HA_FAIL);
 		}
 		if (get_ttl(token, &ttl) == -1) {
-			ha_log(LOG_ERR, " mcast [%s] bad ttl [%s]", dev, ttl);
+			LOG(PIL_CRIT, " mcast [%s] bad ttl [%s]", dev, ttl);
 			return HA_FAIL;
 		}
 
@@ -293,11 +294,11 @@ mcast_parse(const char *line)
 		token[toklen] = EOS;
 
 		if (*token == EOS)  {
-			ha_log(LOG_ERR, "mcast [%s] missing loop", dev);
+			LOG(PIL_CRIT, "mcast [%s] missing loop", dev);
 			return(HA_FAIL);
 		}
 		if (get_loop(token, &loop) == -1) {
-			ha_log(LOG_ERR, " mcast [%s] bad loop [%s]", dev, loop);
+			LOG(PIL_CRIT, " mcast [%s] bad loop [%s]", dev, loop);
 			return HA_FAIL;
 		}
 
@@ -326,7 +327,7 @@ mcast_new(const char * intf, const char *mcast, u_short port,
 	/* create new mcast_private struct...hmmm...who frees it? */
 	mcp = new_mcast_private(intf, mcast, port, ttl, loop);
 	if (mcp == NULL) {
-		ha_perror("Error creating mcast_private(%s, %s, %d, %d, %d)",
+		LOG(PIL_WARN, "Error creating mcast_private(%s, %s, %d, %d, %d)",
 			 intf, mcast, port, ttl, loop);
 		return(NULL);
 	}
@@ -364,7 +365,7 @@ mcast_open(struct hb_media* hbm)
 		return(HA_FAIL);
 	}
 
-	ha_log(LOG_NOTICE, "UDP multicast heartbeat started for group %s "
+	LOG(PIL_INFO, "UDP multicast heartbeat started for group %s "
 		"port %d interface %s (ttl=%d loop=%d)" , inet_ntoa(mcp->mcast),
 		mcp->port, mcp->interface, mcp->ttl, mcp->loop);
 
@@ -413,16 +414,16 @@ mcast_read(struct hb_media* hbm)
 
 	if ((numbytes=recvfrom(mcp->rsocket, buf, MAXLINE-1, 0
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		ha_perror("Error receiving from socket");
+		LOG(PIL_WARN, "Error receiving from socket: %s", strerror(errno));
 	}
 	buf[numbytes] = EOS;
 
 	if (Debug >= PKTTRACE) {
-		ha_log(LOG_DEBUG, "got %d byte packet from %s"
+		LOG(PIL_DEBUG, "got %d byte packet from %s"
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
 	if (Debug >= PKTCONTTRACE) {
-		ha_log(LOG_DEBUG, buf);
+		LOG(PIL_DEBUG, buf);
 	}
 	return(string2msg(buf));
 }
@@ -450,17 +451,17 @@ mcast_write(struct hb_media* hbm, struct ha_msg * msgptr)
 	if ((rc=sendto(mcp->wsocket, pkt, size, 0
 	,	(struct sockaddr *)&mcp->addr
 	,	sizeof(struct sockaddr))) != size) {
-		ha_perror("Error sending packet");
+		LOG(PIL_WARN, "Error sending packet: %s", strerror(errno));
 		ha_free(pkt);
 		return(HA_FAIL);
 	}
 
 	if (Debug >= PKTTRACE) {
-		ha_log(LOG_DEBUG, "sent %d bytes to %s"
+		LOG(PIL_DEBUG, "sent %d bytes to %s"
 		,	rc, inet_ntoa(mcp->addr.sin_addr));
    	}
 	if (Debug >= PKTCONTTRACE) {
-		ha_log(LOG_DEBUG, pkt);
+		LOG(PIL_DEBUG, pkt);
    	}
 	ha_free(pkt);
 	return(HA_OK);
@@ -479,24 +480,24 @@ mcast_make_send_sock(struct hb_media * hbm)
 	mcp = (struct mcast_private *) hbm->pd;
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		ha_perror("Error getting socket");
+		LOG(PIL_WARN, "Error getting socket: %s", strerror(errno));
 		return(sockfd);
    	}
 
 	if (set_mcast_if(sockfd, mcp->interface) < 0) {
-		ha_perror("Error setting outbound mcast interface");
+		LOG(PIL_WARN, "Error setting outbound mcast interface: %s", strerror(errno));
 	}
 
 	if (set_mcast_loop(sockfd, mcp->loop) < 0) {
-		ha_perror("Error setting outbound mcast loopback value");
+		LOG(PIL_WARN, "Error setting outbound mcast loopback value: %s", strerror(errno));
 	}
 
 	if (set_mcast_ttl(sockfd, mcp->ttl) < 0) {
-		ha_perror("Error setting outbound mcast TTL");
+		LOG(PIL_WARN, "Error setting outbound mcast TTL: %s", strerror(errno));
 	}
 
 	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
-		ha_perror("Error setting the close-on-exec flag");
+		LOG(PIL_WARN, "Error setting the close-on-exec flag: %s", strerror(errno));
 	}
 	return(sockfd);
 }
@@ -522,13 +523,13 @@ mcast_make_receive_sock(struct hb_media * hbm)
 	mcp = (struct mcast_private *) hbm->pd;
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-		ha_log(LOG_ERR, "Error getting socket");
+		LOG(PIL_CRIT, "Error getting socket");
 		return -1;
 	}
 	/* set REUSEADDR option on socket so you can bind a multicast */
 	/* reader to multiple interfaces */
 	if(setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&one, sizeof(one)) < 0){
-		ha_log(LOG_ERR, "Error setsockopt(SO_REUSEADDR)");
+		LOG(PIL_CRIT, "Error setsockopt(SO_REUSEADDR)");
 	}        
 
 	/* ripped off from udp.c, if we all use SO_REUSEADDR */
@@ -543,7 +544,7 @@ mcast_make_receive_sock(struct hb_media * hbm)
 			boundyet=1;
 		} else if (rc == -1) {
 			if (binderr == EADDRINUSE) {
-				ha_log(LOG_ERR, "Can't bind (EADDRINUSE), "
+				LOG(PIL_CRIT, "Can't bind (EADDRINUSE), "
 					"retrying");
 				sleep(1);
 			} else	{ 
@@ -556,15 +557,15 @@ mcast_make_receive_sock(struct hb_media * hbm)
 	if (!boundyet) {
 		if (binderr == EADDRINUSE) {
 			/* This happens with multiple udp or ppp interfaces */
-			ha_log(LOG_NOTICE
+			LOG(PIL_INFO
 			,	"Someone already listening on port %d [%s]"
 			,	mcp->port
 			,	mcp->interface);
-			ha_log(LOG_NOTICE, "multicast read process exiting");
+			LOG(PIL_INFO, "multicast read process exiting");
 			close(sockfd);
 			cleanexit(0);
 		} else {
-			ha_perror("Unable to bind socket. Giving up");
+			LOG(PIL_WARN, "Unable to bind socket. Giving up: %s", strerror(errno));
 			close(sockfd);
 			return(-1);
 		}
@@ -572,18 +573,18 @@ mcast_make_receive_sock(struct hb_media * hbm)
 	/* join the multicast group...this is what really makes this a */
 	/* multicast reader */
 	if (join_mcast_group(sockfd, &mcp->mcast, mcp->interface) == -1) {
-		ha_log(LOG_ERR, "Can't join multicast group %s on interface %s",
+		LOG(PIL_CRIT, "Can't join multicast group %s on interface %s",
 			inet_ntoa(mcp->mcast), mcp->interface);
-		ha_log(LOG_NOTICE, "multicast read process exiting");
+		LOG(PIL_INFO, "multicast read process exiting");
 		close(sockfd);
 		cleanexit(0);
 	}
 	if (ANYDEBUG) 
-		ha_log(LOG_DEBUG, "Successfully joined multicast group %s on"
+		LOG(PIL_DEBUG, "Successfully joined multicast group %s on"
 			"interface %s", inet_ntoa(mcp->mcast), mcp->interface);
 		
 	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
-		ha_perror("Error setting the close-on-exec flag");
+		LOG(PIL_WARN, "Error setting the close-on-exec flag: %s", strerror(errno));
 	}
 	return(sockfd);
 }
@@ -722,16 +723,15 @@ if_getaddr(const char *ifname, struct in_addr *addr)
 	}
 
 	if ((fd=socket(AF_INET, SOCK_DGRAM, 0)) == -1)	{
-		ha_log(LOG_ERR, "Error getting socket");
+		LOG(PIL_CRIT, "Error getting socket");
 		return -1;
 	}
 	if (Debug > 0) {
-		ha_log(LOG_DEBUG, 
-			"looking up address for %s",
-			if_info.ifr_name);
+		LOG(PIL_DEBUG,	"looking up address for %s"
+		,	if_info.ifr_name);
 	}
 	if (ioctl(fd, SIOCGIFADDR, &if_info) == -1) {
-		ha_log(LOG_ERR, "Error ioctl(SIOCGIFADDR)");
+		LOG(PIL_CRIT, "Error ioctl(SIOCGIFADDR)");
 		close(fd);
 		return -1;
 	}
@@ -808,6 +808,11 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.2  2001/09/07 16:18:17  alan
+ * Updated ping.c to conform to the new plugin loading system.
+ * Changed log messages in bcast, mcast, ping and serial to use the
+ * new logging function.
+ *
  * Revision 1.1  2001/08/10 17:16:44  alan
  * New code for the new plugin loading system.
  *

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.3 2001/08/15 16:56:47 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.4 2001/09/07 16:18:17 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -80,6 +80,7 @@ static int		serial_mtype(char **buffer);
 static int		serial_descr(char **buffer);
 static int		serial_isping(void);
 
+
 /*
  * serialclosepi is called as part of unloading the serial HBcomm plugin.
  * If there was any global data allocated, or file descriptors opened, etc.
@@ -124,6 +125,8 @@ static PILPlugin*               OurPlugin;
 static PILInterface*		OurInterface;
 static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
+
+#define LOG	PluginImports->log
 
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
@@ -208,29 +211,25 @@ serial_init (void)
 static struct hb_media *
 serial_new (const char * port)
 {
-	char	msg[MAXLINE];
 	struct	stat	sbuf;
 	struct hb_media * ret;
 
 
 	/* Let's see if this looks like it might be a serial port... */
 	if (*port != '/') {
-		sprintf(msg, "Serial port not full pathname [%s] in config file"
+		LOG(PIL_CRIT, "Serial port not full pathname [%s] in config file"
 		,	port);
-		ha_error(msg);
 		return(NULL);
 	}
 
 	if (stat(port, &sbuf) < 0) {
-		sprintf(msg, "Nonexistent serial port [%s] in config file"
+		LOG(PIL_CRIT, "Nonexistent serial port [%s] in config file"
 		,	port);
-		ha_perror(msg);
 		return(NULL);
 	}
 	if (!S_ISCHR(sbuf.st_mode)) {
-		sprintf(msg, "Serial port [%s] not a char device in config file"
+		LOG(PIL_CRIT, "Serial port [%s] not a char device in config file"
 		,	port);
-		ha_error(msg);
 		return(NULL);
 	}
 
@@ -253,10 +252,10 @@ serial_new (const char * port)
 		}else{
 			ha_free(ret);
 			ret = NULL;
-			ha_error("Out of memory (private serial data)");
+			LOG(PIL_CRIT, "Out of memory (private serial data)");
 		}
 	}else{
-		ha_error("Out of memory (serial data)");
+		LOG(PIL_CRIT, "Out of memory (serial data)");
 	}
 	return(ret);
 }
@@ -265,19 +264,17 @@ static int
 serial_open (struct hb_media* mp)
 {
 	struct serial_private*	sp;
-	char			msg[MAXLINE];
 
 	TTYASSERT(mp);
 	sp = (struct serial_private*)mp->pd;
 	if (OurImports->devlock(sp->ttyname) < 0) {
-		snprintf(msg, MAXLINE, "cannot lock line %s", sp->ttyname);
-		ha_error(msg);
+		LOG(PIL_CRIT, "cannot lock line %s", sp->ttyname);
 		return(HA_FAIL);
 	}
 	if ((sp->ttyfd = opentty(sp->ttyname)) < 0) {
 		return(HA_FAIL);
 	}
-	ha_log(LOG_NOTICE, "Starting serial heartbeat on tty %s", sp->ttyname);
+	LOG(PIL_INFO, "Starting serial heartbeat on tty %s", sp->ttyname);
 	return(HA_OK);
 }
 
@@ -301,7 +298,7 @@ ttysetup(int fd)
 	struct TERMIOS	ti;
 
 	if (GETATTR(fd, &ti) < 0) {
-		ha_perror("cannot get tty attributes");
+		LOG(PIL_CRIT, "cannot get tty attributes: %s", strerror(errno));
 		return(HA_FAIL);
 	}
 
@@ -338,7 +335,7 @@ ttysetup(int fd)
 	ti.c_cc[VMIN] = 1;
 	ti.c_cc[VTIME] = 1;
 	if (SETATTR(fd, &ti) < 0) {
-		ha_perror("cannot set tty attributes");
+		LOG(PIL_CRIT, "cannot set tty attributes: %s", strerror(errno));
 		return(HA_FAIL);
 	}
 	/* For good measure */
@@ -353,9 +350,7 @@ opentty(char * serial_device)
 	int	fd;
 
 	if ((fd=open(serial_device, O_RDWR)) < 0 ) {
-		char msg[128];
-		sprintf(msg, "cannot open %s", serial_device);
-		ha_perror(msg);
+		LOG(LOG_CRIT, "cannot open %s: %s", serial_device, strerror(errno));
 		return(fd);
 	}
 	if (!ttysetup(fd)) {
@@ -363,7 +358,8 @@ opentty(char * serial_device)
 		return(-1);
 	}
 	if (fcntl(fd, F_SETFD, FD_CLOEXEC)) {
-		ha_perror("Error setting the close-on-exec flag");
+		LOG(PIL_WARN,"Error setting the close-on-exec flag: %s"
+		,	strerror(errno));
 	}
 	return(fd);
 }
@@ -380,7 +376,7 @@ serial_localdie(void)
 	ourtty = ((struct serial_private*)(ourmedia->pd))->ttyfd;
 	if (ourtty >= 0) {
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "serial_localdie: Flushing tty");
+			LOG(PIL_DEBUG, "serial_localdie: Flushing tty");
 		}
 		tcflush(ourtty, TCIOFLUSH);
 	}
@@ -403,22 +399,22 @@ serial_write (struct hb_media*mp, struct ha_msg*m)
 	OurImports->RegisterCleanup(serial_localdie);
 	ourtty = ((struct serial_private*)(mp->pd))->ttyfd;
 	if ((str=msg2string(m)) == NULL) {
-		ha_error("Cannot convert message to tty string");
+		LOG(PIL_CRIT, "Cannot convert message to tty string");
 		return(HA_FAIL);
 	}
 	size = strlen(str);
 	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "Sending pkt to %s [%d bytes]"
+		LOG(PIL_DEBUG, "Sending pkt to %s [%d bytes]"
 		,	mp->name, size);
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, str);
+		LOG(PIL_DEBUG, str);
 	}
 	alarm(2);
 	wrc = write(ourtty, str, size);
 	alarm(0);
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, "write returned %d", wrc);
+		LOG(PIL_DEBUG, "write returned %d", wrc);
 	}
 
 	if (wrc < 0) {
@@ -427,12 +423,13 @@ serial_write (struct hb_media*mp, struct ha_msg*m)
 			tcflush(ourtty, TCIOFLUSH);
 			if ((now - last_norts) > RTS_WARNTIME) {
 				last_norts = now;
-				ha_log(LOG_ERR
+				LOG(LOG_ERR
 				,	"TTY write timeout on [%s]"
 				" (no connection?)", mp->name);
 			}
 		}else{
-			ha_perror("TTY write failure on [%s]", mp->name);
+			LOG(PIL_CRIT, "TTY write failure on [%s]: %s", mp->name
+			,	strerror(errno));
 		}
 	}
 	ha_free(str);
@@ -459,7 +456,7 @@ serial_read (struct hb_media*mp)
 	thissp = (struct serial_private*)mp->pd;
 
 	if ((ret = ha_msg_new(0)) == NULL) {
-		ha_error("Cannot get new message");
+		LOG(PIL_CRIT, "Cannot get new message");
 		return(NULL);
 	}
 	startlen = strlen(start);
@@ -519,7 +516,7 @@ serial_read (struct hb_media*mp)
 			add_msg_auth(ret);
 
 			if ((newmsg = msg2string(ret)) == NULL) {
-				ha_error("Cannot convert serial msg to string");
+				LOG(PIL_CRIT, "Cannot convert serial msg to string");
 				continue;
 			}
 			newmsglen = strlen(newmsg);
@@ -558,9 +555,8 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 		/* One read per char -- yecch  (but it's easy) */
 		rc = read(fd, cp, 1);
 		if (rc != 1) {
-			char	msg[MAXLINE];
-			sprintf(msg, "EOF in ttygets [%s]", tty->ttyname);
-			ha_perror(msg);
+			LOG(PIL_CRIT, "EOF in ttygets [%s]: %s"
+			,	tty->ttyname,	strerror(errno));
 			return(NULL);
 		}
 		if (*cp == '\r' || *cp == '\n') {
@@ -572,6 +568,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.4  2001/09/07 16:18:17  alan
+ * Updated ping.c to conform to the new plugin loading system.
+ * Changed log messages in bcast, mcast, ping and serial to use the
+ * new logging function.
+ *
  * Revision 1.3  2001/08/15 16:56:47  alan
  * Put in the code to allow serial port comm plugins to work...
  *

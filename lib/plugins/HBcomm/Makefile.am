@@ -31,7 +31,7 @@ CFLAGS			= @CFLAGS@
 
 halibdir		= $(libdir)/@HEARTBEATPKG@
 plugindir		= $(halibdir)/plugins/HBcomm
-plugin_LTLIBRARIES	= bcast.la mcast.la serial.la
+plugin_LTLIBRARIES	= bcast.la mcast.la serial.la ping.la
 
 bcast_la_SOURCES	= bcast.c
 bcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
@@ -41,3 +41,6 @@ mcast_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 serial_la_SOURCES	= serial.c
 serial_la_LDFLAGS	= -export-dynamic -module -avoid-version
+
+ping_la_SOURCES	= ping.c
+ping_la_LDFLAGS	= -export-dynamic -module -avoid-version

@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.4 2001/08/15 16:17:12 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.5 2001/09/07 16:18:17 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -125,6 +125,8 @@ static PILInterface*		OurInterface;
 static struct hb_media_imports*	OurImports;
 static void*			interfprivate;
 
+#define LOG	PluginImports->log
+
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
 
@@ -217,16 +219,14 @@ bcast_init(void)
 struct hb_media *
 bcast_new(const char * intf)
 {
-	char	msg[MAXLINE];
 	struct ip_private*	ipi;
 	struct hb_media *	ret;
 
 	bcast_init();
 	ipi = new_ip_interface(intf, udpport);
 	if (ipi == NULL) {
-		sprintf(msg, "IP interface [%s] does not exist"
+		LOG(PIL_CRIT, "IP interface [%s] does not exist"
 		,	intf);
-		ha_error(msg);
 		return(NULL);
 	}
 	ret = MALLOCT(struct hb_media);
@@ -261,7 +261,7 @@ bcast_open(struct hb_media* mp)
 		bcast_close(mp);
 		return(HA_FAIL);
 	}
-	ha_log(LOG_NOTICE, "UDP Broadcast heartbeat started on port %d interface %s"
+	LOG(PIL_INFO, "UDP Broadcast heartbeat started on port %d interface %s"
 	,	udpport, mp->name);
 	return(HA_OK);
 }
@@ -308,16 +308,16 @@ bcast_read(struct hb_media* mp)
 
 	if ((numbytes=recvfrom(ei->rsocket, buf, MAXLINE-1, 0
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		ha_perror("Error receiving from socket");
+		LOG(PIL_CRIT, "Error receiving from socket: %s", strerror(errno));
 	}
 	buf[numbytes] = EOS;
 
 	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "got %d byte packet from %s"
+		LOG(PIL_DEBUG, "got %d byte packet from %s"
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, buf);
+		LOG(PIL_DEBUG, buf);
 	}
 	return(string2msg(buf));
 }
@@ -327,6 +327,7 @@ bcast_read(struct hb_media* mp)
  */
 
 int
+
 bcast_write(struct hb_media* mp, struct ha_msg * msgptr)
 {
 	struct ip_private *	ei;
@@ -345,17 +346,17 @@ bcast_write(struct hb_media* mp, struct ha_msg * msgptr)
 	if ((rc=sendto(ei->wsocket, pkt, size, 0
 	,	(struct sockaddr *)&ei->addr
 	,	sizeof(struct sockaddr))) != size) {
-		ha_perror("Error sending packet");
+		LOG(PIL_CRIT, "Error sending packet: %s", strerror(errno));
 		ha_free(pkt);
 		return(HA_FAIL);
 	}
 
 	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "sent %d bytes to %s"
+		LOG(PIL_DEBUG, "sent %d bytes to %s"
 		,	rc, inet_ntoa(ei->addr.sin_addr));
    	}
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, pkt);
+		LOG(PIL_DEBUG, pkt);
    	}
 	ha_free(pkt);
 	return(HA_OK);
@@ -374,13 +375,14 @@ bcast_make_send_sock(struct hb_media * mp)
 	ei = (struct ip_private *) mp->pd;
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		ha_perror("Error getting socket");
+		LOG(PIL_CRIT, "Error getting socket: %s", strerror(errno));
 		return(sockfd);
    	}
 
 	/* Warn that we're going to broadcast */
 	if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &one,sizeof(one))==-1){
-		ha_perror("Error setting socket option SO_BROADCAST");
+		LOG(PIL_CRIT, "Error setting socket option SO_BROADCAST: %s"
+		,	strerror(errno));
 		close(sockfd);
 		return(-1);
 	}
@@ -388,7 +390,8 @@ bcast_make_send_sock(struct hb_media * mp)
 #if defined(SO_DONTROUTE) && !defined(USE_ROUTING)
 	/* usually, we don't want to be subject to routing. */
 	if (setsockopt(sockfd, SOL_SOCKET, SO_DONTROUTE,&one,sizeof(int))==-1) {
-		ha_perror("Error setting socket option SO_DONTROUTE");
+		LOG(PIL_CRIT, "Error setting socket option SO_DONTROUTE: %s"
+		,	strerror(errno));
 		close(sockfd);
 		return(-1);
 	}
@@ -405,14 +408,16 @@ bcast_make_send_sock(struct hb_media * mp)
 
 		if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE
 		,	&i, sizeof(i)) == -1) {
-			ha_perror("Error setting socket option SO_BINDTODEVICE");
+			LOG(PIL_CRIT, "Error setting socket option SO_BINDTODEVICE: %s"
+			,	strerror(errno));
 			close(sockfd);
 			return(-1);
 		}
 	}
 #endif
 	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
-		ha_perror("Error setting the close-on-exec flag");
+		LOG(PIL_CRIT, "Error setting close-on-exec flag: %s"
+		,	strerror(errno));
 	}
 	return(sockfd);
 }
@@ -440,7 +445,8 @@ bcast_make_receive_sock(struct hb_media * mp) {
 	my_addr.sin_addr.s_addr = INADDR_ANY;	/* auto-fill with my IP */
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-		ha_perror("Error getting socket");
+		LOG(PIL_CRIT, "Error getting socket: %s"
+		,	strerror(errno));
 		return(-1);
 	}
 	/* 
@@ -454,7 +460,8 @@ bcast_make_receive_sock(struct hb_media * mp) {
 	j = 1;
 	if(setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR, (void *)&j, sizeof j) <0){
 		/* Ignore it.  It will almost always be OK anyway. */
-		ha_perror("Error setting option SO_REUSEADDR");
+		LOG(PIL_CRIT, "Error setting socket option SO_REUSEADDR: %s"
+		,	strerror(errno));
 	}        
 #if defined(SO_BINDTODEVICE)
 	{
@@ -466,13 +473,14 @@ bcast_make_receive_sock(struct hb_media * mp) {
 
 		if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE
 		,	&i, sizeof(i)) == -1) {
-			ha_perror("Error setting option SO_BINDTODEVICE(r)");
-			ha_perror(i.ifr_name);
+			LOG(PIL_CRIT
+			,	"Error setting socket option SO_BINDTODEVICE(r) on %s: %s"
+			,	i.ifr_name, strerror(errno));
 			close(sockfd);
 			return(-1);
 		}
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG
+			LOG(PIL_DEBUG
 			,	"SO_BINDTODEVICE(r) set for device %s"
 			,	i.ifr_name);
 		}
@@ -485,7 +493,8 @@ bcast_make_receive_sock(struct hb_media * mp) {
 	for(bindtries=0; !boundyet && bindtries < MAXBINDTRIES; ++bindtries) {
 		if (bind(sockfd, (struct sockaddr *)&my_addr
 		,	sizeof(struct sockaddr)) < 0) {
-			ha_perror("Error binding socket. Retrying");
+			LOG(PIL_CRIT, "Error binding socket (%s). Retrying."
+			,	strerror(errno));
 			sleep(1);
 		}else{
 			boundyet = 1;
@@ -495,22 +504,24 @@ bcast_make_receive_sock(struct hb_media * mp) {
 #if !defined(SO_BINDTODEVICE)
 		if (errno == EADDRINUSE) {
 			/* This happens with multiple bcast or ppp interfaces */
-			ha_log(LOG_NOTICE
+			LOG(PIL_INFO
 			,	"Someone already listening on port %d [%s]"
 			,	ei->port
 			,	ei->interface);
-			ha_log(LOG_NOTICE, "BCAST read process exiting");
+			LOG(PIL_INFO, "BCAST read process exiting");
 			close(sockfd);
 			cleanexit(0);
 		}
 #else
-		ha_perror("Unable to bind socket. Giving up");
+		LOG(PIL_CRIT, "Unable to bind socket (%s). Giving up."
+		,	strerror(errno));
 		close(sockfd);
 		return(-1);
 #endif
 	}
 	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
-		ha_perror("Error setting the close-on-exec flag");
+		LOG(PIL_CRIT, "Error setting the close-on-exec flag: %s"
+		,	strerror(errno));
 	}
 	return(sockfd);
 }
@@ -626,7 +637,8 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 	fd = socket (PF_INET, SOCK_DGRAM, 0);
 	
 	if (fd < 0) {
-		ha_perror("Error opening socket for interface %s", ifn);
+		LOG(PIL_CRIT, "Error opening socket for interface %s: %s"
+		,	ifn, strerror(errno));
 		return -1;
 	}
 	
@@ -648,14 +660,15 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 			   inet_ntoa(sin_ptr->sin_addr));*/
 			
 			/* leave return_val set to 0 to return success! */
-		} else {
-			ha_perror ("Wrong family for broadcast interface %s",
-				   ifn);
+		}else{
+			LOG(PIL_CRIT, "Wrong family for broadcast interface %s: %s"
+			,	ifn, strerror(errno));
 			return_val = -1;
 		}
 		
-	} else {
-		ha_perror ("Get broadcast for interface %s failed", ifn);
+	}else{
+		LOG(PIL_CRIT, "Get broadcast for interface %s failed: %s"
+		,	ifn, strerror(errno));
 		return_val = -1;
 	}
 	
@@ -667,6 +680,11 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.5  2001/09/07 16:18:17  alan
+ * Updated ping.c to conform to the new plugin loading system.
+ * Changed log messages in bcast, mcast, ping and serial to use the
+ * new logging function.
+ *
  * Revision 1.4  2001/08/15 16:17:12  alan
  * Fixed the code so that serial comm plugins build/load/work.
  *

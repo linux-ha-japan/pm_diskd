@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.1 2001/08/10 17:16:44 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.2 2001/09/07 16:18:17 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -65,7 +65,8 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.1 2001/08/10 17:16:44 alan Exp $
 #include <netinet/ip_icmp.h>
 #include <netdb.h>
 #include <signal.h>
-#include "heartbeat.h"
+#include <heartbeat.h>
+#include <HBcomm.h>
 
 #ifdef linux
 #	define	ICMP_HDR_SZ	sizeof(struct icmphdr)	/* 8 */
@@ -75,8 +76,12 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.1 2001/08/10 17:16:44 alan Exp $
 
 #define	EOS	'\0'
 
-#define MODULE ping
-#include <hb_module.h>
+#define PIL_PLUGINTYPE          HB_COMM_TYPE
+#define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
+#define PIL_PLUGIN              ping
+#define PIL_PLUGIN_S            "ping"
+#include <pils/plugin.h>
+
 
 struct ping_private {
         struct sockaddr_in      addr;   	/* ping addr */
@@ -86,28 +91,99 @@ struct ping_private {
 };
 
 
-int	EXPORT(hb_dev_init) (void);
-struct hb_media* EXPORT(hb_dev_new) (const char* interface);
-int	EXPORT(hb_dev_open) (struct hb_media* mp);
-int	EXPORT(hb_dev_close) (struct hb_media* mp);
-struct ha_msg* EXPORT(hb_dev_read) (struct hb_media* mp);
-int	EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg* msg);
+static struct hb_media*	ping_new (const char* interface);
+static int		ping_open (struct hb_media* mp);
+static int		ping_close (struct hb_media* mp);
+static struct ha_msg*	ping_read (struct hb_media* mp);
+static int		ping_write (struct hb_media* mp, struct ha_msg* msg);
 
 static struct ping_private *
-		new_ping_interface(const char * host);
-static int in_cksum (u_short * buf, int nbytes);
+			new_ping_interface(const char * host);
+static int		in_cksum (u_short * buf, int nbytes);
 
-int EXPORT(hb_dev_mtype) (char **buffer);
-int EXPORT(hb_dev_descr) (char **buffer);
-int EXPORT(hb_dev_isping) (void);
+static int		ping_mtype(char **buffer);
+static int		ping_descr(char **buffer);
+static int		ping_isping(void);
 
 
-#define		ISPINGOBJECT(mp)	((mp) && ((mp)->vf == (void*)&ping_media_fns))
-//#define		PINGASSERT(mp)	ASSERT(ISPINGOBJECT(mp))
-#define		PINGASSERT(mp)
+#define		ISPINGOBJECT(mp)	((mp) && ((mp)->vf == (void*)&pingOps))
+#define		PINGASSERT(mp)	g_assert(ISPINGOBJECT(mp))
 
-int
-EXPORT(hb_dev_mtype) (char **buffer) { 
+/*
+ * pingclose is called as part of unloading the ping HBcomm plugin.
+ * If there was any global data allocated, or file descriptors opened, etc.
+ * which is associated with the plugin, and not a single interface
+ * in particular, here's our chance to clean it up.
+ */
+
+static void
+pingclosepi(PILPlugin*pi)
+{
+}
+
+
+/*
+ * pingcloseintf called as part of shutting down the ping HBcomm interface.
+ * If there was any global data allocated, or file descriptors opened, etc.
+ * which is associated with the ping implementation, here's our chance
+ * to clean it up.
+ */
+static PIL_rc
+pingcloseintf(PILInterface* pi, void* pd)
+{
+	return PIL_OK;
+}
+
+static struct hb_media_fns pingOps ={
+	ping_new,	/* Create single object function */
+	NULL,		/* whole-line parse function */
+	ping_open,
+	ping_close,
+	ping_read,
+	ping_write,
+	ping_mtype,
+	ping_descr,
+	ping_isping,
+};
+
+PIL_PLUGIN_BOILERPLATE("1.0", Debug, pingclosepi);
+
+static const PILPluginImports*  PluginImports;
+static PILPlugin*               OurPlugin;
+static PILInterface*		OurInterface;
+static struct hb_media_imports*	OurImports;
+static void*			interfprivate;
+
+#define LOG	PluginImports->log
+
+PIL_rc
+PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
+
+PIL_rc
+PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
+{
+	(void)_heartbeat_h_Id;
+	(void)_ha_msg_h_Id;
+	/* Force the compiler to do a little type checking */
+	(void)(PILPluginInitFun)PIL_PLUGIN_INIT;
+
+	PluginImports = imports;
+	OurPlugin = us;
+
+	/* Register ourself as a plugin */
+	imports->register_plugin(us, &OurPIExports);  
+
+	/*  Register our interface implementation */
+ 	return imports->register_interface(us, PIL_PLUGINTYPE_S
+	,	PIL_PLUGIN_S
+	,	&pingOps
+	,	pingcloseintf		/*close */
+	,	&OurInterface
+	,	(void*)&OurImports
+	,	interfprivate); 
+}
+static int
+ping_mtype(char **buffer) { 
 	
 	*buffer = ha_malloc((strlen("ping") * sizeof(char)) + 1);
 
@@ -116,8 +192,8 @@ EXPORT(hb_dev_mtype) (char **buffer) {
 	return strlen("ping");
 }
 
-int
-EXPORT(hb_dev_descr) (char **buffer) { 
+static int
+ping_descr(char **buffer) { 
 
 	const char *str = "ping membership";	
 
@@ -130,19 +206,11 @@ EXPORT(hb_dev_descr) (char **buffer) {
 
 /* Yes, a ping device */
 
-int
-EXPORT(hb_dev_isping) (void) {
+static int
+ping_isping(void) {
 	return 1;
 }
 
-int
-EXPORT(hb_dev_init) (void)
-{
-	(void)_heartbeat_h_Id;
-	(void)_udp_Id;
-	(void)_ha_msg_h_Id;
-	return(HA_OK);
-}
 
 static struct ping_private *
 new_ping_interface(const char * host)
@@ -165,7 +233,7 @@ new_ping_interface(const char * host)
 		struct hostent *hep;
 		hep = gethostbyname(host);
 		if (hep == NULL) {
-			ha_perror("unknown host: %s", host);
+			LOG(PIL_CRIT, "unknown host: %s: %s", host, strerror(errno));
 			ha_free(ppi); ppi = NULL;
 			return NULL;
 		}
@@ -180,8 +248,8 @@ new_ping_interface(const char * host)
  *	Create new ping heartbeat object 
  *	Name of host is passed as a parameter
  */
-struct hb_media *
-EXPORT(hb_dev_new) (const char * host)
+static struct hb_media *
+ping_new(const char * host)
 {
 	struct ping_private*	ipi;
 	struct hb_media *	ret;
@@ -210,8 +278,8 @@ EXPORT(hb_dev_new) (const char * host)
  *	Close UDP/IP broadcast heartbeat interface
  */
 
-int
-EXPORT(hb_dev_close) (struct hb_media* mp)
+static int
+ping_close(struct hb_media* mp)
 {
 	struct ping_private * ei;
 	int	rc = HA_OK;
@@ -231,8 +299,8 @@ EXPORT(hb_dev_close) (struct hb_media* mp)
  * Receive a heartbeat ping reply packet.
  */
 
-struct ha_msg *
-EXPORT(hb_dev_read) (struct hb_media* mp)
+static struct ha_msg *
+ping_read(struct hb_media* mp)
 {
 	struct ping_private *	ei;
 	union {
@@ -251,7 +319,7 @@ EXPORT(hb_dev_read) (struct hb_media* mp)
 
 	if ((numbytes=recvfrom(ei->sock, &buf.cbuf, sizeof(buf.cbuf)-1, 0
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		ha_perror("Error receiving from socket");
+		LOG(PIL_CRIT, "Error receiving from socket: %s", strerror(errno));
 		return NULL;
 	}
 	buf.cbuf[numbytes] = EOS;
@@ -261,7 +329,7 @@ EXPORT(hb_dev_read) (struct hb_media* mp)
 	hlen = ip->ip_hl * 4;
 
 	if (numbytes < hlen + ICMP_MINLEN) {
-		ha_log(LOG_WARNING, "ping packet too short (%d bytes) from %s"
+		LOG(PIL_WARN, "ping packet too short (%d bytes) from %s"
 		,	numbytes
 		,	inet_ntoa(*(struct in_addr *)
 		&		their_addr.sin_addr.s_addr));
@@ -276,11 +344,11 @@ EXPORT(hb_dev_read) (struct hb_media* mp)
 	}
 
 	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "got %d byte packet from %s"
+		LOG(PIL_DEBUG, "got %d byte packet from %s"
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, "%s", &icp->icmp_data[0]);
+		LOG(PIL_DEBUG, "%s", &icp->icmp_data[0]);
 	
 	}
 	return(string2msg(&icp->icmp_data[0]));
@@ -299,8 +367,8 @@ EXPORT(hb_dev_read) (struct hb_media* mp)
  *
  */
 
-int
-EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msg)
+static int
+ping_write(struct hb_media* mp, struct ha_msg * msg)
 {
 	struct ping_private *	ei;
 	int			rc;
@@ -335,7 +403,7 @@ EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msg)
 	 * F_AUTH:	added by add_msg_auth()
 	 */
 	if ((nmsg = ha_msg_new(5)) == NULL) {
-		ha_log(LOG_ERR, "cannot create new message");
+		LOG(PIL_CRIT, "cannot create new message");
 		return(HA_FAIL);
 	}
 
@@ -344,18 +412,18 @@ EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msg)
 	||	ha_msg_add(nmsg, F_ORIG, mp->name) != HA_OK
 	||	ha_msg_add(nmsg, F_TIME, ts) != HA_OK) {
 		ha_msg_del(nmsg); nmsg = NULL;
-		ha_log(LOG_ERR, "cannot add fields to message");
+		LOG(PIL_CRIT, "cannot add fields to message");
 		return HA_FAIL;
 	}
 
 	if (add_msg_auth(nmsg) != HA_OK) {
-		ha_log(LOG_ERR, "cannot add auth field to message");
+		LOG(PIL_CRIT, "cannot add auth field to message");
 		ha_msg_del(nmsg); nmsg = NULL;
 		return HA_FAIL;
 	}
 
 	if ((pkt = msg2string(nmsg)) == NULL)  {
-		ha_log(LOG_ERR, "cannot convert message to string");
+		LOG(PIL_CRIT, "cannot convert message to string");
 		return HA_FAIL;
 	}
 	ha_msg_del(nmsg); nmsg = NULL;
@@ -365,7 +433,7 @@ EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msg)
 	pktsize = size + ICMP_HDR_SZ;
 
 	if ((icmp_pkt = ha_malloc(size + ICMP_HDR_SZ)) == NULL) {
-		ha_log(LOG_ERR, "out of memory");
+		LOG(PIL_CRIT, "out of memory");
 		ha_free(pkt);
 		return HA_FAIL;
 	}
@@ -387,17 +455,17 @@ EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msg)
 	if ((rc=sendto(ei->sock, icmp_pkt, pktsize, 0
 	,	(struct sockaddr *)&ei->addr
 	,	sizeof(struct sockaddr))) != pktsize) {
-		ha_perror("Error sending packet");
+		LOG(PIL_CRIT, "Error sending packet: %s", strerror(errno));
 		ha_free(icmp_pkt);
 		return(HA_FAIL);
 	}
 
 	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "sent %d bytes to %s"
+		LOG(PIL_DEBUG, "sent %d bytes to %s"
 		,	rc, inet_ntoa(ei->addr.sin_addr));
    	}
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, pkt);
+		LOG(PIL_DEBUG, pkt);
    	}
 	ha_free(icmp_pkt);
 	return HA_OK;
@@ -406,8 +474,8 @@ EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msg)
 /*
  *	Open ping socket.
  */
-int
-EXPORT(hb_dev_open) (struct hb_media* mp)
+static int
+ping_open(struct hb_media* mp)
 {
 	struct ping_private * ei;
 	int sockfd;
@@ -418,20 +486,20 @@ EXPORT(hb_dev_open) (struct hb_media* mp)
 
 
 	if ((proto = getprotobyname("icmp")) == NULL) {
-		ha_perror("protocol ICMP is unknown");
+		LOG(PIL_CRIT, "protocol ICMP is unknown: %s", strerror(errno));
 		return HA_FAIL;
 	}
 	if ((sockfd = socket(AF_INET, SOCK_RAW, proto->p_proto)) < 0) {
-		ha_perror("Can't open RAW socket.");
+		LOG(PIL_CRIT, "Can't open RAW socket.: %s", strerror(errno));
 		return HA_FAIL;
     	}
 
 	if (fcntl(sockfd, F_SETFD, FD_CLOEXEC)) {
-		ha_perror("Error setting the close-on-exec flag");
+		LOG(PIL_CRIT, "Error setting the close-on-exec flag: %s", strerror(errno));
 	}
 	ei->sock = sockfd;
 
-	ha_log(LOG_NOTICE, "ping heartbeat started.");
+	LOG(LOG_NOTICE, "ping heartbeat started.");
 	return HA_OK;
 }
 
