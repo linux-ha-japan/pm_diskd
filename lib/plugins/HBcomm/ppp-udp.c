@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.3 2002/08/23 12:52:29 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.4 2002/10/02 13:40:26 alan Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -699,7 +699,7 @@ hb_dev_read(struct hb_media* mp)
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, buf);
+		ha_log(LOG_DEBUG, "%s", buf);
 	}
 
 	/* Should this message should continue around the ring? */
@@ -851,7 +851,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 		,	rc, inet_ntoa(ei->addr.sin_addr));
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, pkt);
+		ha_log(LOG_DEBUG, "%s", pkt);
    	}
 	ha_free(pkt);
 	return(HA_OK);
@@ -1212,6 +1212,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.4  2002/10/02 13:40:26  alan
+ * Fixed some potential holes pointed out by Nathan Wallwork.
+ *
  * Revision 1.3  2002/08/23 12:52:29  alan
  * I just put a caution about known security-related-bugs in this obsolete code.
  *

@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.25 2002/09/19 22:40:17 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.26 2002/10/02 13:40:26 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -365,7 +365,7 @@ bcast_read(struct hb_media* mp)
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
 	if (DEBUGPKTCONT && numbytes > 0) {
-		PILCallLog(LOG, PIL_DEBUG, buf);
+		PILCallLog(LOG, PIL_DEBUG, "%s", buf);
 	}
 	return(string2msg(buf, sizeof(buf)));
 }
@@ -779,6 +779,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.26  2002/10/02 13:40:26  alan
+ * Fixed some potential holes pointed out by Nathan Wallwork.
+ *
  * Revision 1.25  2002/09/19 22:40:17  alan
  * Changed a few error return checks to not print anything and return
  * if an error was encountered.
