@@ -67,7 +67,7 @@ class HeartbeatCM(ClusterManager):
             "Pat:All_stopped"      : " (%s) heartbeat.*Heartbeat shutdown complete",
             "Pat:StandbyOK"        : "Standby process done.*primary",
             "Pat:StandbyNONE"      : "No reply to standby request",
-	    "Pat:StandbyTRANSIENT" : "standby message.*ignored.* local resources in flux",
+	    "Pat:StandbyTRANSIENT" : "standby message.*ignored.*in flux",
 
             # Bad news Regexes.  Should never occur.
             "BadRegexes"   : (
