@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.24 1999/11/22 14:58:54 alan Exp $
+#	$Id: Specfile,v 1.25 1999/12/23 03:53:29 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -19,14 +19,26 @@ configurations.
 It implements the following kinds of heartbeats:
 	- Bidirectional Serial Rings ("raw" serial ports)
 	- UDP/IP braodcast (ethernet, etc)
-	- Bidirectional Serial PPP/UDP Rings (using PPP for error correction)
+	- Bidirectional Serial PPP/UDP Rings (using PPP)
 
 %changelog
+* Wed Dec 22 1999  Alan Robertson <alanr@henge.com>,
+     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
+     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
+     and Guenther Thomsen <thomsen@cs.tu-berlin.de>
++ Version 0.4.7 (UNRELEASED)
+  + Finished the error recovery in the heartbeat protocol (and got it to work)
+  + Added test code for the heartbeat protocol
+  + Raised the maximum length of a node name
+  + Added Jacob Rief's ldirectord resource type
+  + Added Stefan Salzer's <salt@cin.de> fix for a 'grep' in IPaddr which
+	wasn't specific enough and would sometimes get IPaddr confused on
+	IP addresses that prefix-matched.
+
 * Tue Nov 22 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>,
-     and Guenther Thomsen <thomsen@cs.tu-berlin.de>
-
+     and Guenther Thomsen <thomsen@cs.tu-berlin.de>,
 + Version 0.4.6
   + Fixed timing problem in "heartbeat restart" so it's reliable now
   + Made start/stop status compatible with SuSE expectations
