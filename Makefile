@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.7 1999/10/03 03:39:13 alanr Exp $
+#	$Id: Makefile,v 1.8 1999/10/04 01:47:52 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -94,7 +94,7 @@ install_bin: bin_dirs
 #
 handy: rpm
 	cd doc; $(MAKE) ChangeLog
-	su alanr -c "cp doc/ChangeLog $(TARFILE) $(RPMSRC) $(RPM386) $(WEBDIR)"
+	su alanr -c "cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(WEBDIR)"
 
 clean:	local_clean rpmclean
 	@for j in $(BUILDDIRS);				\
