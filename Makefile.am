@@ -15,5 +15,5 @@ AUTOMAKE_OPTIONS	= foreign
 MAINTAINERCLEANFILES    = Makefile.in aclocal.m4 configure DRF/config-h.in \
                         DRF/stamp-h.in 
 
-## proc-ha is missing in SUBDIRS (doesn't work currently)
-SUBDIRS                 = doc replace libltdl ldirectord stonith heartbeat
+## proc-ha is left out from SUBDIRS (obsolescent / doesn't work currently)
+SUBDIRS                 = @XPERIMENTALDIRS@ doc replace libltdl ldirectord stonith heartbeat
