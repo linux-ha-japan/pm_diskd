@@ -1,10 +1,65 @@
-/* Scan a directory, collecting all (selected) items into a an array.  */
-
-/* This code borrowed from the GNU project at:
+/* scandir: Scan a directory, collecting all (selected) items into a an array.
+ *
+ * This code borrowed from the GNU project at:
  *
  * http://www.iro.umontreal.ca/~pinard/libit/dist/scandir/
  *
- * It has been slightly modified to get rid of warnings, etc.
+ * The original author put this code in the public domain.
+ * It has been modified slightly to get rid of warnings, etc.
+ *
+ * Below is the email I received from pinard@iro.umontreal.ca (François Pinard)
+ * when I sent him an email asking him about the license, etc. of this
+ * code which I obtained from his site.
+ *
+ *	-- Alan Robertson
+ *	   alanr@unix.sh
+ *
+ **************************************************************************
+ *
+ * Subject:	Re: Scandir replacement function
+ * Date:	18 May 2001 12:00:48 -0400
+ * From:	pinard@iro.umontreal.ca (François Pinard)
+ * To:		Alan Robertson <alanr@unix.sh>
+ * References:	1
+ *
+ *
+ * [Alan Robertson]
+ *
+ * > Hi, I'd like to use your scandir replacement function found here:
+ * > http://www.iro.umontreal.ca/~pinard/libit/dist/scandir/ But, it does
+ * > not indicate authorship or licensing terms in it.  Could you tell me
+ * > who wrote this code, under what license you distribute it, and whether
+ * > and under what terms I may further distribute it?
+ *
+ * Hello, Alan.  These are (somewhat) explained in UNSHAR.HDR found in the
+ * same directory.  The routines have been written by Rick Saltz (I'm not
+ * completely sure of the spelling) a long while ago.  I think that nowadays,
+ * Rick is better known as the main author of the nice INN package.
+ *
+ * ---------------------------------------------------------------------->
+ * Subject:	scandir, ftw REDUX
+ * Date: 	1 Jan 88 00:47:01 GMT
+ * From: 	rsalz@pebbles.bbn.com
+ * Newsgroups:  comp.sources.misc
+ *
+ *
+ * Forget my previous message -- I just decided for completeness's sake to
+ * implement the SysV ftw(3) routine, too.  
+ *
+ * To repeat, these are public-domain implementations of the SystemV ftw()
+ * routine, the BSD scandir() and alphasort() routines, and documentation for
+ * same.  The FTW manpage could be more readable, but so it goes.
+ *
+ * Anyhow, feel free to post these, and incorporate them into your existing
+ * packages.  I have readdir() routiens for MSDOS and the Amiga if anyone
+ *  wants them, and should have them for VMS by the end of January; let me
+ *  know if you want copies.
+ *
+ *                        Yours in filesystems,
+ *                                /r$
+ *
+ *                                Anyhow, feel free to post
+ * ----------------------------------------------------------------------<
  *
  */
 
