@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.56 2000/11/12 21:02:17 alan Exp $
+#	$Id: Makefile,v 1.57 2000/11/14 15:29:48 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -99,7 +99,6 @@ bin_dirs:
 	[ -d $(VARLIB) ]  || mkdir -p $(VARLIB)
 	[ -d $(RESOURCEDIR) ] || mkdir -p $(RESOURCEDIR)
 	[ -d $(CONFDIR) ] || mkdir -p $(CONFDIR)
-	[ -d $(LOGROTATED) ] && \
 	[ -d $(LOGROTATEDIR) ] || mkdir -p $(LOGROTATEDIR)
 
 
