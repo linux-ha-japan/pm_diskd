@@ -226,7 +226,21 @@ AddAnInterfaceType(PILPlugin*us, PILGenericIfMgmtRqst* req)
 static void
 ClosePlugin(PILPlugin* us)
 {
-	/* Closing down all our implementations did everything for us... */
+	int	count;
+	/*
+	 * All our clients have already been shut down automatically
+	 * This is the final shutdown for us...
+	 */
+
+	/* There *shouldn't* be any keys in there ;-) */
+
+	if ((count=g_hash_table_size(MasterTable)) > 0) {
+
+		/* But just in case there are... */
+		g_hash_table_foreach_remove(MasterTable, FreeAKey, NULL);
+	}
+	g_hash_table_destroy(MasterTable);
+	MasterTable = NULL;
 	return;
 }
 
@@ -351,28 +365,15 @@ UnregisterGenIF(PILInterface*intf)
 static PIL_rc
 CloseGenInterfaceManager(PILInterface*intf, void* info)
 {
-	int	count;
+	void*	key;
+	void*	data;
 
-	/*
-	 * All our clients have already been shut down automatically
-	 * This is the final shutdown for us...
-	 */
-
-	/* There *shouldn't* be any keys in there ;-) */
-
-	if ((count=g_hash_table_size(MasterTable)) > 0) {
-
-		GenPIImports->log(PIL_CRIT
-		,	"Generic plugin manager still has %d"
-		" MasterTable entries  at interface close time", count);
-
-		/* But just in case there are... */
-
-		g_hash_table_foreach_remove(MasterTable, FreeAKey, NULL);
+	if (g_hash_table_lookup_extended(MasterTable
+	,	intf->interfacetype->typename, &key, &data)) {
+		g_hash_table_remove(MasterTable, key);
+		g_hash_table_destroy((GHashTable*)data);
+		g_free(key);
 	}
-	g_hash_table_destroy(MasterTable);
-	MasterTable = NULL;
-
 	return PIL_OK;
 }
 
