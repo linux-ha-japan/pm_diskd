@@ -3,7 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef HAVE_LIBNET_1_0_API
-#	include <net/ethernet.h>
+#	ifdef HAVE_NET_ETHERNET_H
+#		include <net/ethernet.h>
+#	endif
 #endif
 #include <libnet.h>
 #include <string.h>
