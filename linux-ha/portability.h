@@ -57,14 +57,14 @@
 
 #include <linux-ha/ha_config.h>
 
-#if !HA_HAVE_SETENV
+#ifndef HA_HAVE_SETENV
   /* We supply a replacement function, but need a prototype */
 
 int setenv(const char *name, const char * value, int why);
 
 #endif /* HA_HAVE_SETENV */
 
-#if !HA_HAVE_STRERROR
+#ifndef HA_HAVE_STRERROR
   /* We supply a replacement function, but need a prototype */
 const char * strerror(int errnum);
 #endif /* HA_HAVE_STRERROR */
@@ -72,7 +72,7 @@ const char * strerror(int errnum);
 int setenv(const char *name, const char * value, int why);
 
 
-#if !HA_HAVE_SCANDIR
+#ifndef HA_HAVE_SCANDIR
   /* We supply a replacement function, but need a prototype */
 #  include <dirent.h>
 int
@@ -89,13 +89,13 @@ scandir (const char *directory_name,
 	);
 #endif /* HA_HAVE_SCANDIR */
 
-#if !HA_HAVE_ALPHASORT
+#ifndef HA_HAVE_ALPHASORT
 #  include <dirent.h>
 int
 alphasort(const void *dirent1, const void *dirent2);
 #endif /* HA_HAVE_ALPHASORT */
 
-#if !HA_HAVE_INET_PTON
+#ifndef HA_HAVE_INET_PTON
   /* We supply a replacement function, but need a prototype */
 int
 inet_pton(int af, const char *src, void *dst);
@@ -130,14 +130,14 @@ inet_pton(int af, const char *src, void *dst);
 #  endif
 #endif
 
-#if !HA_HAVE_STRNLEN
+#ifndef HA_HAVE_STRNLEN
 #	define	strnlen(a,b) strlen(a)
 #else
 #	define USE_GNU
 #endif
 
-#if !HA_HAVE_NFDS_T 
+#ifndef HA_HAVE_NFDS_T 
 	typedef unsigned int nfds_t;
 #endif
 
-#endif /* !PORTABILITY_H */
+#endif /* PORTABILITY_H */
