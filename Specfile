@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.43 2000/06/12 06:29:03 alan Exp $
+#	$Id: Specfile,v 1.44 2000/06/13 04:22:12 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -58,6 +58,7 @@ It implements the following kinds of heartbeats:
   + Minor startup script tweaks.  Hopefully, we should be able to make core
     files should we crash in the future.  Thanks to Holger Kiehl for diagnosing
     the problem!
+  + Fixed a bug which kept the "logfile" option from ever working.
   + Fixed the serial locking code so that it unlocks when it shuts down.
   + Lock heartbeat into memory, and raise our priority
 
