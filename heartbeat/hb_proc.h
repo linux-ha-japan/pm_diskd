@@ -23,24 +23,46 @@
 #ifndef _HB_PROC_H
 #	define _HB_PROC_H 1
 
-/* Need to use autoconf tricks to do this really right... */
-
 #ifndef PAGE_SIZE
 #	include <sys/param.h>
 #endif
 
 #ifndef PAGE_SIZE
+# ifdef HAVE_ASM_PAGE_H
 #	include <asm/page.h>	/* This is where Linux puts it */
+# endif /*HAVE_ASM_PAGE_H*/
+#endif
+
+#if !defined(PAGE_SIZE)
+
+/*
+ * Still don't have PAGE_SIZE?
+ *
+ * At least on Solaris, we have PAGESIZE.
+ * So in theory, could:
+ *      #if !defined(PAGE_SIZE) && defined(PAGESIZE)
+ *      #define PAGE_SIZE PAGESIZE
+ *      #endif
+ *
+ * Unfortunately, PAGESIZE (Solaris) is not a constant, rather a function call.
+ * So its later use in "struct pstat_shm { ... array[fn(PAGESIZE)]}"
+ * would be faulty.  Sigh...
+ *
+ * Accordingly, define it to 4096, since and it's a reasonable guess
+ * (which is good enough for our purposes - as described below)
+ */
+
+#	define PAGE_SIZE 4096
 #endif
 
 
 enum process_type {
-	PROC_UNDEF,
-	PROC_CONTROL,
-	PROC_MST_STATUS,
-	PROC_HBREAD,
-	PROC_HBWRITE,
-	PROC_PPP
+	PROC_UNDEF=0,		/* OOPS! ;-) */
+	PROC_CONTROL,		/* Control process */
+	PROC_MST_STATUS,	/* Master status process */
+	PROC_HBREAD,		/* Read process */
+	PROC_HBWRITE,		/* Write process */
+	PROC_PPP		/* (Obsolescent) PPP process */
 };
 
 enum process_status { 
@@ -49,16 +71,18 @@ enum process_status {
 };
 
 struct process_info {
-	enum process_type	type;
-	enum process_status	pstat;
-	pid_t			pid;
-	unsigned long		totalmsgs;
-	unsigned long		allocmsgs;
+	enum process_type	type;		/* Type of process */
+	enum process_status	pstat;		/* Is it running yet? */
+	pid_t			pid;		/* Process' PID */
+	unsigned long		totalmsgs;	/* Total # of messages */
+						/* ever handled */
+	unsigned long		allocmsgs;	/* # Msgs currently allocated */
 	unsigned long		numalloc;	/* # of ha_malloc calls */
 	unsigned long		numfree;	/* # of ha_free calls */
 	unsigned long		nbytes_req;	/* # malloc bytes req'd */
-	unsigned long		nbytes_alloc;	/* # bytes allocated  */
-	unsigned long		mallocbytes;	/* # bytes malloc()ed  */
+	unsigned long		nbytes_alloc;	/* # bytes currently allocated 
+						 */
+	unsigned long		mallocbytes;	/* total # bytes malloc()ed  */
 	time_t			lastmsg;
 };
 

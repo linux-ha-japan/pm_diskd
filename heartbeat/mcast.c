@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.3 2001/05/10 22:36:37 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.4 2001/05/15 19:27:17 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -22,6 +22,7 @@ static const char _mcast_Id [] = "$Id: mcast.c,v 1.3 2001/05/10 22:36:37 alan Ex
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
+#include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -35,6 +36,10 @@ static const char _mcast_Id [] = "$Id: mcast.c,v 1.3 2001/05/10 22:36:37 alan Ex
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
+
+#ifdef HAVE_SYS_SOCKIO_H
+#	include <sys/sockio.h>
+#endif
 
 #include "heartbeat.h"
 
@@ -95,6 +100,20 @@ extern int	udpport;
  */
 
 #define		UDPASSERT(hbm)
+
+/*
+ * The following "define"-like things are probably somewhat unclean.
+ * Please feel free to tidy (or re-structure or whatever).
+ * The original code was written for Linux, defining SOL_IP.
+ * Various other systems (Solaris, *BSD) seem to use IPPROTO_IP instead.
+ *    David Lee <T.D.Lee@durham.ac.uk> May 2001
+ */
+
+#ifndef SOL_IP
+# ifdef IPPROTO_IP
+#  define SOL_IP IPPROTO_IP
+# endif
+#endif /* SOL_IP */
 
 int hb_dev_mtype (char** buffer)
 { 
@@ -610,7 +629,8 @@ static int set_mcast_ttl(int sockfd, u_char ttl)
 	return setsockopt(sockfd, SOL_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
 }
 
-/* set_mcast_if takes the name of an interface (i.e. eth0) and then
+/*
+ * set_mcast_if takes the name of an interface (i.e. eth0) and then
  * sets that as the interface to use for outbound multicast traffic.
  * If ifname is NULL, then it the OS will assign the interface.
  * Returns 0 on success -1 on faliure.
@@ -625,7 +645,8 @@ static int set_mcast_if(int sockfd, char *ifname)
 		return -1;
 	}
 
-	// zero out the struct...only care about the index...
+	/* Zero out the struct... we only care about the index... */
+
 	memset(&mreq, 0, sizeof(mreq));
 	mreq.imr_ifindex=idx;
 	return setsockopt(sockfd, SOL_IP, IP_MULTICAST_IF, &mreq, sizeof(mreq));
@@ -730,6 +751,9 @@ static int get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.4  2001/05/15 19:27:17  alan
+ * More solaris porting changes.
+ *
  * Revision 1.3  2001/05/10 22:36:37  alan
  * Deleted Makefiles from CVS and made all the warnings go away.
  *
