@@ -1537,11 +1537,6 @@ hb_giveup_resources(void)
 	shutdown_in_progress =TRUE;
 	hb_close_watchdog();
 	DisableProcLogging();	/* We're shutting down */
-	/* Kill all our managed children... */
-	ForEachProc(&ManagedChildTrackOps, hb_kill_tracked_process
-	,	GINT_TO_POINTER(SIGTERM));
-	ForEachProc(&hb_rsc_RscMgmtProcessTrackOps, hb_kill_tracked_process
-	,	GINT_TO_POINTER(SIGKILL));
 	procinfo->i_hold_resources = HB_NO_RSC ;
 	resourcestate = HB_R_SHUTDOWN; /* or we'll get a whiny little comment
 				out of the resource management code */
@@ -1606,6 +1601,13 @@ hb_giveup_resources(void)
 		}
 	}
 	pclose(rkeys);
+
+	/* Kill all our managed children... */
+	ForEachProc(&ManagedChildTrackOps, hb_kill_tracked_process
+	,	GINT_TO_POINTER(SIGTERM));
+	ForEachProc(&hb_rsc_RscMgmtProcessTrackOps, hb_kill_tracked_process
+	,	GINT_TO_POINTER(SIGKILL));
+
 	ha_log(LOG_INFO, "All HA resources relinquished.");
 
 	if ((m=ha_msg_new(0)) == NULL) {
@@ -1870,6 +1872,10 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.24  2003/05/29 06:54:31  ram
+ * the managed clients are now killed after all the resource scripts have
+ * completed, while shutting down heartbeat.
+ *
  * Revision 1.23  2003/05/22 23:13:26  alan
  * Changed the code to fix a bug in resource auditing code.
  * We now indicate if an update to the resource set is incremental or full.
