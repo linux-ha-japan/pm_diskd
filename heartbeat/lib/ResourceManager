@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager,v 1.7 2000/12/06 09:11:31 jacob Exp $
+#	$Id: ResourceManager,v 1.8 2001/02/01 11:52:05 alan Exp $
 #
 #	New haresources format:
 #
@@ -235,24 +235,71 @@ TakeGroup() {
   fi
 }
 
+#
+# Determine the status of all the resources in a resource group
+#
+# Results are echoed to stdout:
+#
+# NONE:	None of the resources in the resource group are held
+#      (or there no such resource group)
+# ALL:	All of the resources in the resource group are held
+# SOME:	Some of the resources in the resource group are held
+#
+StatGroup() {
+  result="FirstTime"
+
+  for resource in `ipresline $1`
+  do
+    if
+      we_own_resource $resource
+    then
+      case $result in
+        FirstTime)	result=ALL;;
+        NONE)		echo SOME; return 0;;
+        SOME|ALL)		;;
+      esac
+    else
+      case $result in
+        FirstTime)	result=NONE;;
+        ALL)		echo SOME; return 0;;
+        SOME|NONE)	;;
+      esac
+    fi
+  done
+
+  case $result in
+    FirstTime)	echo NONE;;
+    *)		echo $result;;
+  esac
+}
+
 case $1 in
+
   listkeys)	KeyResources "$2";;
 
   status)	doscript $2 status;;
 
   givegroup)	GiveUpGroup $2 >>$HA_DEBUGLOG 2>&1 ;;
-  
+
   takegroup)	TakeGroup $2 >>$HA_DEBUGLOG 2>&1 ;;
+
+  statgroup)	StatGroup $2 >>$HA_DEBUGLOG 2>&1 ;;
+
   *)		echo "$USAGE\n" >&2
 		exit 1;;
 esac
 
 #
 #	$Log: ResourceManager,v $
+#	Revision 1.8  2001/02/01 11:52:05  alan
+#	Change things to that things occur in the right order.
+#	We need to not start timing message reception until we're completely started.
+#	We need to Stonith the other guy before we take over their resources.
+#
 #	Revision 1.7  2000/12/06 09:11:31  jacob
 #	Resources in ha.d/haresources can be split over more lines by concatenating
 #	the lines with \ .
-#
+#	
 #	Revision 1.6  2000/10/25 19:49:33  eric
 #	Added the ability to specify multiple arguments to a resource script.
 #	

@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.40 2001/01/16 21:49:23 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.41 2001/02/01 11:52:05 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -310,8 +310,14 @@ enum process_type {
 	PROC_PPP
 };
 
+enum process_status { 
+	FORKED=1,	/* This process is forked, but not yet really running */
+	RUNNING=2,	/* This process is fully active, and open for business */
+};
+
 struct process_info {
 	enum process_type	type;
+	enum process_status	pstat;
 	pid_t			pid;
 	unsigned long		totalmsgs;
 	unsigned long		allocmsgs;

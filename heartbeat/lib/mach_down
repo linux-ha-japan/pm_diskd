@@ -44,3 +44,5 @@ case $HA_NICEFAILBACK in
 	!MSG
     ;;
 esac
+# The CTS testing code needs to know when this is really done ;-)
+ha_log "info: mach_down takeover complete."

@@ -1,12 +1,5 @@
 #!/usr/bin/env python
 
-'''CTS: Cluster Testing System
-
-What we have here is a handful of classes related to the
-general cluster testing system.  Right now, I expect this to be based on the
-heartbeat API.  I may give up though, and just use ssh...  :-)
- '''
-
 __copyright__='''
 Copyright (C) 2000 Alan Robertson <alanr@unix.sh>
 Licensed under the GNU GPL.

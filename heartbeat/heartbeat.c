@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.94 2000/12/12 23:23:46 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.95 2001/02/01 11:52:04 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -413,7 +413,6 @@ void master_status_process(void);		/* The real biggie */
 #endif
 
 pid_t	processes[MAXPROCS];
-int	num_procs = 0;
 int	send_status_now = 1;	/* Send initial status immediately */
 int	dump_stats_now = 0;
 int	parse_only = 0;
@@ -425,8 +424,12 @@ enum comm_state {
 };
 enum comm_state	heartbeat_comm_state = COMM_STARTING;
 
-#define	ADDPROC(pid)				\
-	{if (pid > 0 && pid != -1){processes[num_procs] = (pid); ++num_procs;};}
+#define	ADDPROC(p)					\
+	{if ((p) > 0 && (p) != -1){			\
+	processes[procinfo->nprocs] = (p); 			\
+	procinfo->info[procinfo->nprocs].pstat = FORKED;	\
+	procinfo->info[procinfo->nprocs].pid = (p);		\
+	procinfo->nprocs++;	};}
 
 
 void
@@ -726,50 +729,30 @@ initialize_heartbeat()
 			,	smj->vf->type, smj->name);
 		}
 	}
-	ADDPROC(getpid());
 
+	procinfo->nprocs = 0;
 	ourproc = procinfo->nprocs;
-	procinfo->nprocs++;
+	ADDPROC(getpid());
 	curproc = &procinfo->info[ourproc];
 	curproc->type = PROC_CONTROL;
-	curproc->pid = getpid();
+	curproc->pstat = RUNNING; 
 
 
 	/* Now the fun begins... */
 /*
  *	Optimal starting order:
- *		master_status_process();
  *		write_child();
  *		read_child();
+ *		master_status_process();
  *		control_process(FILE * f);
  *
  */
 	ourproc = procinfo->nprocs;
-	procinfo->nprocs++;
-	switch ((pid=fork())) {
-		case -1:	ha_perror("Can't fork master status process!");
-				return(HA_FAIL);
-				break;
-
-		case 0:		/* Child */
-				curproc = &procinfo->info[ourproc];
-				curproc->type = PROC_MST_STATUS;
-				curproc->pid = getpid();
-				make_realtime();
-				master_status_process();
-				ha_perror("master status process exiting");
-				cleanexit(1);
-	}
-	ADDPROC(pid);
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "master status process pid: %d\n", pid);
-	}
 
 	for (j=0; j < nummedia; ++j) {
 		struct hb_media* mp = sysmedia[j];
 
 		ourproc = procinfo->nprocs;
-		procinfo->nprocs++;
 
 		switch ((pid=fork())) {
 			case -1:	ha_perror("Can't fork write process");
@@ -779,18 +762,20 @@ initialize_heartbeat()
 			case 0:		/* Child */
 					curproc = &procinfo->info[ourproc];
 					curproc->type = PROC_HBWRITE;
-					curproc->pid = getpid();
 					make_realtime();
+					while (curproc->pid != getpid()) {
+						sleep(1);
+					}
 					write_child(mp);
 					ha_perror("write process exiting");
 					cleanexit(1);
 		}
 		ADDPROC(pid);
+		ourproc = procinfo->nprocs;
+
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "write process pid: %d\n", pid);
 		}
-		ourproc = procinfo->nprocs;
-		procinfo->nprocs++;
 
 		switch ((pid=fork())) {
 			case -1:	ha_perror("Can't fork read process");
@@ -800,18 +785,42 @@ initialize_heartbeat()
 			case 0:		/* Child */
 					curproc = &procinfo->info[ourproc];
 					curproc->type = PROC_HBREAD;
-					curproc->pid = getpid();
+					while (curproc->pid != getpid()) {
+						sleep(1);
+					}
 					make_realtime();
 					read_child(mp);
 					ha_perror("read child process exiting");
 					cleanexit(1);
 		}
-		ADDPROC(pid);
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "read child process pid: %d\n", pid);
 		}
+		ADDPROC(pid);
 	}
 
+	ourproc = procinfo->nprocs;
+
+	switch ((pid=fork())) {
+		case -1:	ha_perror("Can't fork master status process!");
+				return(HA_FAIL);
+				break;
+
+		case 0:		/* Child */
+				curproc = &procinfo->info[ourproc];
+				curproc->type = PROC_MST_STATUS;
+				make_realtime();
+				while (curproc->pid != getpid()) {
+					sleep(1);
+				}
+				master_status_process();
+				ha_perror("master status process exiting");
+				cleanexit(1);
+	}
+	ADDPROC(pid);
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "master status process pid: %d\n", pid);
+	}
 
 	fifo = fopen(FIFONAME, "r");
 	if (fifo == NULL) {
@@ -896,6 +905,8 @@ read_child(struct hb_media* mp)
 	int	msglen;
 	int	rc;
 	int	statusfd = status_pipe[P_WRITEFD];
+
+	curproc->pstat = RUNNING;
 	for (;;) {
 		struct	ha_msg*	m = mp->vf->read(mp);
 		char *		sm;
@@ -942,6 +953,7 @@ write_child(struct hb_media* mp)
 	FILE *	ourfp		= fdopen(ourpipe, "r");
 
 	siginterrupt(SIGALRM, 1);
+	curproc->pstat = RUNNING;
 	for (;;) {
 		struct ha_msg * msgp = if_msgfromstream(ourfp, NULL);
 		if (msgp == NULL) {
@@ -1082,6 +1094,9 @@ master_status_process(void)
 	TIME_T			lastnow = 0L;
 	char			iface[MAXIFACELEN];
 	int			fd, regfd;
+	volatile struct process_info *	pinfo;
+	int			allstarted;
+	int			j;
 
 	init_status_alarm();
 	init_watchdog();
@@ -1103,6 +1118,24 @@ master_status_process(void)
 	fd = -1;
 	fd = fileno(f);			clearerr(f);
 	regfd = fileno(regfifo);	clearerr(regfifo);
+
+	/* Wait until all the child processes are really running */
+	do {
+		allstarted = 1;
+		for (pinfo=procinfo->info; pinfo < curproc; ++pinfo) {
+			if (pinfo->pstat == FORKED) {
+				allstarted=0;
+				sleep(1);
+			}
+		}
+	}while (!allstarted);
+	curproc->pstat = RUNNING;
+	/* Reset timeout times to "now" */
+	for (j=0; j < config->nodecount; ++j) {
+		struct node_info *	hip;
+		hip= &config->nodes[j];
+		hip->local_lastupdate = times(NULL);
+	}
 
 	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
 		TIME_T		now = time(NULL);
@@ -1427,7 +1460,7 @@ process_registermsg(FILE *regfifo)
 
 /*
  * At this point nice failback deals with two nodes and is
- * temporary. The new version using the API is comming soon!
+ * an interim measure. The new version using the API is coming soon!
  *
  * This piece of code treats five different situations:
  *
@@ -2501,6 +2534,16 @@ mark_node_dead(struct node_info *hip)
 		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
 		kill(procinfo->info[0].pid, SIGTERM);
 	}else{
+
+		/* We have to Zap them before we take the resources */
+		/* This often takes a few seconds. */
+		if (config->stonith) {
+			Initiate_Reset(config->stonith, hip->nodename);
+			/* They send us a message when the reset completes*/
+		}
+		/* Perhaps we should delay until we get
+		 * the Stonith completion message...
+		 */
 		if (nice_failback) {
 			other_holds_resources = NO_RSC;
 			other_is_stable = 1;	/* Not going anywhere */
@@ -2515,12 +2558,6 @@ mark_node_dead(struct node_info *hip)
 			/* case 1 - part 1 */
 			/* part 2 is done by the mach_down script... */
 			req_our_resources(0);
-		}
-
-		/* This often takes a few seconds. */
-		if (config->stonith) {
-			Initiate_Reset(config->stonith, hip->nodename);
-			/* They send us a message when the reset completes*/
 		}
 	}
 	hip->anypacketsyet = 1;
@@ -2658,6 +2695,8 @@ req_our_resources(int getthemanyway)
 		&&	!getthemanyway) {
 
 			/* Someone already owns our resources */
+			ha_log(LOG_INFO
+			,	"Resource acquisition completed. (none)");
 			return;
 		}
 
@@ -2707,7 +2746,7 @@ req_our_resources(int getthemanyway)
 		if (buf[strlen(buf)-1] == '\n') {
 			buf[strlen(buf)-1] = EOS;
 		}
-		sprintf(getcmd, HALIB "/req_resource %s &", buf);
+		sprintf(getcmd, HALIB "/req_resource %s", buf);
 		if ((rc=system(getcmd)) != 0) {
 			ha_perror("%s returned %d", getcmd, rc);
 			finalrc=HA_FAIL;
@@ -2731,6 +2770,7 @@ req_our_resources(int getthemanyway)
 	if (nice_failback) {
 		send_resources_held(LOCAL_RESOURCES, 0);
 	}
+	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
 }
 
@@ -3138,7 +3178,7 @@ signal_all(int sig)
 		/* ha_log(LOG_DEBUG, "pid %d: ignoring SIGTERM", getpid()); */
 		make_normaltime();
 	}
-	for (j=0; j < num_procs; ++j) {
+	for (j=0; j < procinfo->nprocs; ++j) {
 		if (processes[j] != us) {
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG,
@@ -3918,6 +3958,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.95  2001/02/01 11:52:04  alan
+ * Change things to that things occur in the right order.
+ * We need to not start timing message reception until we're completely started.
+ * We need to Stonith the other guy before we take over their resources.
+ *
  * Revision 1.94  2000/12/12 23:23:46  alan
  * Changed the type of times from time_t to TIME_T (unsigned long).
  * Added BuildPreReq: lynx

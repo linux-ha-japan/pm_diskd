@@ -41,4 +41,9 @@ t=ip-request
 ipaddr=$RESOURCE
 !MSG
 
-(sleep $TIMEOUT;  $HA_BIN/ResourceManager takegroup $RESOURCE)&
+( sleep $TIMEOUT
+  case `$HA_BIN/ResourceManager status $RESOURCE` in
+    *[Rr]unning*)		exit 0;;
+  esac
+  $HA_BIN/ResourceManager takegroup $RESOURCE
+)&
