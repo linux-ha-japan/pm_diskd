@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.1 2001/08/14 03:25:07 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.2 2001/08/14 07:13:15 horms Exp $
 Summary: @PACKAGE@ - heartbeat subsystem for High-Availability Linux
 Name:	@PACKAGE@
 Version:	@VERSION@
@@ -393,7 +393,20 @@ install -m 644 rc.config.heartbeat $TEMPL
 %attr (620, root, @APIGROUP@) /var/lib/@PACKAGE@/register
 %attr (1770, root, @APIGROUP@) /var/lib/@PACKAGE@/casual
 /usr/man/man8/heartbeat.8*
-%doc doc/*
+%doc doc/AUTHORS 
+%doc doc/COPYING 
+%doc doc/ChangeLog 
+%doc doc/GettingStarted 
+%doc doc/GettingStarted.html 
+%doc doc/HardwareGuide 
+%doc doc/HardwareGuide.html 
+%doc doc/README 
+%doc doc/Requirements 
+%doc doc/Requirements.html 
+%doc doc/authkeys 
+%doc doc/ha.cf 
+%doc doc/haresources
+
 
 ###########################################################
 # Files for ldirectord
