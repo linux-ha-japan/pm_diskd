@@ -27,7 +27,7 @@ Licensed under the GNU GPL.
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 import CTS
-import time, os, re
+import time, os, re, types
 
 
 #	List of all class objects for tests which we ought to
@@ -530,6 +530,13 @@ class StandbyTest(CTSTest):
         if not self.CM.has_key("Standby"):
            return None
         else:
+
+            if self.CM.Env.has_key("DoStandby"):
+                flag=self.CM.Env["DoStandby"]
+                if type(flag) == types.IntType and not flag:
+                    return None
+                if not re.match("[yt]", flag, re.I):
+                    return None
             #
             # We need to strip off everything after the first blank
             #
