@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.46 2003/02/08 15:29:50 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.47 2003/02/11 21:55:04 yixiong Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -496,6 +496,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 ###########################################################
 %files
 ###########################################################
+%define ENABLE_SNMP_SUBAGENT @SNMP_SUBAGENT_ENABLED@
 %defattr(-,root,root)
 %dir @sysconfdir@/ha.d
 @sysconfdir@/ha.d/harc
@@ -503,6 +504,12 @@ install -m 644 rc.config.heartbeat $TEMPL
 @sysconfdir@/ha.d/rc.d
 @sysconfdir@/ha.d/README.config
 @sysconfdir@/ha.d/conf
+@sysconfdir@/ha.d/cts/CM_fs.py
+@sysconfdir@/ha.d/cts/CM_hb.py
+@sysconfdir@/ha.d/cts/CTS.py
+@sysconfdir@/ha.d/cts/CTSaudits.py
+@sysconfdir@/ha.d/cts/CTSlab.py
+@sysconfdir@/ha.d/cts/CTStests.py
 @libdir@/heartbeat
 @libdir@/libhbclient.*
 @libdir@/libccmclient.*
@@ -511,6 +518,8 @@ install -m 644 rc.config.heartbeat $TEMPL
 @base_includedir@/heartbeat
 @base_includedir@/clplumbing
 @base_includedir@/ocf
+@base_includedir@/ccm.h
+@base_includedir@/ccmlib.h
 @sysconfdir@/ha.d/resource.d/
 @INITDIR@/heartbeat
 @sysconfdir@/logrotate.d/heartbeat
@@ -527,6 +536,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %attr (600, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api/ipfail.rsp
 %doc @mandir@/man8/heartbeat.8*
 %doc @mandir@/man8/apphbd.8*
+%doc @mandir@/man8/stonith.8*
 %doc doc/AUTHORS 
 %doc doc/COPYING 
 %doc doc/ChangeLog 
@@ -545,7 +555,9 @@ install -m 644 rc.config.heartbeat $TEMPL
 %doc doc/ha.cf 
 %doc doc/startstop
 %doc doc/haresources
-
+%if %{ENABLE_SNMP_SUBAGENT}
+	@MIBS_DIR@/LINUX-HA-MIB.mib
+%endif
 
 ###########################################################
 # Files for ldirectord
@@ -553,6 +565,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 ###########################################################
 %defattr(-,root,root)
 @sbindir@/ldirectord
+@sbindir@/supervise-ldirectord-config
 @sysconfdir@/logrotate.d/ldirectord
 @INITDIR@/ldirectord
 @sysconfdir@/ha.d/resource.d/ldirectord
