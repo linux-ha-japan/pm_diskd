@@ -513,7 +513,7 @@ int st_reset(Stonith * s, int request, const char *host)
     char objname[MAX_STRING];
     char value[MAX_STRING];
     char *outlet_name;
-    int i, num_outlets, outlet, reboot_duration, *state;
+    int i, h, num_outlets, outlet, reboot_duration, *state, bad_outlets;
     int outlets[8]; /* Assume that one node is connected to a 
 		       maximum of 8 outlets */
     
@@ -535,6 +535,7 @@ int st_reset(Stonith * s, int request, const char *host)
 
     num_outlets = 0;
     reboot_duration = 0;
+    bad_outlets = 0;
 
     // read max. as->num_outlets values
     for (outlet = 1; outlet <= ad->num_outlets; outlet++) {
@@ -551,12 +552,34 @@ int st_reset(Stonith * s, int request, const char *host)
 #endif
 	    return (S_ACCESS);
 	}
+	
 	// found one
 	if (strcmp(outlet_name, host) == 0) {
 #ifdef APC_DEBUG
 	    	syslog(LOG_DEBUG, "%s: Found %s at outlet: %i",
 		       __FUNCTION__, host, outlet);
 #endif
+		/* Check that the outlet is not administratively down */
+		
+		// prepare objname
+		snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlet);
+
+		// get outlet's state
+		if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
+#ifdef APC_DEBUG
+			syslog(LOG_DEBUG, "%s: cannot read outlet_state for outlet %d.", __FUNCTION__, outlet);
+#endif
+			return (S_ACCESS);
+		}
+
+		if (*state == OUTLET_OFF) {
+#ifdef APC_DEBUG
+			syslog(LOG_DEBUG, "%s: outlet %d is off.", __FUNCTION__, outlet);
+#endif
+			continue;
+		}
+		
+		/* Ok, add it to the list of outlets to control */
 		outlets[num_outlets]=outlet;
 		num_outlets++;
 	}
@@ -569,7 +592,7 @@ int st_reset(Stonith * s, int request, const char *host)
     // host not found in outlet names
     if (num_outlets < 1) {
 #ifdef APC_DEBUG
-	syslog(LOG_DEBUG, "%s: no such outlet '%s'.", __FUNCTION__, host);
+	syslog(LOG_DEBUG, "%s: no active outlet '%s'.", __FUNCTION__, host);
 #endif
 	return (S_BADHOST);
     }
@@ -578,23 +601,6 @@ int st_reset(Stonith * s, int request, const char *host)
 
     for (outlet=outlets[0], i=0 ; i < num_outlets; i++, 
 		    outlet = outlets[i]) {
-	    // prepare objname
-	    snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlet);
-
-	    // get outlet's state
-	    if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
-#ifdef APC_DEBUG
-		syslog(LOG_DEBUG, "%s: cannot read outlet_state for outlet %d.", __FUNCTION__, outlet);
-#endif
-		return (S_ACCESS);
-	    }
-
-	    if (*state == OUTLET_OFF) {
-#ifdef APC_DEBUG
-		syslog(LOG_DEBUG, "%s: outlet %d is off.", __FUNCTION__, outlet);
-#endif
-		continue;
-	    }
 	    // prepare objname
 	    snprintf(objname, MAX_STRING, OID_OUTLET_COMMAND_PENDING, outlet);
 
@@ -615,19 +621,24 @@ int st_reset(Stonith * s, int request, const char *host)
 	    // prepare oid
 	    snprintf(objname, MAX_STRING, OID_OUTLET_REBOOT_DURATION, outlet);
 
-	    // read reboot_duration of the first port
-	    if (i == 0) {
-		    if ((state = APC_read(ad->sptr, 
-				objname, ASN_INTEGER)) == NULL) {
+	    // read reboot_duration of the port
+	    if ((state = APC_read(ad->sptr, 
+			objname, ASN_INTEGER)) == NULL) {
 #ifdef APC_DEBUG
-			syslog(LOG_DEBUG, 
-				"%s: cannot read outlet's reboot duration.",
-			       __FUNCTION__);
+		syslog(LOG_DEBUG, 
+			"%s: cannot read outlet's reboot duration.",
+		       __FUNCTION__);
 #endif
-			return (S_ACCESS);
-		    }
-		    // save the value
-		    reboot_duration = *state;
+		return (S_ACCESS);
+	    }
+	    if (i == 0) {
+		// save the inital value of the first port
+		reboot_duration = *state;
+	    } else if (reboot_duration != *state) {
+		syslog(LOG_WARNING, "%s: Outlet %d has a different reboot duration!", 
+				__FUNCTION__, outlet);
+	    	if (reboot_duration < *state)
+				reboot_duration = *state;
 	    }
 	    
 	    // prepare objnames
@@ -643,33 +654,46 @@ int st_reset(Stonith * s, int request, const char *host)
 		return (S_ACCESS);
 	    }
     }
-    
-    // prepare objname of the first outlet
-    snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlets[0]);
-    
-    // wait max. 2*reboot_duration for outlet to go to state ON        
+  
+    // wait max. 2*reboot_duration for all outlets to go back on
     for (i = 0; i < reboot_duration << 1; i++) {
+	    
+	    sleep(1);
 
-	// get outlet's state
-	if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
+	    bad_outlets = 0;
+	    for (outlet=outlets[0], h=0 ; h < num_outlets; h++, 
+			    outlet = outlets[h]) {
 
+		// prepare objname of the first outlet
+		snprintf(objname, MAX_STRING, OID_OUTLET_STATE, outlet);
+	    	// get outlet's state
+		
+		if ((state = APC_read(ad->sptr, objname, ASN_INTEGER)) == NULL) {
 #ifdef APC_DEBUG
-	    syslog(LOG_DEBUG, "%s: cannot read outlet_state of %d.",
-		   __FUNCTION__, outlets[0]);
+		    syslog(LOG_DEBUG, "%s: cannot read outlet_state of %d.",
+			   __FUNCTION__, outlets[0]);
 #endif
-	    return (S_ACCESS);
-	}
+		    return (S_ACCESS);
+		}
 
-	if (*state == OUTLET_ON)
-	    return (S_OK);
-
-	sleep(1);
+		if (*state != OUTLET_ON)
+			bad_outlets++;
+	     }
+	     
+	     if (bad_outlets == 0)
+		return (S_OK);
     }
-
-    // reset failed
-    syslog(LOG_ERR, "%s: resetting host '%s' failed.", __FUNCTION__, host);
-
-    return (S_RESETFAIL);
+    
+    if (bad_outlets == num_outlets) {
+	    // reset failed
+	    syslog(LOG_ERR, "%s: resetting host '%s' failed.", __FUNCTION__, host);
+	    return (S_RESETFAIL);
+    } else {
+	    // Not all outlets back on, but at least one; implies the node was
+	    // rebooted correctly
+	    syslog(LOG_WARNING,"%s: Not all outlets came back online!", __FUNCTION__);
+	    return (S_OK); 
+    }
 }
 
 /*
@@ -759,13 +783,13 @@ const char *st_getinfo(Stonith * s, int reqtype)
 	break;
 
     case ST_CONF_INFO_SYNTAX:
-	ret = _("hostname/ip-address community\n"
-		"The hostname/IP-address and community string are white-space delimited.");
+	ret = _("hostname/ip-address port community\n"
+		"The hostname/IP-address, SNMP port and community string are white-space delimited.");
 	break;
 
     case ST_CONF_FILE_SYNTAX:
-	ret = _("hostname/ip-address community\n"
-		"The hostname/IP-address and community string are white-space delimited.\n"
+	ret = _("hostname/ip-address port community\n"
+		"The hostname/IP-address, SNMP port and community string are white-space delimited.\n"
 		"All items must be on one line.\n"
 		"Blank lines and lines beginning with # are ignored.");
 	break;
