@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.43 2002/04/26 21:32:55 alan Exp $
-# © 2000, Jacob Rief <jacob.rief@tiscover.com>
+# $Id: ldirectord,v 1.44 2002/05/16 05:51:18 horms Exp $
+# ÉD 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
 
@@ -1319,7 +1319,7 @@ sub ld_cmd_children
 sub ld_stop
 {
 	foreach my $v (@VIRTUAL) {
-		y $real = $$v{real};
+		my $real = $$v{real};
 		foreach my $r (@$real) {
 			if ($$r{status}>0) {
 				&system_wrapper("$IPVSADM -d $$v{proto} " . &get_virtual($v) . " -r $$r{server}:$$r{port}");
@@ -1427,7 +1427,7 @@ sub ld_main
 
 sub check_http
 {
-	use LWP::UserAgent;
+	require LWP::UserAgent;
 	my ($v, $r) = @_;
 	
 	my $ua = new LWP::UserAgent;
@@ -1438,9 +1438,11 @@ sub check_http
 	my $recstr = $$r{receive};
 	if ($res->is_success && (!($recstr =~ /.+/) || $res->content =~ /$recstr/)) {
 		service_set($v, $r, "up");
+		&ld_debug(2, "check_http: $$r{url} is up\n");
 		return 1;
 	} else {
 		service_set($v, $r, "down");
+		&ld_debug(2, "check_http: $$r{url} is down\n");
 		return 0;
 	}
 }
@@ -1448,7 +1450,7 @@ sub check_http
 
 sub check_smtp
 {
-	use Net::SMTP;
+	require Net::SMTP;
 	my ($v, $r) = @_;
 	
 	my $smtp = new Net::SMTP($$r{server}, Timeout => $$v{negotiatetimeout});
@@ -1464,7 +1466,7 @@ sub check_smtp
 
 sub check_pop3
 {
-	use Net::POP3;
+	require Net::POP3;
 	my ($v, $r) = @_;
 	
 	my $pop3 = new Net::POP3($$r{server}, Timeout => $$v{negotiatetimeout});
@@ -1480,7 +1482,7 @@ sub check_pop3
 
 sub check_imap
 {
-	use Mail::IMAPClient;
+	require Mail::IMAPClient;
 	my ($v, $r) = @_;
 	
 	my $imap = new Mail::IMAPClient(Server => $$r{server}, Port=>$$r{port},
@@ -1498,7 +1500,7 @@ sub check_imap
 sub check_https
 {
 	my ($v, $r) = @_;
-	use Net::SSLeay;
+	require Net::SSLeay;
 	$Net::SSLeay::trace = 0;
 	my $uri = $$v{request};
 	my ($page, $result, %headers);
@@ -1554,7 +1556,7 @@ sub check_connect
 
 sub check_ftp
 {
-	use Net::FTP;
+	require Net::FTP;
 	my ($v, $r) = @_;
 	my $ftp;
         local *READ_FH;
