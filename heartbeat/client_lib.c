@@ -321,7 +321,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		return HA_FAIL;
 	}
 	
-	if (casual) {
+	if (iscasual) {
 		/* Make our reply FIFO */
 		if (mkfifo(pi->ReplyFIFOName, 0600) < 0) {
 			ha_perror("hb_api_signon: Can't create fifo %s"
