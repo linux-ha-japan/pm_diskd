@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.226 2002/10/21 10:17:18 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.227 2002/10/21 14:27:37 msoffen Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2398,8 +2398,14 @@ send_cluster_msg(struct ha_msg* msg)
 
 	if ((smsg = msg2string(msg)) == NULL) {
 		ha_log(LOG_ERR, "out of memory in send_cluster_msg");
+		ha_log_message(msg);
 		return(HA_FAIL);
 	}
+
+	/* Debug the message */
+	if (DEBUGPKT) {
+		ha_log(LOG_DEBUG, "Writing out message: %s", smsg);
+        }
 
 	{
 	/*
@@ -2416,6 +2422,7 @@ send_cluster_msg(struct ha_msg* msg)
 		if (ffd < 0) {
 			ffd = open(FIFONAME, O_WRONLY);
 			if (ffd < 0) {
+				ha_log(LOG_ERR, "Unable to open FIFO: %s", FIFONAME);
 				ha_free(smsg);
 				return(HA_FAIL);
 			}
@@ -3810,6 +3817,10 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.227  2002/10/21 14:27:37  msoffen
+ * Added packet Debug information and more error messages (when unable to open
+ * a FIFO properly).
+ *
  * Revision 1.226  2002/10/21 10:17:18  horms
  * hb api clients may now be built outside of the heartbeat tree
  *
