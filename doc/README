@@ -16,10 +16,10 @@ and	haresources
 
 The beginnings of a Hardware Installation guide can also be found under
 the doc directory as:
-	HardwareGuide.html or HardwareGuide (take your pick)
+	HardwareGuide.html or HardwareGuide.txt (take your pick)
 
 The beginnings of a Getting Started Guide can also be found under
-	GettingStarted or GettingStarted.html (take your pick)
+	GettingStarted.txt or GettingStarted.html (take your pick)
 
 For more info on Linux-HA, I recommend you read the Linux-HA web page.
 It can be found at:

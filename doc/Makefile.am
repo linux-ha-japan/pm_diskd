@@ -27,16 +27,16 @@ htmlfiles		= HardwareGuide.html	\
 			faqntips.html		\
 			rsync.html
 
-plainfiles              = $(htmlfiles:.html=)
+txtfiles                = $(htmlfiles:.html=.txt)
 
-CLEANFILES              = $(plainfiles)
+CLEANFILES              = $(txtfiles) ChangeLog
 
 SPECSRC 		= $(top_builddir)/heartbeat.spec
 
 OTHER_DOCS              = AUTHORS COPYING ChangeLog \
                                 README authkeys ha.cf haresources
 
-doc_DATA		= $(OTHER_DOCS) $(plainfiles) $(htmlfiles) 
+doc_DATA		= $(OTHER_DOCS) $(txtfiles) $(htmlfiles) 
 
 man_MANS		= heartbeat.8
 
@@ -48,17 +48,5 @@ ChangeLog: $(SPECSRC)
 	chmod 444 $@
 
 
-HardwareGuide: HardwareGuide.html
-	@HTML2TXT@ -dump $< >$@
-
-GettingStarted: GettingStarted.html
-	@HTML2TXT@ -dump $< >$@
-
-Requirements: Requirements.html
-	@HTML2TXT@ -dump $< >$@
-
-faqntips: faqntips.html
-	@HTML2TXT@ -dump $< >$@
-
-rsync: rsync.html
+%.txt: %.html
 	@HTML2TXT@ -dump $< >$@
