@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.3 1999/10/01 14:34:51 alanr Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.4 1999/10/05 16:11:53 alanr Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -395,12 +395,28 @@ STATIC int
 ppp_udp_open_write(struct hb_media * mp)
 {
 	struct ip_private * ei;
+	extern int	WeAreRestarting;
+	static int	FirstOpenAttempt=1;
 
 	PPPUDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
 
 	if (ANYDEBUG)  {
 		ha_log(LOG_DEBUG, "ppp_udp_open_write called");
+	}
+	if (FirstOpenAttempt) {
+		if (WeAreRestarting) {
+			if (ppp_udp_ppp_proc_info(mp) == HA_OK) {
+				ha_log(LOG_INFO
+				,	"Using existing PPPd pid %d"
+				,	ei->ppp_pid);
+				ei->ppp_started = 1;
+			}else{
+				ha_log(LOG_INFO
+				,	"restart: no existing PPPd process");
+			}
+		}
+		FirstOpenAttempt=0;
 	}
 	if (ei->wsocket >= 0) {
 		close(ei->wsocket);
@@ -987,7 +1003,6 @@ check_ppp_info(int sig)
 	if (ei->ppp_pid > 0) {
 		ppp_countdown -= ALARMCNT;
 		if (ppp_countdown <= 0) {
-			char emsg[80];
 			/* Yes, this really happens.
 			 * It seems that one side sees a long-running PPPd
 			 * and the other is waiting to establish a connection.
@@ -997,8 +1012,8 @@ check_ppp_info(int sig)
 			 * a sort of belt and suspenders approach which assumes
 			 * (correctly) that I don't understand everything.
 			 */
-			sprintf(emsg, "PPPd pid %d may be wedged", ei->ppp_pid);
-			ha_error(emsg);
+			ha_log(LOG_ERR
+			,	"PPPd pid %d may be wedged", ei->ppp_pid);
 			ppp_udp_close(ppp_hbmedia);
 			ppp_countdown = PPPCOUNT;
 		}
@@ -1138,6 +1153,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.4  1999/10/05 16:11:53  alanr
+ * First attempt at restarting everything with -R/-r flags
+ *
  * Revision 1.3  1999/10/01 14:34:51  alanr
  * patch from Matt Soffen for FreeBSD.
  *

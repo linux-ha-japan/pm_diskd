@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.14 1999/10/05 06:17:06 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.15 1999/10/05 16:11:49 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -147,18 +147,20 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.14 1999/10/05 06:17:
 #include <sys/stat.h>
 #include <signal.h>
 #include <time.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
 #include <sys/fcntl.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <netdb.h>
 
 #include <heartbeat.h>
 #include <ha_msg.h>
 
-#define OPTARGS		"dkrsv"
+#define OPTARGS		"dkrRsv"
 
 
 int		verbose = 0;
@@ -167,7 +169,8 @@ const char *	cmdname = "heartbeat";
 const char **	Argv = NULL;
 int		Argc = -1;
 int		debug = 0;
-int		isarestart = 0;
+int		RestartRequested = 0;
+int		WeAreRestarting = 0;
 int		killrunninghb = 0;
 int		rpt_hb_status = 0;
 int		childpid = -1;
@@ -237,6 +240,7 @@ void	debug_sig(int sig);
 void	signal_all(int sig);
 void	parent_debug_sig(int sig);
 void	reread_config_sig(int sig);
+void	restart_heartbeat(void);
 int	islegaldirective(const char *directive);
 int	parse_config(const char * cfgfile);
 int	parse_ha_resources(const char * cfgfile);
@@ -377,7 +381,7 @@ init_config(const char * cfgfile)
 	if (*(config->dbgfile) == 0) {
 		strcpy(config->dbgfile, DEFAULTDEBUG);
 	}
-	if (!isarestart && errcount == 0) {
+	if (!RestartRequested && errcount == 0) {
 		ha_log(LOG_INFO, "***********************");
 		ha_log(LOG_INFO, "Configuration validated. Starting heartbeat.");
 	}
@@ -1486,7 +1490,7 @@ master_status_process(void)
 		 *
 		 */
 	
-		if (!resources_requested_yet
+		if (!WeAreRestarting && !resources_requested_yet
 		&&	(thisnode != curnode || (now-starttime) > RQSTDELAY)) {
 				resources_requested_yet=1;
 				req_our_resources();
@@ -1689,6 +1693,71 @@ parent_debug_sig(int sig)
 }
 
 void
+restart_heartbeat(void)
+{
+	struct	timeval		tv;
+	struct	timeval		newtv;
+	struct	timezone	tz;
+	long			usecs;
+	int			j;
+	pid_t			curpid = getpid();
+	struct rlimit		oflimits;
+
+	/*
+	 * We need to do these things:
+	 *
+	 *	Wait until a propitious time
+	 *
+	 *	Kill our child processes
+	 *
+	 *	close most files...
+	 *
+	 *	re-exec ourselves with the -R option
+	 */
+	ha_log(LOG_ERR, "Restarting heartbeat.");
+
+	
+	getrlimit(RLIMIT_NOFILE, &oflimits);
+	alarm(0);
+	sleep(1);
+
+	gettimeofday(&tv, &tz);
+
+	usecs = tv.tv_usec;
+	usecs += 200*1000;	/* 200 msec */
+	if (usecs > 1000*1000) {
+		tv.tv_sec++;
+		tv.tv_usec = usecs % 1000000;
+	}else{
+		tv.tv_usec = usecs;
+	}
+
+	/* Pause a bit... */
+
+	do {
+		gettimeofday(&newtv, &tz);
+	}while (newtv.tv_sec < tv.tv_sec && newtv.tv_usec < tv.tv_usec);
+
+
+	/* Kill our child processes */
+	for (j=0; j < procinfo->nprocs; ++j) {
+		pid_t	pid = procinfo->info[j].pid;
+		if (pid != curpid) {
+			ha_log(LOG_INFO, "Killing child process %d", pid);
+			kill(pid, SIGKILL);
+		}
+	}
+
+	for (j=3; j < oflimits.rlim_cur; ++j) {
+		close(j);
+	}
+
+	execl(HALIB "/heartbeat", "heartbeat" "-R", NULL);
+	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat -R");
+	ha_log(LOG_ERR, "Shutting down...");
+	kill(curpid, SIGTERM);
+}
+void
 reread_config_sig(int sig)
 {
 	int	j;
@@ -1704,6 +1773,8 @@ reread_config_sig(int sig)
 			}
 		}
 	}
+	/* This is needs to be fixed to only do this if it's necessary */
+	restart_heartbeat();
 	config->rereadauth = 1;
 }
 
@@ -2071,6 +2142,7 @@ main(int argc, const char ** argv)
 	int	argerrs = 0;
 	int	j;
 	extern int	optind;
+	pid_t	running_hb_pid = get_running_hb_pid();
 
 	cmdname = argv[0];
 	Argc = argc;
@@ -2088,7 +2160,10 @@ main(int argc, const char ** argv)
 				++killrunninghb;
 				break;
 			case 'r':
-				++isarestart;
+				++RestartRequested;
+				break;
+			case 'R':
+				++WeAreRestarting;
 				break;
 			case 's':
 				++rpt_hb_status;
@@ -2128,11 +2203,11 @@ main(int argc, const char ** argv)
 	}
 
 	/*
-	 *	We've been asked to shut down the currently running heartbeat process
+	 *	We've been asked to shut down the currently running heartbeat
+	 *	process
 	 */
 
 	if (killrunninghb) {
-		pid_t	running_hb_pid = get_running_hb_pid();
 
 		if (running_hb_pid < 0) {
 			fprintf(stderr, "ERROR: Heartbeat not currently running.\n");
@@ -2151,7 +2226,6 @@ main(int argc, const char ** argv)
 	 *	Report status of heartbeat processes, etc.
 	 */
 	if (rpt_hb_status) {
-		pid_t	running_hb_pid = get_running_hb_pid();
 
 		if (running_hb_pid < 0) {
 			printf("%s is stopped.\n", cmdname);
@@ -2163,26 +2237,44 @@ main(int argc, const char ** argv)
 	}
 
 	/*
-	 *	We've been asked to restart the currently running heartbeat process
+	 *	We are an exec in an attempt to restart.
+	 */
+
+	if (WeAreRestarting) {
+
+		if (running_hb_pid < 0) {
+			fprintf(stderr, "ERROR: %s is not running.\n", cmdname);
+			cleanexit(1);
+		}
+		if (running_hb_pid != getpid()) {
+			fprintf(stderr
+			,	"ERROR: Heartbeat already running [pid %d].\n"
+			,	running_hb_pid);
+			cleanexit(1);
+		}
+	}
+
+	/*
+	 *	We've been asked to restart currently running heartbeat process
 	 *	(or at least get it to reread it's configuration files)
 	 */
 
-	if (isarestart) {
-		pid_t	running_hb_pid = get_running_hb_pid();
-
+	if (RestartRequested) {
 		if (running_hb_pid < 0) {
-			fprintf(stderr, "ERROR: Heartbeat not currently running.\n");
+			fprintf(stderr
+			,	"ERROR: Heartbeat not currently running.\n");
 			cleanexit(1);
 		}
-			
-		if (init_config(CONFIG_NAME) && parse_ha_resources(RESOURCE_CFG)) {
+
+		if (init_config(CONFIG_NAME)&&parse_ha_resources(RESOURCE_CFG)){
 			ha_log(LOG_INFO
-			,	"Signalling heartbeat pid %d to reread config files"
-			,	running_hb_pid);
+			,	"Signalling heartbeat pid %d to reread"
+			" config files", running_hb_pid);
 			if (kill(running_hb_pid, SIGHUP) >= 0) {
 				cleanexit(0);
 			}
-			ha_perror("Unable to send SIGHUP to pid %d", running_hb_pid);
+			ha_perror("Unable to send SIGHUP to pid %d"
+			,	running_hb_pid);
 		}else{
 			ha_log(LOG_INFO
 			,	"Config errors: Heartbeat pid %d NOT restarted"
@@ -2289,9 +2381,9 @@ make_daemon(void)
 	pid_t	pid;
 	FILE *	lockfd;
 
-	/* See if we're already running... */
+	/* See if heartbeat is already running... */
 
-	if ((pid=get_running_hb_pid()) > 0) {
+	if ((pid=get_running_hb_pid()) > 0 && pid != getpid()) {
 		ha_log(LOG_ERR, "%s: already running [pid %d].\n"
 		,	cmdname, pid);
 		fprintf(stderr, "%s: already running [pid %d].\n"
@@ -2299,19 +2391,24 @@ make_daemon(void)
 		exit(HA_FAILEXIT);
 	}
 
-	/* Guess not. Go ahead and start things up*/
+	/* Guess not. Go ahead and start things up */
 
-	if ((pid = fork()) > 0) {
-		lockfd = fopen(PIDFILE, "w");
-		if (lockfd != NULL) {
-			fprintf(lockfd, "%d\n", pid);
-			fclose(lockfd);
+	if (!WeAreRestarting) {
+		pid = fork();
+		if (pid < 0) {
+			fprintf(stderr, "%s: could not start daemon\n"
+			,	cmdname);
+			perror("fork");
+			exit(HA_FAILEXIT);
+		}else if (pid > 0) {
+			exit(HA_OKEXIT);
 		}
-		exit(HA_OKEXIT);
-	}else if (pid < 0) {
-		fprintf(stderr, "%s: could not start daemon\n", cmdname);
-		perror("fork");
-		exit(HA_FAILEXIT);
+	}
+	pid = getpid();
+	lockfd = fopen(PIDFILE, "w");
+	if (lockfd != NULL) {
+		fprintf(lockfd, "%d\n", pid);
+		fclose(lockfd);
 	}
 	if (setsid() < 0) {
 		fprintf(stderr, "%s: could not start daemon\n", cmdname);
@@ -2638,6 +2735,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.15  1999/10/05 16:11:49  alanr
+ * First attempt at restarting everything with -R/-r flags
+ *
  * Revision 1.14  1999/10/05 06:17:06  alanr
  * Fixed various uninitialized variables
  *
