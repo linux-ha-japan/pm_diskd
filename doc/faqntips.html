@@ -75,6 +75,12 @@ over?</a></li>
    <li><a href="#self_fence">I want to use a shared disk, but I don't want
 	to use STONITH. &nbsp;Any recommendations?</a><br>
    </li>
+   <li><a href="#active_active">Can heartbeat be configured in an
+	active/active configuration?</a>
+	If so, how do I do this, since the haresource script is supposed
+	to be the same on each box so I do not know how this could be done.
+	<br>
+   </li>
    <li><a href="#why_auto_failback">What is this auto_failback parameter?
 	What happened to the old nice_failback parameter?</a>
    </li>
@@ -360,6 +366,37 @@ network segment and not propagate through routers), multicast loopback disabled
 	When in doubt check with the mailing list.
    </li><br>
 
+   <li><a name="active_active">
+	<b>Yes</b>, heartbeat has supported active/active configurations since
+	its first release.</a>
+	The key to configuring active/active clusters is to understand
+	that each resource group in the haresources file is preceded by
+	the name of the server which is normally supposed to run that service.
+	When in a "auto_failback yes (or legacy)"
+	(or old-style "nice_failback off") configuration, when a cluster node
+	comes up, it will take over any resources for which it is listed
+	as the "normal master" in the haresources file.  Below is an example
+	of how to do this for an apache/mysql configuration.
+<PRE>
+server1	10.10.10.1 mysql
+server2 10.10.10.2 apache
+</PRE>
+	In this case, the IP address 10.10.10.1 should be replaced with
+	the IP address you want to contact the mysql server at, and
+	10.10.10.2 should be replaced with the IP address you want
+	people to use to contact the web server.
+	Any time server1 is up, it will run the mysql service.  Any time
+	server2 is up, it will run the apache service.
+	If both server1 and server2 are up, both servers will be active.
+	Note that this is contradictory with the old
+	<kbd>nice_failback on</kbd> parameter.
+	With the new release which supports <kbd>hb_standby foreign</kbd>,
+	you can manually fail back into an active/active configuration
+	if you have <kbd>auto_failback off</kbd>.  This allows administrators
+	more flexibility in failing back in a more customized way
+	at more safe or convenient times.
+   </li><br>
+
    <li><a name="why_auto_failback">The <b>auto_failback</b> parameter
 	is a replacement for the old <b>nice_failback</b> parameter.</a>
 	The old value <b>nice_failback on</b> is replaced by
@@ -473,10 +510,11 @@ a [text/plain] attachment.
 </ol>
  
 <hr width="100%"> 
-<p>Rev 0.0.5 <br>
+<p>Rev 0.0.8 <br>
  (c) 2000 Rudy Pawul <a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a>
 <br>
  (c) 2001 Dusan Djordjevic <a href="mailto:dj.dule@linux.org.yu">dj.dule@linux.org.yu</a>
+ (c) 2003 IBM (Author Alan Robertson <a href="mailto:alanr@unix.sh">alanr@unix.sh)</a>
 </p>
  <br>
 </body>
