@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.7 2000/12/23 05:08:59 horms Exp $
+#	$Id: Makefile,v 1.8 2001/01/19 12:36:37 eric Exp $
 #
 #	Makefile for making High-Availability Linux documents
 #
@@ -18,7 +18,7 @@ VERS=test!
 DOCDIR=$(BUILD_ROOT)/usr/doc/$(PKG)
 MANDIR=$(BUILD_ROOT)/usr/man
 
-HTML2TXT = lynx -dump
+HTML2TXT = TERM=vt100 lynx -dump
 INSTALL = install
 
 MADEDOCS =			\
