@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.61 2003/04/22 10:16:32 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.62 2003/05/21 14:30:45 alan Exp $
 
 # Workaround for a change in RPM 4.1.x; needs proper fixing soon!
 %define _unpackaged_files_terminate_build 0
@@ -73,6 +73,34 @@ PILS is designed to support any number of plugins
 implementing any number of interfaces.
 
 %changelog
+* Wed May 21 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
++ Version 1.1.1
+  + Significant restructuring of the processes in heartbeat
+  + Added a new feature to hb_standby which allows you to give up
+	  any specific category of resources:  local, foreign, or all.
+	The old behavior is "all" which is the default.
+	This allows you to put a nice_failback cluster into
+	  an active/active configuration
+  + Enhancements to the ServeRAID code to make it work with the new
+    (supported) version of IPSSEND from the ServeRAID folks...
+  + Added STONITH code for the Dell remote access controller
+  + Fixed a major bug which kept it from taking over correctly after 246
+	days or so
+  + Fixed a major bug where heartbeat didn't lock itself into memory
+	properly
+  + Added new ping node timeout directive "deadping"
+  + Made sure heartbeat preallocated stack and heap, and printed a
+	message if we allocate heap once we're started up...
+  + Minor heartbeat API bug fixes
+  + Minor documentation fixes
+  + Minor fix to allow IP addresses with /32 masks...
+  + Fixed a timing window for !nice_failback resource acquisition
+  + Added several CCM bug fixes
+  + Made the APC smart UPS ups code compatible with more UPSes
+  + Fixed a bug in respawn
+  + Enhanced internal checking for malloc errors...
+  + Added IP alias search optimization from Sean Reifscheneider
+
 * Wed Mar 19 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
 + Version 1.0.2:
   + Fixed comment errors in heartbeat init script to allow it to run on RH 8.0
