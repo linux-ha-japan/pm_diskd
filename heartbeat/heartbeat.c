@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.87 2000/09/01 21:15:23 marcelo Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.88 2000/09/01 22:35:50 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2007,7 +2007,6 @@ restart_heartbeat(int quickrestart)
 		gettimeofday(&newtv, &tz);
 	}while (newtv.tv_sec < tv.tv_sec && newtv.tv_usec < tv.tv_usec);
 
-
 	/* Kill our child processes */
 	for (j=0; j < procinfo->nprocs; ++j) {
 		pid_t	pid = procinfo->info[j].pid;
@@ -2018,6 +2017,9 @@ restart_heartbeat(int quickrestart)
 		}
 	}
 
+	/* Kill any lingering takeover processes, etc. */
+	kill(-getpid(), SIGTERM);
+	sleep(1);
 
 	for (j=3; j < oflimits.rlim_cur; ++j) {
 		close(j);
@@ -3772,6 +3774,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.88  2000/09/01 22:35:50  alan
+ * Minor change to make restarts after cluster partitions work more reliably.
+ *
  * Revision 1.87  2000/09/01 21:15:23  marcelo
  * Fixed auth file reread wrt dynamic modules
  *
