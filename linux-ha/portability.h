@@ -75,6 +75,11 @@ inet_pton(int af, const char *src, void *dst);
 #  endif
 #endif
 
+#ifdef HAVE_STRINGIZE
+#	define	MKSTRING(s)	#s
+#else
+#	define	MKSTRING(s)	"s"
+#endif
 
 #  endif /* HAVE_CONFIG_H */
 #endif /* !PORTABILITY_H */
