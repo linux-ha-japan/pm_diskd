@@ -43,14 +43,12 @@ typedef struct stonith {
  */
 
 
-
-
 struct stonith_ops {
 	void (*destroy)			(Stonith*);
 	int (*set_config_file)		(Stonith *, const char   * filename); 
 	int (*set_config_info)		(Stonith *, const char   * confstring); 
 /*
- *	Type of information requested by in the getinfo() call
+ *	Type of information requested by the getinfo() call
  */
 #define	ST_CONF_FILE_SYNTAX	1	/* Config file syntax help */
 #define	ST_CONF_INFO_SYNTAX	2	/* Config string (info) syntax help */
