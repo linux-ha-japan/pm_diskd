@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.200 2002/08/20 19:44:45 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.201 2002/08/27 17:17:46 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -4701,6 +4701,7 @@ main(int argc, char * argv[], char * envp[])
 				break;
 			case 'R':
 				++WeAreRestarting;
+				AreWeADaemonYet=1;
 				break;
 			case 's':
 				++rpt_hb_status;
@@ -5068,6 +5069,7 @@ make_daemon(void)
 	int			j;
 	sigset_t		oursigset;
 	struct sigaction	commonaction;
+	const char *	devnull = "/dev/null";
 
 	static const struct signalfoo siglist [] =
 	{	{SIGHUP,	reread_config_sig}
@@ -5169,9 +5171,12 @@ make_daemon(void)
 
 	umask(022);
 	close(FD_STDIN);
+	(void)open(devnull, O_RDONLY);		/* Stdin:  fd 0 */
 	close(FD_STDOUT);
+	(void)open(devnull, O_WRONLY);		/* Stdout: fd 1 */
 	if (!debug) {
 		close(FD_STDERR);
+		(void)open(devnull, O_WRONLY);	/* Stderr: fd 2 */
 	}
 	chdir(HA_D);
 }
@@ -6074,6 +6079,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.201  2002/08/27 17:17:46  alan
+ * Put in code which hopefully fixes a restart problem which had been
+ * seen on Solaris, and might also affect Linux.
+ * It has to do with some fprintfs to stderr which it does when it first
+ * starts up.
+ *
  * Revision 1.200  2002/08/20 19:44:45  alan
  * Put in a Solaris patch from Thomas Hepper <th@ant.han.de>
  * He was having trouble with wait3 calls being interrupted, so processes
