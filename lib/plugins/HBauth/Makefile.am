@@ -30,9 +30,12 @@ CFLAGS			= @CFLAGS@
 
 halibdir		= $(libdir)/@HEARTBEATPKG@
 plugindir		= $(halibdir)/plugins/HBauth
-plugin_LTLIBRARIES	= md5.la
+plugin_LTLIBRARIES	= md5.la crc.la
 
 md5_la_SOURCES	= md5.c
 md5_la_LDFLAGS	= -export-dynamic -module -avoid-version
+
+crc_la_SOURCES	= crc.c
+crc_la_LDFLAGS	= -export-dynamic -module -avoid-version
 
 

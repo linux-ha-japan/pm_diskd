@@ -1,17 +1,22 @@
 #include <portability.h> 
 #include <stdio.h> 
 #include <string.h> 
-#include <heartbeat.h>
+#include <HBauth.h>
 
-#define MODULE crc
-#include <hb_module.h>
+#define PIL_PLUGINTYPE		HB_AUTH_TYPE
+#define PIL_PLUGIN		crc
+#define PIL_PLUGINTYPE_S	"HBauth"
+#define PIL_PLUGIN_S		"crc"
+#include <pils/plugin.h>
 
-extern unsigned char result[MAXLINE];
+static int crc_auth_calc(const struct HBauth_info *
+,	const char * text, char * result, int resultlen);
+static int crc_auth_needskey (void);
 
-const unsigned char *EXPORT(hb_auth_calc) (const struct auth_info *, 
-					   const char *);
-int EXPORT(hb_auth_atype) (char **);
-int EXPORT(hb_auth_nkey) (void);
+static struct HBAuthOps crcOps =
+{	crc_auth_calc
+,	crc_auth_needskey
+};
 
 static unsigned long const crctab[256] =
 {
@@ -70,24 +75,80 @@ static unsigned long const crctab[256] =
 };
 
 
-int
-EXPORT(hb_auth_nkey) (void)
+/*
+ * crcclose is called as part of shutting down the crc HBauth plugin.
+ * If there was any global data allocated, or file descriptors opened, etc.
+ * which is associated with the plugin, and not a single interface
+ * in particular, here's our chance to clean it up.
+ */
+
+static void crcclosepi(PILPlugin*pi)
+{
+}
+
+
+/*
+ * crccloseintf called as part of shutting down the crc HBauth interface.
+ * If there was any global data allocated, or file descriptors opened, etc.
+ * which is associated with the crc implementation, here's our chance
+ * to clean it up.
+ */
+static PIL_rc crccloseintf(PILInterface* pi, void* pd)
+{
+	return PIL_OK;
+}
+PIL_PLUGIN_BOILERPLATE("1.0", Debug, crcclosepi);
+static const PILPluginImports*  PluginImports;
+static PILPlugin*               OurPlugin;
+static PILInterface*		OurInterface;
+static void*			OurImports;
+static void*			interfprivate;
+
+/*
+ *
+ * Our plugin initialization and registration function
+ * It gets called when the plugin gets loaded.
+ */
+PIL_rc
+PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
+
+PIL_rc
+PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
+{
+	/* Force the compiler to do a little type checking */
+	(void)(PILPluginInitFun)PIL_PLUGIN_INIT;
+
+	PluginImports = imports;
+	OurPlugin = us;
+
+	/* Register ourself as a plugin */
+	imports->register_plugin(us, &OurPIExports);  
+
+	/*  Register our interfaces */
+ 	return imports->register_interface(us, PIL_PLUGINTYPE_S,  PIL_PLUGIN_S
+	,	&crcOps
+	,	crccloseintf		/*close */
+	,	&OurInterface
+	,	&OurImports
+	,	interfprivate); 
+}
+
+static int
+crc_auth_needskey (void)
 {
 	return 0;
 }
                         
-const unsigned char *
-EXPORT(hb_auth_calc) (const struct auth_info *info, const char * value)
+static int crc_auth_calc (const struct HBauth_info * info
+,	const char * value, char * result, int resultlen)
 {
 	unsigned long crc = 0;
 	int length=strlen(value);
 	(void)info;
-	(void)_heartbeat_h_Id;
-	(void)_ha_msg_h_Id;
 	while(length--)
 		crc = (crc << 8) ^ crctab[((crc >> 24) ^ *(value++)) & 0xFF];
 
 	crc = ~crc & 0xFFFFFFFFul;
-	sprintf(result, "%lx", crc);
-	return(result);
+	snprintf(result, resultlen, "%lx", crc);
+	return 1;
 }
