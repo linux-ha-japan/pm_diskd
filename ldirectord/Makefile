@@ -52,6 +52,6 @@ install: ldirectord.8
 	fi
 	
 # Override implicit rule so ldirectord won't get clobered by ldirectord.sh
-%.sh: %
+ldirectord:
 	
 
