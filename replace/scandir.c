@@ -1,6 +1,6 @@
 /* scandir: Scan a directory, collecting all (selected) items into a an array.
  *
- * This code borrowed from the GNU project at:
+ * This code borrowed from 'libit', which can be found here:
  *
  * http://www.iro.umontreal.ca/~pinard/libit/dist/scandir/
  *
