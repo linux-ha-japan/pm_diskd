@@ -278,9 +278,14 @@ for CPU resources, use sha1.&nbsp; It's the hardest to crack.
 <br>1 sha1 key-for-sha1-any-text-you-want
 <p>For md5, you could use the same as the above, but replace "sha1" with
 "md5".
-<p>Finally, for crc, a sample can be:
+<p>Finally, for crc, a sample might be:
 <br>auth 2
-<br>1 crc
+<br>2 crc
+<p>
+Whatever index you put after the keyword <b>auth</b> must be found
+below in the keys listed in the file.  If you put "auth 4",
+then there must be an "4 signaturetype" line in the list below.
+
 <p>Make sure its permissions are safe, like 600.&nbsp; And "any text you
 want" is not <i>quite</i> right.&nbsp; There's a limit to the number of
 characters you can use.
