@@ -1,0 +1,105 @@
+#	$Id: Makefile,v 1.1 2000/06/30 21:33:07 alan Exp $
+#
+#	Makefile for making High-Availability Linux heartbeat code
+#
+#	If you're installing this package without going through an RPM,
+#	you'll need to read the README to see how to make PPP work for you.
+#
+#
+PKG=heartbeat
+
+INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
+LOGROTATED=/etc/logrotate.d
+
+#       Debian wants things to start with DESTDIR,
+#       but Red Hat starts them with RPM_BUILD_ROOT     (sigh...)
+#
+#       When make is called is shuold be run as
+#       BUILD_ROOT=$VAR make ...
+#
+#       e.g.
+#       BUILD_ROOT=$RPM_BUILD_ROOT make install
+
+HA=$(BUILD_ROOT)/etc/ha.d
+HALIB=$(BUILD_ROOT)/usr/lib/$(PKG)
+HARCD=$(HA)/rc.d
+VARRUN=$(BUILD_ROOT)/var/run
+FIFO=$(VARRUN)/heartbeat-fifo
+HAPPP=$(VARRUN)/ppp.d
+INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
+LOGROTATESCRIPT=$(BUILD_ROOT)/$(LOGROTATED)/$(PKG)
+RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
+
+# Can't include the Build Root as a part of the compilation process
+B_HA=$(DESTDIR)/etc/ha.d
+B_VARRUN=$(DESTDIR)/var/run
+B_FIFO=$(B_VARRUN)/heartbeat-fifo
+B_HAPPP=$(B_VARRUN)/ppp.d
+B_HALIB=/usr/lib/$(PKG)
+
+HTML2TXT = lynx -dump
+INSTALL = install
+MAKE  	= make
+
+
+#
+#	(We like warnings!  Unfortunately, several Linux header files have errors that prohibit
+#	 turning on -pedantic-errors)
+#
+CFLAGS=-g 				\
+	$(OPTFLAGS)			\
+	-Wall				\
+	-Wmissing-prototypes		\
+	-Wmissing-declarations		\
+	-Wstrict-prototypes		\
+	-Wshadow			\
+	-Wpointer-arith			\
+	-Wwrite-strings			\
+	-Werror				\
+	-Wtraditional			\
+	-I.				\
+	-DVERSION='"$(VERS)"'		\
+	-DHA_D='"$(B_HA)"'		\
+	-DHALIB='"$(B_HALIB)"'		\
+	-DVAR_RUN_D='"$(B_VARRUN)"'	\
+	-DFIFONAME='"$(B_FIFO)"'	\
+	-DPPP_D='"$(B_HAPPP)"'
+
+
+STONITH = stonith
+E_OBJLIST =	expect.o	\
+		baytech.o	\
+		main.o		\
+		stonith.o	
+
+E_HDRS    =	expect.h stonith.h
+
+LIBS=
+
+
+LIBCMDS = $(STONITH)
+
+PRODUCTS = $(LIBCMDS)
+
+SPECSRC = Specfile
+
+all: $(PRODUCTS)
+
+$(STONITH): $(E_OBJLIST) $(E_HDRS)
+	$(CC) $(LDFLAGS) $(E_OBJLIST) $(LIBS) -o $(STONITH)
+
+$(E_OBJLIST) : $(E_HDRS)
+
+install: install_bin
+
+install_bin: all
+	[ -p $(FIFO) ] || mkfifo $(FIFO) || chmod 0600 $(FIFO)
+	$(INSTALL) -cm 755 $(LIBCMDS)
+
+clean:	
+	rm -f *.o *.swp .*.swp core make.out
+	rm -f $(LIBCMDS)
+
+pristene: clean
+
+

@@ -128,7 +128,7 @@ $> == 0 || die "Must be root [not $>] to run $0";
 
 $EQ="=============";
 
-$min=100; $max=8000; $incr=100; $repeats = 10;
+$min=5000; $max=15000; $incr=250; $repeats = 10;
 
 for ($time=$min; $time <= $max; $time += $incr) {
 

@@ -1,0 +1,162 @@
+/*
+ *	Main program for exercising Stonith API
+ */
+ 
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <syslog.h>
+#include "stonith.h"
+
+#define	OPTIONS	"F:p:t:sSlv"
+
+void usage(const char * cmd);
+
+void
+usage(const char * cmd)
+{
+	fprintf(stderr, "usage: %s [-sSvl] "
+	"[-t devicetype] "
+	"[-F options-file] "
+	"[-p stonith-parameters] "
+	"machinename\n", cmd);
+	exit(1);
+}
+
+int
+main(int argc, char** argv)
+{
+	char *		cmdname;
+	int		rc;
+	Stonith *	s;
+	const char *	SwitchType = NULL;
+	const char *	optfile = NULL;
+	const char *	parameters = NULL;
+	int		verbose = 0;
+	int		status = 0;
+	int		silent = 0;
+	int		listhosts = 0;
+
+	extern char *	optarg;
+	extern int	optind, opterr, optopt;
+	int		c;
+	int		errors = 0;
+	int		argcount;
+
+	if ((cmdname = strrchr(argv[0], '/')) == NULL) {
+		cmdname = argv[0];
+	}else{
+		++cmdname;
+	}
+
+
+	while ((c = getopt(argc, argv, OPTIONS)) != -1) {
+		switch(c) {
+		case 'F':	optfile = optarg;
+				break;
+
+		case 'l':	++listhosts;
+				break;
+
+		case 'p':	parameters = optarg;
+				break;
+
+		case 's':	++silent;
+				break;
+
+		case 'S':	++status;
+				break;
+
+		case 't':	SwitchType = optarg;
+				break;
+
+		case 'v':	++verbose;
+				break;
+
+		default:	++errors;
+				break;
+		}
+	}
+	if (optfile && parameters) {
+		++errors;
+	}
+	argcount = argc - optind;
+	if (!(argcount == 1 || (argcount < 1 && (status||listhosts)))) {
+		++errors;
+	}
+
+	if (errors) {
+		usage(cmdname);
+	}
+
+	if (optfile == NULL && parameters == NULL) {
+		optfile = "/etc/ha.d/rpc.cfg";
+	}
+	if (SwitchType == NULL) {
+		SwitchType = "baytech";
+	}
+
+	openlog(cmdname, (LOG_CONS|(silent ? 0 : LOG_PERROR)), LOG_DAEMON);
+	s = stonith_new(SwitchType);
+
+	if (s == NULL) {
+		syslog(LOG_ERR, "Invalid device type: '%s'", SwitchType);
+		exit(S_OOPS);
+	}
+	if (optfile) {
+		if ((rc=s->s_ops->set_config_file(s, optfile)) != S_OK) {
+			syslog(LOG_ERR
+			,	"Invalid config file for %s device."
+			,	SwitchType);
+			s->s_ops->delete(s);
+			exit(rc);
+		}
+	}else{
+		if ((rc=s->s_ops->set_config_info(s, parameters)) != S_OK) {
+			syslog(LOG_ERR
+			,	"Invalid config info for %s device"
+			,	SwitchType);
+			s->s_ops->delete(s);
+			exit(rc);
+		}
+	}
+
+	rc = s->s_ops->status(s);
+
+	if ((SwitchType = s->s_ops->devid(s)) == NULL) {
+		SwitchType = "BayTech";
+	}
+
+	if (status && !silent) {
+		if (rc == S_OK) {
+			syslog(LOG_ERR, "%s device OK.", SwitchType);
+		}else{
+			/* Uh-Oh */
+			syslog(LOG_ERR, "%s device not accessible."
+			,	SwitchType);
+		}
+	}
+
+	if (listhosts) {
+		char **	hostlist;
+
+		hostlist = s->s_ops->hostlist(s);
+		if (s == NULL) {
+			syslog(LOG_ERR, "Could not list hosts for %s."
+			,	SwitchType);
+		}else{
+			char **	this;
+
+			for(this=hostlist; *this; ++this) {
+				printf("%s\n", *this);
+			}
+			s->s_ops->free_hostlist(hostlist);
+		}
+	}
+
+	if (optind < argc) {
+		rc = (s->s_ops->reset_host(s, argv[optind]));
+	}
+	s->s_ops->delete(s);
+	return(rc);
+}
