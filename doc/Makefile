@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.3 1999/09/30 18:34:26 alanr Exp $
+#	$Id: Makefile,v 1.4 2000/04/15 22:05:27 horms Exp $
 #
 #	Makefile for making High-Availability Linux documents
 #
@@ -6,14 +6,16 @@
 PKG=heartbeat
 VERS=test!
 
-#	This defaults DESTDIR to "/"
-#	Debian wants things to start with DESTDIR,
-#	but Red Hat starts them with RPM_BUILD_ROOT	(sigh...)
+#       Debian wants things to start with DESTDIR,
+#       but Red Hat starts them with RPM_BUILD_ROOT     (sigh...)
 #
-DESTDIR=
-BRROOTDIR=$(RPM_BUILD_ROOT)/$(DESTDIR)
+#       When make is called is shuold be run as
+#       BUILD_ROOT=$VAR make ...
 #
-DOCDIR=$(BRROOTDIR)/usr/doc/$(PKG)
+#       e.g.
+#       BUILD_ROOT=$RPM_BUILD_ROOT make install
+
+DOCDIR=$(BUILD_ROOT)/usr/doc/$(PKG)
 
 HTML2TXT = lynx -dump
 INSTALL = install
@@ -39,9 +41,9 @@ DOCFILES =			\
 
 SPECSRC = ../Specfile
 
-all: $(DOCFILES)
+.PHONY = all install clean pristene
 
-rh-all: all
+all: $(DOCFILES)
 
 ChangeLog:	$(SPECSRC)
 	rm -fr ChangeLog

@@ -1,29 +1,19 @@
-#	$Id: Specfile,v 1.31 2000/04/15 22:05:27 horms Exp $
-Summary: %PKG% - heartbeat subsystem for High-Availability Linux
-Name:	%PKG%
-Version:	%VERS%
-Release:	%RPMREL%
-Copyright: GPL
-URL: http://linux-ha.org/
-Group: Utilities
-Packager: Alan Robertson <alanr@henge.com>
-Source: http://linux-ha.org/download/%PKG%-%VERS%.tar.gz
-Buildroot: /var/tmp/%PKG%-root
-%description
-%PKG% is a basic heartbeat subsystem for Linux-HA.
-It will run scripts at initialization, and when machines go up or down.
-This version will also perform IP address takeover using gratuitious ARPs.
-It works correctly for a 2-node configuration, and is extensible to larger
-configurations.
 
-It implements the following kinds of heartbeats:
-	- Bidirectional Serial Rings ("raw" serial ports)
-	- UDP/IP braodcast (ethernet, etc)
-	- Bidirectional Serial PPP/UDP Rings (using PPP)
+* Sat Apr 15 2000 Alan Robertson <alanr@henge.com>,
+     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
+     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
+     Guenther Thomsen <thomsen@cs.tu-berlin.de>, 
+     Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
+     Marcelo Tosatti <marcelo@conectiva.com.br>
+     and Horms <horms@vergenet.net>
 
-%changelog
-
-* Tue Apr 04 2000  Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>
++ Version 0.4.8  0.5 BETA
+  + Added the nice_failback feature. If the cluster is running when
+	the primary starts it acts as a secondary. (Luis Claudio)
+  + Tidied up loging so it can be to files, to syslog or both (Horms)
+  + Tidied up build process (Horms)
+  + Updated ldirectord to produce and install a man page and be
+    compatible with the fwmark options to The Linux Virtual Server (Horms)
 
 * Sat Dec 25 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
@@ -205,90 +195,3 @@ It implements the following kinds of heartbeats:
     - Doesn't yet include Tom Vogt's ethernet heartbeat code
     - No documentation
     - Not very useful yet :-)
-%prep
-%setup
-%build
-make -j
-%install
-rm -rf $RPM_BUILD_ROOT
-BUILD_ROOT=$RPM_BUILD_ROOT make install
-pushd $RPM_BUILD_ROOT/etc/ha.d/resource.d
-ln -s ../../../sbin/ldirectord .
-popd
-%files
-%dir %HADIR%
-/etc/rc.d/init.d/%PKG%
-%HADIR%/harc
-%HADIR%/shellfuncs
-%HADIR%/rc.d
-%HALIB%
-%HADIR%/resource.d
-/var/run/heartbeat-fifo
-%dir /var/run/ppp.d
-/sbin/ldirectord
-/usr/man/man8/ldirectord.8
-%doc %DOCDIR%
-%post
-#
-#	Hack to allow ppp-udp to be notified about PPP processes starting
-#
-Install_PPP_hack() {
-  file2hack=/etc/ppp/ip-up.local
-  echo "NOTE: Modifying $file2hack"
-  if
-    [ ! -f $file2hack ]
-  then
-    echo '#!/bin/bash' > $file2hack
-    chmod 755 $file2hack
-  fi
-  MARKER="Heartbeat"
-  ed -s $file2hack <<-!EOF  2>/dev/null
-H
-g/ $MARKER\$/d
-\$a
-#	The following lines added for Linux-HA support		# $MARKER
-DEVFILE=\`echo \$DEVICE | sed -e 's!^/dev/!!' -e 's!/!.!g'\`	# $MARKER
-OUTFILE=/etc/ha.d/ppp.d/\$DEVFILE				# $MARKER
-(			# $MARKER
-echo "\$IPREMOTE"	# $MARKER
-echo "\$IFNAME"		# $MARKER
-echo "\$PPPD_PID"	# $MARKER
-echo "\$IPLOCAL"		# $MARKER
-) > \$OUTFILE		# $MARKER
-.
-w
-!EOF
-}
-
-if
-  [ ! -x /etc/ppp/ip-up.heart ]
-then
-  Install_PPP_hack
-fi
-
-# Run heartbeat on startup
-/sbin/chkconfig --add heartbeat
-
-%preun
-
-Uninstall_PPP_hack() {
-  file2hack=/etc/ppp/ip-up.local
-  echo "NOTE: Restoring $file2hack"
-  MARKER="Heartbeat"
-  ed -s $file2hack <<-!EOF  2>/dev/null
-H
-g/ $MARKER\$/d
-w
-!EOF
-}
-
-if
-  [ $1 = 0 ]
-then
-  /sbin/chkconfig --del heartbeat
-  if
-    [ ! -x /etc/ppp/ip-up.heart ]
-  then
-    Uninstall_PPP_hack
-  fi
-fi

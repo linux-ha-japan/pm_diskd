@@ -52,6 +52,14 @@
 #
 nice_failback off
 #
+# Note on logging:
+# If any of debugfile, logfile and logfacility are defined then they will
+# be used. If debugfile and/or logfile are not defined and logfacility
+# is defined then the respective logging and debug messages will be loged
+# to syslog. If logfacility is not defined then debugfile and logfile will
+# be used to log messges. If logfacility is not defined and debugfile
+# and/or logfile are not defined then defaults will be used for debugfile
+# and logfile as required and messages will be sent there.
 #
 #	File to wirte debug messages to
 #debugfile /var/log/ha-debug
@@ -62,7 +70,7 @@ nice_failback off
 #logfile	/var/log/ha-log
 #
 #
-#	Facility to use for syslog()/logger (alternative to log/debugfile)
+#	Facility to use for syslog()/logger 
 #
 logfacility	local0
 #

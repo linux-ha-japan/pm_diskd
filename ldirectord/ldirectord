@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # Linux Director Daemon
-# $Id: ldirectord,v 1.5 2000/04/13 17:01:57 horms Exp $
+# $Id: ldirectord,v 1.1 2000/04/15 22:05:27 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # with help from: Horms <horms@vergenet.net>
 # This is GPL software. You should own a few hundred copies

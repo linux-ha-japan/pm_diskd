@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.27 2000/03/28 04:20:48 alan Exp $
+#	$Id: Makefile,v 1.28 2000/04/15 22:05:27 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -9,32 +9,30 @@
 #
 #
 PKG=heartbeat
-VERS=0.4.7
+VERS=0.4.7apre1
 RPMREL=1
 
 INITD=$(shell [ -d /etc/init.d ] && echo etc/init.d || echo etc/rc.d/init.d )
 
-#	This defaults DESTDIR to "/"
 #	Debian wants things to start with DESTDIR,
 #	but Red Hat starts them with RPM_BUILD_ROOT	(sigh...)
 #
-#	I'm not sure whether to have them both (like I do now), or to
-#	tell one of them to patch the DESTDIR/RPM_BUILD_ROOT to the other one...
-#	If I understood DESTDIR's intent better, perhaps I'd do this right :-)
+#       When make is called is shuold be run as
+#       BUILD_ROOT=$VAR make ...
 #
-DESTDIR=
-BRROOTDIR=$(RPM_BUILD_ROOT)/$(DESTDIR)
-#
-HA=$(BRROOTDIR)/etc/ha.d
-HALIB=$(BRROOTDIR)/usr/lib/$(PKG)
+#       e.g.
+#       BUILD_ROOT=$RPM_BUILD_ROOT make install
+
+HA=$(BUILD_ROOT)/etc/ha.d
+HALIB=$(BUILD_ROOT)/usr/lib/$(PKG)
 HARCD=$(HA)/rc.d
-VARRUN=$(BRROOTDIR)/var/run
+VARRUN=$(BUILD_ROOT)/var/run
 FIFO=$(VARRUN)/heartbeat-fifo
 HAPPP=$(VARRUN)/ppp.d
-DOCDIR=$(BRROOTDIR)/usr/doc/heartbeat
-INITSCRIPT=$(BRROOTDIR)/$(INITD)/$(PKG)
-RESOURCEDIR=$(BRROOTDIR)/etc/ha.d/resource.d
-CONFDIR=$(BRROOTDIR)/etc/ha.d/conf
+DOCDIR=$(BUILD_ROOT)/usr/doc/heartbeat
+INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
+RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
+CONFDIR=$(BUILD_ROOT)/etc/ha.d/conf
 SPECSRC=Specfile
 
 # Can't include the Build Root as a part of the compilation process
@@ -43,14 +41,13 @@ B_VARRUN=$(DESTDIR)/var/run
 B_FIFO=$(B_VARRUN)/heartbeat-fifo
 B_HAPPP=$(B_VARRUN)/ppp.d
 #
-VARS=DESTDIR=$(DESTDIR) RPM_BUILD_ROOT=$(RPM_BUILD_ROOT) PKG=$(PKG) VERS=$(VERS)	\
-	OPTFLAGS="$(RPM_OPT_FLAGS)"
+VARS=PKG=$(PKG) VERS=$(VERS)
 MAKE=make
 MAKE_CMD = $(MAKE) $(VARS)
 
-NONKERNELDIRS= doc heartbeat
+NONKERNELDIRS= doc heartbeat ldirectord
 KERNELDIRS= 
-BUILDDIRS= $(NONKERNELDIRS) $(KERNELDIRS)
+BUILDDIRS= $(NONKERNELDIRS) $(KERNELDIRS) 
 
 #
 
@@ -61,10 +58,19 @@ WEBDIR=/usr/home/alanr/ha-web/download
 RPMSRC=$(DESTDIR)/usr/src/redhat/SRPMS/$(PKG)-$(VERS)-$(RPMREL).src.rpm
 RPM386=$(DESTDIR)/usr/src/redhat/RPMS/i386/$(PKG)-$(VERS)-$(RPMREL).i386.rpm
 
+.PHONY = all install handy clean pristene rpmclean rpm tar tarclean clobber
+
+
 all:
+	for j in $(NONKERNELDIRS); 					\
+	do 								\
+		$(MAKE_CMD) -C $$j all; 				\
+	done
 	@if [ -f /etc/redhat-release ];then T=rh-all; else T=all; fi;	\
-	for j in $(BUILDDIRS);						\
-	do ( cd $$j; $(MAKE_CMD) $$T; ); done;
+	for j in $(KERNELDIRS);						\
+	do 								\
+		$(MAKE_CMD) -C $$j $$T; 				\
+	done
 
 
 all_dirs:	bin_dirs
@@ -77,31 +83,47 @@ bin_dirs:
 	[ -d $(HAPPP) ]   || mkdir -p $(HAPPP)
 	[ -d $(RESOURCEDIR) ] || mkdir -p $(RESOURCEDIR)
 	[ -d $(CONFDIR) ] || mkdir -p $(CONFDIR)
-#	For some reason Red Hat added this, but didn't define HAMOD (?)
-#        [ -d $(HAMOD) ] || mkdir -p $(HAMOD)
 
 
 install:	all_dirs
-	@if [ -f /etc/redhat-release ];then T=rh-install; else T=install; fi;	\
-	for j in $(BUILDDIRS);							\
-	do ( cd $$j; $(MAKE_CMD) $$T; ); done;
+	@for j in $(NONKERNELDIRS); 					\
+	do 								\
+		$(MAKE_CMD) -C $$j install; 				\
+	done
+	@if [ -f /etc/redhat-release ];					\
+	then 								\
+		T=rh-install; else T=install; 				\
+	fi;\
+	for j in $(KERNELDIRS);						\
+	do 								\
+		$(MAKE_CMD) -C $$j $$T; 				\
+	done
 
 install_bin: bin_dirs
-	@if [ -f /etc/redhat-release ];then T=rh-install_bin;else T=install_bin;\
-	fi;									\
-	for j in $(BUILDDIRS);							\
-	do ( cd $$j; $(MAKE_CMD) $$T; ); done;
+	@for j in $(NONKERNELDIRS); 					\
+	do 								\
+		$(MAKE_CMD) -C $$j install_bin;				\
+	done
+	@if [ -f /etc/redhat-release ];					\
+	then 								\
+		T=rh-install_bin; else T=install_bin; 			\
+	fi 								\
+	for j in $(KERNELDIRS);						\
+	do 								\
+		$(MAKE_CMD) -C $$j $$T; 				\
+	done
 
-#
 #	For alanr's development environment...
 #
 handy: rpm
 	cd doc; $(MAKE) ChangeLog
 	su alanr -c "cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(WEBDIR)"
 
-clean:	local_clean rpmclean
+clean:	local_clean
 	@for j in $(BUILDDIRS);				\
-	do ( cd $$j; $(MAKE_CMD) clean; ); done
+	do 						\
+		$(MAKE_CMD) -C $$j clean;		\
+	done
 
 local_clean:
 	rm -f *.o *.swp .*.swp core
@@ -123,7 +145,7 @@ pristene: local_clean rpmclean
 
 RPM=/bin/rpm
 TAR=/bin/tar
-RPMFLAGS=-ba
+RPMFLAGS=-ta
 
 
 RPMSRCDIR=$(DESTDIR)/usr/src/redhat/SOURCES
@@ -134,18 +156,7 @@ RPMSPECDIR=$(DESTDIR)/usr/src/redhat/SPECS
 #       TARFILE:        The name of the .tar.gz file we produce
 #
 OURDIR=$(PKG)-$(VERS)
-TARFILE=$(RPMSRCDIR)/$(PKG)-$(VERS).tar.gz
-
-#
-#       Things for making the tar.gz file
-
-tar:            clean rpmclean
-		D=/usr/tmp/$$$$/$(OURDIR);			\
-		mkdir -p $$D;					\
-		find . -print | cpio -pdm $$D;			\
-		cd $$D/..;					\
-		$(TAR)  -cf - $(OURDIR) | gzip - > $(TARFILE);	\
-		rm -fr /usr/tmp/$$$$;
+TARFILE=$(PKG)-$(VERS).tar.gz
 
 #
 #       Definitions needed for making the RPM package...
@@ -175,5 +186,25 @@ $(SPECFILE):    $(SPECSRC)
 			< $(SPECSRC) > $(SPECFILE)
 
 rpm:            tar $(SPECFILE)
-		$(RPM) $(RPMFLAGS) $(SPECFILE)
+		$(RPM) $(RPMFLAGS) $(TARFILE)
 		rm -fr /var/tmp/$(PKG)-root
+#
+#       Things for making the tar.gz file
+
+tar:            $(TARFILE)
+
+$(TARFILE):     tarclean clean $(SPECFILE) 
+		mkdir -p $(OURDIR)
+		find . -print | \
+			egrep -v \
+			"^./($(OURDIR)(/.*)?||.*tar\.gz|(.*/)?\.#.*)$$" | \
+			cpio -pdm --quiet $(OURDIR)
+		$(TAR)  -cf - $(OURDIR) | gzip - > $(TARFILE)
+		rm -fr $(OURDIR)
+
+
+tarclean:
+		rm -fr $(OURDIR) $(TARFILE)
+
+
+clobber:	tarclean rpmclean clean

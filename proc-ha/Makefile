@@ -1,5 +1,5 @@
 #
-# $Id: Makefile,v 1.3 1999/10/05 06:00:58 alanr Exp $
+# $Id: Makefile,v 1.4 2000/04/15 22:05:27 horms Exp $
 #
 # Makefile for the Linux-HA /proc interface
 #
@@ -20,10 +20,18 @@
 #	Thanks to Cristian Gafton for enlightening me (alanr) on what to do.
 #
 
-PKG=heartbeat
-BRROOTDIR=$(RPM_BUILD_ROOT)/$(DESTDIR)
+#       Debian wants things to start with DESTDIR,
+#       but Red Hat starts them with RPM_BUILD_ROOT     (sigh...)
+#
+#       When make is called is shuold be run as
+#       BUILD_ROOT=$VAR make ...
+#
+#       e.g.
+#       BUILD_ROOT=$RPM_BUILD_ROOT make install
 
-OBJDIR = $(BRROOTDIR)/usr/lib/$(PKG)
+PKG=heartbeat
+
+OBJDIR = $(BUILD_ROOT)/usr/lib/$(PKG)
 INSTALL = install
 
 CC = gcc
@@ -42,6 +50,9 @@ SRC = proc_ha.c
 #	This is for other than Red Hat >= 6.1 installs...
 #
 OBJLIST = ha.o
+
+
+.PHONY = all install clean pristene
 
 all: $(OBJLIST)
 
@@ -83,6 +94,9 @@ pristene: clean
 
 #####################################################
 # $Log: Makefile,v $
+# Revision 1.4  2000/04/15 22:05:27  horms
+# Tidied up build process
+#
 # Revision 1.3  1999/10/05 06:00:58  alanr
 # Added RPM Cflags to Makefiles
 #

@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.11 2000/01/26 18:14:56 jacob Exp $
+#	$Id: Makefile,v 1.12 2000/04/15 22:05:27 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -10,23 +10,24 @@ PKG=heartbeat
 
 INITD=$(shell [ -d /etc/init.d ] && echo etc/init.d || echo etc/rc.d/init.d )
 
-#	This defaults DESTDIR to "/"
-#	Debian wants things to start with DESTDIR,
-#	but Red Hat starts them with RPM_BUILD_ROOT	(sigh...)
-
-RPM_BUILD_ROOT=
-DESTDIR=
-BRROOTDIR=$(RPM_BUILD_ROOT)/$(DESTDIR)
+#       Debian wants things to start with DESTDIR,
+#       but Red Hat starts them with RPM_BUILD_ROOT     (sigh...)
 #
-HA=$(BRROOTDIR)/etc/ha.d
-HALIB=$(BRROOTDIR)/usr/lib/$(PKG)
+#       When make is called is shuold be run as
+#       BUILD_ROOT=$VAR make ...
+#
+#       e.g.
+#       BUILD_ROOT=$RPM_BUILD_ROOT make install
+
+HA=$(BUILD_ROOT)/etc/ha.d
+HALIB=$(BUILD_ROOT)/usr/lib/$(PKG)
 HARCD=$(HA)/rc.d
-VARRUN=$(BRROOTDIR)/var/run
+VARRUN=$(BUILD_ROOT)/var/run
 FIFO=$(VARRUN)/heartbeat-fifo
 HAPPP=$(VARRUN)/ppp.d
-INITSCRIPT=$(BRROOTDIR)/$(INITD)/$(PKG)
-RESOURCEDIR=$(BRROOTDIR)/etc/ha.d/resource.d
-CONFDIR=$(BRROOTDIR)/etc/ha.d/conf
+INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
+RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
+CONFDIR=$(BUILD_ROOT)/etc/ha.d/conf
 
 # Can't include the Build Root as a part of the compilation process
 B_HA=$(DESTDIR)/etc/ha.d
@@ -37,6 +38,7 @@ B_HALIB=/usr/lib/$(PKG)
 
 HTML2TXT = lynx -dump
 INSTALL = install
+MAKE  	= make
 
 
 #
@@ -63,7 +65,16 @@ CFLAGS=-g 				\
 #	-Wtraditional
 
 HEARTBEAT = heartbeat
-H_OBJLIST = heartbeat.o config.o serial.o udp.o ppp-udp.o ha_msg.o auth.o md5.o sha1.o ha_malloc.o
+H_OBJLIST = 	heartbeat.o \
+		config.o \
+		serial.o \
+		udp.o \
+		ppp-udp.o \
+		ha_msg.o \
+		auth.o \
+		md5.o \
+		sha1.o \
+		ha_malloc.o
 H_HDRS    = heartbeat.h ha_msg.h
 LIBS=
 
@@ -76,13 +87,14 @@ F_OBJLIST =	findif.o
 F_HDRS	  =	
 
 
-LIBCMDS = $(HEARTBEAT) $(SENDARP) $(FINDIF)
+
+LIBCMDS = $(HEARTBEAT) $(SENDARP) $(FINDIF) $(LDIRECTORD)
 
 PRODUCTS = $(LIBCMDS)
 
 LIBSCRIPTS = lib/mach_down lib/req_resource lib/ResourceManager
 
-RESOURCECMDS= resource.d/IPaddr resource.d/ldirectord
+RESOURCECMDS= resource.d/IPaddr
 
 RCCMDS = rc.d/ip-request rc.d/ip-request-resp rc.d/status
 ROOTFILES = harc shellfuncs
@@ -90,7 +102,6 @@ ROOTFILES = harc shellfuncs
 SPECSRC = Specfile
 
 all: $(PRODUCTS)
-rh-all: all
 
 $(HEARTBEAT): $(H_OBJLIST) $(H_HDRS)
 	$(CC) $(LDFLAGS) $(H_OBJLIST) $(LIBS) -o $(HEARTBEAT)
@@ -103,8 +114,10 @@ $(SENDARP): $(S_OBJLIST) $(S_HDRS)
 $(FINDIF): $(F_OBJLIST)
 	$(CC) $(LDFLAGS) $(F_OBJLIST) $(LIBS) -o $(FINDIF)
 
+$(LDIRECTORD):
+	$(MAKE) -C $(LDIRECTORD_DIR)
+
 install: install_bin
-rh-install: install
 
 install_bin: all
 	[ -p $(FIFO) ] || mkfifo $(FIFO) || chmod 0600 $(FIFO)
@@ -112,13 +125,13 @@ install_bin: all
 	$(INSTALL) -cm 755 $(RCCMDS) $(HARCD)
 	$(INSTALL) -cm 755 $(RESOURCECMDS) $(RESOURCEDIR)
 	$(INSTALL) -cm 755 $(ROOTFILES) $(HA)
-	if [ ! -d  $(BRROOTDIR)/$(INITD) ]; then mkdir -p $(BRROOTDIR)/$(INITD); fi
+	if [ ! -d  $(BUILD_ROOT)/$(INITD) ]; then mkdir -p $(BUILD_ROOT)/$(INITD); fi
 	$(INSTALL) -cm 755 heartbeat.sh $(INITSCRIPT)
-
-rh-install_bin: install_bin
 
 clean:	
 	rm -f *.o *.swp .*.swp core
 	rm -f $(LIBCMDS)
 
 pristene: clean
+
+
