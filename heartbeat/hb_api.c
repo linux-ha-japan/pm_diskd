@@ -63,6 +63,7 @@
  *	same UID on each machine.
  */
 
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>

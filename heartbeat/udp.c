@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.19 2001/05/26 17:38:01 mmoerz Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.20 2001/06/19 13:56:28 alan Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -24,6 +24,7 @@ static const char _udp_Id [] = "$Id: udp.c,v 1.19 2001/05/26 17:38:01 mmoerz Exp
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -524,6 +525,11 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.20  2001/06/19 13:56:28  alan
+ * FreeBSD portability patch from Matt Soffen.
+ * Mainly added #include "portability.h" to lots of files.
+ * Also added a library to Makefile.am
+ *
  * Revision 1.19  2001/05/26 17:38:01  mmoerz
  * *.cvsignore: added automake generated files that were formerly located in
  * 	     config/

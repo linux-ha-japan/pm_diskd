@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.17 2001/06/12 17:05:47 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.18 2001/06/19 13:56:28 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -19,6 +19,7 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.17 2001/06/12 17:05:47 ala
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
+#include <portability.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -412,6 +413,11 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.18  2001/06/19 13:56:28  alan
+ * FreeBSD portability patch from Matt Soffen.
+ * Mainly added #include "portability.h" to lots of files.
+ * Also added a library to Makefile.am
+ *
  * Revision 1.17  2001/06/12 17:05:47  alan
  * Fixed bug reported by Emily Ratliff <ratliff@austin.ibm.com>
  * In ha_msg_mod() the code fails to update the stringlen value for
