@@ -1,4 +1,7 @@
-
+#ifndef _HB_API_CORE_H
+#define _HB_API_CORE_H 1
+#include <sys/types.h>
+#include <ha_msg.h>
 /*
  * Types of messages. 
  * DROPIT and/or DUPLICATE are only used when a debugging callback
@@ -29,8 +32,6 @@
 #define	API_IFLIST_END		"iflist-end"
 #define	API_IFSTATUS		"ifstatus"
 
-	/*	F_STATUS */
-
 
 #define	API_SUCCESS		"OK"
 #define	API_FAILURE		"fail"
@@ -49,3 +50,4 @@ struct message_callback {
 
 typedef void (message_callback_t) (const struct ha_msg * msg, const char *iface
 				  , const char *node);
+#endif

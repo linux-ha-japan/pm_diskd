@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.66 2000/07/10 23:08:41 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.67 2000/07/11 00:25:52 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -486,7 +486,7 @@ ha_versioninfo(void)
 		/* This command had better be well-behaved! */
 
 		snprintf(cmdline, MAXLINE
-		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.66 2000/07/10 23:08:41 alan Exp $$' | sort -u"
+		,	"strings %s/%s | grep '^\\$Id: heartbeat.c,v 1.67 2000/07/11 00:25:52 alan Exp $$' | sort -u"
 		,	HALIB, cmdname);
 
 
@@ -1274,7 +1274,6 @@ master_status_process(void)
 				notify_world(msg, thisnode->status);
 				strcpy(thisnode->status, status);
 			}
-
 
 			/* Did we get a status update on ourselves? */
 			if (thisnode == curnode) {
@@ -3436,6 +3435,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.67  2000/07/11 00:25:52  alan
+ * Added a little more API code.  It looks like the rudiments are now working.
+ *
  * Revision 1.66  2000/07/10 23:08:41  alan
  * Added code to actually put the API code in place.
  * Wonder if it works?

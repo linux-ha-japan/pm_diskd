@@ -25,9 +25,6 @@ int		total_client_count = 0;
 client_proc_t*	client_list = NULL;
 
 static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
-void api_heartbeat_monitor(struct ha_msg *msg, int msgtype
-,	const char *iface);
-void api_process_request(struct ha_msg *msg);
 static void api_remove_client(client_proc_t* client);
 static void api_add_client(struct ha_msg* msg);
 static client_proc_t*	find_client(const char * fromid, const char * pid);
@@ -93,7 +90,8 @@ api_process_request(struct ha_msg * msg)
 	if (msg == NULL
 	||	(msgtype = ha_msg_value(msg, F_TYPE)) == NULL
 	||	(reqtype = ha_msg_value(msg, F_APIREQ)) == NULL
-	||	strcmp(F_TYPE, T_APIREQ) != 0)  {
+	||	strcmp(msgtype, T_APIREQ) != 0)  {
+		ha_log_message(msg);
 		ha_log(LOG_ERR, "api_process_request: bad message");
 		return;
 	}
@@ -107,11 +105,6 @@ api_process_request(struct ha_msg * msg)
 
 	if ((resp = ha_msg_new(4)) == NULL) {
 		ha_log(LOG_ERR, "api_process_request: out of memory/1");
-		return;
-	}
-	if (ha_msg_add(resp, F_TYPE, T_APIRESP) != HA_OK) {
-		ha_log(LOG_ERR, "api_process_request: cannot add field/1");
-		ha_msg_del(resp); resp=NULL;
 		return;
 	}
 	if (ha_msg_add(resp, F_TYPE, T_APIRESP) != HA_OK) {
@@ -287,6 +280,7 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 
 	if ((f=fopen(fifoname, "w")) == NULL) {
 		ha_perror("api_send_client: can't open %s", fifoname);
+		api_remove_client(client);
 		return;
 	}
 	if (fcntl(fileno(f), F_SETFL, O_NONBLOCK) < 0) {
