@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.88 2003/06/28 04:47:51 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.89 2003/07/01 02:36:22 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -211,7 +211,6 @@ str_to_boolean(const char * s, int * ret)
 int
 init_config(const char * cfgfile)
 {
-	struct utsname	u;
 	int	errcount = 0;
 	int	j;
 	int	err;
@@ -244,10 +243,9 @@ init_config(const char * cfgfile)
 	,	g_direct_equal);
 	config->client_list = NULL;
 
-	uname(&u);
 	curnode = NULL;
 
-	if (!parse_config(cfgfile, u.nodename)) {
+	if (!parse_config(cfgfile, localnodename)) {
 		err = errno;
 		ha_log(LOG_ERR, "Heartbeat not started: configuration error.");
 		errno=err;
@@ -283,20 +281,20 @@ init_config(const char * cfgfile)
 		++errcount;
 	}
 #endif
-	if ((curnode = lookup_node(u.nodename)) == NULL) {
+	if ((curnode = lookup_node(localnodename)) == NULL) {
 #if defined(MITJA)
 		ha_log(LOG_NOTICE, "%s", msg);
-		add_normal_node(u.nodename);
-		curnode = lookup_node(u.nodename);
+		add_normal_node(localnodename);
+		curnode = lookup_node(localnodename);
 		ha_log(LOG_NOTICE, "Current node [%s] added to configuration"
 		,	u.nodename);
 #else
 		ha_log(LOG_ERR, "Current node [%s] not in configuration!"
-		,	u.nodename);
+		,	localnodename);
 		++errcount;
 #endif
 	}
-	setenv(CURHOSTENV, u.nodename, 1);
+	setenv(CURHOSTENV, localnodename, 1);
 	if (config->deadtime_ms <= 2 * config->heartbeat_ms) {
 		ha_log(LOG_ERR
 		,	"Dead time [%ld] is too small compared to keeplive [%ld]"
@@ -605,13 +603,11 @@ dump_config(void)
 {
 	int	j;
 	struct node_info *	hip;
-	struct utsname	u;
 	const char *	last_media = NULL;
 
-	uname(&u);
 
 	printf("#\n#	Local HA configuration (on %s)\n#\n"
-	,	u.nodename);
+	,	localnodename);
 
 	for(j=0; j < nummedia; ++j) {
 			puts("\n");
@@ -1340,7 +1336,6 @@ set_stonith_host_info(const char * value)
 	char		StonithHost [HOSTLENG];
 	size_t		tlen;
 	int		rc;
-	struct utsname	u;
 	
 	vp += strspn(vp, WHITESPACE);
 	tlen = strcspn(vp, WHITESPACE);
@@ -1361,16 +1356,11 @@ set_stonith_host_info(const char * value)
 	StonithHost[tlen] = EOS;
 
 	/* Verify that this host is valid to create this stonith
-	   object.  Expect the hostname listed to match this host or
-	   '*'
-	*/
-	if (uname(&u) < 0) {
-		ha_perror("uname failure parsing stonith_host");
-		return HA_FAIL;
-	}
+	 *  object.  Expect the hostname listed to match this host or '*'
+	 */
 	
 	if (strcmp ("*", StonithHost) != 0 
-	    && strcmp (u.nodename,StonithHost)) {
+	&&	strcmp (localnodename, StonithHost)) {
 		/* This directive is not valid for this host */
 		return HA_OK;
 	}
@@ -1569,6 +1559,12 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.89  2003/07/01 02:36:22  alan
+ * Several somewhat-related things in this change set:
+ * Added new API call to get general parameters.
+ * Added new API code to test this new call.
+ * Added new ability to name a node something other than the uname -n name.
+ *
  * Revision 1.88  2003/06/28 04:47:51  alan
  * Fixed some terrible, horrible, no good very bad reload bugs -- especially
  * with nice_failback turned on.  Yuck!

@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.52 2003/06/23 14:46:39 msoffen Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.53 2003/07/01 02:36:22 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -65,7 +65,7 @@ GHashTable*		StonithFuncs = NULL;
 static GHashTable*	Parameters = NULL;
 
 static void		RegisterNewMedium(struct hb_media* mp);
-static const char *	GetParameterValue(const char * name);
+const char *	GetParameterValue(const char * name);
 static void		RegisterCleanup(void(*)(void));
 struct hb_media_imports	CommImports =
 {	GetParameterValue	/* So plugins can get option values */
@@ -190,7 +190,7 @@ SetParameterValue(const char * name, const char * value)
  * GetParameterValue() provides information from the configuration file
  * for the plugins to use. This avoids coupling through global variables.
  */
-static const char *
+const char *
 GetParameterValue(const char * name)
 {
 	if (!Parameters) {

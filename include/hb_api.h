@@ -228,6 +228,12 @@ struct llc_ops {
 #	define	LLC_FILTER_RAW		3
 
 	int (*setfmode)(ll_cluster_t*, int mode);
+/*
+ *	Return the value of a heartbeat configuration parameter
+ *	as a malloc-ed string().  You need to free() the result when
+ *	you're done with it.
+ */
+	char * (*get_parameter)(ll_cluster_t *, const char * paramname);
 
 /*
  *	Return heartbeat's deadtime

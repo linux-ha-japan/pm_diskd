@@ -79,15 +79,47 @@
 #include <ha_msg.h>
 #include <hb_api.h>
 #include <hb_api_core.h>
+#include <hb_config.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 #include <clplumbing/cl_poll.h>
 #include <clplumbing/cl_signal.h>
 
+/* Definitions of API query handlers */
 static int api_ping_iflist(const struct ha_msg* msg, struct node_info * node
 ,	struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason);
+
+
+static int api_signoff (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char **failreason);
+
+static int api_setfilter (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char **failreason);
+
+static int api_setsignal (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+static int api_nodelist (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+static int api_nodestatus (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+static int api_nodetype (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+static int api_ifstatus (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+static int api_iflist (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+static int api_get_parameter (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+void ProcessAnAPIRequest(client_proc_t* client);
 
 struct api_query_handler query_handler_list [] = {
 	{ API_SIGNOFF, api_signoff },
@@ -98,6 +130,7 @@ struct api_query_handler query_handler_list [] = {
 	{ API_NODETYPE, api_nodetype },
 	{ API_IFSTATUS, api_ifstatus },
 	{ API_IFLIST, api_iflist },
+	{ API_GETPARM, api_get_parameter},
 };
 
 extern int	UseOurOwnPoll;
@@ -151,6 +184,7 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
+	(void)_hb_config_h_Id;
 
 	api_flush_pending_msgQ();
 
@@ -229,7 +263,7 @@ api_audit_clients(gpointer p)
 /**********************************************************************
  * API_SETFILTER: Set the types of messages we want to see
  **********************************************************************/
-int
+static int
 api_setfilter(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char **failreason)
 {                                                            
@@ -267,7 +301,7 @@ api_setfilter(const struct ha_msg* msg, struct ha_msg* resp
  * API_SIGNOFF: Sign off as a client
  **********************************************************************/
 
-int
+static int
 api_signoff(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char **failreason) 
 { 
@@ -284,7 +318,7 @@ api_signoff(const struct ha_msg* msg, struct ha_msg* resp
  * API_SETSIGNAL: Record the type of signal they want us to send.
  **********************************************************************/
 
-int
+static int
 api_setsignal(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
@@ -311,7 +345,7 @@ api_setsignal(const struct ha_msg* msg, struct ha_msg* resp
  * API_NODELIST: List the nodes in the cluster
  **********************************************************************/
 
-int
+static int
 api_nodelist(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
@@ -343,7 +377,7 @@ api_nodelist(const struct ha_msg* msg, struct ha_msg* resp
  * API_NODESTATUS: Return the status of the given node
  *********************************************************************/
 
-int
+static int
 api_nodestatus(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
@@ -367,7 +401,7 @@ api_nodestatus(const struct ha_msg* msg, struct ha_msg* resp
  * API_NODESTATUS: Return the status of the given node
  *********************************************************************/
 
-int
+static int
 api_nodetype(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
@@ -401,7 +435,7 @@ api_nodetype(const struct ha_msg* msg, struct ha_msg* resp
  * API_IFLIST: List the interfaces for the given machine
  *********************************************************************/
 
-int
+static int
 api_iflist(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
@@ -488,31 +522,56 @@ api_ping_iflist(const struct ha_msg* msg, struct node_info * node
  * API_IFSTATUS: Return the status of the given interface...
  *********************************************************************/
 
-int
+static int
 api_ifstatus(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
-		const char *		cnode;
-		struct node_info *	node;
-		const char *		ciface;
-		struct link *		iface;
+	const char *		cnode;
+	struct node_info *	node;
+	const char *		ciface;
+	struct link *		iface;
 
-		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
-		||	(node = lookup_node(cnode)) == NULL
-		||	(ciface = ha_msg_value(msg, F_IFNAME)) == NULL
-		||	(iface = lookup_iface(node, ciface)) == NULL) {
-			*failreason = "EINVAL";
-			return I_API_BADREQ;
-		}
-		if (ha_msg_mod(resp, F_STATUS,	iface->status) != HA_OK) {
+	if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
+	||	(node = lookup_node(cnode)) == NULL
+	||	(ciface = ha_msg_value(msg, F_IFNAME)) == NULL
+	||	(iface = lookup_iface(node, ciface)) == NULL) {
+		*failreason = "EINVAL";
+		return I_API_BADREQ;
+	}
+	if (ha_msg_mod(resp, F_STATUS,	iface->status) != HA_OK) {
+		ha_log(LOG_ERR
+		,	"api_ifstatus: cannot add field/1");
+		ha_log(LOG_ERR
+		,	"name: %s, value: %s (if=%s)"
+		,	F_STATUS, iface->status, ciface);
+		return I_API_IGN;
+	}
+	return I_API_RET;
+}
+
+/**********************************************************************
+ * API_GET_PARAMETER: Return the value of the given parameter...
+ *********************************************************************/
+
+static int
+api_get_parameter (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+	const char *		pname;
+	const char *		pvalue;
+
+	if ((pname = ha_msg_value(msg, F_PNAME)) == NULL) {
+		*failreason = "EINVAL";
+		return I_API_BADREQ;
+	}
+	if ((pvalue = GetParameterValue(pname)) != NULL) {
+		if (ha_msg_mod(resp, F_PVALUE, pvalue)) {
 			ha_log(LOG_ERR
-			,	"api_ifstatus: cannot add field/1");
-			ha_log(LOG_ERR
-			,	"name: %s, value: %s (if=%s)"
-			,	F_STATUS, iface->status, ciface);
-			return I_API_IGN;
+			,	"api_ifstatus: cannot add "
+			F_PVALUE " field to message");
 		}
-		return I_API_RET;
+	}
+	return I_API_RET;
 }
 
 /*
@@ -769,8 +828,9 @@ api_process_registration(struct ha_msg * msg)
 
 	/* Add deadtime and keepalive time to the response */
 	if (	(ha_msg_add(resp, F_DEADTIME, deadtime) != HA_OK) 
-	    || 	(ha_msg_add(resp, F_KEEPALIVE, keepalive) != HA_OK)
-	    || 	(ha_msg_add(resp, F_LOGFACILITY, logfacility) != HA_OK)) {
+	|| 	(ha_msg_add(resp, F_KEEPALIVE, keepalive) != HA_OK)
+	||	(ha_msg_mod(resp, F_NODENAME, localnodename) != HA_OK)
+	|| 	(ha_msg_add(resp, F_LOGFACILITY, logfacility) != HA_OK)) {
 		ha_log(LOG_ERR, "api_process_registration: cannot add field/4");
 		ha_msg_del(resp); resp=NULL;
 		return;

@@ -1,4 +1,4 @@
-const static char * _hb_config_h_Id = "$Id: hb_config.h,v 1.1 2002/11/22 07:14:52 horms Exp $";
+const static char * _hb_config_h_Id = "$Id: hb_config.h,v 1.2 2003/07/01 02:36:22 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -24,11 +24,12 @@ const static char * _hb_config_h_Id = "$Id: hb_config.h,v 1.1 2002/11/22 07:14:5
 #ifndef _HB_CONFIG_H
 #define _HB_CONFIG_H
 
-int	parse_ha_resources(const char * cfgfile);
-void	dump_config(void);
-int	add_node(const char * value, int nodetype);
-int   	parse_authfile(void);
-int	init_config(const char * cfgfile);
-int	StringToBaud(const char * baudstr);
+int		parse_ha_resources(const char * cfgfile);
+void		dump_config(void);
+int		add_node(const char * value, int nodetype);
+int   		parse_authfile(void);
+int		init_config(const char * cfgfile);
+int		StringToBaud(const char * baudstr);
+const char *	GetParameterValue(const char * name);
 
 #endif /* _HB_CONFIG_H */

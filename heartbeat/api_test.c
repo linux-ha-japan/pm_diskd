@@ -78,6 +78,7 @@ main(int argc, char ** argv)
 	const char *	node;
 	const char *	intf;
 	int		msgcount=0;
+	char *		ctmp;
 
 	(void)_ha_msg_h_Id;
 
@@ -110,12 +111,21 @@ main(int argc, char ** argv)
 #else
 	fmask = LLC_FILTER_DEFAULT;
 #endif
-	/* This isn't necessary */
+	/* This isn't necessary -- you don't need this call - it's just for testing... */
 	cl_log(LOG_INFO, "Setting message filter mode\n");
 	if (hb->llc_ops->setfmode(hb, fmask) != HA_OK) {
 		cl_log(LOG_ERR, "Cannot set filter mode\n");
 		cl_log(LOG_ERR, "REASON: %s\n", hb->llc_ops->errmsg(hb));
 		exit(4);
+	}
+
+	if ((ctmp = hb->llc_ops->get_parameter(hb, "auto_failback")) != NULL) {
+		cl_log(LOG_INFO, "auto_failback is set to %s", ctmp);
+		free(ctmp);
+	}
+	if ((ctmp = hb->llc_ops->get_parameter(hb, "init_dead")) != NULL) {
+		cl_log(LOG_INFO, "init_dead is set to %s", ctmp);
+		free(ctmp);
 	}
 
 	cl_log(LOG_INFO, "Starting node walk\n");

@@ -22,7 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.19 2003/05/23 05:41:39 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.20 2003/07/01 02:36:22 alan Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 
@@ -69,7 +69,9 @@ struct ha_msg {
 #define F_APIREQ	"reqtype"	/* API request type for "hbapi" */
 #define F_APIRESULT	"result"	/* API request result code */
 #define F_IFNAME	"ifname"	/* Interface name */
-#define F_DEADTIME	"deadtime"	/* Dead time interval in milliseconds */
+#define F_PNAME		"pname"		/* Parameter name */
+#define F_PVALUE	"pvalue"	/* Parameter name */
+#define F_DEADTIME	"deadtime"	/* Dead time interval in ms. */
 #define F_KEEPALIVE	"keepalive"	/* Keep alive time interval in ms. */
 #define F_LOGFACILITY	"logfacility"	/* Suggested cluster syslog facility */
 #define F_NODETYPE	"nodetype"	/* Type of node */
@@ -79,8 +81,8 @@ struct ha_msg {
 #define	T_STATUS	"status"	/* Status (heartbeat) */
 #define	T_IFSTATUS	"ifstat"	/* Interface status */
 #define	T_ASKRESOURCES	"ask_resources"	/* Let other node ask my resources */
-#define T_ASKRELEASE	"ip-request"		/* Please give up these resources... */
-#define T_ACKRELEASE	"ip-request-resp"	/* Resources given up... */
+#define T_ASKRELEASE	"ip-request"	/* Please give up these resources... */
+#define T_ACKRELEASE	"ip-request-resp"/* Resources given up... */
 #define	T_STONITH	"stonith"	/* Stonith return code */
 #define T_SHUTDONE	"shutdone"	/* External Shutdown complete */
 

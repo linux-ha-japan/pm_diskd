@@ -61,6 +61,7 @@
 #include <hb_api_core.h>
 #include <hb_api.h>
 #include <lock.h>
+#include <glib.h>
 
 struct stringlist {
 	char *			value;
@@ -159,6 +160,7 @@ static const char *	get_nodestatus(ll_cluster_t*, const char *host);
 static const char *	get_nodetype(ll_cluster_t*, const char *host);
 static const char *	get_ifstatus(ll_cluster_t*, const char *host
 ,	const char * intf);
+static char *		get_parameter(ll_cluster_t*, const char* pname);
 static int		get_inputfd(ll_cluster_t*);
 static int		msgready(ll_cluster_t*);
 static int		setfmode(ll_cluster_t*, int mode);
@@ -176,8 +178,8 @@ static const char *	OurClientID = NULL;
 static char 		OurNode[SYS_NMLN];
 static ll_cluster_t*	hb_cluster_new(void);
 
-static void ha_api_perror(const char * fmt, ...);
-static void ha_api_log(int priority, const char * fmt, ...);
+static void ha_api_perror(const char * fmt, ...) G_GNUC_PRINTF(1,2);
+static void ha_api_log(int priority, const char * fmt, ...) G_GNUC_PRINTF(2,3);
 
 
 #define	ZAPMSG(m)	{ha_msg_del(m); (m) = NULL;}
@@ -434,16 +436,27 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		}
 		if ((tmpstr = ha_msg_value(reply, F_DEADTIME)) == NULL
 		||	sscanf(tmpstr, "%lx", &(pi->deadtime_ms)) != 1) {
-			ha_api_log(LOG_ERR, "hb_api_signon: Can't get deadtime ");
+			ha_api_log(LOG_ERR
+			,	"hb_api_signon: Can't get deadtime ");
 			ZAPMSG(reply);
 			return HA_FAIL;
 		}
 		if ((tmpstr = ha_msg_value(reply, F_KEEPALIVE)) == NULL
 		||	sscanf(tmpstr, "%lx", &(pi->keepalive_ms)) != 1) {
-			ha_api_log(LOG_ERR, "hb_api_signon: Can't get "
-					"keepalive time ");
+			ha_api_log(LOG_ERR
+			,	"hb_api_signon: Can't get keepalive time ");
 			ZAPMSG(reply);
 			return HA_FAIL;
+		}
+		if ((tmpstr = ha_msg_value(reply, F_NODENAME)) == NULL
+		||	strlen(tmpstr) >= sizeof(OurNode)) {
+			ha_api_log(LOG_ERR
+			,	"hb_api_signon: Can't get local node name");
+			ZAPMSG(reply);
+			return HA_FAIL;
+		}else{
+			strncpy(OurNode, tmpstr, sizeof(OurNode)-1);
+			OurNode[sizeof(OurNode)-1] = EOS;
 		}
 		/* Sometimes they don't use syslog logging... */
 		tmpstr = ha_msg_value(reply, F_LOGFACILITY);
@@ -906,6 +919,61 @@ get_nodetype(ll_cluster_t* lcl, const char *host)
                 memset(statbuf, 0, sizeof(statbuf));
 		strncpy(statbuf, status, sizeof(statbuf) - 1);
 		ret = statbuf;
+	}else{
+		ret = NULL;
+	}
+	ZAPMSG(reply);
+
+	return ret;
+}
+static char *	
+get_parameter(ll_cluster_t* lcl, const char* pname)
+{
+	struct ha_msg*		request;
+	struct ha_msg*		reply;
+	const char *		result;
+	const char *		pvalue;
+	char *			ret;
+	llc_private_t*		pi;
+
+	ClearLog();
+	if (!ISOURS(lcl)) {
+		ha_api_log(LOG_ERR, "get_parameter: bad cinfo");
+		return NULL;
+	}
+	pi = (llc_private_t*)lcl->ll_cluster_private;
+
+	if (!pi->SignedOn) {
+		ha_api_log(LOG_ERR, "not signed on");
+		return NULL;
+	}
+
+	if ((request = hb_api_boilerplate(API_GETPARM)) == NULL) {
+		return NULL;
+	}
+	if (ha_msg_add(request, F_PNAME, pname) != HA_OK) {
+		ha_api_log(LOG_ERR, "get_parameter: cannot add field");
+		ZAPMSG(request);
+		return NULL;
+	}
+
+	/* Send message */
+	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
+		ZAPMSG(request);
+		ha_api_perror("Can't send message to RequestFIFO");
+		return NULL;
+	}
+	ZAPMSG(request);
+
+	/* Read reply... */
+	if ((reply=read_api_msg(pi)) == NULL) {
+		ZAPMSG(request);
+		return NULL;
+	}
+	if ((result = ha_msg_value(reply, F_APIRESULT)) != NULL
+	&&	strcmp(result, API_OK) == 0
+	&&	(pvalue = ha_msg_value(reply, F_PVALUE)) != NULL) {
+		ret = strdup(pvalue);
 	}else{
 		ret = NULL;
 	}
@@ -1826,9 +1894,10 @@ static struct llc_ops heartbeat_ops = {
 	rcvmsg,			/* rcvmsg */
 	read_msg_w_callbacks,	/* readmsg */
 	setfmode,		/* setfmode */
-	get_deadtime,		/* deadtime */
-	get_keepalive,		/* keepalive */
-	get_mynodeid,		/* my node id */
+	get_parameter,		/* get_parameter */
+	get_deadtime,		/* get_deadtime */
+	get_keepalive,		/* get_keepalive */
+	get_mynodeid,		/* get_mynodeid */
 	get_logfacility,	/* suggested logging facility */
 	APIError,		/* errormsg */
 };

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.266 2003/06/28 04:47:51 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.267 2003/07/01 02:36:22 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -281,6 +281,7 @@ enum comm_state {
 
 static char 			hbname []= "heartbeat";
 const char *			cmdname = hbname;
+char *				localnodename = NULL;
 static int			Argc = -1;
 extern int			optind;
 void				(*localdie)(void);
@@ -387,6 +388,7 @@ static int	process_outbound_packet(struct msg_xmit_hist* msghist
 ,			struct ha_msg * msg);
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
 static void	LookForClockJumps(void);
+static void	get_localnodeinfo(void);
 
 
 /*
@@ -2821,6 +2823,8 @@ main(int argc, char * argv[], char **envp)
 		usage();
 	}
 
+	get_localnodeinfo();
+
 	init_set_proc_title(argc, argv, envp);
 	set_proc_title("%s", cmdname);
 
@@ -2885,8 +2889,8 @@ main(int argc, char * argv[], char **envp)
 		}else{
 			struct utsname u;
 			uname(&u);
-			printf("%s OK [pid %ld et al] is running on %s...\n"
-			,	cmdname, running_hb_pid, u.nodename);
+			printf("%s OK [pid %ld et al] is running on %s [%s]...\n"
+			,	cmdname, running_hb_pid, u.nodename, localnodename);
 			cleanexit(LSB_STATUS_OK);
 		}
 		/*NOTREACHED*/
@@ -4091,8 +4095,40 @@ GetTimeBasedGeneration(seqno_t * generation)
 }
 
 
+static void
+get_localnodeinfo(void)
+{
+	const char *		openpath = HA_D "/nodeinfo";
+	static struct utsname	u;
+	static char		localnode[256];
+	FILE *			fp;
+	uname(&u);
+	localnodename = u.nodename;
+	
+
+	if ((fp = fopen(openpath, "r")) != NULL
+	&&	fgets(localnode, sizeof(localnode), fp) != NULL
+	&&	localnode[0] != EOS) {
+		char * nlpos;
+		if ((nlpos = memchr(localnode, '\n', sizeof(localnode))) != NULL) {
+			*nlpos = EOS;
+			localnodename = localnode;
+		}
+	}
+	if (fp) {
+		fclose(fp);
+	}
+}
+
+
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.267  2003/07/01 02:36:22  alan
+ * Several somewhat-related things in this change set:
+ * Added new API call to get general parameters.
+ * Added new API code to test this new call.
+ * Added new ability to name a node something other than the uname -n name.
+ *
  * Revision 1.266  2003/06/28 04:47:51  alan
  * Fixed some terrible, horrible, no good very bad reload bugs -- especially
  * with nice_failback turned on.  Yuck!

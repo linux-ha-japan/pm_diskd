@@ -102,6 +102,7 @@ typedef struct client_process {
 #	define	F_IFNAME	"ifname"
 #define	API_IFLIST_END		"iflist-end"
 #define	API_IFSTATUS		"ifstatus"
+#define	API_GETPARM		"getparm"
 
 
 #define	API_OK			"OK"
@@ -143,33 +144,5 @@ struct api_query_handler {
 		const char *queryname;
 		api_query_handler_t handler;
 };
-
-/* Definitions of API query handlers */
-
-int api_signoff (const struct ha_msg* msg, struct ha_msg* resp
-,	client_proc_t* client, const char **failreason);
-
-int api_setfilter (const struct ha_msg* msg, struct ha_msg* resp
-,	client_proc_t* client, const char **failreason);
-
-int api_setsignal (const struct ha_msg* msg, struct ha_msg* resp
-,	client_proc_t* client, const char** failreason);
-
-int api_nodelist (const struct ha_msg* msg, struct ha_msg* resp
-,	client_proc_t* client, const char** failreason);
-
-int api_nodestatus (const struct ha_msg* msg, struct ha_msg* resp
-,	client_proc_t* client, const char** failreason);
-
-int api_nodetype (const struct ha_msg* msg, struct ha_msg* resp
-,	client_proc_t* client, const char** failreason);
-
-int api_ifstatus (const struct ha_msg* msg, struct ha_msg* resp
-,	client_proc_t* client, const char** failreason);
-
-int api_iflist (const struct ha_msg* msg, struct ha_msg* resp
-,	client_proc_t* client, const char** failreason);
-
-void ProcessAnAPIRequest(client_proc_t* client);
 
 #endif /* _HB_API_CORE_H */
