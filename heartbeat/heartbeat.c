@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.88 2000/09/01 22:35:50 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.89 2000/09/02 23:26:24 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2017,9 +2017,12 @@ restart_heartbeat(int quickrestart)
 		}
 	}
 
-	/* Kill any lingering takeover processes, etc. */
-	kill(-getpid(), SIGTERM);
-	sleep(1);
+	if (!quickrestart) {
+		/* Kill any lingering takeover processes, etc. */
+		IGNORESIG(SIGTERM);
+		kill(-getpid(), SIGTERM);
+		sleep(1);
+	}
 
 	for (j=3; j < oflimits.rlim_cur; ++j) {
 		close(j);
@@ -2027,6 +2030,7 @@ restart_heartbeat(int quickrestart)
 
 	ha_log(LOG_INFO, "Performing heartbeat restart exec.");
 
+	(void)signal(SIGTERM, SIG_DFL);
 	if (quickrestart) {
 		if (nice_failback) {
 			execl(HALIB "/heartbeat", "heartbeat", "-R"
@@ -2543,6 +2547,7 @@ healed_cluster_partition(struct node_info *t)
 	/* Give up our resources, and restart ourselves */
 	/* This is cleaner than lots of other options. */
 	/* And, it really should work every time... :-) */
+	giveup_resources();
 	restart_heartbeat(0);
 }
 
@@ -3279,11 +3284,15 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	int			j;
 	int			isrestart = 0;
 	int			ishealedpartition = 0;
+	int			is_status = 0;
 
 	/* Some packet types shouldn't have sequence numbers */
 	if (type != NULL && strncmp(type, NOSEQ_PREFIX, sizeof(NOSEQ_PREFIX)-1)
 	==	0) {
 		return(KEEPIT);
+	}
+	if (strcasecmp(type, T_STATUS) == 0) {
+		is_status = 1;
 	}
 
 	if (cseq  == NULL || sscanf(cseq, "%lx", &seq) != 1 ||	seq <= 0) {
@@ -3303,26 +3312,31 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	 */
 	IsToUs = (to == NULL) || (strcmp(to, curnode->nodename) == 0);
 
-	/* Does this looks like replay attack... */
+	/* Does this looks like a replay attack... */
 	if (gen < t->generation) {
 		ha_log(LOG_DEBUG
 		,	"should_drop_message: attempted replay attack"
 		" [%s]?", thisnode->nodename);
 		return(DROPIT);
 
-	/* Is this a message from a node that was dead? */
-	}else if (strcmp(thisnode->status, DEADSTATUS) == 0) {
+	}else if (is_status) {
 		if (gen == t->generation && gen > 0) {
-			/* They're now alive, but were dead. No restart. */
-			healed_cluster_partition(thisnode);
-			ishealedpartition=1;
-		}else{
+			/* Is this a message from a node that was dead? */
+			if (strcmp(thisnode->status, DEADSTATUS) == 0) {
+
+				/* They're now alive, but were dead. */
+				/* No restart occured. */
+
+				healed_cluster_partition(thisnode);
+				ishealedpartition=1;
+			}
+		}else if (gen > t->generation) {
 			isrestart = 1;
 			ha_log(LOG_INFO, "Heartbeat restart on node %s"
 			,	thisnode->nodename);
 		}
+		t->generation = gen;
 	}
-	t->generation = gen;
 
 	/* Is this packet in sequence? */
 	if (t->last_seq == NOSEQUENCE || seq == (t->last_seq+1)) {
@@ -3774,6 +3788,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.89  2000/09/02 23:26:24  alan
+ * Fixed bugs surrounding detecting cluster partitions, and around
+ * restarts.  Also added the unfortunately missing ifstat and ns_stat files...
+ *
  * Revision 1.88  2000/09/01 22:35:50  alan
  * Minor change to make restarts after cluster partitions work more reliably.
  *
