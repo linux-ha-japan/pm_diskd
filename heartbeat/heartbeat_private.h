@@ -36,7 +36,7 @@
 #include <clplumbing/proctrack.h>
 #include <hb_proc.h>
 
-static const char * _heartbeat_private_h_Id = "$Id: heartbeat_private.h,v 1.4 2003/03/29 02:48:44 alan Exp $";
+static const char * _heartbeat_private_h_Id = "$Id: heartbeat_private.h,v 1.5 2003/04/15 23:06:53 alan Exp $";
 
 extern const char *	cmdname;
 extern int		nice_failback;
@@ -51,13 +51,13 @@ void hb_close_watchdog(void);
 
 int  hb_send_resources_held(const char *str, int stable, const char * comment);
 
-gboolean hb_msp_final_shutdown(gpointer p);
+gboolean hb_mcp_final_shutdown(gpointer p);
 gboolean hb_send_local_status(gpointer p);
 gboolean hb_dump_all_proc_stats(gpointer p);
 void	heartbeat_monitor(struct ha_msg * msg, int status, const char * iface);
 
-void hb_force_shutdown(void);
 void hb_emergency_shutdown(void);
+void hb_initiate_shutdown(int quickshutdown);
 
 void hb_versioninfo(void);
 void hb_dump_proc_stats(volatile struct process_info * proc);

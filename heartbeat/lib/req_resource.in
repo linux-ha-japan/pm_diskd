@@ -31,7 +31,7 @@ HA_DIR=@sysconfdir@/ha.d; export HA_DIR
 #	This is a failsafe case, but it's kind of a dangerous failsafe
 #	case...
 #
-TIMEOUT=600
+TIMEOUT=1200
 
 RESOURCE=$1
 
@@ -48,6 +48,10 @@ $HA_BIN/ResourceManager status $RESOURCE && exit 0
 #		ip-address		IP address requested
 #						DENY if we won't/can't
 #
+case $HA_DEBUG in
+ [123458789]*)	ha_log "debug: in $0 $*"
+		ha_log "debug: dont_ask: $HA_DONTASK nice_failback: $HA_NICEFAILBACK";;
+esac
 
 #
 #	The nice failback case only takes over from dead machines...

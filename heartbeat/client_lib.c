@@ -1840,12 +1840,23 @@ ha_malloc(size_t size)
 	return(malloc(size));
 }
 
+void *
+ha_calloc(size_t size, size_t nrep)
+{
+	return(calloc(size, nrep));
+}
+
 void
 ha_free(void * ptr)
 {
 	free(ptr);
 }
 
+int
+ha_is_allocated(const void *p)
+{
+	return TRUE;
+}
 
 /*
  * Create a new heartbeat API object

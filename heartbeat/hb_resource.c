@@ -117,6 +117,7 @@ static void	InitRemoteRscReqQueue(void);
 static int	send_standby_msg(enum standby state);
 static void 	send_stonith_msg(const char *, const char *);
 static void	go_standby(enum standby who);
+static int	send_local_starting(void);
 
 static	void	RscMgmtProcessRegistered(ProcTrack* p);
 static	void	RscMgmtProcessDied(ProcTrack* p, int status, int signo
@@ -440,9 +441,24 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 extern struct node_info *      curnode;
 
 void
+comm_up_resource_action(void)
+{
+	static int	resources_requested_yet = 0;
+
+	if (nice_failback) {
+		send_local_starting();
+	}else{
+		/* Original ("normal") starting behavior */
+		if (!WeAreRestarting && !resources_requested_yet) {
+			resources_requested_yet=1;
+			req_our_resources(FALSE);
+		}
+	}
+
+}
+void
 process_resources(const char * type, struct ha_msg* msg, struct node_info * thisnode)
 {
-	static int		resources_requested_yet = 0;
 
 	enum hb_rsc_state	newrstate = resourcestate;
 	static int			first_time = 1;
@@ -452,11 +468,6 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 	}
 
 	if (!nice_failback) {
-		/* Original ("normal") starting behavior */
-		if (!WeAreRestarting && !resources_requested_yet) {
-			resources_requested_yet=1;
-			req_our_resources(FALSE);
-		}
 		return;
 	}
 
@@ -769,21 +780,25 @@ hb_send_resources_held(const char *str, int stable, const char * comment)
 		rc = ha_msg_add(m, F_COMMENT, comment);
 	}
 	if (rc == HA_OK) {
-		rc = send_cluster_msg(m);
+		rc = send_cluster_msg(m); m = NULL;
+	}else{
+		ha_msg_del(m); m = NULL;
 	}
 
-	ha_msg_del(m);
 	return(rc);
 }
 
 
 /* Send the starting msg out to the cluster */
-int
+static int
 send_local_starting(void)
 {
 	struct ha_msg * m;
 	int		rc;
 
+	if (!nice_failback) {
+		return HA_OK;
+	}
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG
 		,	"Sending local starting msg: resourcestate = %d"
@@ -797,11 +812,11 @@ send_local_starting(void)
 		ha_log(LOG_ERR, "send_local_starting: "
 		"Cannot create local starting msg");
 		rc = HA_FAIL;
+		ha_msg_del(m); m = NULL;
 	}else{
-		rc = send_cluster_msg(m);
+		rc = send_cluster_msg(m); m = NULL;
 	}
 
-	ha_msg_del(m);
 	resourcestate = HB_R_STARTING;
 	return(rc);
 }
@@ -978,6 +993,10 @@ req_our_resources(int getthemanyway)
 		if (buf[strlen(buf)-1] == '\n') {
 			buf[strlen(buf)-1] = EOS;
 		}
+		if (ANYDEBUG) {
+			ha_log(LOG_INFO, "req_our_resources()"
+			": " HALIB "/req_resource %s", buf);
+		}
 		sprintf(getcmd, HALIB "/req_resource %s", buf);
 		if ((rc=system(getcmd)) != 0) {
 			ha_perror("%s returned %d", getcmd, rc);
@@ -1030,11 +1049,11 @@ send_standby_msg(enum standby state)
 		ha_log(LOG_ERR, "send_standby_msg: "
 		"Cannot create standby reply msg");
 		rc = HA_FAIL;
+		ha_msg_del(m); m = NULL;
 	}else{
-		rc = send_cluster_msg(m);
+		rc = send_cluster_msg(m); m = NULL;
 	}
 
-	ha_msg_del(m);
 	return(rc);
 }
 
@@ -1055,12 +1074,14 @@ send_stonith_msg(const char *nodename, const char *result)
 			ha_log(LOG_ERR, "cannot send " T_STONITH
 			" request for %s", nodename);
 		}
+		hmsg = NULL;
 	}else{
 		ha_log(LOG_ERR
 		,	"Cannot send reset reply message [%s] for %s", result
 		,	nodename);
+		ha_msg_del(hmsg);
+		hmsg = NULL;
 	}
-	ha_msg_del(hmsg);
 	return;
 }
 
@@ -1383,17 +1404,19 @@ hb_giveup_resources(void)
 	int		rc;
 	pid_t		pid;
 	struct ha_msg *	m;
+	static int	resource_shutdown_in_progress = FALSE;
 
 
-	if (shutdown_in_progress) {
+	if (resource_shutdown_in_progress) {
 		ha_log(LOG_INFO, "Heartbeat shutdown already underway.");
 		return;
 	}
+	resource_shutdown_in_progress = TRUE;
 	if (ANYDEBUG) {
-		ha_log(LOG_INFO, "hb_signal_giveup_resources(): "
+		ha_log(LOG_INFO, "hb_giveup_resources(): "
 			"current status: %s", curnode->status);
 	}
-	shutdown_in_progress =1;
+	shutdown_in_progress =TRUE;
 	hb_close_watchdog();
 	DisableProcLogging();	/* We're shutting down */
 	/* Kill all our managed children... */
@@ -1476,14 +1499,14 @@ hb_giveup_resources(void)
 	||	ha_msg_add(m, F_STATUS, DEADSTATUS) != HA_OK)) {
 		ha_log(LOG_ERR, "hb_signal_giveup_resources: "
 			"Cannot create local msg");
+		ha_msg_del(m);
 	}else{
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "Sending T_SHUTDONE.");
 		}
-		rc = send_cluster_msg(m);
+		rc = send_cluster_msg(m); m = NULL;
 	}
 
-	ha_msg_del(m);
 	exit(0);
 }
 
@@ -1635,7 +1658,7 @@ QueueRemoteRscReq(RemoteRscReqFunc func, struct ha_msg* msg)
 		ha_log_message(msg);
 	}
 	hook->func = func;
-	hook->data = msg;
+	hook->data = ha_msg_copy(msg);
 	hook->destroy = (GDestroyNotify)(ha_msg_del);
 	g_hook_append(&RemoteRscReqQueue, hook);
 	StartNextRemoteRscReq();
@@ -1730,6 +1753,9 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.17  2003/04/15 23:06:53  alan
+ * Lots of new code to support the semi-massive process restructuriing.
+ *
  * Revision 1.16  2003/03/18 11:39:10  lars
  * Back out overly eager experimental change from hb_resource.c again which
  * sneaked into the last commit.

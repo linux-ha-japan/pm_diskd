@@ -22,7 +22,7 @@
  *
  */
 
-static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.8 2003/03/27 07:04:26 alan Exp $";
+static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.9 2003/04/15 23:06:53 alan Exp $";
 
 
 #define _USE_BSD
@@ -84,8 +84,6 @@ hb_signal_signal_all(int sig)
 	int us = getpid();
 	int j;
 
-	extern int shutdown_in_progress;
-	extern pid_t master_status_pid;
 	extern pid_t processes[MAXPROCS];
 
 	if (ANYDEBUG) {
@@ -99,32 +97,6 @@ hb_signal_signal_all(int sig)
 	if (sig == SIGTERM) {
 		CL_IGNORE_SIG(SIGTERM);
 		cl_make_normaltime();
-	}
-
-	/* We're going to wait for the master status process to shut down */
-	if (curproc && curproc->type == PROC_CONTROL) {
-		DisableProcLogging();
-		shutdown_in_progress++;
-		if (sig == SIGTERM) {
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG, "sending SIGTERM to MSP: %d"
-				,	(int) master_status_pid);
-			}
-			if (CL_KILL(master_status_pid, SIGTERM) >= 0) {
-				/* Tell master status proc to shut down */
-				/* He'll send us a SIGQUIT when done */
-				/* Meanwhile, we'll just go on... */
-				return;
-			}
-			ha_perror("MSP signal failed");
-			hb_emergency_shutdown();
-			/*NOTREACHED*/
-			return;
-		}else if (sig == SIGQUIT) {
-			/* All Resources are now released.  Shut down. */
-			ha_log(LOG_INFO, "control process Received SIGQUIT");
-			sig = SIGTERM;
-		}
 	}
 
 	for (j=0; j < procinfo->nprocs; ++j) {
@@ -141,7 +113,8 @@ hb_signal_signal_all(int sig)
 	}
 	switch (sig) {
 		case SIGTERM:
-			if (curproc && curproc->type == PROC_CONTROL) {
+			/* Shouldn't happen... */
+			if (curproc && curproc->type == PROC_MST_CONTROL) {
 				return;
 			}
 			cleanexit(1);
@@ -210,38 +183,17 @@ void
 hb_signal_term_action(void)
 {
 	extern volatile struct process_info *curproc;
-	extern int shutdown_in_progress;
-	extern ProcTrack_ops ManagedChildTrackOps;
-	extern ProcTrack_ops hb_rsc_RscMgmtProcessTrackOps;
 
-	CL_IGNORE_SIG(SIGTERM);
 	return_to_orig_privs();
 	cl_make_normaltime();
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Process %d processing SIGTERM"
 		, 	(int) getpid());
 	}
-	if (curproc->type == PROC_MST_STATUS) {
-		if (procinfo->giveup_resources) {
-			hb_giveup_resources();
-		}else{
-			shutdown_in_progress = 1;
-			DisableProcLogging();	/* We're shutting down */
-			/* Kill our managed children... */
-			ForEachProc(&ManagedChildTrackOps
-			, 	hb_kill_tracked_process
-			,	GINT_TO_POINTER(SIGTERM));
-			ForEachProc(&hb_rsc_RscMgmtProcessTrackOps
-			,	hb_kill_tracked_process
-			,	GINT_TO_POINTER(SIGKILL));
-			/* Trigger final shutdown in a second */
-			Gmain_timeout_add(1000, hb_msp_final_shutdown, NULL);
-		}
-		
-	}else if (curproc->type == PROC_CONTROL) {
-		hb_signal_signal_all(SIGTERM);
+	if (curproc->type == PROC_MST_CONTROL) {
+		hb_initiate_shutdown(FALSE);
 	}else{
-		cleanexit(100+SIGTERM);
+		cleanexit(SIGTERM);
 	}
 }
 
@@ -266,6 +218,14 @@ __hb_signal_debug_action(int sig)
 	}
 
  	PILSetDebugLevel(PluginLoadingSystem, NULL, NULL , debug);
+	{
+		static char cdebug[8];
+		snprintf(cdebug, sizeof(debug), "%d", debug);
+		setenv(HADEBUGVAL, cdebug, TRUE);
+	}
+	if (debug <= 0) {
+		unsetenv(HADEBUGVAL);
+	}
 }
 
 
@@ -355,8 +315,8 @@ hb_signal_reread_config_action(void)
 	int	j;
 	int	signal_children = 0;
 
-	/* If we're the control process, tell our children */
-	if (curproc->type == PROC_CONTROL) {
+	/* If we're the master control process, tell our children */
+	if (curproc->type == PROC_MST_CONTROL) {
 		struct	stat	buf;
 		if (stat(CONFIG_NAME, &buf) < 0) {
 			ha_perror("Cannot stat " CONFIG_NAME);
@@ -370,16 +330,17 @@ hb_signal_reread_config_action(void)
 			,	(unsigned long)config->cfg_time);
 		}
 		if ((TIME_T)buf.st_mtime != config->cfg_time) {
-			hb_trigger_restart(TRUE);
-			/* We'll wait for the SIGQUIT */
+			procinfo->giveup_resources = FALSE;
+			procinfo->restart_after_shutdown = TRUE;
+			hb_initiate_shutdown(TRUE);
 			return;
 		}
 		if (stat(KEYFILE, &buf) < 0) {
 			ha_perror("Cannot stat " KEYFILE);
 		}else if ((TIME_T)buf.st_mtime != config->auth_time) {
-			config->rereadauth = 1;
+			config->rereadauth = TRUE;
 			ha_log(LOG_INFO, "Rereading authentication file.");
-			signal_children = 1;
+			signal_children = TRUE;
 		}else{
 			ha_log(LOG_INFO, "Configuration unchanged.");
 		}
@@ -388,17 +349,12 @@ hb_signal_reread_config_action(void)
 		 * We are not the control process, and we received a SIGHUP
 		 * signal.  This means the authentication file has changed.
 		 */
-		if (parse_authfile() != HA_OK) {
-			/* OOPS.  Sayonara. */
-			ha_log(LOG_ERR
-			,	"Authentication reparsing error, exiting.");
-			hb_force_shutdown();
-			cleanexit(1);
-		}
-
+		ha_log(LOG_INFO, "Child rereading authentication file.");
+		config->rereadauth = TRUE;
+		check_auth_change(config);
 	}
 
-	if (ParseTestOpts() && curproc->type == PROC_CONTROL) {
+	if (ParseTestOpts() && curproc->type == PROC_MST_CONTROL) {
 		signal_children = 1;
 	}
 	if (signal_children) {
@@ -521,7 +477,6 @@ hb_signal_set_common(sigset_t *set)
 
 	const cl_signal_mode_t mode [] =
 	{	{SIGHUP,	hb_signal_reread_config_handler,1}
-	,	{SIGQUIT,	SIG_IGN,			0}
 	,	{SIGPIPE,	SIG_IGN,			0}
 #ifdef  SIGSTP
 	,	{SIGSTP,	SIG_IGN,			0}
@@ -581,50 +536,6 @@ hb_signal_set_common(sigset_t *set)
 	return(0);
 }
 
-
-int
-hb_signal_set_control_process(sigset_t *set)
-{
-	sigset_t our_set;
-	sigset_t *use_set;
-
-	const cl_signal_mode_t mode [] = {
-	 	{SIGUSR1,	parent_hb_signal_debug_usr1_handler,	1}
-	,	{SIGUSR2,	parent_hb_signal_debug_usr2_handler,	1}
-	,	{SIGQUIT,	hb_signal_signal_all,			1}
-	,	{SIGTERM,	hb_signal_signal_all,			1}
-	,	{SIGALRM,       hb_signal_false_alarm_handler,        	1}
-	,	{0,		0,					0}
-	};
-
-	if (set) {
-		use_set = set;
-	}else{
-		use_set = &our_set;
-
-		if (CL_SIGEMPTYSET(use_set) < 0) {
-			ha_log(LOG_ERR, "hb_signal_set_control_process(): "
-				"CL_SIGEMPTYSET(): %s", strerror(errno));
-			return(-1);
-		}
-	}
-
-	if (hb_signal_set_common(use_set) < 0) {
-		ha_log(LOG_ERR, "hb_signal_set_control_process(): "
-			"hb_signal_set_common()");
-		return(-1);
-	}
-
-	if (cl_signal_set_handler_mode(mode, use_set) < 0) {
-		ha_log(LOG_ERR, "hb_signal_set_control_process(): "
-			"cl_signal_set_handler_mode()");
-		return(-1);
-	}
-
-	hb_signal_process_pending_set_mask_set(use_set);
-
-	return(0);
-}
 
 
 int
@@ -697,16 +608,17 @@ hb_signal_set_fifo_child(sigset_t *set)
 }
 
 int
-hb_signal_set_master_status_process(sigset_t *set)
+hb_signal_set_master_control_process(sigset_t *set)
 {
 	sigset_t our_set;
 	sigset_t *use_set;
 
 	const cl_signal_mode_t mode [] =
-	{
-	 	{SIGTERM,	hb_signal_term_handler,	1}
-	, 	{SIGALRM,	SIG_IGN,		1}
-	,	{0,		0,			0}
+	{	{SIGTERM,	hb_signal_term_handler,	1}
+	,	{SIGUSR1,	parent_hb_signal_debug_usr1_handler,	1}
+	,	{SIGUSR2,	parent_hb_signal_debug_usr2_handler,	1}
+	,	{SIGALRM,       hb_signal_false_alarm_handler,        	1}
+	,	{0,		0,					0}
 	};
 
 	if (set) {
@@ -716,20 +628,20 @@ hb_signal_set_master_status_process(sigset_t *set)
 
 		if (CL_SIGEMPTYSET(use_set) < 0) {
 			ha_log(LOG_ERR, 
-				"hb_signal_set_master_status_process(): "
+				"hb_signal_set_master_control_process(): "
 				"CL_SIGEMPTYSET(): %s", strerror(errno));
 			return(-1);
 		}
 	}
 
 	if (hb_signal_set_common(use_set) < 0) {
-		ha_log(LOG_ERR, "hb_signal_set_master_status_process(): "
+		ha_log(LOG_ERR, "hb_signal_set_master_control_process(): "
 			"hb_signal_set_common()");
 		return(-1);
 	}
 
 	if (cl_signal_set_handler_mode(mode, use_set) < 0) {
-		ha_log(LOG_ERR, "hb_signal_set_master_status_process(): "
+		ha_log(LOG_ERR, "hb_signal_set_master_control_process(): "
 			"cl_signal_set_handler_mode()");
 		return(-1);
 	}
@@ -738,4 +650,3 @@ hb_signal_set_master_status_process(sigset_t *set)
 
 	return(0);
 }
-

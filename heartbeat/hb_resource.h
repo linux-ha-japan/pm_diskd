@@ -51,7 +51,7 @@ void	PerformQueuedNotifyWorld(GHook* g);
 int	parse_ha_resources(const char * cfgfile);
 int 	encode_resources(const char *p);
 const char * 	decode_resources(int);
-int	send_local_starting(void);
+void	comm_up_resource_action(void);
 void	process_resources(const char * type, struct ha_msg* msg
 ,		struct node_info * thisnode);
 void	takeover_from_node(const char * nodename);

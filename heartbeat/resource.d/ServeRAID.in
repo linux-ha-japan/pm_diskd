@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.10 2003/03/24 08:17:05 horms Exp $
+# $Id: ServeRAID.in,v 1.11 2003/04/15 23:06:53 alan Exp $
 # 
 # ServeRAID
 #
@@ -61,6 +61,8 @@ unset LANGUAGE; export LANGUAGE
 
 srsuccess=0
 
+SCSI="scsi "
+
 usage() {
   cat <<-! >&1
 	usage: $0 <serveraid#> <sharedmergegroup#> (start|stop|status)
@@ -85,15 +87,14 @@ usage() {
 	You will need at least version 5.10 (~July 2002 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.10 2003/03/24 08:17:05 horms Exp $
+	$Id: ServeRAID.in,v 1.11 2003/04/15 23:06:53 alan Exp $
 	!
   exit 1
 }
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
-#. @sysconfdir@/ha.d/shellfuncs
-. /etc/ha.d/shellfuncs
+. @sysconfdir@/ha.d/shellfuncs
 
 ServeRAID_methods() {
   cat <<-!
@@ -112,33 +113,36 @@ proc_scsi=/proc/scsi/scsi
 
 
 parseinst() {
-  adapter=error
-  mergegroup=error
-  scsinumber=error
+  sr_adapter=error
+  sr_mergegroup=error
+  hostid=error
+  sr_logicaldrivenumber=error
+  targetid=error
   if
     [ $# -ne 2 ]
   then
     echo "Invalid ServeRAID instance: $*" >&2
     return 1
   fi
-  logicaldrivenumber=$1
-  scsinumber=`expr $1 - 1`
+  hostid=`expr $1 - 1`
   if
-    [ ! -f $ServeRAIDSCSI/$scsinumber ]
+    [ ! -f $ServeRAIDSCSI/$hostid ]
   then
     echo "No such ServeRAID adapter: $1" >&2
-    scsinumber=error
+    hostid=error
     return 2
   fi
     
   case $2 in
     [1-8]);;
     *)	echo "Invalid Shared Merge Group Number: $2" >&2
-        scsinumber=error
+        hostid=error
 	return 3;;
   esac
-  adapter=$1
-  mergegroup=$2
+  sr_adapter=$1
+  sr_mergegroup=$2
+  targetid=`MergeGroupToSCSI_ID`
+  sr_logicaldrivenumber=`expr $targetid + 1`
   return 0
 }
 
@@ -177,10 +181,10 @@ MergeGroupToSCSI_ID() {
 
   PerlScript="while (<>) {
 	/logical drive number *([0-9]+)/i && (\$ld=\$1);
-	/part of merge group *: *$mergegroup /i && print \$ld - 1, \"\n\";
+	/part of merge group *: *$sr_mergegroup/i && print \$ld - 1, \"\n\";
   }"
 
-  ID=`$IPS getconfig $adapter ld | perl -e "$PerlScript"`
+  ID=`$IPS getconfig $sr_adapter ld | perl -e "$PerlScript"`
   case $ID in
     [0-9]*)	echo "$ID"; return 0;;
     *)		return 1;;
@@ -191,10 +195,10 @@ MergeGroupRaidLevel() {
 
   PerlScript="while (<>) {
 	/RAID level *: *([0-9]+[A-Z]*)/i && (\$ld=\$1);
-	/part of merge group *: *$mergegroup /i && print \$ld, \"\n\";
+	/part of merge group *: *$sr_mergegroup/i && print \$ld, \"\n\";
   }"
 
-  Level=`$IPS getconfig $adapter ld | perl -e "$PerlScript"`
+  Level=`$IPS getconfig $sr_adapter ld | perl -e "$PerlScript"`
   case $Level in
     ?*)	echo "$Level"; return 0;;
     *)		return 1;;
@@ -202,13 +206,11 @@ MergeGroupRaidLevel() {
 }
 
 ReleaseSCSI() {
-  SID=`MergeGroupToSCSI_ID` &&
-  echo "scsi-remove-single-device `expr $adapter - 1` 0 $SID 0" > $proc_scsi
+  echo "${SCSI}remove-single-device $hostid 0 $targetid 0" > $proc_scsi
 }
 
 AddSCSI() {
-  SID=`MergeGroupToSCSI_ID` &&
-  echo "scsi-add-single-device `expr $adapter - 1` 0 $SID 0" > $proc_scsi
+  echo "${SCSI}add-single-device $hostid 0 $targetid 0" > $proc_scsi
 }
 
 #
@@ -217,24 +219,24 @@ AddSCSI() {
 ServeRAID_start() {
   parseinst "$@" || return $?
   if
-    run $IPS UNMERGE $adapter $mergegroup
+    run $IPS UNMERGE $sr_adapter $sr_mergegroup
   then
     if
       #
       # Normally we do a MERGE PARTNER, but if we still own the drive for
       # some reason, then we'll need to do a MERGE OWN instead...
       #
-      out=`$IPS MERGE $adapter $mergegroup PARTNER 2>&1`
+      out=`$IPS MERGE $sr_adapter $sr_mergegroup PARTNER 2>&1`
       if
         [ $? -eq $srsuccess ]
       then
 	echo "info: $out"
       else
-        run $IPS MERGE $adapter $mergegroup OWN
+        run $IPS MERGE $sr_adapter $sr_mergegroup OWN
       fi
     then
       : OK All is well!
-      run $IPS SYNCH $adapter DRIVE $logicaldrivenumber &
+      run $IPS SYNCH $sr_adapter DRIVE $sr_logicaldrivenumber &
       AddSCSI
     else
       return $?
@@ -260,9 +262,9 @@ ServeRAID_stop() {
   parseinst "$@" || return $?
   ReleaseSCSI
   if
-    run $IPS UNMERGE $adapter $mergegroup
+    run $IPS UNMERGE $sr_adapter $sr_mergegroup
   then
-    : UNMERGE $adapter $mergegroup worked
+    : UNMERGE $sr_adapter $sr_mergegroup worked
   fi
   if
     ServeRAID_status "$@"
@@ -284,8 +286,8 @@ ServeRAID_status() {
   # The output we're looking for
   #	Part of merge group            : 2   
   #
-  $IPS getconfig $adapter ld \
-  |	grep -i "part of merge group[ 	]*: *$mergegroup *$" >/dev/null
+  $IPS getconfig $sr_adapter ld \
+  |	grep -i "part of merge group[ 	]*: *$sr_mergegroup *$" >/dev/null
 }
 
 if
@@ -316,7 +318,7 @@ case "$3" in
 	if
 	  ServeRAID_status $1 $2
 	then
-	  echo ServeRAID merge group $1 $2 is running
+	  echo ServeRAID merge group $1 $2 is running.
 	  exit 0
 	else
 	  echo ServeRAID merge group $1 $2 is stopped.

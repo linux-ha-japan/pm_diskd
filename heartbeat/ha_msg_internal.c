@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.33 2003/03/29 02:48:44 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.34 2003/04/15 23:06:53 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -203,63 +203,6 @@ struct default_vals defaults [] = {
 	{F_TTL,		ha_msg_ttl, 0},
 };
 
-/* Reads from control fifo, and creates a new message from it */
-/* (this adds a few default fields with timestamp, sequence #, etc.) */
-struct ha_msg *
-controlfifo2msg(FILE * f)
-{
-	char		buf[MAXLINE];
-	char		garbbuf[MAXLINE];
-	const char *	bufmax = buf + sizeof(buf);
-	char *		getsret;
-	struct ha_msg*	ret;
-
-
-	garbbuf[0] = '\0';
-	/* Skip until we find a MSG_START (hopefully we skip nothing) */
-	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
-	&&	strcmp(buf, MSG_START) != 0) {
-		/* Save this for travkin WHAT we got. */
-		/* Nothing */
-	}
-
-	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
-		return(NULL);
-	}
-
-	sprintf(garbbuf, "%s ", buf);
-	/* Add Name=value pairs until we reach MSG_END or EOF */
-	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
-	&&	strcmp(buf, MSG_END) != 0) {
-
-		sprintf(garbbuf, "%s %s", garbbuf, buf);
-		/* This shouldn't happen but it does on FreeBSD! */
-		/* FIXME (FreeBSD gets a newline and blank lines) !! */
-		if ((*buf == '\n') || (*buf == EOS)) {
-			continue;
-		}
-
-		/* Add the "name=value" string on this line to the message */
-		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
-			ha_log(LOG_ERR, "NV failure (controlfifo2msg):");
-			ha_log(LOG_DEBUG, "[%s] %ld chars", buf,
-				(long)strlen(buf));
-			ha_log(LOG_DEBUG, "Read in message    : '%s'",
-				garbbuf);
-			ha_log_message(ret);
-			ha_msg_del(ret);
-			return(NULL);
-		}
-	}
-
-	if (DEBUGPKTCONT) {
-		sprintf(garbbuf, "%s %s", garbbuf, buf);
-		ha_log(LOG_DEBUG, "Read in message    : '%s'", garbbuf);
-	}
-
-	return add_control_msg_fields(ret);
-}
-
 struct ha_msg *
 add_control_msg_fields(struct ha_msg* ret)
 {
@@ -268,14 +211,14 @@ add_control_msg_fields(struct ha_msg* ret)
 	int		noseqno;
 
 	if ((type = ha_msg_value(ret, F_TYPE)) == NULL) {
-		ha_log(LOG_ERR, "No type (controlfifo2msg): ");
+		ha_log(LOG_ERR, "No type (add_control_msg_fields): ");
 		ha_log_message(ret);
 		ha_msg_del(ret);
 		return(NULL);
 	}
 
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, "controlfifo2msg: input packet");
+		ha_log(LOG_DEBUG, "add_control_msg_fields: input packet");
 		ha_log_message(ret);
 	}
 
@@ -313,7 +256,7 @@ add_control_msg_fields(struct ha_msg* ret)
 		ret = NULL;
 	}
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, "controlfifo2msg: packet returned");
+		ha_log(LOG_DEBUG, "add_control_msg_fields: packet returned");
 		ha_log_message(ret);
 	}
 	return ret;
@@ -555,6 +498,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.34  2003/04/15 23:06:53  alan
+ * Lots of new code to support the semi-massive process restructuriing.
+ *
  * Revision 1.33  2003/03/29 02:48:44  alan
  * More small changes on the road to restructuring heartbeat processees.
  *

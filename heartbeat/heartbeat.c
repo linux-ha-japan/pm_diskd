@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.248 2003/04/14 15:44:10 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.249 2003/04/15 23:06:53 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -304,11 +304,11 @@ void		(*localdie)(void);
 
 
 struct hb_media*		sysmedia[MAXMEDIA];
+struct msg_xmit_hist		msghist;
 extern struct hb_media_fns**	hbmedia_types;
 extern int			num_hb_media_types;
 extern PILPluginUniv*		PluginLoadingSystem;
 int				nummedia = 0;
-static int			status_pipe[2];	/* The Master status pipe */
 
 
 
@@ -327,7 +327,6 @@ struct node_info *	curnode = NULL;
 
 volatile struct pstat_shm *		procinfo = NULL;
 volatile struct process_info *		curproc = NULL;
-static volatile struct process_info *	m_s_proc = NULL;
 
 static void	restart_heartbeat(void);
 static void	usage(void);
@@ -340,12 +339,15 @@ static	void CoreProcessDied(ProcTrack* p, int status, int signo
 ,	int exitcode, int waslogged);
 static	const char * CoreProcessName(ProcTrack* p);
 
+void hb_kill_managed_children(int nsig);
+void hb_kill_rsc_mgmt_children(int nsig);
+void hb_kill_core_children(int nsig);
+
 
 static	void	ManagedChildRegistered(ProcTrack* p);
 static	void	ManagedChildDied(ProcTrack* p, int status
 ,	int signo, int exitcode, int waslogged);
 static	const char * ManagedChildName(ProcTrack* p);
-static	void FinalCPShutdown(void);
 static void	check_for_timeouts(void);
 static void	check_comm_isup(void);
 
@@ -376,24 +378,28 @@ static void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		seqno_t seq);
 static void	init_xmit_hist (struct msg_xmit_hist * hist);
 static void	process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg);
-static void	process_clustermsg(FILE * f);
+static void	process_clustermsg(struct ha_msg* msg, struct link* lnk);
 static void	process_registermsg(FILE * f);
 static void	nak_rexmit(seqno_t seqno, const char * reason);
 static int	IncrGeneration(seqno_t * generation);
 static int	GetTimeBasedGeneration(seqno_t * generation);
-static void	process_control_packet(struct msg_xmit_hist* msghist
+static int	process_outbound_packet(struct msg_xmit_hist* msghist
 ,	struct ha_msg * msg);
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
+
+
 
 /* The biggies */
 static void read_child(struct hb_media* mp);
 static void write_child(struct hb_media* mp);
 static void fifo_child(IPC_Channel* chan);		/* Reads from FIFO */
-static void control_process(IPC_Channel* fifoipc);
+#ifdef OLDCODE
+static void control_process(IPC_Channel* fifochildipc);
 static void master_status_process(void);		/* The real biggie */
+#endif
+static void master_control_process(IPC_Channel* fifoproc);/* The biggie ;-) */
 
 pid_t		processes[MAXPROCS];
-pid_t		master_status_pid;
 int		parse_only = 0;
 int		hb_realtime_prio = -1;
 int		RestartRequested = 0;
@@ -577,7 +583,7 @@ initialize_heartbeat()
 	struct stat	buf;
 	int		pid;
 	int		ourproc = 0;
-	IPC_Channel*	fifoipc[2];
+	IPC_Channel*	fifochildipc[2];
 	int	(*getgen)(seqno_t * generation) = IncrGeneration;
 
 	localdie = NULL;
@@ -626,10 +632,6 @@ initialize_heartbeat()
 		return(HA_FAIL);
 	}
 
-	if (pipe(status_pipe) < 0) {
-		ha_perror("cannot create status pipe");
-		return(HA_FAIL);
-	}
 
 	/* Clean up tmp files from our resource scripts */
 	system("rm -fr " RSC_TMPDIR);
@@ -670,16 +672,16 @@ initialize_heartbeat()
 	procinfo->nprocs = 0;
 	ourproc = procinfo->nprocs;
 	curproc = &procinfo->info[ourproc];
-	curproc->type = PROC_CONTROL;
-
+	curproc->type = PROC_MST_CONTROL;
 	NewTrackedProc(getpid(), 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
 	,	&CoreProcessTrackOps);
+
 	curproc->pstat = RUNNING;
 
 	/* We need to at least ignore SIGINTs early on */
 	hb_signal_set_common(NULL);
 
-	if (ipc_channel_pair(fifoipc) != IPC_OK) {
+	if (ipc_channel_pair(fifochildipc) != IPC_OK) {
 		ha_perror("cannot create FIFO ipc channel");
 		return(HA_FAIL);
 	}
@@ -690,8 +692,7 @@ initialize_heartbeat()
  *		fifo_child();
  *		write_child();
  *		read_child();
- *		master_status_process();
- *		control_process(FILE * f, int ofd);
+ *		master_control_process();
  *
  */
 
@@ -708,7 +709,7 @@ initialize_heartbeat()
 				while (curproc->pid != getpid()) {
 					sleep(1);
 				}
-				fifo_child(fifoipc[P_WRITEFD]);
+				fifo_child(fifochildipc[P_WRITEFD]);
 				ha_perror("FIFO child process exiting!");
 				cleanexit(1);
 	}
@@ -776,35 +777,10 @@ initialize_heartbeat()
 
 
 	ourproc = procinfo->nprocs;
-	switch ((pid=fork())) {
-		case -1:	ha_perror("Can't fork master status process!");
-				return(HA_FAIL);
-				break;
-
-		case 0:		/* Child */
-				curproc = &procinfo->info[ourproc];
-				curproc->type = PROC_MST_STATUS;
-				while (curproc->pid != getpid()) {
-					sleep(1);
-				}
-				master_status_process();
-				ha_perror("master status process exiting");
-				cleanexit(1);
-	}
-	master_status_pid = pid;
-	m_s_proc = procinfo->info+ourproc;
-
-	NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
-	,	&CoreProcessTrackOps);
-
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "master status process pid: %d", pid);
-	}
-
-	control_process(fifoipc[P_READFD]);
+	master_control_process(fifochildipc[P_READFD]);
 
 	/*NOTREACHED*/
-	ha_log(LOG_ERR, "control_process exiting?");
+	ha_log(LOG_ERR, "master_control_process exiting?");
 	cleanexit(LSB_EXIT_GENERIC);
 	/*NOTREACHED*/
 	return(HA_FAIL);
@@ -814,60 +790,50 @@ initialize_heartbeat()
 static void
 read_child(struct hb_media* mp)
 {
-	int	msglen;
-	int	rc;
-	int	statusfd = status_pipe[P_WRITEFD];
+	IPC_Channel* ourchan =	mp->wchan[P_READFD];
 
 	if (hb_signal_set_read_child(NULL) < 0) {
 		ha_log(LOG_ERR, "read_child(): hb_signal_set_read_child(): "
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 32, 32);
-	curproc->pstat = RUNNING;
+	cl_make_realtime(-1, hb_realtime_prio, 16, 32);
 	set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
 	drop_privs(0, 0);	/* Become nobody */
 
 	hb_signal_process_pending();
+	curproc->pstat = RUNNING;
 
 	for (;;) {
-		struct	ha_msg*	m = mp->vf->read(mp);
-		char *		sm;
+		struct	ha_msg*	m;
+		IPC_Message*	imsg;
+		int		rc;
+		int		rc2;
 
 		hb_signal_process_pending();
-
-		if (m == NULL) {
+		if ((m=mp->vf->read(mp)) == NULL) {
 			continue;
 		}
+		hb_signal_process_pending();
 
-		sm = msg2if_string(m, mp->name);
-		if (sm != NULL) {
-			msglen = strlen(sm);
-			if (DEBUGPKT) {
-				ha_log(LOG_DEBUG
-				, "Writing %d bytes/%d fields to status pipe"
-				,	msglen, m->nfields);
-			}
-			if (DEBUGPKTCONT) {
-				ha_log(LOG_DEBUG, "%s", sm);
-			}
+		imsg = hamsg2ipcmsg(m, ourchan);
+		ha_msg_del(m); m=NULL;
 
-			if ((rc=write(statusfd, sm, msglen)) != msglen)  {
-				hb_signal_process_pending();
-				/* Try one extra time if we got EINTR */
-				if (errno != EINTR
-				||	(rc=write(statusfd, sm, msglen))
-				!=	msglen)  {
-					ha_perror("Write failure [%d/%d] %s"
-					,	rc
-					,	errno
-					,	"to status pipe");
-				}
+		if (imsg != NULL) {
+			/* Send frees "imsg" "at the right time" */
+			rc = ourchan->ops->send(ourchan, imsg);
+			rc2 = ourchan->ops->waitout(ourchan);
+			if (rc != IPC_OK || rc2 != IPC_OK) {
+				cl_log(LOG_ERR, "read_child send: RCs: %d %d"
+				,	rc, rc2);
 			}
-			ha_free(sm);
-			hb_signal_process_pending();
+			if (ourchan->ch_status != IPC_CONNECT) {
+				cl_log(LOG_ERR
+				,	"read_child channel status: %d"
+				" - returning.", ourchan->ch_status);
+				return;
+			}
 		}
-		ha_msg_del(m);
 	}
 }
 
@@ -883,8 +849,8 @@ write_child(struct hb_media* mp)
 			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 32, 32);
 	set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
+	cl_make_realtime(-1, hb_realtime_prio, 16, 32);
 	drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
 
@@ -905,7 +871,8 @@ write_child(struct hb_media* mp)
 }
 
 
-/* Read FIFO stream messages and translate to IPC msgs
+/*
+ * Read FIFO stream messages and translate to IPC msgs
  * Maybe in the future after all is merged together, we'll just poll for 
  * these every second or so.  Once we only use them for messages from
  * shell scripts, that would be good enough.
@@ -914,28 +881,39 @@ write_child(struct hb_media* mp)
 static void
 fifo_child(IPC_Channel* chan)
 {
-	FILE *	fifo;
-	int	fifoofd;	/* We never write on this... */
+	int		fiforfd;
+	FILE *		fifo;
+	int		flags;
 	struct ha_msg *	msg = NULL;
 
 	if (hb_signal_set_fifo_child(NULL) < 0) {
-		ha_perror("write_child(): hb_signal_set_fifo_child()"
+		ha_perror("fifo_child(): hb_signal_set_fifo_child()"
 		": Soldiering on...");
 	}
-	fifo = fopen(FIFONAME, "r");  /*FIXME!*/
-	if (fifo == NULL) {
-		ha_perror("FIFO open failed.");
+	set_proc_title("%s: FIFO reader", cmdname);
+	fiforfd = open(FIFONAME, O_RDONLY|O_NDELAY);
+	if (fiforfd < 0) {
+		ha_perror("FIFO open (O_RDONLY) failed.");
+		exit(1);
 	}
-	fifoofd = open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
+	flags = fcntl(fiforfd, F_GETFL);
+	open(FIFONAME, O_WRONLY);	/* Keep reads from failing */
+	fifo = fdopen(fiforfd, "r");
+	if (fifo == NULL) {
+		ha_perror("FIFO fdopen failed.");
+		exit(1);
+	}
+	flags &= ~O_NONBLOCK;
+	fcntl(fiforfd, F_SETFL, flags);
 
-	cl_make_realtime(-1, hb_realtime_prio, 32, 32);
-	set_proc_title("%s: fifo reader", cmdname);
+	cl_make_realtime(-1, hb_realtime_prio, 16, 32);
 	drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
 
 	for (;;) {
 
-		msg = controlfifo2msg(fifo);
+		msg = msgfromstream(fifo);
+		hb_signal_process_pending();
 
 		if (msg) {
 			IPC_Message*	m;
@@ -943,15 +921,13 @@ fifo_child(IPC_Channel* chan)
 			ha_log(LOG_DEBUG, "Fifo_child message:");
 			ha_log_message(msg);
 #endif
-			if (fifoofd > 0) {
-				/* FIFO Reads will now fail if writers die */
-				close(fifoofd);
-				fifoofd = -1;
-			}
 			m = hamsg2ipcmsg(msg, chan);
 			if (m) {
 				/* Send frees "m" "at the right time" */
 				chan->ops->send(chan, m);
+				hb_signal_process_pending();
+				chan->ops->waitout(chan);
+				hb_signal_process_pending();
 			}
 			ha_msg_del(msg);
 			msg = NULL;
@@ -966,95 +942,269 @@ fifo_child(IPC_Channel* chan)
 	}
 }
 
+
 /*
- *	NEW CODE AFTER RESTRUCTURING...
+ *	What are our abstract event sources?
+ *
+ *	Queued signals to be handled ("polled" high priority)
+ *	Sending a heartbeat message (timeout-based) (high priority)
+ *	Retransmitting packets for the protocol (timed medium priority)
+ *	Timing out on heartbeats from other nodes (timed low priority)
+ *
+ *		We currently combine all our timed/polled events together.
+ *		The only one that has critical timing needs is sending
+ *		out heartbeat messages
+ *
+ *	Messages from the network (file descriptor medium-high priority)
+ *
+ *	API requests from clients (file descriptor medium-low priority)
+ *
+ *	Registration requests from clients (file descriptor low priority)
  *
  */
 
-static void
-send_control_msg(struct msg_xmit_hist*	msghist, struct ha_msg * msg)
-{
-	(void)send_control_msg;
+/*
+ * Combined polled/timed events...
+ */
+static gboolean polled_input_prepare(gpointer source_data
+,	GTimeVal* current_time
+,	gint* timeout, gpointer user_data);
+static gboolean polled_input_check(gpointer source_data
+,	GTimeVal* current_time
+,	gpointer user_data);
+static gboolean polled_input_dispatch(gpointer source_data
+,	GTimeVal* current_time
+,	gpointer user_data);
+static void polled_input_destroy(gpointer user_data);
 
-	if ((msg = add_control_msg_fields(msg)) != NULL) {
-		process_control_packet(msghist, msg);
+static GSourceFuncs polled_input_SourceFuncs = {
+	polled_input_prepare,
+	polled_input_check,
+	polled_input_dispatch,
+	polled_input_destroy,
+};
+
+
+/*
+ * API registration requests are one of our inputs
+ */
+static gboolean APIregistration_input_dispatch(int fd, gpointer user_data);
+
+static void LookForClockJumps(void);
+
+static int			ClockJustJumped = 0;
+
+static gboolean
+Gmain_hb_signal_process_pending(void *data)
+{
+	hb_signal_process_pending();
+	return(TRUE);
+}
+
+
+/*
+ * We read a packet from the fifo (via fifo_child() process)
+ */
+static gboolean
+FIFO_child_msg_dispatch(IPC_Channel* source, gpointer user_data)
+{
+	struct ha_msg*	msg = msgfromIPC(source);
+
+	if (msg != NULL) {
+		/* send_cluster_msg disposes of "msg" */
+		send_cluster_msg(msg);
 	}
+	return TRUE;
 }
 
 /*
- *	OLD CODE BEFORE RESTRUCTURING...
+ * We read a packet from a read child 
+ */
+static gboolean
+read_child_dispatch(IPC_Channel* source, gpointer user_data)
+{
+	struct ha_msg*	msg = msgfromIPC(source);
+	struct hb_media** mp = user_data;
+	int	media_idx = mp - &sysmedia[0];
+
+	if (media_idx < 0 || media_idx > MAXMEDIA) {
+		cl_log(LOG_ERR, "read child_dispatch: media index is %d"
+		,	media_idx);
+		ha_msg_del(msg); msg = NULL;
+		return TRUE;
+	}
+	if (msg != NULL) {
+		const char * from = ha_msg_value(msg, F_ORIG);
+		struct link* lnk = NULL;
+		struct node_info* nip;
+
+		if (from != NULL && (nip=lookup_node(from)) != NULL) {
+			lnk = lookup_iface(nip, (*mp)->name);
+		}
+
+		if (lnk == NULL) {
+			cl_log(LOG_ERR, "read_child_dispatch: NULL link");
+		}
+		process_clustermsg(msg, lnk);
+		ha_msg_del(msg);  msg = NULL;
+	}
+	return TRUE;
+}
+
+
+static void
+master_control_process(IPC_Channel* fifoproc)
+{
+/*
+ *	Create glib sources for:
+ *	  - API clients
+ *	  - communication with read/write_children
+ *	  - various signals ala polled_input_dispatch
+ *
+ *	Create timers for:
+ *	  - sending out local status
+ *	  - checking for dead nodes (one timer per node?)
+ *	  - checking for dead links (one timer per link?)
+ *	  - initial "comm is up" timer
+ *	  - retransmission request timers (?)
+ *		(that is, timers for requesting that nodes
+ *		 try retransmitting to us again)
+ *
+ *	Set up signal handling for:
+ *	  SIGINT	termination
+ *	  SIGUSR1	increment debugging
+ *	  SIGUSR2	decrement debugging
+ *	  SIGCHLD	process termination
+ *	  SIGHUP	reread configuration
+ *			(should this propagate to client children?)
  *
  */
-
-
-
-
-/* The master control process -- reads control fifo, sends msgs to cluster */
-/* Not a lot to this one, eh? */
-static void
-control_process(IPC_Channel* fifoipc)
-{
-	struct msg_xmit_hist	msghist;
+	FILE*			regfifo;
+	int			regfd;
+	volatile struct process_info *	pinfo;
+	int			allstarted;
+	int			j;
+	GFDSource*		APIRegistrationGFD;
+	GCHSource*		FifoChildSource;
+	GMainLoop*		mainloop;
+	long			memstatsinterval;
 
 	init_xmit_hist (&msghist);
 
-	if (hb_signal_set_control_process(NULL) < 0) {
-		ha_log(LOG_ERR, "control_process(): "
-			"hb_signal_set_control_process(): Soldiering on...");
+	hb_init_watchdog();
+
+	if (hb_signal_set_master_control_process(NULL) < 0) {
+		ha_log(LOG_ERR, "master_control_process(): "
+			"hb_signal_set_master_control_process(): "
+			"Soldiering on...");
 	}
 
-	cl_make_realtime(-1, hb_realtime_prio, 32, 32);
-	set_proc_title("%s: control process", cmdname);
-//	setmsrepeattimer(10);
-	/*
-	 * Wait until the master status process is ready to go
-	 * otherwise, we'll sometimes get EOF immediately.
-	 * This isn't the best solution, but it works ;-)
-	 */
-	while (m_s_proc && m_s_proc->pstat != RUNNING) {
-		sleep(1);
+	cl_make_realtime(-1, hb_realtime_prio, 64, 64);
+
+	set_proc_title("%s: master control process", cmdname);
+
+
+	if ((regfd = open(API_REGFIFO, O_RDONLY|O_NDELAY)) < 0) {
+		ha_perror("master_control_process: Can't open " API_REGFIFO);
+		cleanexit(1);
 	}
+	(void)open(API_REGFIFO, O_WRONLY);
 
-	for(;;) {
-		struct ha_msg *	msg;
-
-		/* Process pending signals */
-		hb_signal_process_pending();
-		
-		if ((msg = msgfromIPC(fifoipc)) == NULL) {
-
-			if (fifoipc->ch_status == IPC_DISCONNECT) {
-				if (ANYDEBUG) {
-					ha_log(LOG_DEBUG
-					,	"control_process:"
-					": fifo_child closed socket.");
-				}
-				break;
-			}
-			continue;
-		}
-		
-#if 0
-		ha_log(LOG_DEBUG, "Control_process message:");
-		ha_log_message(msg);
-#endif
-		process_control_packet(&msghist, msg);
+	if ((regfifo = fdopen(regfd, "r")) == NULL) {
+		ha_perror("master_control_process: Can't fdopen "API_REGFIFO);
+		cleanexit(1);
 	}
+	regfd = fileno(regfifo);	clearerr(regfifo);
+
 
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
-		,	"control_process: waiting for child procs to die");
+		ha_log(LOG_DEBUG, "Waiting for child processes to start");
 	}
-	setmsrepeattimer(0);
-	/*
-	 * Sometimes kernels forget to deliver one or more of our
-	 * SIGCHLDs to us. So we just wait for them to exit...
-	 */
-	hb_signal_reaper_action(0);
+	/* Wait until all the child processes are really running */
+	do {
+		allstarted = 1;
+		for (pinfo=procinfo->info; pinfo < curproc; ++pinfo) {
+			if (pinfo->pstat != RUNNING) {
+				if (ANYDEBUG) {
+					ha_log(LOG_DEBUG
+					, "Waiting for pid %d type %d stat %d"
+					, (int) pinfo->pid, pinfo->type
+					, pinfo->pstat);
+				}
+				allstarted=0;
+				send_local_status();
+				sleep(1);
+			}
+		}
+	}while (!allstarted);
+	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG
+		,	"All your child process are belong to us");
+	}
+	send_local_status();
 
-	/* That's All Folks...  -- NOTREACHED*/
-	cleanexit(LSB_EXIT_OK);
+	g_source_add(G_PRIORITY_HIGH, FALSE, &polled_input_SourceFuncs
+	,	NULL, NULL, NULL);
+
+	APIRegistrationGFD = G_main_add_fd(PRI_APIREGISTER, regfd, FALSE
+	, 	APIregistration_input_dispatch, regfifo, NULL);
+
+	/* We only read from this source, we never write to it */
+	FifoChildSource = G_main_add_IPC_Channel(PRI_CLUSTERMSG, fifoproc
+	,	FALSE, FIFO_child_msg_dispatch, &msghist, NULL);
+
+	if (ANYDEBUG) {
+		cl_log(LOG_DEBUG
+		,	"Starting local status message @ %ld ms intervals"
+		,	config->heartbeat_ms);
+	}
+
+	/* Child I/O processes */
+	for(j = 0; j < nummedia; j++) {
+		/*
+		 * We write to the write children, and read from
+		 * the read children using a single socket for both
+		 */
+		G_main_add_IPC_Channel(
+			PRI_CLUSTERMSG, sysmedia[j]->wchan[P_WRITEFD], FALSE
+		,	read_child_dispatch, sysmedia+j, NULL);
+	}
+
+	/* Things to do on a periodic basis... */
+	
+	/* Send local status at the "right time" */
+	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
+	,	hb_send_local_status, NULL, NULL);
+
+	/* Dump out memory stats periodically... */
+	memstatsinterval = (debug ? 10*60*1000 : ONEDAY*1000);
+	Gmain_timeout_add_full(PRI_DUMPSTATS, memstatsinterval
+	,	hb_dump_all_proc_stats, NULL, NULL);
+
+	/* Audit clients for liveness periodically */
+	Gmain_timeout_add_full(PRI_AUDITCLIENT, 10*1000
+	,	api_audit_clients, NULL, NULL);
+
+	/* Reset timeout times to "now" */
+	for (j=0; j < config->nodecount; ++j) {
+		struct node_info *	hip;
+		hip= &config->nodes[j];
+		hip->local_lastupdate = time_longclock();
+	}
+
+	/* Check for pending signals */
+	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
+	,       Gmain_hb_signal_process_pending, NULL, NULL);
+
+
+	if (UseOurOwnPoll) {
+		g_main_set_poll_func(cl_glibpoll);
+	}
+	mainloop = g_main_new(TRUE);
+	g_main_run(mainloop);
 }
+
 
 static void
 hb_del_ipcmsg(IPC_Message* m)
@@ -1128,7 +1278,7 @@ send_to_all_media(const char * smsg, int len)
 	outmsg = hb_new_ipcmsg(smsg, len, NULL, nummedia);
 	if (outmsg == NULL) {
 		ha_log(LOG_ERR, "Out of memory. Shutting down.");
-		hb_force_shutdown();
+		hb_initiate_shutdown(FALSE);
 	}
 
 	/* Send the message to all our heartbeat interfaces */
@@ -1141,216 +1291,10 @@ send_to_all_media(const char * smsg, int len)
 			ha_perror("Cannot write to media pipe %d"
 			,	j);
 			ha_log(LOG_ERR, "Shutting down.");
-			hb_force_shutdown();
+			hb_initiate_shutdown(FALSE);
 		}
 		alarm(0);
 	}
-}
-
-
-/*
- *	What are our abstract event sources?
- *
- *	Queued signals to be handled ("polled" high priority)
- *	Sending a heartbeat message (timeout-based) (high priority)
- *	Retransmitting packets for the protocol (timed medium priority)
- *	Timing out on heartbeats from other nodes (timed low priority)
- *
- *		We currently combine all our timed/polled events together.
- *		The only one that has critical timing needs is sending
- *		out heartbeat messages
- *
- *	Messages from the network (file descriptor medium-high priority)
- *
- *	API requests from clients (file descriptor medium-low priority)
- *
- *	Registration requests from clients (file descriptor low priority)
- *
- */
-
-/*
- * Combined polled/timed events...
- */
-static gboolean polled_input_prepare(gpointer source_data
-,	GTimeVal* current_time
-,	gint* timeout, gpointer user_data);
-static gboolean polled_input_check(gpointer source_data
-,	GTimeVal* current_time
-,	gpointer user_data);
-static gboolean polled_input_dispatch(gpointer source_data
-,	GTimeVal* current_time
-,	gpointer user_data);
-static void polled_input_destroy(gpointer user_data);
-
-static GSourceFuncs polled_input_SourceFuncs = {
-	polled_input_prepare,
-	polled_input_check,
-	polled_input_dispatch,
-	polled_input_destroy,
-};
-
-
-/*
- * Messages from the cluster are one of our inputs...
- */
-static gboolean clustermsg_input_dispatch(int fd, gpointer user_data);
-
-
-/*
- * API registration requests are one of our inputs
- */
-static gboolean APIregistration_input_dispatch(int fd, gpointer user_data);
-
-static void LookForClockJumps(void);
-
-static int			ClockJustJumped = 0;
-
-static gboolean
-Gmain_hb_signal_process_pending(void *data)
-{
-	hb_signal_process_pending();
-	return(TRUE);
-}
-
-/* The master status process */
-static void
-master_status_process(void)
-{
-	FILE *			f;
-	FILE *			regfifo;
-	int			fd, regfd;
-	volatile struct process_info *	pinfo;
-	int			allstarted;
-	int			j;
-	GFDSource*		ClusterMsgGFD;
-	GFDSource*		APIRegistrationGFD;
-	GMainLoop*		mainloop;
-	long			memstatsinterval;
-
-	hb_init_watchdog();
-
-	if (hb_signal_set_master_status_process(NULL) < 0) {
-		ha_log(LOG_ERR, "master_status_process(): "
-			"hb_signal_set_master_status_process(): "
-			"Soldiering on...");
-	}
-
-	cl_make_realtime(-1, hb_realtime_prio, 32, 64);
-	set_local_status(UPSTATUS);	/* We're pretty sure we're up ;-) */
-
-	set_proc_title("%s: master status process", cmdname);
-
-	/* We open it this way to keep the open from hanging... */
-	if ((f = fdopen(status_pipe[P_READFD], "r")) == NULL) {
-		ha_perror ("master_status_process: unable to open"
-		" status_pipe(READ)");
-		cleanexit(1);
-	}
-
-	if ((regfd = open(API_REGFIFO, O_RDONLY|O_NDELAY)) < 0) {
-		ha_log(LOG_ERR
-		,	"master_status_process: Can't open " API_REGFIFO
-		" errno = %d", errno);
-		cleanexit(1);
-	}
-	(void)open(API_REGFIFO, O_WRONLY);
-	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG
-		, "master_status_process: opened FIFO %d for REGISTER: %s"
-		,	regfd, API_REGFIFO);
-	}
-
-	if ((regfifo = fdopen(regfd, "r")) == NULL) {
-		ha_log(LOG_ERR
-		,	"master_status_process: Can't fdopen " API_REGFIFO);
-		cleanexit(1);
-	}
-	fd = -1;
-	fd = fileno(f);			clearerr(f);
-	regfd = fileno(regfifo);	clearerr(regfifo);
-
-
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Waiting for child processes to start");
-	}
-	send_local_status();
-	/* Wait until all the child processes are really running */
-	do {
-		allstarted = 1;
-		for (pinfo=procinfo->info; pinfo < curproc; ++pinfo) {
-			if (pinfo->pstat == FORKED) {
-				if (ANYDEBUG) {
-					ha_log(LOG_DEBUG
-					, "Waiting for pid %d type %d stat %d"
-					, (int) pinfo->pid, pinfo->type
-					, pinfo->pstat);
-				}
-				allstarted=0;
-				send_local_status();
-				sleep(1);
-			}
-		}
-	}while (!allstarted);
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG
-		,	"All your child process are belong to us");
-	}
-	send_local_status();
-	curproc->pstat = RUNNING;
-
-	g_source_add(G_PRIORITY_HIGH, FALSE, &polled_input_SourceFuncs
-	,	NULL, NULL, NULL);
-
-	ClusterMsgGFD = G_main_add_fd(PRI_CLUSTERMSG, fd, FALSE
-	,	clustermsg_input_dispatch, f, NULL);
-
-	APIRegistrationGFD = G_main_add_fd(PRI_APIREGISTER, regfd, FALSE
-	, 	APIregistration_input_dispatch, regfifo, NULL);
-
-	if (ANYDEBUG) {
-		cl_log(LOG_DEBUG
-		,	"Starting local status message @ %ld ms intervals"
-		,	config->heartbeat_ms);
-	}
-
-	for(j = 0; j < nummedia; j++) {
-		G_main_add_IPC_Channel(
-			PRI_CLUSTERMSG, sysmedia[j]->wchan[P_WRITEFD], FALSE
-		,	NULL, NULL, NULL);
-	}
-
-	/* Things to do on a periodic basis... */
-	
-		/* Send local status at the "right time" */
-	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
-	,	hb_send_local_status, NULL, NULL);
-
-		/* Dump out memory stats periodically... */
-	memstatsinterval = (debug ? 10*60*1000 : ONEDAY*1000);
-	Gmain_timeout_add_full(PRI_DUMPSTATS, memstatsinterval
-	,	hb_dump_all_proc_stats, NULL, NULL);
-
-		/* Audit clients for liveness periodically */
-	Gmain_timeout_add_full(PRI_AUDITCLIENT, 10*1000
-	,	api_audit_clients, NULL, NULL);
-
-	/* Reset timeout times to "now" */
-	for (j=0; j < config->nodecount; ++j) {
-		struct node_info *	hip;
-		hip= &config->nodes[j];
-		hip->local_lastupdate = time_longclock();
-	}
-
-	Gmain_timeout_add_full(PRI_SENDSTATUS, config->heartbeat_ms
-	,       Gmain_hb_signal_process_pending, NULL, NULL);
-
-
-	setmsrepeattimer(100);
-	if (UseOurOwnPoll) {
-		g_main_set_poll_func(cl_glibpoll);
-	}
-	mainloop = g_main_new(TRUE);
-	g_main_run(mainloop);
 }
 
 
@@ -1490,7 +1434,8 @@ comm_now_up()
 	/* Update our local status... */
 	set_local_status(ACTIVESTATUS);
 
-	send_local_starting();
+	comm_up_resource_action();
+
 
 	/* Start each of our known child clients */
 	g_list_foreach(config->client_list
@@ -1503,26 +1448,6 @@ polled_input_destroy(gpointer user_data)
 {
 }
 
-
-
-static gboolean
-clustermsg_input_dispatch(int fd, gpointer user_data)
-{
-	FILE *		f = user_data;
-
-	if (DEBUGDETAILS){
-		cl_log(LOG_DEBUG,"clustermsg_input_dispatch()");
-	}
-	if (fileno(f) != fd) {
-		/* Bad boojum! */
-		ha_log(LOG_ERR, "FD mismatch in clustermsg_input_dispatch");
-	}
-
-
-	/* Process the incoming cluster message */
-	process_clustermsg(f);
-	return TRUE;
-}
 
 
 
@@ -1543,44 +1468,144 @@ APIregistration_input_dispatch(int fd,	gpointer user_data)
 	process_registermsg(regfifo);
 	return TRUE;
 }
+void
+hb_kill_managed_children(int nsig)
+{
+	/* Kill our managed children... */
+	ForEachProc(&ManagedChildTrackOps
+	, 	hb_kill_tracked_process
+	,	GINT_TO_POINTER(nsig));
+}
 
+void
+hb_kill_rsc_mgmt_children(int nsig)
+{
+	extern ProcTrack_ops hb_rsc_RscMgmtProcessTrackOps;
 
-gboolean
-hb_msp_final_shutdown(gpointer p)
+	ForEachProc(&hb_rsc_RscMgmtProcessTrackOps
+	,	hb_kill_tracked_process
+	,	GINT_TO_POINTER(nsig));
+}
+
+void
+hb_kill_core_children(int nsig)
+{
+	ForEachProc(&CoreProcessTrackOps
+	,	hb_kill_tracked_process
+	,	GINT_TO_POINTER(nsig));
+}
+
+/*
+ * Shutdown sequence:
+ *   If non-quick shutdown:
+ * 	Giveup resources (if requested)
+ * 	Wait for resources to be released
+ *	delay
+ *
+ *   Final shutdown sequence:
+ *	kill managed client children with SIGTERM
+ *	if non-quick, kill rsc_mgmt children with SIGTERM
+ *	delay
+ *	if non-quick, kill rsc_mgmt children with SIGKILL
+ *	kill core processes (except self) with SIGTERM
+ *	delay
+ *	kill core processes (except self) with SIGKILL
+ *	Wait for all children to die.
+ *
+ */
+void
+hb_initiate_shutdown(int quickshutdown)
 {
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "hb_msp_final_shutdown()");
+		ha_log(LOG_DEBUG, "hb_initiate_shutdown() called.");
+	}
+	send_local_status();
+	if (!quickshutdown) {
+		procinfo->giveup_resources = TRUE;
+		hb_giveup_resources();
+		/* Allow an hour for resources to be released */
+		Gmain_timeout_add(60*60*1000, hb_mcp_final_shutdown, NULL);
+		return;
+	}
+	/* Trigger final shutdown. */
+	shutdown_in_progress = TRUE;
+	hb_mcp_final_shutdown(NULL);
+}
+
+gboolean
+hb_mcp_final_shutdown(gpointer p)
+{
+	static int shutdown_phase = 0;
+
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "hb_mcp_final_shutdown() phase %d"
+		,	shutdown_phase);
+	}
+	if (ANYDEBUG) {
+		ha_log(LOG_DEBUG, "hb_mcp_final_shutdown(2) phase %d"
+		,	shutdown_phase);
+	}
+	DisableProcLogging();	/* We're shutting down */
+
+	CL_IGNORE_SIG(SIGTERM);
+	switch (shutdown_phase) {
+	case 0:	
+		send_local_status();
+		hb_kill_managed_children(SIGTERM);
+		if (procinfo->giveup_resources) {
+			/* Shouldn't *really* need this */
+			hb_kill_rsc_mgmt_children(SIGTERM);
+		}
+		shutdown_phase = 1;
+		Gmain_timeout_add(1000, hb_mcp_final_shutdown, NULL);
+		return FALSE;
+
+	case 1:
+		if (procinfo->giveup_resources) {
+			/* Shouldn't *really* need this either ;-) */
+			hb_kill_rsc_mgmt_children(SIGKILL);
+		}
+		/* Kill any lingering processes in our process group */
+		CL_KILL(-getpid(), SIGTERM);
+		hb_kill_core_children(SIGTERM); /* Is this redundant? */
+		hb_tickle_watchdog();
+		shutdown_phase = 2;
+		return FALSE;
+	case 2:
+		hb_tickle_watchdog();
+		shutdown_phase = 3;
+		break;
+
+
+	default:
+		hb_emergency_shutdown();
+		break;
 	}
 
+	hb_close_watchdog();
+	/* Whack 'em */
+	hb_kill_core_children(SIGKILL);
+	ha_log(LOG_INFO,"Heartbeat shutdown complete.");
 	if (procinfo->restart_after_shutdown) {
-		if (procinfo->giveup_resources) {
-			ha_log(LOG_INFO, "Resource shutdown completed"
-			".  Restart triggered.");
-		}else{
-			ha_log(LOG_INFO, "MSP: Quick shutdown complete.");
-		}
+		ha_log(LOG_INFO, "Heartbeat restart triggered.");
+		restart_heartbeat();
 	}
-	/* Tell init process we're going away */
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Sending SIGQUIT to pid %d"
-		,       (int) processes[0]);
-	}
-	CL_KILL(processes[0], SIGQUIT);
+
+	/*NOTREACHED*/
 	cleanexit(0);
 	/* NOTREACHED*/
 	return FALSE;
 }
 
 /*
- * Process a message coming in from our status FIFO
+ * Process an incoming message from our read child processes
+ * That is, packets coming from other nodes.
  */
 static void
-process_clustermsg(FILE * f)
+process_clustermsg(struct ha_msg* msg, struct link* lnk)
 {
 	struct node_info *	thisnode = NULL;
-	struct ha_msg *		msg = NULL;
-	char			iface[MAXIFACELEN];
-	struct	link *		lnk;
+	const char*		iface;
 
 	TIME_T			msgtime = 0;
 	longclock_t		now = time_longclock();
@@ -1594,9 +1619,10 @@ process_clustermsg(FILE * f)
 
 
 
-	strncpy(iface, "?", 2);
-	if ((msg = if_msgfromstream(f, iface)) == NULL) {
-		return;
+	if (lnk == NULL) {
+		iface = "?";
+	}else{
+		iface = lnk->name;
 	}
 	messagetime = time_longclock();
 
@@ -1636,7 +1662,7 @@ process_clustermsg(FILE * f)
 		if (ANYDEBUG) {
 			ha_log_message(msg);
 		}
-		goto psm_done;
+		return;
 	}else if (DEBUGDETAILS) {
 		ha_log(LOG_DEBUG
 		,       "process_clustermsg: node [%s] auth ok"
@@ -1650,7 +1676,7 @@ process_clustermsg(FILE * f)
 		,	iface
 		,	(from? from : "<?>"));
 		ha_log_message(msg);
-		goto psm_done;
+		return;
 	}
 	if (cseq != NULL) {
 		sscanf(cseq, "%lx", &seqno);
@@ -1663,7 +1689,7 @@ process_clustermsg(FILE * f)
 			,	iface
 			,	(from? from : "<?>"));
 			ha_log_message(msg);
-			goto psm_done;
+			return;
 		}
 	}
 
@@ -1671,7 +1697,7 @@ process_clustermsg(FILE * f)
 	sscanf(ts, TIME_X, &msgtime);
 
 	if (ts == 0 || msgtime == 0) {
-		goto psm_done;
+		return;
 	}
 
 
@@ -1686,7 +1712,7 @@ process_clustermsg(FILE * f)
 		add_node(from, NORMALNODE);
 		thisnode = lookup_node(from);
 		if (thisnode == NULL) {
-			goto psm_done;
+			return;
 		}
 #else
 		/* If a node isn't in the configfile - whine */
@@ -1694,21 +1720,17 @@ process_clustermsg(FILE * f)
 		,   "process_status_message: bad node [%s] in message"
 		,	from);
 		ha_log_message(msg);
-		goto psm_done;
+		return;
 #endif
 	}
 
 	/* Throw away some incoming packets if testing is enabled */
 	if (TESTRCV) {
 		if (thisnode != curnode && TestRand(rcv_loss_prob)) {
-			goto psm_done;
+			return;
 		}
 	}
 	thisnode->anypacketsyet = 1;
-	/* See if our comm channels are working yet... */
-	if (heartbeat_comm_state != COMM_LINKSUP) {
-		check_comm_isup();
-	}
 
 	lnk = lookup_iface(thisnode, iface);
 
@@ -1720,7 +1742,7 @@ process_clustermsg(FILE * f)
 		case DROPIT:
 		/* Ignore it */
 		heartbeat_monitor(msg, action, iface);
-		goto psm_done;
+		return;
 
 		case DUPLICATE:
 		heartbeat_monitor(msg, action, iface);
@@ -1736,7 +1758,7 @@ process_clustermsg(FILE * f)
 			}
 		}
 		if (action == DUPLICATE) {
-			goto psm_done;
+			return;
 		}
 		break;
 	}
@@ -1767,13 +1789,13 @@ process_clustermsg(FILE * f)
 			ha_log(LOG_ERR, "process_status_message: "
 			"status update without "
 			F_STATUS " field");
-			goto psm_done;
+			return;
 		}
 
 		/* Do we already have a newer status? */
 		if (msgtime < thisnode->rmt_lastupdate
 		&&		seqno < thisnode->status_seqno) {
-			goto psm_done;
+			return;
 		}
 
 		/* Have we seen an update from here before? */
@@ -1826,8 +1848,7 @@ process_clustermsg(FILE * f)
 	}else if (strcasecmp(type, T_REXMIT) == 0) {
 		heartbeat_monitor(msg, PROTOCOL, iface);
 		if (thisnode != curnode) {
-			/* Forward to control process */
-			send_cluster_msg(msg);
+			process_rexmit(&msghist, msg);
 		}
 
 	/* END OF STATUS/ LINK PROTOCOL CODE */
@@ -1845,8 +1866,12 @@ process_clustermsg(FILE * f)
 				ha_log(LOG_DEBUG
 				,	"Received T_SHUTDONE from ourselves.");
 		    	}
+			if (ANYDEBUG) {
+				ha_log(LOG_DEBUG
+				,	"Calling hb_mcp_final_shutdown in a second.");
+		    	}
 			/* Trigger final shutdown in a second */
-			Gmain_timeout_add(1000, hb_msp_final_shutdown, NULL);
+			Gmain_timeout_add(1, hb_mcp_final_shutdown, NULL);
 		}else{
 			thisnode->has_resources = FALSE;
 			other_is_stable = 0;
@@ -1871,26 +1896,25 @@ process_clustermsg(FILE * f)
 
 	}else if (strcasecmp(type, T_ASKRESOURCES) == 0) {
 
-		/* someone wants to go standby!!! */
+		/* Someone wants to go standby!!! */
 		heartbeat_monitor(msg, action, iface);
 		ask_for_resources(msg);
 
 	}else	if (strcasecmp(type, T_ASKRELEASE) == 0) {
+		heartbeat_monitor(msg, action, iface);
 		if (thisnode != curnode) {
 			/*
 			 * Queue for later handling...
 			 */
 			QueueRemoteRscReq(PerformQueuedNotifyWorld, msg);
-			/* Mama don't let them free my msg! */
 			return;
 		}
-		heartbeat_monitor(msg, action, iface);
 
 	}else if (strcasecmp(type, T_ACKRELEASE) == 0) {
 
 		/* Ignore this, we're shutting down! */
 		if (shutdown_in_progress) {
-			goto psm_done;
+			return;
 		}
 		heartbeat_monitor(msg, action, iface);
 		notify_world(msg, thisnode->status);
@@ -1898,9 +1922,17 @@ process_clustermsg(FILE * f)
 		/* None of the above... */
 		heartbeat_monitor(msg, action, iface);
 		notify_world(msg, thisnode->status);
+		if (heartbeat_comm_state != COMM_LINKSUP) {
+			check_comm_isup();
+		}
+		if (heartbeat_comm_state == COMM_LINKSUP) {
+			process_resources(type, msg, thisnode);
+		}
 	}
-psm_done:
-	ha_msg_del(msg);  msg = NULL;
+	/* See if our comm channels are working yet... */
+	if (heartbeat_comm_state != COMM_LINKSUP) {
+		check_comm_isup();
+	}	
 }
 
 /* Process a registration request from a potential client */
@@ -1929,10 +1961,11 @@ check_auth_change(struct sys_config *conf)
 			/* OOPS.  Sayonara. */
 			ha_log(LOG_ERR
 			,	"Authentication reparsing error, exiting.");
-			hb_force_shutdown();
+			hb_initiate_shutdown(FALSE);
 			cleanexit(1);
 		}
 		return_to_dropped_privs();
+		conf->rereadauth = FALSE;
 	}
 }
 
@@ -1968,15 +2001,19 @@ CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged
 		,	(int) p->pid, CoreProcessCount);
 
 		if (CoreProcessCount <= 1) {
-			FinalCPShutdown();
+			ha_log(LOG_INFO,"Heartbeat shutdown complete.");
+			if (procinfo->restart_after_shutdown) {
+				ha_log(LOG_INFO, "Heartbeat restart triggered.");
+				restart_heartbeat();
+			}
+			cleanexit(0);
 		}
 		return;
 	}
 	/* UhOh... */
 	ha_log(LOG_ERR
 	,	"Core heartbeat process died! Restarting.");
-	hb_trigger_restart(FALSE);
-	/*NOTREACHED*/
+	cause_shutdown_restart();
 	p->privatedata = NULL;
 	return;
 }
@@ -1989,29 +2026,6 @@ CoreProcessName(ProcTrack* p)
 
 	return (pi ? core_proc_name(pi->type) : "Core heartbeat process");
 	
-}
-static void
-FinalCPShutdown(void)
-{
-	struct rlimit		oflimits;
-	int			j;
-
-	ha_log(LOG_INFO,"Heartbeat shutdown complete.");
-	if (procinfo->restart_after_shutdown) {
-		restart_heartbeat();
-	}
-	CL_IGNORE_SIG(SIGTERM);
-	return_to_orig_privs();
-	/* Kill any lingering processes, etc.*/
-	CL_KILL(-getpid(), SIGTERM);
-
-
-	getrlimit(RLIMIT_NOFILE, &oflimits);
-	for (j=oflimits.rlim_cur; j >= 0; --j) {
-		close(j);
-	}
-	unlink(PIDFILE);
-	cleanexit(0);
 }
 
 /***********************************************************************
@@ -2069,12 +2083,6 @@ ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode
 	}
 	p->privatedata = NULL;
 
-	/* On quick restart, these are the only ones killed */
-	if (managed_child_count == 0 && shutdown_in_progress
-	&&	! procinfo->giveup_resources) {
-
-		Gmain_timeout_add(1000, hb_msp_final_shutdown, NULL);
-	}
 }
 
 /* Handle the death of one of our managed child processes */
@@ -2103,6 +2111,10 @@ hb_kill_tracked_process(ProcTrack* p, void * data)
 	}else{
 		pid =  p->pid;
 		porg = "process";
+		/* We never signal ourselves */
+		if (pid == getpid()) {
+			return;
+		}
 	}
 	ha_log(LOG_INFO, "killing %s %s %d with signal %d", pname, porg
 	,	(int) p->pid, nsig);
@@ -2210,8 +2222,7 @@ core_proc_name(enum process_type t)
 	const char *	ct = "huh?";
 	switch(t) {
 		case PROC_UNDEF:	ct = "UNDEF";		break;
-		case PROC_CONTROL:	ct = "CONTROL";		break;
-		case PROC_MST_STATUS:	ct = "MST_STATUS";	break;
+		case PROC_MST_CONTROL:	ct = "MST_CONTROL";	break;
 		case PROC_HBREAD:	ct = "HBREAD";		break;
 		case PROC_HBWRITE:	ct = "HBWRITE";		break;
 		case PROC_HBFIFO:	ct = "HBFIFO";		break;
@@ -2256,29 +2267,6 @@ hb_dump_proc_stats(volatile struct process_info * proc)
 }
 
 
-void
-hb_trigger_restart(int quickrestart)
-{
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Triggering Restart (%d)", quickrestart);
-	}
-	procinfo->restart_after_shutdown = 1;
-	procinfo->giveup_resources = (quickrestart ? FALSE : TRUE);
-	return_to_orig_privs();
-	if (CL_KILL(master_status_pid, SIGTERM) >= 0) {
-		/* Tell master status proc to shut down */
-		/* He'll send us a SIGQUIT when done */
-		/* Meanwhile, we'll just go on... */
-		return_to_dropped_privs();
-		return;
-	}
-	/* We stay in the high privilege state */
-	ha_perror("MSP signal failed (hb_trigger_restart)");
-	hb_emergency_shutdown();
-	/*NOTREACHED*/
-	return;
-}
-
 /*
  *	Restart heartbeat - we never return from this...
  */
@@ -2286,55 +2274,16 @@ static void
 restart_heartbeat(void)
 {
 	unsigned int		j;
-	pid_t			curpid = getpid();
 	struct rlimit		oflimits;
-	int			killsig = SIGTERM;
 	int			quickrestart;
 
 	shutdown_in_progress = 1;
-	hb_close_watchdog();
-	return_to_orig_privs();
-	send_local_status();
-	/*
-	 * We need to do these things:
-	 *
-	 *	Wait until a propitious time
-	 *
-	 *	Kill our child processes
-	 *
-	 *	close most files...
-	 *
-	 *	re-exec ourselves with the -R option
-	 */
 	cl_make_normaltime();
 	return_to_orig_privs();	/* Remain privileged 'til the end */
 	ha_log(LOG_INFO, "Restarting heartbeat.");
 	quickrestart = (procinfo->giveup_resources ? FALSE : TRUE);
 
-
-	/* They'll try and make sure everyone gets it - even us ;-) */
-	CL_IGNORE_SIG(SIGTERM);
-
-	/* Kill our child processes */
-	for (j=0; j < (unsigned int)procinfo->nprocs; ++j) {
-		pid_t	pid = procinfo->info[j].pid;
-		if (pid != curpid) {
-			ha_log(LOG_INFO, "Killing process %d with signal %d"
-			,	(int) pid, killsig);
-			CL_KILL(pid, killsig);
-		}
-	}
-	ha_log(LOG_INFO, "Done killing processes for restart.");
-
-	if (quickrestart) {
-		/* Kill any lingering takeover processes, etc. */
-		CL_KILL(-getpid(), SIGTERM);
-		sleep(1);
-	}
-
-
 	ha_log(LOG_INFO, "Performing heartbeat restart exec.");
-	ha_log(LOG_INFO, "Closing files first...");
 
 	getrlimit(RLIMIT_NOFILE, &oflimits);
 	for (j=3; j < oflimits.rlim_cur; ++j) {
@@ -2359,7 +2308,7 @@ restart_heartbeat(void)
 	}
 	ha_log(LOG_ERR, "Could not exec " HALIB "/heartbeat");
 	ha_log(LOG_ERR, "Shutting down...");
-	CL_KILL(curpid, SIGTERM);
+	hb_emergency_shutdown();
 }
 
 /* See if any nodes or links have timed out */
@@ -2479,83 +2428,69 @@ set_local_status(const char * newstatus)
 	return(HA_FAIL);
 }
 
+/*
+ * send_cluster_msg: sends out a message to the cluster
+ * First we add some necessary fields to the message, then
+ * we "send it out" via process_outbound_packet.
+ *
+ * send_cluster_msg disposes of the message
+ *
+ */
 int
 send_cluster_msg(struct ha_msg* msg)
 {
-	char *		smsg;
 	const char *	type;
 	int		rc = HA_OK;
+	pid_t		ourpid = getpid();
 
 	if (msg == NULL || (type = ha_msg_value(msg, F_TYPE)) == NULL) {
 		ha_perror("Invalid message in send_cluster_msg");
+		ha_msg_del(msg);
 		return(HA_FAIL);
 	}
 
-	if ((smsg = msg2string(msg)) == NULL) {
-		ha_log(LOG_ERR, "out of memory in send_cluster_msg");
-		ha_log_message(msg);
-		return(HA_FAIL);
-	}
-
-	/* Debug the message */
-	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "Writing out message: %s", smsg);
-        }
-
-	{
 	/*
-	 * Opening the FIFO for each message is a dumb idea.  It's slow,
-	 * it's hell on realtime behavior (it accesses the filesystem for
-	 * the FIFO pathname for every message), and it doesn't work
-	 * reliably on FreeBSD.  An eminently bad idea.
-	 * That's why we don't do it (any more) ;-)
+	 * Only the parent process can send messages directly to the cluster.
+	 *
+	 * Everyone else needs to write to the FIFO instead.
+	 * Sometimes we get called from the parent process, and sometimes
+	 * from child processes.
 	 */
-		static int	ffd = -1;
-		int		length;
-		int		wrc;
 
-		if (ffd < 0) {
-			ffd = open(FIFONAME, O_WRONLY);
-			if (ffd < 0) {
-				ha_log(LOG_ERR, "Unable to open FIFO: %s", FIFONAME);
-				ha_free(smsg);
-				return(HA_FAIL);
-			}
+	if (ourpid == processes[0]) {
+		/* Parent process... Write message directly */
+
+		if ((msg = add_control_msg_fields(msg)) != NULL) {
+			rc = process_outbound_packet(&msghist, msg);
 		}
+	}else{
+		/* We're a child process - copy it to the FIFO */
+		int	ffd = -1;
+		char *	smsg = NULL;
 
-		length=strlen(smsg);
+		return_to_orig_privs();
+
 		/*
-		 * The single retry we allow won't often make
-		 * the problem go away, but it's possible, and
-		 * *really* don't want to shut down
+		 * Convert the message to a string, and write it to the FIFO
+		 * It will then get written to the cluster properly.
 		 */
-		if ((wrc = write(ffd, smsg, length)) != length
-		&&	(wrc >= 0 || errno != EINTR
-		||	(wrc = write(ffd, smsg, length)) != length)) {
+		if (	(smsg = msg2string(msg)) == NULL
+		||	(ffd = open(FIFONAME, O_WRONLY|O_NDELAY)) < 0
+		||	write(ffd, smsg, msg->stringlen) != msg->stringlen){
+			cl_perror("Cannot write message to " FIFONAME
+			" [%d vs %d]", getpid(), processes[0]);
+			ha_log_message(msg);
 			rc = HA_FAIL;
-			close(ffd);
-			ffd = -1;
-			if (!(shutdown_in_progress && errno == EPIPE)) {
-				/* Sometimes they're already shut down */
-				ha_perror("cannot write message to FIFO! [rc=%d]"
-				,	wrc);
-                        	hb_force_shutdown();
-			}
+			
 		}
-		if (DEBUGPKTCONT) {
-			ha_log(LOG_DEBUG, "%d bytes written to %s by %d"
-			,	length, FIFONAME, (int) getpid());
-			ha_log(LOG_DEBUG, "Packet content: %s", smsg);
+		return_to_dropped_privs();
+		if (smsg) {
+			ha_free(smsg);
 		}
-#ifdef OPEN_FIFO_FOR_EACH_MESSAGE
-		if (close(ffd) < 0) {
-			ha_perror ("unable to close ffd %d", ffd);
-		}
-		ffd = -1;
-#endif
-
+		close(ffd);
+		/* Dispose of the original message */
+		ha_msg_del(msg);
 	}
-	ha_free(smsg);
 
 	return(rc);
 }
@@ -2575,7 +2510,8 @@ send_local_status()
 	if (DEBUGDETAILS){
 		ha_log(LOG_DEBUG, "PID %d: Sending local status"
 		" curnode = %lx status: %s"
-		,	(int) getpid(), (unsigned long)curnode, curnode->status);
+		,	(int) getpid(), (unsigned long)curnode
+		,	curnode->status);
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
 		ha_log(LOG_ERR, "Cannot send local status.");
@@ -2586,11 +2522,11 @@ send_local_status()
 		ha_log(LOG_ERR, "send_local_status: "
 		"Cannot create local status msg");
 		rc = HA_FAIL;
+		ha_msg_del(m);
 	}else{
 		rc = send_cluster_msg(m);
 	}
 
-	ha_msg_del(m);
 	return(rc);
 }
 
@@ -2628,7 +2564,7 @@ change_link_status(struct node_info *hip, struct link *lnk
 {
 	struct ha_msg *	lmsg;
 
-	if ((lmsg = ha_msg_new(6)) == NULL) {
+	if ((lmsg = ha_msg_new(8)) == NULL) {
 		ha_log(LOG_ERR, "no memory to mark link dead");
 		return;
 	}
@@ -2641,13 +2577,13 @@ change_link_status(struct node_info *hip, struct link *lnk
 	||	ha_msg_add(lmsg, F_NODE, hip->nodename) != HA_OK
 	||	ha_msg_add(lmsg, F_IFNAME, lnk->name) != HA_OK
 	||	ha_msg_add(lmsg, F_STATUS, lnk->status) != HA_OK) {
-		ha_log(LOG_ERR, "no memory to mark link dead");
+		ha_log(LOG_ERR, "no memory to change link status");
 		ha_msg_del(lmsg);
 		return;
 	}
 	heartbeat_monitor(lmsg, KEEPIT, "<internal>");
 	notify_world(lmsg, NULL);
-	ha_msg_del(lmsg);
+	ha_msg_del(lmsg); lmsg = NULL;
 }
 
 /* Mark the given node dead */
@@ -2658,30 +2594,11 @@ mark_node_dead(struct node_info *hip)
 
 	hip->anypacketsyet = 1;
 	if (hip == curnode) {
-		/* We may die too soon for this to actually be received */
-		/* But, we tried ;-) */
-		hb_send_resources_held(HB_NO_RESOURCES, 1, NULL);
 		/* Uh, oh... we're dead! */
-		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
-		/* Bump up debug level */
-		hb_signal_debug_usr1_action();
-		return_to_orig_privs();	/* And we stay this way... */
-		CL_KILL(procinfo->info[0].pid, SIGUSR1);
+		ha_log(LOG_ERR, "No local heartbeat. Forcing restart.");
 
 		if (!shutdown_in_progress) {
-			if (CL_KILL(procinfo->info[0].pid, SIGTERM) < 0) {
-				ha_perror("Cannot signal CP (pid %ld)"
-				,	(long)procinfo->info[0].pid);
-				hb_emergency_shutdown();
-			}
-#if 0
-			/* Or should we do this... ? */
 			cause_shutdown_restart();
-#endif
-		
-		
-			/* Do something more drastic in 10 minutes */
-			Gmain_timeout_add(1000*10*60, EmergencyShutdown, NULL);
 		}
 		return;
 	}
@@ -2708,6 +2625,8 @@ cause_shutdown_restart()
 	procinfo->restart_after_shutdown = 1;
 	procinfo->giveup_resources = 1;
 	hb_giveup_resources();
+	/* Do something more drastic in 60 minutes */
+	Gmain_timeout_add(1000*60*60, EmergencyShutdown, NULL);
 }
 
 
@@ -2854,9 +2773,14 @@ main(int argc, char * argv[], char **envp)
 
 
 
-	setenv(HADIRENV, HA_D, 1);
-	setenv(DATEFMT, HA_DATEFMT, 1);
-	setenv(HAFUNCENV, HA_FUNCS, 1);
+	setenv(HADIRENV, HA_D, TRUE);
+	setenv(DATEFMT, HA_DATEFMT, TRUE);
+	setenv(HAFUNCENV, HA_FUNCS, TRUE);
+	if (debug > 0) {
+		static char cdebug[8];
+		snprintf(cdebug, sizeof(debug), "%d", debug);
+		setenv(HADEBUGVAL, cdebug, TRUE);
+	}
 
 	init_procinfo();
 
@@ -3023,7 +2947,7 @@ StartHeartbeat:
 		if (verbose) {
 			dump_config();
 		}
-		make_daemon();
+		make_daemon();	/* Only child processes returns. */
 		setenv(LOGFENV, config->logfile, 1);
 		setenv(DEBUGFENV, config->dbgfile, 1);
 		if (config->log_facility >= 0) {
@@ -3072,29 +2996,6 @@ cleanexit(rc)
 	exit(rc);
 }
 
-void
-hb_force_shutdown(void)
-{
-	ha_log(LOG_ERR, "Beginning forced shutdown.");
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "sending SIGTERM to Control Process: %d"
-		,	(int) processes[0]);
-	}
-
-	return_to_orig_privs();
-	if (curproc->pid == processes[0]) {
-		hb_signal_signal_all(SIGTERM);
-		return_to_dropped_privs();
-		return;
-	}else if (CL_KILL(processes[0], SIGTERM >= 0)) {
-		/* Kill worked! */
-		return_to_dropped_privs();
-		return;
-	}
-	ha_perror("Could not signal Control Process");
-	hb_emergency_shutdown();
-
-}
 
 void
 hb_emergency_shutdown(void)
@@ -3105,6 +3006,9 @@ hb_emergency_shutdown(void)
 	ha_log(LOG_ERR, "Emergency Shutdown: "
 			"Attempting to kill everything ourselves");
 	CL_KILL(-getpgrp(), SIGTERM);
+	hb_kill_rsc_mgmt_children(SIGKILL);
+	hb_kill_managed_children(SIGKILL);
+	hb_kill_core_children(SIGKILL);
 	sleep(2);
 	CL_KILL(-getpgrp(), SIGKILL);
 	/*NOTREACHED*/
@@ -3152,7 +3056,11 @@ make_daemon(void)
 	/* Guess not. Go ahead and start things up */
 
 	if (!WeAreRestarting) {
+#if 1
 		pid = fork();
+#else
+		pid = 0;
+#endif
 		if (pid < 0) {
 			fprintf(stderr, "%s: could not start daemon\n"
 			,	cmdname);
@@ -3174,11 +3082,6 @@ make_daemon(void)
 	}
 
 	cl_log_enable_stderr(FALSE);
-	if (getsid(0) != pid) {
-		if (setsid() < 0) {
-			cl_perror("setsid() failure.");
-		}
-	}
 
 	umask(022);
 	close(FD_STDIN);
@@ -3192,6 +3095,11 @@ make_daemon(void)
 	chdir(HA_D);
 	/* We need to at least ignore SIGINTs early on */
 	hb_signal_set_common(NULL);
+	if (getsid(0) != pid) {
+		if (setsid() < 0) {
+			cl_perror("setsid() failure.");
+		}
+	}
 }
 
 void
@@ -3279,11 +3187,7 @@ should_ring_copy_msg(struct ha_msg *m)
  *	From here to the end is protocol code.  It implements our reliable
  *	multicast protocol.
  *
- *	The implementation of this protocol is split between the
- *	control_process() and the master_status_process().  This is
- *	unfortunate, and the cause of a little confusion here and there ;-)
- *
- *	One of the better reasons to merge the two processes...
+ *	The implementation of this protocol is in the master_control_process().
  */
 
 
@@ -3515,6 +3419,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 
 }
 
+
 /*
  * Control (inbound) packet processing...
  * This is part of the control_process() processing.
@@ -3526,11 +3431,10 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
  *
  * NOTE: It's our job to dispose of the packet we're given...
  */
-static void
-process_control_packet(struct msg_xmit_hist*	msghist
+static int
+process_outbound_packet(struct msg_xmit_hist*	msghist
 ,		struct ha_msg *	msg)
 {
-	int	statusfd = status_pipe[P_WRITEFD];
 
 	char *		smsg;
 	const char *	type;
@@ -3541,41 +3445,34 @@ process_control_packet(struct msg_xmit_hist*	msghist
 	int		IsToUs;
 
 	if (DEBUGPKTCONT) {
-		ha_log(LOG_DEBUG, "got msg in process_control_packet");
+		ha_log(LOG_DEBUG, "got msg in process_outbound_packet");
 	}
 	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
-		ha_log(LOG_ERR, "process_control_packet: no type in msg.");
-		ha_msg_del(msg);
-		return;
+		ha_log(LOG_ERR, "process_outbound_packet: no type in msg.");
+		ha_msg_del(msg); msg = NULL;
+		return HA_FAIL;
 	}
 	if ((cseq = ha_msg_value(msg, F_SEQ)) != NULL) {
 		if (sscanf(cseq, "%lx", &seqno) != 1
 		||	seqno <= 0) {
-			ha_log(LOG_ERR, "process_control_packet: "
+			ha_log(LOG_ERR, "process_outbound_packet: "
 			"bad sequence number");
 			smsg = NULL;
 			ha_msg_del(msg);
-			return;
+			return HA_FAIL;
 		}
 	}
 
 	to = ha_msg_value(msg, F_TO);
 	IsToUs = (to != NULL) && (strcmp(to, curnode->nodename) == 0);
 
-	/* Is this a request to retransmit a packet? */
-	if (strcasecmp(type, T_REXMIT) == 0 && IsToUs) {
-		/* OK... Process retransmit request */
-		process_rexmit(msghist, msg);
-		ha_msg_del(msg);
-		return;
-	}
 	/* Convert the incoming message to a string */
 	smsg = msg2string(msg);
 
 	/* If it didn't convert, throw original message away */
 	if (smsg == NULL) {
 		ha_msg_del(msg);
-		return;
+		return HA_FAIL;
 	}
 	/* Remember Messages with sequence numbers */
 	if (cseq != NULL) {
@@ -3584,8 +3481,14 @@ process_control_packet(struct msg_xmit_hist*	msghist
 
 	len = strlen(smsg);
 
+#ifdef OLDCODE
 	/* Copy the message to the status process */
 	write(statusfd, smsg, len);
+	/* FIXME!!!  */
+#else
+	/* Direct message to "loopback" processing */
+	process_clustermsg(msg, NULL);
+#endif
 
 	send_to_all_media(smsg, len);
 	ha_free(smsg);
@@ -3595,6 +3498,7 @@ process_control_packet(struct msg_xmit_hist*	msghist
 		ha_msg_del(msg);
 	}
 	/* That's All Folks... */
+	return HA_OK;
 }
 
 
@@ -3660,9 +3564,9 @@ request_msg_rexmit(struct node_info *node, seqno_t lowseq
 		}
 		node->track.last_rexmit_req = time_longclock();
 	}else{
+		ha_msg_del(hmsg);
 		ha_log(LOG_ERR, "no memory for " T_REXMIT);
 	}
-	ha_msg_del(hmsg);
 }
 
 #define REXMIT_MS	1000
@@ -3728,13 +3632,99 @@ init_xmit_hist (struct msg_xmit_hist * hist)
 	}
 }
 
+void audit_xmit_hist(void);
+void
+audit_xmit_hist(void)
+{
+	int	slot;
+
+	for (slot = 0; slot < MAXMSGHIST; ++slot) {
+		struct ha_msg* msg = msghist.msgq[slot];
+		gboolean doabort = FALSE;
+
+		if (msg == NULL) {
+			continue;
+		}
+		if (!ha_is_allocated(msg)) {
+			cl_log(LOG_CRIT
+			,	"Unallocated message in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (msg->nfields <= 0) {
+			cl_log(LOG_CRIT
+			,	"Non-positive nfields in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (msg->nalloc <= 0) {
+			cl_log(LOG_CRIT
+			,	"Non-positive nalloc in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (msg->stringlen <= 0) {
+			cl_log(LOG_CRIT
+			,	"Non-positive nalloc in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (msg->stringlen <= 0) {
+			cl_log(LOG_CRIT
+			,	"Non-positive stringlen in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (msg->nfields > msg->nalloc) {
+			cl_log(LOG_CRIT
+			,	"Improper nfields in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (msg->nfields > 100) {
+			cl_log(LOG_CRIT
+			,	"TOO Large nfields in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (msg->stringlen <= msg->nfields*4) {
+			cl_log(LOG_CRIT
+			,	"Too small stringlen in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (!ha_is_allocated(msg->names)) {
+			cl_log(LOG_CRIT
+			,	"Unallocated msg->names in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (!ha_is_allocated(msg->nlens)) {
+			cl_log(LOG_CRIT
+			,	"Unallocated msg->nlens in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (!ha_is_allocated(msg->values)) {
+			cl_log(LOG_CRIT
+			,	"Unallocated msg->values in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (!ha_is_allocated(msg->vlens)) {
+			cl_log(LOG_CRIT
+			,	"Unallocated msg->vallens in audit_xmit_hist");
+			doabort=TRUE;
+		}
+		if (doabort) {
+			cl_log(LOG_CRIT
+			,	"Message slot is %d", slot);
+			abort();
+		}
+	}
+}
 /* Add a packet to a channel's transmit history */
 static void
 add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,	seqno_t seq)
 {
 	int	slot;
+	struct ha_msg* slotmsg;
 
+	if (!ha_is_allocated(msg)) {
+		cl_log(LOG_CRIT, "Unallocated message in add2_xmit_hist");
+		abort();
+	}
+	audit_xmit_hist();
 	/* Figure out which slot to put the message in */
 	slot = hist->lastmsg+1;
 	if (slot >= MAXMSGHIST) {
@@ -3744,21 +3734,30 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 	if (hist->lowseq == 0) {
 		hist->lowseq = seq;
 	}
+	slotmsg = hist->msgq[slot];
 	/* Throw away old packet in this slot */
-	if (hist->msgq[slot] != NULL) {
+	if (slotmsg != NULL) {
 		/* Lowseq is less than the lowest recorded seqno */
 		hist->lowseq = hist->seqnos[slot];
-		ha_msg_del(hist->msgq[slot]);
+		hist->msgq[slot] = NULL;
+		if (!ha_is_allocated(slotmsg)) {
+			cl_log(LOG_CRIT
+			,	"Unallocated slotmsg in add2_xmit_hist");
+		}else{
+			ha_msg_del(slotmsg);
+		}
 	}
 	hist->msgq[slot] = msg;
 	hist->seqnos[slot] = seq;
 	hist->lastrexmit[slot] = 0L;
 	hist->lastmsg = slot;
+	audit_xmit_hist();
 }
+
 
 #define	MAX_REXMIT_BATCH	10
 static void
-process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
+process_rexmit(struct msg_xmit_hist * hist, struct ha_msg* msg)
 {
 	const char *	cfseq;
 	const char *	clseq;
@@ -3884,11 +3883,10 @@ nak_rexmit(seqno_t seqno, const char * reason)
 	||	ha_msg_add(msg, F_FIRSTSEQ, sseqno) != HA_OK
 	||	ha_msg_add(msg, F_COMMENT, reason) != HA_OK) {
 		ha_log(LOG_ERR, "cannot create " T_NAKREXMIT " msg.");
-		ha_msg_del(msg);
+		ha_msg_del(msg); msg=NULL;
 		return;
 	}
 	send_cluster_msg(msg);
-	ha_msg_del(msg);
 }
 
 
@@ -4025,8 +4023,8 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
- * Revision 1.248  2003/04/14 15:44:10  alan
- * Added the now-required extra parameter to calls to cl_make_realtime().
+ * Revision 1.249  2003/04/15 23:06:53  alan
+ * Lots of new code to support the semi-massive process restructuriing.
  *
  * Revision 1.247  2003/03/29 02:48:44  alan
  * More small changes on the road to restructuring heartbeat processees.

@@ -41,8 +41,7 @@
 
 enum process_type {
 	PROC_UNDEF=0,		/* OOPS! ;-) */
-	PROC_CONTROL,		/* Control process */
-	PROC_MST_STATUS,	/* Master status process */
+	PROC_MST_CONTROL,	/* Master control process */
 	PROC_HBREAD,		/* Read process */
 	PROC_HBWRITE,		/* Write process */
 	PROC_HBFIFO,		/* FIFO process */

@@ -529,7 +529,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 
 	if (msg == NULL || (msgtype = ha_msg_value(msg, F_TYPE)) == NULL) {
 		ha_log(LOG_ERR, "api_process_request: bad message type");
-		return;
+		goto freeandexit;
 	}
 
 	/* Things that aren't T_APIREQ are general packet xmit requests... */
@@ -542,14 +542,14 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			"general message from casual client!");
 			/* Bad Client! */
 			fromclient->removereason = "badclient";
-			return;
+			goto freeandexit;
 		}
 
 		/* We put their client ID info in the packet as the F_FROMID*/
 		if (ha_msg_mod(msg, F_FROMID, fromclient->client_id) !=HA_OK){
 			ha_log(LOG_ERR, "api_process_request: "
 			"cannot add F_FROMID field");
-			return;
+			goto freeandexit;
 		}
 		/* Is this too restrictive? */
 		/* We also put their client ID info in the packet as F_TOID */
@@ -557,7 +557,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		if (ha_msg_mod(msg, F_TOID, fromclient->client_id) != HA_OK) {
 			ha_log(LOG_ERR, "api_process_request: "
 			"cannot add F_TOID field");
-			return;
+			goto freeandexit;
 		}
 		if (DEBUGDETAILS) {
 			ha_log(LOG_DEBUG, "Sending API message to cluster...");
@@ -569,6 +569,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 			ha_log(LOG_ERR, "api_process_request: "
 			"cannot forward message to cluster");
 		}
+		msg = NULL;
 		return;
 	}
 
@@ -581,7 +582,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 	if ((fromid == NULL && pid == NULL) || reqtype == NULL) {
 		ha_log(LOG_ERR, "api_process_request: no fromid/pid/reqtype"
 		" in message.");
-		return;
+		goto freeandexit;
 	}
 
 	/*
@@ -589,27 +590,24 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 	 */
 	if ((resp = ha_msg_new(4)) == NULL) {
 		ha_log(LOG_ERR, "api_process_request: out of memory/1");
-		return;
+		goto freeandexit;
 	}
 
 	/* API response messages are of type T_APIRESP */
 	if (ha_msg_add(resp, F_TYPE, T_APIRESP) != HA_OK) {
 		ha_log(LOG_ERR, "api_process_request: cannot add field/2");
-		ha_msg_del(resp); resp=NULL;
-		return;
+		goto freeandexitresp;
 	}
 	/* Echo back the type of API request we're responding to */
 	if (ha_msg_add(resp, F_APIREQ, reqtype) != HA_OK) {
 		ha_log(LOG_ERR, "api_process_request: cannot add field/3");
-		ha_msg_del(resp); resp=NULL;
-		return;
+		goto freeandexitresp;
 	}
 
 
 	if ((client = find_client(fromid, pid)) == NULL) {
 		ha_log(LOG_ERR, "api_process_request: msg from non-client");
-		ha_msg_del(resp); resp=NULL;
-		return;
+		goto freeandexitresp;
 	}
 
 	/* See if they correctly stated their client id information... */
@@ -620,16 +618,14 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		,	(long) fromclient->pid
 		,	client->client_id
 		,	fromclient->client_id);
-		ha_msg_del(resp); resp=NULL;
-		return;
+		goto freeandexitresp;
 	}
 
 	/* See if this client FIFOs are (still) properly secured */
 
 	if (!ClientSecurityIsOK(client)) {
 		client->removereason = "security";
-		ha_msg_del(resp); resp=NULL;
-		return;
+		goto freeandexitresp;
 	}
 	
 	for(x = 0 ; x < DIMOF(query_handler_list); x++) { 
@@ -641,20 +637,17 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 						, &failreason);
 			switch(ret) {
 			case I_API_IGN:
-				ha_msg_del(resp); resp = NULL;
-				return;
+				goto freeandexitresp;
 			case I_API_RET:
 				if (ha_msg_add(resp, F_APIRESULT, API_OK)
 				!=	HA_OK) {
 					ha_log(LOG_ERR
 					,	"api_process_request:"
 					" cannot add field/8.1");
-					ha_msg_del(resp); resp=NULL;
-					return;
+					goto freeandexitresp;
 				}
 				api_send_client_msg(client, resp);
-				ha_msg_del(resp); resp=NULL;
-				return;
+				goto freeandexitresp;
 
 			case I_API_BADREQ:
 				goto bad_req;
@@ -676,9 +669,7 @@ bad_req:
 	if (ha_msg_add(resp, F_APIRESULT, API_BADREQ) != HA_OK) {
 		ha_log(LOG_ERR
 		,	"api_process_request: cannot add field/11");
-		ha_msg_del(resp);
-		resp=NULL;
-		return;
+		goto freeandexitresp;
 	}
 	if (failreason) {
 		if (ha_msg_add(resp, F_COMMENT,	failreason) != HA_OK) {
@@ -687,8 +678,11 @@ bad_req:
 		}
 	}
 	api_send_client_msg(client, resp);
+freeandexitresp:
 	ha_msg_del(resp);
 	resp=NULL;
+freeandexit:
+	ha_msg_del(msg); msg=NULL;
 }
 
 /*
@@ -816,15 +810,15 @@ api_send_client_status(client_proc_t* client, const char * status
 		ha_msg_del(msg); msg=NULL;
 		return;
 	}
-	if (send_cluster_msg(msg) != HA_OK) {
-		ha_log(LOG_ERR, "api_send_client_status: "
-			"cannot send message to cluster");
-	}
 	if (strcmp(status, LEAVESTATUS) == 0) {
 		/* Make sure they know they're signed off... */
 		api_send_client_msg(client, msg);
 	}
-	ha_msg_del(msg); msg=NULL;
+	if (send_cluster_msg(msg) != HA_OK) {
+		ha_log(LOG_ERR, "api_send_client_status: "
+			"cannot send message to cluster");
+	}
+	msg = NULL;
 }
 
 /*
@@ -1680,5 +1674,5 @@ ProcessAnAPIRequest(client_proc_t*	client)
 	/* Process the API request message... */
 	api_heartbeat_monitor(msg, APICALL, "<api>");
 	api_process_request(client, msg);
-	ha_msg_del(msg); msg = NULL;
+	msg = NULL;
 }
