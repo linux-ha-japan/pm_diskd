@@ -219,7 +219,40 @@ apphb_setinterval(int hbms)
 	}
 	return  0;
 }
+/* Set application heartbeat warning time (in milliseconds) */
+int
+apphb_setwarn(int hbms)
+{
+	struct apphb_msmsg	msg;
+	struct IPC_MESSAGE	Msg;
+	int			err;
 
+	if (hbcomm == NULL || hbstatus != IPC_OK) {
+		errno = ESRCH;
+		return -1;
+	}
+	if (hbms < 0) {
+		errno = EINVAL;
+		return -1;
+	}
+	strncpy(msg.msgtype, SETWARNTIME, sizeof(msg.msgtype));
+	msg.ms = hbms;
+	Msg.msg_body = &msg;
+	Msg.msg_len = sizeof(msg);
+	Msg.msg_done = NULL;
+	Msg.msg_private = NULL;
+	Msg.msg_ch = hbcomm;
+
+	if (hbcomm->ops->send(hbcomm, &Msg) != IPC_OK) {
+		errno = EBADF;
+		return -1;
+	}
+	if ((err = apphb_getrc()) != 0) {
+		errno = err;
+		return -1;
+	}
+	return  0;
+}
 /* Perform application heartbeat */
 int
 apphb_hb(void)

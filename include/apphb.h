@@ -84,7 +84,6 @@ int apphb_unregister(void);
 /*
  * apphb_setinterval: set heartbeat interval
  * parameters:
- *   appname: name this process is registered as (for logging purposes)
  *   hbms: the expected heartbeat interval in milliseconds.
  *		an hbms of zero temporarily diables heartbeat monitoring
  *
@@ -95,6 +94,21 @@ int apphb_unregister(void);
  *
  */
 int apphb_setinterval(int hbms);
+
+/*
+ * apphb_setwarn: set heartbeat warning time
+ * parameters:
+ *   hbms: the heartbeat warning time in milliseconds
+ *		an hbms of zero temporarily diables heartbeat monitoring
+ *
+ * errno values:
+ * EBADF:	application heartbeat service not available
+ * ESRCH:	current process not registered for monitoring.
+ * EINVAL:	illegal/invalid hbms value
+ *
+ *
+ */
+int apphb_setwarn(int hbms);
 
 /*
  * apphb_hb: application heartbeat call.
