@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.5 2001/06/07 21:29:44 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.6 2001/10/24 00:21:58 alan Exp $";
 /* send_arp.c
 
 This program sends out one ARP packet with source/target IP and Ethernet
@@ -42,7 +42,8 @@ volobuev@t1.chem.umn.edu
 #define ARP_FRAME_TYPE 0x0806
 #define ETHER_HW_TYPE 1
 #define IP_PROTO_TYPE 0x0800
-#define OP_ARP_REQUEST 2
+#define OP_ARP_REQUEST	1
+#define OP_ARP_REPLY	2
 
 
 char usage[]={"send_arp: sends out custom ARP packet. yuri volobuev'97\n\
@@ -68,53 +69,78 @@ void die(const char *);
 void get_ip_addr(struct in_addr*,char*);
 void get_hw_addr(u_char*,char*);
 
-int main(int argc,char** argv){
+#define	DIMOF(a)	(sizeof(a)/sizeof(a[0]))
 
-struct in_addr src_in_addr,targ_in_addr;
-struct arp_packet pkt;
-struct sockaddr sa;
-int sock;
+int
+main(int argc,char** argv)
+{
 
-(void)_send_arp_c;
-if(argc != 6)die(usage);
+	struct in_addr src_in_addr,targ_in_addr;
+	struct arp_packet pkt;
+	struct sockaddr sa;
+	int	sock;
+	int	optypes [] = { OP_ARP_REQUEST, OP_ARP_REPLY};
+	int	j;
 
-sock=NEWSOCKET();
-if(sock<0){
-        perror("socket");
-        exit(1);
+
+	(void)_send_arp_c;
+
+	if (argc != 6) {
+		die(usage);
+	}
+
+	sock=NEWSOCKET();
+	if (sock < 0) {
+		perror("socket");
+		exit(1);
         }
 
-pkt.frame_type = htons(ARP_FRAME_TYPE);
-pkt.hw_type = htons(ETHER_HW_TYPE);
-pkt.prot_type = htons(IP_PROTO_TYPE);
-pkt.hw_addr_size = ETH_HW_ADDR_LEN;
-pkt.prot_addr_size = IP_ADDR_LEN;
-pkt.op=htons(OP_ARP_REQUEST);
+	/* Most switches/routers respond to the ARP reply, a few only
+	 * to an ARP request.  RFCs say they should respond
+	 * to either.  Oh well... We'll try and work with all...
+	 * So, we broadcast both an ARP request and a reply...
+	 * See RFCs 2002 and 826.
+	 *
+	 * The observation about some only responding to ARP requests
+	 * came from Masaki Hasegawa <masaki-h@pp.iij4u.or.jp>.
+	 * So, this fix is due largely to him.
+	 */
 
-get_hw_addr(pkt.targ_hw_addr,argv[5]);
-get_hw_addr(pkt.rcpt_hw_addr,argv[5]);
-get_hw_addr(pkt.src_hw_addr,argv[3]);
-get_hw_addr(pkt.sndr_hw_addr,argv[3]);
+	for (j=0; j < DIMOF(optypes); ++j) {
+		pkt.frame_type = htons(ARP_FRAME_TYPE);
+		pkt.hw_type = htons(ETHER_HW_TYPE);
+		pkt.prot_type = htons(IP_PROTO_TYPE);
+		pkt.hw_addr_size = ETH_HW_ADDR_LEN;
+		pkt.prot_addr_size = IP_ADDR_LEN;
+		pkt.op=htons(optypes[j]);
 
-get_ip_addr(&src_in_addr,argv[2]);
-get_ip_addr(&targ_in_addr,argv[4]);
+		get_hw_addr(pkt.targ_hw_addr,argv[5]);
+		get_hw_addr(pkt.rcpt_hw_addr,argv[5]);
+		get_hw_addr(pkt.src_hw_addr,argv[3]);
+		get_hw_addr(pkt.sndr_hw_addr,argv[3]);
 
-memcpy(pkt.sndr_ip_addr,&src_in_addr,IP_ADDR_LEN);
-memcpy(pkt.rcpt_ip_addr,&targ_in_addr,IP_ADDR_LEN);
+		get_ip_addr(&src_in_addr,argv[2]);
+		get_ip_addr(&targ_in_addr,argv[4]);
 
-memset(pkt.padding,0, 18);
+		memcpy(pkt.sndr_ip_addr,&src_in_addr,IP_ADDR_LEN);
+		memcpy(pkt.rcpt_ip_addr,&targ_in_addr,IP_ADDR_LEN);
 
-strcpy(sa.sa_data,argv[1]);
-if(sendto(sock, (const void *)&pkt,sizeof(pkt),0,&sa,sizeof(sa)) < 0){
-        perror("sendto");
-        exit(1);
-        }
-exit(0);
+		memset(pkt.padding,0, 18);
+
+		strcpy(sa.sa_data,argv[1]);
+		if (sendto(sock, (const void *)&pkt,sizeof(pkt),0
+		,	&sa,sizeof(sa)) < 0) {
+			perror("sendto");
+			exit(1);
+		}
+	}
+	exit(0);
 }
 
-void die(const char* str){
-fprintf(stderr,"%s\n",str);
-exit(1);
+void die(const char* str)
+{
+	fprintf(stderr,"%s\n",str);
+	exit(1);
 }
 
 void get_ip_addr(struct in_addr* in_addr,char* str)
@@ -122,41 +148,61 @@ void get_ip_addr(struct in_addr* in_addr,char* str)
 	struct hostent *hostp;
 
 	in_addr->s_addr=inet_addr(str);
-	if(in_addr->s_addr == -1){
-        	if( (hostp = gethostbyname(str))) {
-                	memcpy(in_addr, hostp->h_addr, hostp->h_length);
+	if (in_addr->s_addr == -1) {
+		if ( (hostp = gethostbyname(str))) {
+			memcpy(in_addr, hostp->h_addr, hostp->h_length);
 		}else{
-                	fprintf(stderr,"send_arp: unknown host %s\n",str);
-                	exit(1);
-               	}
+			fprintf(stderr,"send_arp: unknown host %s\n",str);
+			exit(1);
+		}
 	}
 }
 
-void get_hw_addr(u_char* buf,char* str){
+void get_hw_addr(u_char* buf,char* str)
+{
 
-int i;
-char c,val = 0;
+	int i;
+	char c,val = 0;
 
-for(i=0;i<ETH_HW_ADDR_LEN;i++){
-        if( !(c = tolower((unsigned int)(*str++)))) die("Invalid hardware address");
-        if(isdigit((unsigned int)c)) val = c-'0';
-        else if(c >= 'a' && c <= 'f') val = c-'a'+10;
-        else die("Invalid hardware address");
+	for(i=0;i<ETH_HW_ADDR_LEN;i++) {
+		if ( !(c = tolower((unsigned int)(*str++)))) {
+			die("Invalid hardware address");
+		}
+		if (isdigit((unsigned int)c)) {
+			val = c-'0';
+		}else if (c >= 'a' && c <= 'f') {
+			val = c-'a'+10;
+		}else{
+			die("Invalid hardware address");
+		}
 
-        *buf = val << 4;
-        if( !(c = tolower(*str++))) die("Invalid hardware address");
-        if(isdigit((unsigned int)c)) val = c-'0';
-        else if(c >= 'a' && c <= 'f') val = c-'a'+10;
-        else die("Invalid hardware address");
+		*buf = val << 4;
 
-        *buf++ |= val;
+		if ( !(c = tolower(*str++))) {
+			die("Invalid hardware address");
+		}
 
-        if(*str == ':')str++;
+		if (isdigit((unsigned int)c)) {
+			val = c-'0';
+		}else if (c >= 'a' && c <= 'f') {
+			val = c-'a'+10;
+		}else{
+			die("Invalid hardware address");
+		}
+
+		*buf++ |= val;
+
+		if (*str == ':')str++;
         }
 }
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.6  2001/10/24 00:21:58  alan
+ * Fix to send both a broadcast ARP request as well as the ARP response we
+ * were already sending.  All the interesting research work for this fix was
+ * done by Masaki Hasegawa <masaki-h@pp.iij4u.or.jp> and his colleagues.
+ *
  * Revision 1.5  2001/06/07 21:29:44  alan
  * Put in various portability changes to compile on Solaris w/o warnings.
  * The symptoms came courtesy of David Lee.
