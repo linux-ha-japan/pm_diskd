@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.90 2000/09/10 03:48:52 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.91 2000/11/12 04:29:22 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -131,17 +131,10 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.90 2000/09/10 03:48:
  ****** Wish List: ************************************************************
  *	[not necessarily in priority order]
  *
- *	Fix -r flag for nice_failback case.  Different logic and a new flag
- *		is required for takeover when nice_failback is in effect.
- *		Basically the new flag will tell it the proper resource state.
- *		[I think this is working now?]
- *
- *	Heartbeat API:
- *		This is currently being worked.  It would allow application
- *		programs to attach to heartbeat and get status notices from it,
- *		and allow them to send and receive messages to/from the
- *		cluster as well.  This would allow us to move all the resource
- *		management stuff to a cluster manager, where it belongs ;-)
+ *	Heartbeat API conversion to unix domain sockets:
+ *		We ought to convert to UNIX domain sockets because we get
+ *		better verification of the user, and we would get notified when
+ *		they die.
  *
  *	Fuzzy heartbeat timing
  *		Right now, the code works in such a way that it systematically
@@ -191,12 +184,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.90 2000/09/10 03:48:
  *		times to heartbeat.  I suppose if you have something like
  *		50-100 nodes, you ought to use a switch, and not a hub, and
  *		this would likely eliminate the problems.
- *
- *	Ping heartbeating:
- *		A hub, switch, or router can act as a cluster quorum device
- *		if it we're willing to ping it (and it's willing to answer).
- *		It would be handy to just give it the same API treatment as
- *		any other cluster "node".
  *
  *	Multicast heartbeats
  *		We really need to add UDP/IP multicast to our suite of
@@ -281,7 +268,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.90 2000/09/10 03:48:
 #include <test.h>
 #include <hb_module.h>
 
-#define OPTARGS		"dkrRsvC:"
+#define OPTARGS		"dkMrRsvC:"
 
 #define	IGNORESIG(s)	((void)signal((s), SIG_IGN))
 
@@ -317,6 +304,7 @@ int		RestartRequested = 0;
 int		WeAreRestarting = 0;
 int		killrunninghb = 0;
 int		rpt_hb_status = 0;
+int		DoManageResources = 1;
 int		childpid = -1;
 char *		watchdogdev = NULL;
 int		watchdogfd = -1;
@@ -399,6 +387,7 @@ void	send_to_all_media(char * smsg, int len);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
 				const char *iface);
 int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
+void	Initiate_Reset(Stonith* s, const char * nodename);
 void	healed_cluster_partition(struct node_info* node);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
@@ -408,7 +397,7 @@ void	process_clustermsg(FILE * f);
 void	process_registermsg(FILE * f);
 void	nak_rexmit(unsigned long seqno, const char * reason);
 void	req_our_resources(int getthemanyway);
-void	giveup_resources(void);
+void	giveup_resources(int);
 void	make_realtime(void);
 void	make_normaltime(void);
 int	IncrGeneration(unsigned long * generation);
@@ -428,6 +417,7 @@ int	num_procs = 0;
 int	send_status_now = 1;	/* Send initial status immediately */
 int	dump_stats_now = 0;
 int	parse_only = 0;
+int	restart_after_shutdown = 0;
 
 enum comm_state {
 	COMM_STARTING,
@@ -588,7 +578,6 @@ ha_log(int priority, const char * fmt, ...)
 	if (config && config->log_facility >= 0) {
 		syslog(priority, "%s: %s"
 		,	ha_log_priority[LOG_PRI(priority)], buf);
-		return;
 	}
 
 	if (config) {
@@ -979,6 +968,7 @@ control_process(FILE * fp)
 	/* Catch and propagate debugging level signals... */
 	signal(SIGUSR1, parent_debug_sig);
 	signal(SIGUSR2, parent_debug_sig);
+	signal(SIGTERM, giveup_resources);
 	siginterrupt(SIGALRM, 1);
 
 	for(;;) {
@@ -1322,6 +1312,14 @@ process_clustermsg(FILE * f)
 		process_resources(msg, thisnode);
 	}
 
+	if (strcasecmp(type, T_SHUTDONE) == 0 && thisnode == curnode) {
+		if (ANYDEBUG) {
+			ha_log(LOG_ERR, "Received T_SHUTDONE from ourselves.");
+		}
+		heartbeat_monitor(msg, action, iface);
+		signal_all(SIGTERM);
+	}
+
 	if (strcasecmp(type, T_STARTING) == 0
 	||	strcasecmp(type, T_RESOURCES) == 0) {
 		heartbeat_monitor(msg, action, iface);
@@ -1491,7 +1489,8 @@ enum rsc_state {
 	R_BOTHSTARTING,		/* Links up, start msg received & issued  */
 				/* BOTHSTARTING now equiv to STARTING (?) */
 	R_RSCRCVD,		/* Resource Message received */
-	R_STABLE		/* Local resources acquired, too... */
+	R_STABLE,		/* Local resources acquired, too... */
+	R_SHUTDOWN,		/* We're in shutdown... */
 };
 
 #define	UPD_RSC(cur, up)	((up == NO_RSC) ? NO_RSC : ((up)|(cur)))
@@ -1508,7 +1507,8 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	enum rsc_state		newrstate = rstate;
 	int			first_time = 1;
 
-	if ((type = ha_msg_value(msg, F_TYPE)) == NULL) {
+	if ((type = ha_msg_value(msg, F_TYPE)) == NULL
+	||	!DoManageResources) {
 		return;
 	}
 
@@ -1658,6 +1658,14 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 				/* Probably unnecessary */
 				other_is_stable = 1;
 			}
+		}
+	}
+	if (strcasecmp(type, T_SHUTDONE) == 0) {
+		if (thisnode != curnode) {
+			other_is_stable = 0;
+		}else{
+			rstate = newrstate = R_SHUTDOWN;
+			i_hold_resources = 0;
 		}
 	}
 
@@ -1815,6 +1823,10 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	const char *	fp;
 	char *		tp;
 	int		pid, status;
+
+	if (!DoManageResources) {
+		return;
+	}
 
 	tp = command;
 
@@ -2079,7 +2091,7 @@ reread_config_sig(int sig)
 		}else{
 			ha_log(LOG_INFO, "Configuration unchanged.");
 		}
-	} else { 
+	}else{ 
 
 		/* We are not the control process, and we received a SIGHUP signal.
 		 * This means configuration file has changed.
@@ -2507,38 +2519,82 @@ mark_node_dead(struct node_info *hip)
 
 		/* This often takes a few seconds. */
 		if (config->stonith) {
-			Stonith * s = config->stonith;
-			ha_log(LOG_INFO
-			,	"Resetting node %s with [%s]"
-			,	hip->nodename
-			,	s->s_ops->getinfo(s, ST_DEVICEID));
-
-			switch (s->s_ops->reset_req(s, ST_GENERIC_RESET
-			,		hip->nodename)){
-
-			case S_OK:
-				ha_log(LOG_INFO
-				,	"node %s now reset.", hip->nodename);
-				break;
-
-			case S_BADHOST:
-				ha_log(LOG_ERR
-				,	"Device %s cannot reset host %s."
-				,	s->s_ops->getinfo(s, ST_DEVICEID)
-				,	hip->nodename);
-				break;
-
-			default:
-				ha_log(LOG_ERR
-				,	"Host %s not reset!"
-				,	hip->nodename);
-			}
-		
+			Initiate_Reset(config->stonith, hip->nodename);
+			/* They send us a message when the reset completes*/
 		}
 	}
 	hip->anypacketsyet = 1;
 	ha_msg_del(hmsg);
 }
+
+void
+Initiate_Reset(Stonith* s, const char * nodename)
+{
+	const char*	result = "bad";
+	struct ha_msg*	hmsg;
+	/*
+	 * We need to fork because the stonith operations block for a long
+	 * time (10 seconds in common cases)
+	 */
+	switch(fork()) {
+
+		case -1:	ha_log(LOG_ERR, "Cannot fork.");
+				/*FALL THROUGH*/
+		default:	return;
+
+		case 0:		/* Child */
+				break;
+
+	}
+	/* Guard against possibly hanging Stonith code... */
+	make_normaltime();
+	signal(SIGCHLD, SIG_DFL);
+
+	ha_log(LOG_INFO
+	,	"Resetting node %s with [%s]"
+	,	nodename
+	,	s->s_ops->getinfo(s, ST_DEVICEID));
+
+	switch (s->s_ops->reset_req(s, ST_GENERIC_RESET
+	,		nodename)){
+
+	case S_OK:
+		result="OK";
+		ha_log(LOG_INFO
+		,	"node %s now reset.", nodename);
+			break;
+
+	case S_BADHOST:
+		ha_log(LOG_ERR
+		,	"Device %s cannot reset host %s."
+		,	s->s_ops->getinfo(s, ST_DEVICEID)
+		,	nodename);
+		break;
+
+	default:
+		ha_log(LOG_ERR, "Host %s not reset!", nodename);
+	}
+
+	if ((hmsg = ha_msg_new(6)) == NULL) {
+		ha_log(LOG_ERR, "no memory for " T_REXMIT);
+	}
+
+	if (	hmsg != NULL
+	&& 	ha_msg_add(hmsg, F_TYPE, T_STONITH)    == HA_OK
+	&&	ha_msg_add(hmsg, F_NODE, nodename) == HA_OK
+	&&	ha_msg_add(hmsg, F_APIRESULT, result) == HA_OK) {
+		/* Send a re-transmit request */
+		if (send_cluster_msg(hmsg) == HA_FAIL) {
+			ha_log(LOG_ERR, "cannot send " T_STONITH
+			" request for %s", nodename);
+		}
+	}else{
+		ha_log(LOG_ERR
+		,	"Cannot send reset reply message [%s] for %s", result
+		,	nodename);
+	}
+}
+
 void
 healed_cluster_partition(struct node_info *t)
 {
@@ -2548,8 +2604,8 @@ healed_cluster_partition(struct node_info *t)
 	/* Give up our resources, and restart ourselves */
 	/* This is cleaner than lots of other options. */
 	/* And, it really should work every time... :-) */
-	giveup_resources();
-	restart_heartbeat(0);
+	giveup_resources(0);
+	restart_after_shutdown = 1;
 }
 
 struct fieldname_map {
@@ -2679,23 +2735,36 @@ req_our_resources(int getthemanyway)
 }
 
 void
-giveup_resources()
+giveup_resources(int dummy)
 {
-	FILE *	rkeys;
-	char	cmd[MAXLINE];
-	char	buf[MAXLINE];
-	int	finalrc = HA_OK;
-	int	rc;
-	pid_t	pid;
+	FILE *		rkeys;
+	char		cmd[MAXLINE];
+	char		buf[MAXLINE];
+	int		finalrc = HA_OK;
+	int		rc;
+	pid_t		pid;
+	struct ha_msg *	m;
+	static int	giving_up = 0;
 
 	/* We need to fork so we can make child procs not real time */
+
+	if (giving_up) {
+	        signal_all(SIGTERM);
+		return;
+	}
+	giving_up=1;
+	ha_log(LOG_INFO, "Heartbeat shutdown in progress.");
 
 	switch((pid=fork())) {
 
 		case -1:	ha_log(LOG_ERR, "Cannot fork.");
 				return;
 
-		default:	waitpid(pid, NULL, 0);
+				/*
+				 * We shouldn't block here, because then we
+				 * aren't sending heartbeats out...
+				 */
+		default:	/* waitpid(pid, NULL, 0); */
 				return;
 
 		case 0:		/* Child */
@@ -2728,10 +2797,21 @@ giveup_resources()
 	}
 	pclose(rkeys);
 	ha_log(LOG_INFO, "All HA resources relinquished.");
-	if (nice_failback) {
-		send_resources_held(NO_RESOURCES, 1);
-	}
 
+        if ((m=ha_msg_new(0)) == NULL) {
+                ha_log(LOG_ERR, "Cannot send final shutdown msg");
+                exit(1);
+        }
+        if ((ha_msg_add(m, F_TYPE, T_SHUTDONE) == HA_FAIL)) {
+                ha_log(LOG_ERR, "giveup_resources: Cannot create local msg");
+        }else{
+		if (ANYDEBUG) {
+			ha_log(LOG_ERR, "Sending T_SHUTDONE.");
+		}
+                rc = send_cluster_msg(m);
+        }
+
+        ha_msg_del(m);
 	exit(0);
 }
 
@@ -2797,11 +2877,19 @@ main(int argc, const char ** argv)
 
 		switch(flag) {
 
+			case 'C':
+				CurrentStatus = optarg;
+				i_hold_resources
+				=	encode_resources(CurrentStatus);
+				break;
 			case 'd':
 				++debug;
 				break;
 			case 'k':
 				++killrunninghb;
+				break;
+			case 'M':
+				DoManageResources=0;
 				break;
 			case 'r':
 				++RestartRequested;
@@ -2811,12 +2899,6 @@ main(int argc, const char ** argv)
 				break;
 			case 's':
 				++rpt_hb_status;
-				break;
-
-			case 'C':
-				CurrentStatus = optarg;
-				i_hold_resources
-				=	encode_resources(CurrentStatus);
 				break;
 
 			case 'v':
@@ -3053,6 +3135,7 @@ signal_all(int sig)
 
 	if (sig == SIGTERM) {
 		signal(SIGTERM, SIG_IGN);
+		/* ha_log(LOG_DEBUG, "pid %d: ignoring SIGTERM", getpid()); */
 		make_normaltime();
 	}
 	for (j=0; j < num_procs; ++j) {
@@ -3071,18 +3154,16 @@ signal_all(int sig)
 				(*localdie)();
 			}
 			if (curproc && curproc->type == PROC_CONTROL) {
-				ha_log(LOG_INFO
-				,	"Heartbeat shutdown in progress.");
-				giveup_resources();
-
+				sleep(1);
 				/* Kill any lingering takeover processes, etc.*/
 				kill(-getpid(), SIGTERM);
-				sleep(1);
-
 				ha_log(LOG_INFO,"Heartbeat shutdown complete.");
 				unlink(PIDFILE);
+				if (restart_after_shutdown) {
+					restart_heartbeat(0);
+				}
 			}
-			cleanexit(sig);
+			cleanexit(1);
 			break;
 	}
 }
@@ -3184,6 +3265,7 @@ make_daemon(void)
 	(void)signal(SIGALRM, AlarmUhOh);
 
 	(void)signal(SIGTERM, signal_all);
+	siginterrupt(SIGTERM, 1);
 	umask(022);
 	close(FD_STDIN);
 	close(FD_STDOUT);
@@ -3334,7 +3416,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
 	if (gen < t->generation) {
 		ha_log(LOG_DEBUG
 		,	"should_drop_message: attempted replay attack"
-		" [%s]?", thisnode->nodename);
+		" [%s]? [curgen = %d]", thisnode->nodename, t->generation);
 		return(DROPIT);
 
 	}else if (is_status) {
@@ -3758,8 +3840,8 @@ ParseTestOpts()
 }
 
 #ifndef HB_VERS_FILE
-	/* This may not be the right place to put this file */
-#	define HB_VERS_FILE VAR_RUN_D "/hb_generation"
+	/* This file needs to be persistent across reboots, but isn't really a log */
+#	define HB_VERS_FILE VAR_LIB_D "/hb_generation"
 #endif
 
 #define	GENLEN	16	/* Number of chars on disk for gen # and '\n' */
@@ -3776,6 +3858,7 @@ IncrGeneration(unsigned long * generation)
 {
 	char		buf[GENLEN+1];
 	int		fd;
+	int		flags = 0;
 
 	(void)_ha_msg_h_Id;
 	(void)_heartbeat_h_Id;
@@ -3784,6 +3867,7 @@ IncrGeneration(unsigned long * generation)
 	||	read(fd, buf, sizeof(buf)) < 1) {
 		ha_log(LOG_WARNING, "No Previous generation starting at 1");
 		snprintf(buf, sizeof(buf), "%*d", GENLEN, 0);
+		flags = O_CREAT;
 	}
 	close(fd);
 
@@ -3792,14 +3876,19 @@ IncrGeneration(unsigned long * generation)
 	++(*generation);
 	snprintf(buf, sizeof(buf), "%*lu\n", GENLEN-1, *generation);
 
-	if ((fd = open(HB_VERS_FILE, O_WRONLY|O_CREAT)) < 0) {
+	if ((fd = open(HB_VERS_FILE, O_WRONLY|O_SYNC|flags, 0644)) < 0) {
 		return HA_FAIL;
 	}
-	if (write(fd, buf, GENLEN) != GENLEN || fsync(fd) < 0) {
+	if (write(fd, buf, GENLEN) != GENLEN) {
 		close(fd);
 		return HA_FAIL;
 	}
 	close(fd);
+	/*
+	 * We *really* don't want to lose this data.  We won't be able to join the
+	 * cluster again without it.
+	 */
+	sync();
 	return HA_OK;
 }
 
@@ -3814,6 +3903,14 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.91  2000/11/12 04:29:22  alan
+ * Fixed: syslog/file simultaneous logging.
+ * 	Added a group for API clients.
+ * 	Serious problem with replay attack protection.
+ * 	Shutdown now waits for resources to be completely given up
+ * 		before stopping heartbeat.
+ * 	Made the stonith code run in a separate process.
+ *
  * Revision 1.90  2000/09/10 03:48:52  alan
  * Fixed a couple of bugs.
  * - packets that were already authenticated didn't get reauthenticated correctly.

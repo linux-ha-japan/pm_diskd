@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.62 2000/10/26 14:19:33 eric Exp $
+#	$Id: Specfile,v 1.63 2000/11/12 04:29:22 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -77,13 +77,19 @@ machine. It's simple and reliable, albiet admittedly brutal.
   + Added detection of and recovery from cluster partitions
   + Added ping node/membership/link type for tiebreaking.  This will
 	be useful when implementing quorum on 2-node systems.
+	(not yet compatible with nice_failback(?))
   + Fixed byte-ordering problem related to output in findif.c.
 	There are probably more, related to input ;-)
   + More SuSE-compatibility changes thanks to Marius Tomaschewski <mt@suse.de>
+  + Removed the 8-alias limitation from the IPaddr resource script.
+  + Added two new Stonith modules (thanks to Eric Ayers)
   + Fetch broadcast IP from kernel calls instead of output of ifconfig in udp.c
   + Accept multiple arguments for resource scripts
   + Added Raid1 and Filesystem resource scripts
   + Split into 3 rpms - heartbeat, heartbeat-stonith heartbeat-ldirectord
+  + Added -M (don't manage resources) flag to allow "observer" nodes
+	(doesn't work with nice_failback on other 2 nodes)
+  + Fixed a bug which kept you from logging to both syslog and files
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
@@ -343,8 +349,12 @@ install -m 644 rc.config.heartbeat $TEMPL
 /etc/rc.d/init.d/heartbeat
 /etc/logrotate.d/heartbeat
 /var/adm/fillup-templates/rc.config.heartbeat
-/var/run/heartbeat-fifo
 %dir /var/run/ppp.d
+%dir /var/lib/%PKG%
+%attr (600, root, root)       /var/lib/%PKG%/fifo
+%attr (750, root, %APIGROUP%) /var/lib/%PKG%/api
+%attr (620, root, %APIGROUP%) /var/lib/%PKG%/register
+%attr (770, root, %APIGROUP%) /var/lib/%PKG%/casual
 %doc doc/*
 
 #  Things for the director deamon
@@ -367,6 +377,14 @@ install -m 644 rc.config.heartbeat $TEMPL
 %clean
 rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_DIR/%PKG%-%VERS%
+%pre
+if
+  grep '^%APIGROUP%:' /etc/group >/dev/null
+then
+  : OK
+else
+  /usr/sbin/groupadd -g %APIGID% %APIGROUP%
+fi
 %post
 #
 #	Hack to allow ppp-udp to be notified about PPP processes starting
@@ -417,7 +435,8 @@ if
 then
   for d in /etc/rc.d/init.d/rc[23].d
   do
-    rm -f $d/S10heartbeat; ln -s ../heartbeat $d/S10heartbeat 
+    rm -f $d/S10heartbeat
+    rm -f $d/S99heartbeat; ln -s ../heartbeat $d/S99heartbeat 
     rm -f $d/K35heartbeat; ln -s ../heartbeat $d/K35heartbeat
   done
   FILLUP=/bin/fillup

@@ -87,17 +87,17 @@ typedef struct client_process {
 #define	API_BADREQ		"badreq"
 #define	API_MORE		"ok/more"
 
-#define	API_FIFO_DIR	VAR_RUN_D "/heartbeat-api"
+#define	API_FIFO_DIR	VAR_LIB_D "/api"
 #define	API_FIFO_LEN	(sizeof(API_FIFO_DIR)+32)
 
 #define	NAMEDCLIENTDIR	API_FIFO_DIR
-#define	CASUALCLIENTDIR	VAR_RUN_D "/heartbeat-casual"
+#define	CASUALCLIENTDIR	VAR_LIB_D "/casual"
 
 #define	REQ_SUFFIX	".req"
 #define	RSP_SUFFIX	".rsp"
 
 #ifndef API_REGFIFO
-#	define	API_REGFIFO	VAR_RUN_D "/heartbeat-register"
+#	define	API_REGFIFO	VAR_LIB_D "/register"
 #endif
 
 void api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface);
@@ -108,9 +108,9 @@ void api_audit_clients(void);
 
 /* Return code for API query handlers */
 
-#define I_API_RET 0 /* acknowledge client of successful API query */
-#define I_API_IGN 1 /* do nothing */
-#define I_API_BADREQ 2 /* send error msg to client with "failreason" as error reason */
+#define I_API_RET	0 /* acknowledge client of successful API query */
+#define I_API_IGN	1 /* do nothing */
+#define I_API_BADREQ	2 /* send error msg to client with "failreason" as error reason */
 
 /* Handler of API query */
 typedef int (*api_query_handler_t) (const struct ha_msg* msg

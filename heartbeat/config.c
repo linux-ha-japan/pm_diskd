@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.21 2000/10/10 18:43:17 eric Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.22 2000/11/12 04:29:22 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -170,15 +170,14 @@ init_config(const char * cfgfile)
 		++errcount;
 	}
 
-	if (*(config->logfile) == 0) {
+	if (*(config->logfile) == EOS) {
                  if (config->log_facility > 0) {
                         /* 
                          * Set to DEVNULL in case a stray script outputs logs
                          */
                         strcpy(config->logfile, DEVNULL);
                         config->use_logfile=0;
-                  }
-                  else {
+                  }else{
 		        set_logfile(DEFAULTLOG);
                         config->use_logfile=1;
 		        if (!parse_only) {
@@ -190,15 +189,14 @@ init_config(const char * cfgfile)
 		        }
                 }
 	}
-	if (*(config->dbgfile) == 0) {
+	if (*(config->dbgfile) == EOS) {
 	        if (config->log_facility > 0) {
 		        /* 
 		        * Set to DEVNULL in case a stray script outputs errors
 		        */
 		        strcpy(config->dbgfile, DEVNULL);
                         config->use_dbgfile=0;
-	        }
-	        else {
+	        }else{
 		        set_dbgfile(DEFAULTDEBUG);
 	        }
         }

@@ -122,8 +122,8 @@ static client_proc_t*	FDclients[MAXFD];
  * The original structure of this code was due to
  * Marcelo Tosatti <marcelo@conectiva.com.br>
  *
- * It has been significantly and repeatedly mangled into unrecognizable oblivion
- * by Alan Robertson <alanr@unix.sh>
+ * It has been significantly and repeatedly mangled into nearly unrecognizable
+ * oblivion by Alan Robertson <alanr@unix.sh>
  *
  */
 

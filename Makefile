@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.54 2000/09/08 20:15:06 alan Exp $
+#	$Id: Makefile,v 1.55 2000/11/12 04:29:22 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -28,6 +28,7 @@ HA=$(BUILD_ROOT)/etc/ha.d
 HALIB=$(BUILD_ROOT)/usr/lib/$(PKG)
 HARCD=$(HA)/rc.d
 VARRUN=$(BUILD_ROOT)/var/run
+VARLIB=$(BUILD_ROOT)/var/lib/$(PKG)
 FIFO=$(VARRUN)/heartbeat-fifo
 HAPPP=$(VARRUN)/ppp.d
 DOCDIR=$(BUILD_ROOT)/usr/doc/heartbeat
@@ -37,6 +38,8 @@ LOGROTATEDIR=$(BUILD_ROOT)/$(LOGROTATED)
 RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
 CONFDIR=$(BUILD_ROOT)/etc/ha.d/conf
 SPECSRC=Specfile
+APIGID=60
+APIGROUP=haclient
 
 # Can't include the Build Root as a part of the compilation process
 B_HA=$(DESTDIR)/etc/ha.d
@@ -44,7 +47,7 @@ B_VARRUN=$(DESTDIR)/var/run
 B_FIFO=$(B_VARRUN)/heartbeat-fifo
 B_HAPPP=$(B_VARRUN)/ppp.d
 #
-VARS=PKG=$(PKG) VERS=$(VERS)
+VARS=PKG=$(PKG) VERS=$(VERS) APIGID=$(APIGID) APIGROUP=$(APIGROUP)
 MAKE=make
 MAKE_CMD = $(MAKE) $(VARS)
 
@@ -57,10 +60,12 @@ BUILDDIRS= $(NONKERNELDIRS) $(KERNELDIRS)
 HTML2TXT = lynx -dump
 INSTALL = install
 
-WEBDIR=/usr/home/alanr/ha-web/download
+WEBDIR=/home/alanr/ha-web/download
 RPMDIR=/usr/src/packages
 RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PKG)-$(VERS)-$(RPMREL).src.rpm
 RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-$(VERS)-$(RPMREL).i386.rpm
+RPMstonith=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-stonith-$(VERS)-$(RPMREL).i386.rpm
+RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PKG)-ldirectord-$(VERS)-$(RPMREL).i386.rpm
 
 .PHONY =  		\
 	all		\
@@ -91,10 +96,11 @@ bin_dirs:
 	[ -d $(HALIB) ]	  || mkdir -p $(HALIB)
 	[ -d $(HARCD) ]	  || mkdir -p $(HARCD)
 	[ -d $(HAPPP) ]   || mkdir -p $(HAPPP)
+	[ -d $(VARLIB) ]  || mkdir -p $(VARLIB)
 	[ -d $(RESOURCEDIR) ] || mkdir -p $(RESOURCEDIR)
 	[ -d $(CONFDIR) ] || mkdir -p $(CONFDIR)
 	[ -d $(LOGROTATED) ] && \
-		[ -d $(LOGROTATEDIR) ] || mkdir -p $(LOGROTATEDIR)
+	[ -d $(LOGROTATEDIR) ] || mkdir -p $(LOGROTATEDIR)
 
 
 install:	all_dirs
@@ -118,7 +124,7 @@ install_bin: bin_dirs
 handy: rpm
 	cd doc; $(MAKE) ChangeLog
 	su alanr -c "rm -f $(WEBDIR)/ChangeLog"
-	su alanr -c "cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(WEBDIR)"
+	su alanr -c "cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(RPMstonith) $(RPMldir) $(WEBDIR)"
 
 clean:	local_clean
 	@for j in $(BUILDDIRS);				\
@@ -182,6 +188,8 @@ $(SPECFILE):    $(SPECSRC)
 			-e 's#%RPMREL%#$(RPMREL)#g'	\
 			-e 's#%HADIR%#$(HA)#g'		\
 			-e 's#%HALIB%#$(HALIB)#g'	\
+			-e 's#%APIGID%#$(APIGID)#g'	\
+			-e 's#%APIGROUP%#$(APIGROUP)#g'	\
 			-e 's#%MANDIR%#$(MANDIR)#g'	\
 			-e 's#%DOCDIR%#$(DOCDIR)#g'	\
 			< $(SPECSRC) > $(SPECFILE)

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.13 2000/10/06 19:26:20 eric Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.14 2000/11/12 04:29:22 alan Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -330,6 +330,7 @@ HB_make_receive_sock(struct hb_media * mp) {
 	int	sockfd;
 	int	bindtries;
 	int	boundyet=0;
+	int	j;
 
 	UDPASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
@@ -342,6 +343,19 @@ HB_make_receive_sock(struct hb_media * mp) {
 		ha_perror("Error getting socket");
 		return(-1);
 	}
+	/* 
+ 	 * Set SO_REUSEADDR on the server socket s. Variable j is used
+ 	 * as a scratch varable.
+ 	 *
+ 	 * 16th February 2000
+ 	 * Added by Horms <horms@vergenet.net>
+ 	 * with thanks to Clinton Work <work@scripty.com>
+ 	 */
+	j = 1;
+	if(setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR, (void *)&j, sizeof j) <0){
+		/* Ignore it.  It will almost always be OK anyway. */
+		ha_perror("Error setting option SO_REUSEADDR");
+	}        
 #if defined(SO_BINDTODEVICE)
 	{
 		/*
@@ -496,7 +510,16 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.14  2000/11/12 04:29:22  alan
+ * Fixed: syslog/file simultaneous logging.
+ * 	Added a group for API clients.
+ * 	Serious problem with replay attack protection.
+ * 	Shutdown now waits for resources to be completely given up
+ * 		before stopping heartbeat.
+ * 	Made the stonith code run in a separate process.
+ *
  * Revision 1.13  2000/10/06 19:26:20  eric
+ *
  * Removed code that parses the output of ifconfig to get the broadcast address.
  * Added code that uses ioctl() calls instead.
  *
