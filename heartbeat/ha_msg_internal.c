@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.28 2002/10/21 14:31:17 msoffen Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.29 2002/10/22 13:18:58 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -183,12 +183,12 @@ struct default_vals {
 	int		seqfield;
 };
 
-STATIC	const char * ha_msg_seq(void);
-STATIC	const char * ha_msg_timestamp(void);
-STATIC	const char * ha_msg_loadavg(void);
-STATIC	const char * ha_msg_from(void);
-STATIC	const char * ha_msg_ttl(void);
-STATIC	const char * ha_msg_hbgen(void);
+static	const char * ha_msg_seq(void);
+static	const char * ha_msg_timestamp(void);
+static	const char * ha_msg_loadavg(void);
+static	const char * ha_msg_from(void);
+static	const char * ha_msg_ttl(void);
+static	const char * ha_msg_hbgen(void);
 
 /* Each of these functions returns static data requiring copying */
 struct default_vals defaults [] = {
@@ -241,7 +241,7 @@ controlfifo2msg(FILE * f)
 
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
-			ha_error("NV failure (controlfifo2msg):");
+			ha_log(LOG_ERR, "NV failure (controlfifo2msg):");
 			ha_log(LOG_DEBUG, "[%s] %ld chars", buf,
 				(long)strlen(buf));
 			ha_log(LOG_DEBUG, "Read in message    : '%s'",
@@ -258,7 +258,7 @@ controlfifo2msg(FILE * f)
 	}
 
 	if ((type = ha_msg_value(ret, F_TYPE)) == NULL) {
-		ha_error("No type (controlfifo2msg): ");
+		ha_log(LOG_ERR, "No type (controlfifo2msg): ");
 		ha_log(LOG_DEBUG, "[%s] %ld chars", buf, (long)strlen(buf));
 		ha_log(LOG_DEBUG, "Read in message    : '%s'", garbbuf);
 		ha_log_message(ret);
@@ -548,6 +548,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.29  2002/10/22 13:18:58  alan
+ * Changed a few calls to ha_error(... to ha_log(LOG_ERR,...
+ *
  * Revision 1.28  2002/10/21 14:31:17  msoffen
  * Additional debug to find actual cause of empty packets.
  *
