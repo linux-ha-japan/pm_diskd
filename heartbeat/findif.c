@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.27 2003/04/19 03:59:15 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.28 2003/06/18 03:43:42 horms Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -30,7 +30,7 @@ static const char _findif_c [] = "$Id: findif.c,v 1.27 2003/04/19 03:59:15 alan 
  ***********************************************************
  *
  *	Our single argument is of the form:
- *		address[/netmask[/interface][/boadcast]]
+ *		address[/netmask[/interface][/broadcast]]
  *
  *	So, the following forms are legal:
  *	         address
@@ -584,7 +584,7 @@ usage()
 	fprintf(stderr, "\n"
 		"%s version " VERSION " Copyright Alan Robertson\n"
 		"\n"
-		"Usage: %s address[/netmask[/interface][/boadcast]]\n"
+		"Usage: %s address[/netmask[/interface][/broadcast]]\n"
 		"\n"
 		"Where:\n"
 		"    address: IP address of the new virtual interface\n"
@@ -665,6 +665,9 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.28  2003/06/18 03:43:42  horms
+ * spelling
+ *
  * Revision 1.27  2003/04/19 03:59:15  alan
  * Put in an enhancement to findif to allow Tuomo Soini to get the output he
  * wants in CIDR format.
