@@ -136,7 +136,7 @@ enum apphb_event {
 #define	MAXNOTIFYPLUGIN	100
 
 /*
- * Definitions for plugins
+ * Definitions for plugins.  They should be in a header file.
  */
 typedef struct AppHBNotifyOps_s AppHBNotifyOps;
 typedef struct AppHBNotifyImports_s AppHBNotifyImports;
@@ -151,11 +151,6 @@ struct AppHBNotifyOps_s {
 	,	uid_t uid, gid_t gid, apphb_event_t event);
 };
 
-AppHBNotifyOps*	NotificationPlugins[MAXNOTIFYPLUGIN];
-int		n_Notification_Plugins = 0;
-static int	watchdogfd = -1;
-
-
 /*
  * Plugin imported functions.
  */
@@ -163,6 +158,11 @@ struct AppHBNotifyImports_s {
 	gboolean (*auth)	(void * clienthandle
 ,	uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
 };
+
+
+AppHBNotifyOps*	NotificationPlugins[MAXNOTIFYPLUGIN];
+int		n_Notification_Plugins = 0;
+static int	watchdogfd = -1;
 
 static void apphb_notify(apphb_client_t* client, apphb_event_t event);
 static long get_running_pid(gboolean * anypidfile);
@@ -285,7 +285,6 @@ apphb_client_new(struct IPC_CHANNEL* ch)
 		,	GPOINTER_TO_UINT(ch)
 		,	ch->farside_pid);
 	}
-	/* FIXME?? Should last arg be NULL?? */
 	ret->source = G_main_add_IPC_Channel(G_PRIORITY_DEFAULT
 	,	ch, FALSE, apphb_dispatch, (gpointer)ret
 	,	apphb_client_remove);
@@ -758,7 +757,7 @@ init_start(const char * watchdogdev)
 	if (watchdogfd >= 0) {
 		Gmain_timeout_add(1000, tickle_watchdog_timer, NULL);
 	}
-	cl_make_realtime(SCHED_RR, 100, 64);
+	cl_make_realtime(SCHED_RR, 5, 64);
 	if (watchdogdev) {
 		open_watchdog(watchdogdev);
 	}
