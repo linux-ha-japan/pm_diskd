@@ -98,9 +98,14 @@ DoLock(const char * prefix, const char *lockname)
 	,	TTY_LOCK_D, mypid, lockname);
 
 	if ((fd = open(lf_name, O_RDONLY)) >= 0) {
-		if (fstat(fd, &sbuf) < 0 || sbuf.st_size < 1) {
+		if (fstat(fd, &sbuf) >= 0 && sbuf.st_size < LOCKSTRLEN) {
 			sleep(1); /* if someone was about to create one,
-			   	   * give'm a sec to do so */
+			   	   * give'm a sec to do so
+				   * Though if they follow our protocol,
+				   * this won't happen.  They should really
+				   * put the pid in, then link, not the
+				   * other way around.
+				   */
 		}
 		if (read(fd, buf, sizeof(buf)) < 1) {
 			/* lockfile empty -> rm it and go on */;
@@ -125,6 +130,8 @@ DoLock(const char * prefix, const char *lockname)
 		/* Hmmh, why did we fail? Anyway, nothing we can do about it */
 		return -3;
 	}
+
+	/* Slight overkill with the %*d format ;-) */
 	snprintf(buf, sizeof(buf), "%*d\n", LOCKSTRLEN-1, mypid);
 
 	if (write(fd, buf, LOCKSTRLEN) != LOCKSTRLEN) {
