@@ -182,7 +182,6 @@ static int gbl_debug = DEBUG;
  *	Remote Power Controllers...
  */
 
-static struct Etoken WTItokReady[] =	{ {"RPS-10 Ready", 0, 0}, {NULL,0,0}};
 static struct Etoken WTItokComplete[] =	{ {"Complete", 0, 0} ,{NULL,0,0}};
 static struct Etoken WTItokPlug[] =	{ {"Plug", 0, 0}, {NULL,0,0}};
 static struct Etoken WTItokOutlet[] =	{ {"0", 0, 0}, 
@@ -195,11 +194,16 @@ static struct Etoken WTItokOutlet[] =	{ {"0", 0, 0},
 					  {"7", 0, 0}, 
 					  {"8", 0, 0}, 
 					  {"9", 0, 0}, 
-					  {"*", 0, 0}, 
 					  {NULL,0,0}};
 
-static struct Etoken WTItokOn[] =	{ {"On", 0, 0}, {NULL,0,0}};
 static struct Etoken WTItokOff[] =	{ {"Off", 0, 0}, {NULL,0,0}};
+
+/* 
+ * Tokens currently not used because they don't show up on all RPS10 units:
+ *
+static struct Etoken WTItokOn[] =	{ {"On", 0, 0}, {NULL,0,0}};
+static struct Etoken WTItokReady[] =	{ {"RPS-10 Ready", 0, 0}, {NULL,0,0}};
+ */
 
 /* Accept either a CR/NL or an NL/CR */
 static struct Etoken WTItokCRNL[] =	{ {"\n\r",0,0},{"\r\n",0,0},{NULL,0,0}};
@@ -271,7 +275,7 @@ RPSLookFor(struct WTI_RPS10* ctx, struct Etoken * tlist, int timeout)
 {
 	int	rc;
 	if ((rc = ExpectToken(ctx->fd, tlist, timeout, NULL, 0)) < 0) {
-		syslog(LOG_ERR, _("Did not find string: '%s' from" DEVICE ".")
+		syslog(LOG_ERR, _("Did not find string: '%s' from " DEVICE ".")
 		,	tlist[0].string);
 		RPSDisconnect(ctx);
 		return(-1);
@@ -352,6 +356,10 @@ RPSReset(struct WTI_RPS10* ctx, char unit_id, const char * rebootid)
 	SEND(unit_id, 'T', 10);
 
 	/* Expect "Plug 0 Off" */
+	/* Note: If asked to control "*", the RPS10 will report all units it
+	 * separately; however, we don't know how many, so we can only wait
+	 * for the first unit to report something and then wait until the
+	 * "Complete" */
 	EXPECT(WTItokPlug, 5);
 	if (gbl_debug)	printf ("Got Plug\n");
 	EXPECT(WTItokOutlet, 2);
@@ -361,17 +369,8 @@ RPSReset(struct WTI_RPS10* ctx, char unit_id, const char * rebootid)
 	EXPECT(WTItokCRNL, 2);
 	syslog(LOG_INFO, _("Host %s being rebooted."), rebootid);
 	
-	/* Expect "Plug 0 On"  will take 5 or 10 secs depending on dip switch*/
-	EXPECT(WTItokPlug, 12);
-	if (gbl_debug) printf ("Got Plug\n");	
-	EXPECT(WTItokOutlet, 2);
-	if (gbl_debug) printf ("Got Outlet #\n");	
-	EXPECT(WTItokOn, 2);
-	if (gbl_debug) printf ("Got Off\n");
-	EXPECT(WTItokCRNL, 2);
-
 	/* Expect "Complete" */
-	EXPECT(WTItokComplete, 5);
+	EXPECT(WTItokComplete, 14);
 	if (gbl_debug) printf ("Got Complete\n");
 	EXPECT(WTItokCRNL, 2);
 	if (gbl_debug) printf ("Got NL\n");
@@ -638,7 +637,7 @@ RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 
 		/* validate the outlet token */
 		if ((sscanf (outlet, "%c", &outlet_id) != 1)
-		    || (!((outlet_id > '0') && (outlet_id < '9'))
+		    || (!((outlet_id >= '0') && (outlet_id <= '9'))
 			    && (outlet_id != '*'))
 		   ) {
 			syslog(LOG_ERR
@@ -766,15 +765,20 @@ RPSConnect(struct WTI_RPS10 * ctx)
          */
 	dtrtoggle(ctx->fd);
 
+#if 0
 	/* Wait for the switch to respond with "RPS-10 Ready".  
 	   Emperically, this usually takes 5-10 seconds... 
+	   ... Unfortunately, there is a series of switches 
+	   which does NOT act this way and does NOT send the 
+	   "RPS-10 Ready"; this is disabled because of this.
 	*/
 	if (gbl_debug) printf ("Waiting for READY\n");
 	EXPECT(WTItokReady, 12);
 	if (gbl_debug) printf ("Got READY\n");
 	EXPECT(WTItokCRNL, 2);
 	if (gbl_debug) printf ("Got NL\n");
-	   
+#endif
+
   return(S_OK);
 }
 
