@@ -62,11 +62,13 @@ libhbclient_la_LDFLAGS	= -version-info 0:0:0
 halib_PROGRAMS		= heartbeat send_arp findif api_test get_hw_addr
 
 ## SOURCES
-heartbeat_SOURCES	= heartbeat.c heartbeat_private.h auth.c config.c \
-			hb_api.c ha_malloc.c ha_msg.c ha_msg_internal.c	\
-			lock.c module.c hb_api.h hb_api_core.h 		\
-                        hb_module.h hb_proc.h lock.h hb_signal.c	\
-                        hb_signal.h setproctitle.c setproctitle.h test.h
+heartbeat_SOURCES	= heartbeat.c auth.c				\
+			config.c ha_malloc.c ha_msg.c			\
+			ha_msg_internal.c hb_api.c hb_resource.c	\
+			hb_signal.c lock.c module.c setproctitle.c	\
+			hb_api.h hb_api_core.h heartbeat_private.h 	\
+                        hb_module.h hb_proc.h hb_resource.h		\
+			lock.h hb_signal.h setproctitle.h test.h
 
 heartbeat_LDADD		= $(top_builddir)/lib/stonith/libstonith.la	\
 			$(top_builddir)/replace/libreplace.la		\

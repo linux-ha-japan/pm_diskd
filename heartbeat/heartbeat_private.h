@@ -30,37 +30,19 @@
 #ifndef _HEARTBEAT_PRIVATE_H
 #define _HEARTBEAT_PRIVATE_H
 
+#include <ha_msg.h>
 #include <glib.h>
 
+#include <clplumbing/proctrack.h>
 #include <hb_proc.h>
 
-static const char * _heartbeat_private_h_Id = "$Id: heartbeat_private.h,v 1.2 2002/10/18 22:46:30 alan Exp $";
+static const char * _heartbeat_private_h_Id = "$Id: heartbeat_private.h,v 1.3 2002/10/19 16:04:33 alan Exp $";
 
-enum hb_rsc_state {
-	HB_R_INIT,		/* Links not up yet */
-	HB_R_STARTING,		/* Links up, start message issued */
-	HB_R_BOTHSTARTING,	/* Links up, start msg received & issued  */
-				/* BOTHSTARTING now equiv to STARTING (?) */
-	HB_R_RSCRCVD,		/* Resource Message received */
-	HB_R_STABLE,		/* Local resources acquired, too... */
-	HB_R_SHUTDOWN,		/* We're in shutdown... */
-};
-
-/*
- *	Note that the _RSC defines below are bit fields!
- */
-#define HB_NO_RESOURCES		"none"
-#define HB_NO_RSC			0
-
-#define HB_LOCAL_RESOURCES		"local"
-#define HB_LOCAL_RSC		1
-
-#define HB_FOREIGN_RESOURCES	"foreign"
-#define	HB_FOREIGN_RSC		2
-
-#define HB_ALL_RSC		(HB_LOCAL_RSC|HB_FOREIGN_RSC)
-#define HB_ALL_RESOURCES	"all"
-
+extern const char *	cmdname;
+extern int		nice_failback;
+extern int		WeAreRestarting;
+extern int		shutdown_in_progress;
+extern longclock_t	local_takeover_time;
 
 /* Used by signal handlers */
 void hb_init_watchdog(void);
@@ -72,6 +54,7 @@ int  hb_send_resources_held(const char *str, int stable, const char * comment);
 gboolean hb_msp_final_shutdown(gpointer p);
 gboolean hb_send_local_status(gpointer p);
 gboolean hb_dump_all_proc_stats(gpointer p);
+void	heartbeat_monitor(struct ha_msg * msg, int status, const char * iface);
 
 void hb_force_shutdown(void);
 void hb_emergency_shutdown(void);
