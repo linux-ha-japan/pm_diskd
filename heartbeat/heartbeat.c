@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.81 2000/08/11 00:30:07 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.82 2000/08/13 04:36:16 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -359,7 +359,6 @@ int	parse_ha_resources(const char * cfgfile);
 void	dump_config(void);
 char *	ha_timestamp(void);
 int	add_option(const char *	option, const char * value);
-int	add_node(const char * value);
 int   	parse_authfile(void);
 int 	encode_resources(const char *p);
 void	init_watchdog(void);
@@ -1252,7 +1251,7 @@ process_clustermsg(FILE * f)
 		ha_log(LOG_WARNING
 		,   "process_status_message: new node [%s] in message"
 		,	from);
-		add_node(from);
+		add_node(from, NORMALNODE);
 		thisnode = lookup_node(from);
 		if (thisnode == NULL) {
 			goto psm_done;
@@ -1324,11 +1323,12 @@ process_clustermsg(FILE * f)
 	}
 
 	/* Is this a status update (i.e., "heartbeat") message? */
-	if (strcasecmp(type, T_STATUS) == 0) {
+	if (strcasecmp(type, T_STATUS) == 0
+	||	strcasecmp(type, T_NS_STATUS) == 0) {
 		clock_t		heartbeat_interval;
 		const char *	status;
 		const char *	cseq;
-		long		seqno;
+		unsigned long	seqno = 0;
 
 		sscanf(ts, "%lx", &msgtime);
 		status = ha_msg_value(msg, F_STATUS);
@@ -3650,6 +3650,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.82  2000/08/13 04:36:16  alan
+ * Added code to make ping heartbeats work...
+ * It looks like they do, too ;-)
+ *
  * Revision 1.81  2000/08/11 00:30:07  alan
  * This is some new code that does two things:
  * 	It has pretty good replay attack protection

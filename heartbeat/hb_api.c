@@ -75,6 +75,10 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
+static int api_ping_iflist(const struct ha_msg* msg, struct node_info * node
+,	struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
 struct api_query_handler query_handler_list [] = {
 	{ API_SIGNOFF, api_signoff },
 	{ API_SETFILTER, api_setfilter },
@@ -218,7 +222,8 @@ api_audit_clients(void)
 /**********************************************************************
  * API_SETFILTER: Set the types of messages we want to see
  **********************************************************************/
-int api_setfilter(const struct ha_msg* msg, struct ha_msg* resp
+int
+api_setfilter(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char **failreason)
 {                                                            
 	const char *	cfmask;
@@ -255,7 +260,8 @@ int api_setfilter(const struct ha_msg* msg, struct ha_msg* resp
  * API_SIGNOFF: Sign off as a client
  **********************************************************************/
 
-int api_signoff(const struct ha_msg* msg, struct ha_msg* resp
+int
+api_signoff(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char **failreason) 
 { 
 		/* We send them no reply */
@@ -268,7 +274,8 @@ int api_signoff(const struct ha_msg* msg, struct ha_msg* resp
  * API_SETSIGNAL: Record the type of signal they want us to send.
  **********************************************************************/
 
-int api_setsignal(const struct ha_msg* msg, struct ha_msg* resp
+int
+api_setsignal(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
 		const char *	csignal;
@@ -294,7 +301,8 @@ int api_setsignal(const struct ha_msg* msg, struct ha_msg* resp
  * API_NODELIST: List the nodes in the cluster
  **********************************************************************/
 
-int api_nodelist(const struct ha_msg* msg, struct ha_msg* resp
+int
+api_nodelist(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
 		int	j;
@@ -325,7 +333,8 @@ int api_nodelist(const struct ha_msg* msg, struct ha_msg* resp
  * API_NODESTATUS: Return the status of the given node
  *********************************************************************/
 
-int api_nodestatus(const struct ha_msg* msg, struct ha_msg* resp
+int
+api_nodestatus(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
 		const char *		cnode;
@@ -348,7 +357,8 @@ int api_nodestatus(const struct ha_msg* msg, struct ha_msg* resp
  * API_IFLIST: List the interfaces for the given machine
  *********************************************************************/
 
-int api_iflist(const struct ha_msg* msg, struct ha_msg* resp
+int
+api_iflist(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
 		struct link * lnk;
@@ -358,17 +368,28 @@ int api_iflist(const struct ha_msg* msg, struct ha_msg* resp
 		struct node_info *	node;
 
 		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
-		|| (node = lookup_node(cnode)) == NULL) {
+		||	(node = lookup_node(cnode)) == NULL) {
 			*failreason = "EINVAL";
 			return I_API_BADREQ;
+		}
+		if (node->nodetype == PINGNODE) {
+			return api_ping_iflist
+			(	msg, node, resp ,client, failreason);
 		}
 
 		/* Find last link... */
  		for(j=0; (lnk = &node->links[j]) && lnk->name; ++j) {
 			last = j;
-                }            
+                }
+		/* Don't report on ping links */
+		if (node->links[last].isping) {
+			--last;
+		}
 
 		for (j=0; j <= last; ++j) {
+			if (node->links[j].isping) {
+				continue;
+			}
 			if (ha_msg_mod(resp, F_IFNAME
 			,	node->links[j].name) != HA_OK) {
 				ha_log(LOG_ERR
@@ -389,11 +410,44 @@ int api_iflist(const struct ha_msg* msg, struct ha_msg* resp
 	return I_API_IGN;
 }
 
+static int
+api_ping_iflist(const struct ha_msg* msg, struct node_info * node
+,	struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+	int	j;
+	struct link * lnk;
+
+ 	for(j=0; (lnk = &node->links[j]) && lnk->name; ++j) {
+		if (strcmp(lnk->name, node->nodename) == 0) {
+			if (ha_msg_mod(resp, F_IFNAME
+			,	lnk->name) != HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_ping_iflist: "
+				"cannot mod field/1");
+				return I_API_IGN;
+			}
+			if (ha_msg_mod(resp, F_APIRESULT, API_OK)!= HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_ping_iflist: "
+				"cannot mod field/2");
+				return I_API_IGN;
+			}
+			api_send_client_msg(client, resp);
+			return I_API_IGN;
+		}
+	}
+	ha_log(LOG_ERR, "api_ping_iflist: cannot find response field");
+	*failreason = "UhOh";
+	return I_API_BADREQ;
+}
+
 /**********************************************************************
  * API_IFSTATUS: Return the status of the given interface...
  *********************************************************************/
 
-int api_ifstatus(const struct ha_msg* msg, struct ha_msg* resp
+int
+api_ifstatus(const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason)
 {
 		const char *		cnode;

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.9 2000/07/26 05:17:19 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.10 2000/08/13 04:36:16 alan Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -71,6 +71,7 @@ STATIC struct ip_private *
 const struct hb_media_fns	ip_media_fns =
 {	"udp"			/* type */
 ,	"UDP/IP broadcast"	/* description */
+,	0			/* Not a ping medium */
 ,	udp_init		/* init */
 ,	udp_new			/* new */
 ,	NULL			/* parse */
@@ -460,6 +461,10 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.10  2000/08/13 04:36:16  alan
+ * Added code to make ping heartbeats work...
+ * It looks like they do, too ;-)
+ *
  * Revision 1.9  2000/07/26 05:17:19  alan
  * Added GPL license statements to all the code.
  *

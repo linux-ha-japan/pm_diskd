@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.29 2000/08/11 00:30:07 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.30 2000/08/13 04:36:16 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -178,16 +178,22 @@ struct seqtrack {
 };
 
 struct link {
-	clock_t	lastupdate;
-	const char *name;
-	char status[STATUSLENG]; /* Status from heartbeat */
-	time_t rmt_lastupdate; /* node's idea of last update timer over this link */
+	clock_t		lastupdate;
+	const char *	name;
+	int		isping;
+	char		status[STATUSLENG]; /* up or down */
+	time_t rmt_lastupdate; /* node's idea of last update time for this link */
 };
 
+#define	NORMALNODE	0
+#define	PINGNODE	1
+
 struct node_info {
+	int	nodetype;
 	char	nodename[HOSTLENG];	/* Host name from config file */
 	char	status[STATUSLENG];	/* Status from heartbeat */
 	struct link links[MAXMEDIA];
+	int	nlinks;
 	time_t	rmt_lastupdate;		/* node's idea of last update time */
 	unsigned long	status_seqno;	/* Seqno of last status update */
 	clock_t	local_lastupdate;	/* Date of last update in clock_t time*/
@@ -249,6 +255,7 @@ struct hb_media {
 struct hb_media_fns {
 	const char *	type;		/* Medium type */
 	const char *	description;	/* Longer Description */
+	int		isping;
 	int		(*init)(void);
 	struct hb_media*(*new)(const char * token);
 	int		(*parse)(const char * options);
@@ -332,6 +339,7 @@ struct auth_type *	findauth(const char * type);
 struct node_info *	lookup_node(const char *);
 struct link * lookup_iface(struct node_info * hip, const char *iface);
 struct link *  iface_lookup_node(const char *);
+int	add_node(const char * value, int nodetype);
 
 void*		ha_malloc(size_t size);
 void*		ha_calloc(size_t nmemb, size_t size);

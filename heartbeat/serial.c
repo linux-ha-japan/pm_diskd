@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.16 2000/08/04 03:45:56 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.17 2000/08/13 04:36:16 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -70,6 +70,7 @@ STATIC void		serial_localdie(void);
 const struct hb_media_fns	serial_media_fns =
 {	"serial"		/* type */
 ,	"serial ring"		/* description */
+,	0			/* Not a ping medium */
 ,	serial_init		/* init */
 ,	serial_new		/* new */
 ,	NULL			/* parse */
@@ -445,6 +446,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.17  2000/08/13 04:36:16  alan
+ * Added code to make ping heartbeats work...
+ * It looks like they do, too ;-)
+ *
  * Revision 1.16  2000/08/04 03:45:56  alan
  * Moved locking code into lock.c, so it could be used by both heartbeat and
  * the client code.  Also restructured it slightly...

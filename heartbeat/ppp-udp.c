@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.10 2000/07/26 05:17:19 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.11 2000/08/13 04:36:16 alan Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -154,6 +154,7 @@ STATIC void check_ppp_info(int sig);
 const struct hb_media_fns	ppp_udp_media_fns =
 {	"ppp-udp"		/* type */
 ,	"Serial ring running PPP/UDP" /* description */
+,	0			/* Not a ping medium */
 ,	ppp_udp_init		/* init */
 ,	NULL			/* new */
 ,	ppp_udp_parse		/* parse */
@@ -1184,6 +1185,10 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.11  2000/08/13 04:36:16  alan
+ * Added code to make ping heartbeats work...
+ * It looks like they do, too ;-)
+ *
  * Revision 1.10  2000/07/26 05:17:19  alan
  * Added GPL license statements to all the code.
  *

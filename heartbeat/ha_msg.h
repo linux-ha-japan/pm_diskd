@@ -20,7 +20,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.12 2000/08/11 00:30:07 alan Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.13 2000/08/13 04:36:16 alan Exp $";
 #include <stdio.h>
 
 struct ha_msg {
@@ -67,8 +67,9 @@ struct ha_msg {
 #define	T_STATUS	"status"	/* Message type = Status */
 #define	T_IFSTATUS	"ifstat"	/* Message type = Interface status */
 #define	NOSEQ_PREFIX	"NS_"		/* Give no sequence number */
-#define	T_REXMIT	"NS_rexmit"	/* Message type = Retransmit request */
-#define	T_NAKREXMIT	"NS_nak_rexmit"	/* Message type = NAK Re-xmit rqst */
+#define	T_REXMIT	NOSEQ_PREFIX "rexmit" /* type = Retransmit req */
+#define	T_NAKREXMIT	NOSEQ_PREFIX "nak_rexmit" /* type = NAK Rexmit req */
+#define	T_NS_STATUS	NOSEQ_PREFIX "st" /* type = ping status */
 #define T_STARTING      "starting"      /* Message type = Starting Heartbeat */
 #define T_RESOURCES	"resource"      /* Message type = Resources info */
 #define T_APIREQ	"hbapi-req" 	/* Message type = Heartbeat API req */

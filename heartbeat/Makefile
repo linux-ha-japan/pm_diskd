@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.24 2000/08/04 05:30:47 alan Exp $
+#	$Id: Makefile,v 1.25 2000/08/13 04:36:16 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -9,7 +9,7 @@
 PKG=heartbeat
 
 INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
-LOGROTATED=/etc/logrotate.d
+LOGROTATED=$(BUILD_ROOT)/etc/logrotate.d
 
 #       Debian wants things to start with DESTDIR,
 #       but Red Hat starts them with RPM_BUILD_ROOT     (sigh...)
@@ -27,7 +27,7 @@ VARRUN=$(BUILD_ROOT)/var/run
 FIFO=$(VARRUN)/heartbeat-fifo
 HAPPP=$(VARRUN)/ppp.d
 INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
-LOGROTATESCRIPT=$(BUILD_ROOT)/$(LOGROTATED)/$(PKG)
+LOGROTATESCRIPT=$(LOGROTATED)/$(PKG)
 RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
 
 # Can't include the Build Root as a part of the compilation process
@@ -79,6 +79,7 @@ H_OBJLIST = 	heartbeat.o		\
 		ha_msg_internal.o	\
 		lock.o			\
 		md5.o			\
+		ping.o		\
 		ppp-udp.o		\
 		serial.o		\
 		sha1.o			\

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.17 2000/07/31 03:39:40 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.18 2000/08/13 04:36:16 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -63,7 +63,7 @@ int	parse_ha_resources(const char * cfgfile);
 static clock_t get_ticks(const char * input);
 void	dump_config(void);
 int	add_option(const char *	option, const char * value);
-int	add_node(const char * value);
+int	add_node(const char * value, int nodetype);
 int   	parse_authfile(void);
 int	init_config(const char * cfgfile);
 int     set_logfile(const char * value);
@@ -140,7 +140,7 @@ init_config(const char * cfgfile)
 	if ((curnode = lookup_node(u.nodename)) == NULL) {
 #if defined(MITJA)
 		ha_log(msg);
-		add_node(u.nodename);
+		add_node(u.nodename, NORMALNODE);
 		curnode = lookup_node(u.nodename);
 		ha_log(LOG_NOTICE, "Current node [%s] added to configuration"
 		,	u.nodename);
@@ -215,7 +215,7 @@ init_config(const char * cfgfile)
 #define KEY_FAILBACK	"nice_failback"
 #define KEY_STONITH	"stonith"
 
-int add_node(const char *);
+int add_normal_node(const char *);
 int set_hopfudge(const char *);
 int set_keepalive(const char *);
 int set_deadtime_interval(const char *);
@@ -232,11 +232,13 @@ int set_stonith_info(const char *);
 extern const struct hb_media_fns	ip_media_fns;
 extern const struct hb_media_fns	serial_media_fns;
 extern const struct hb_media_fns	ppp_udp_media_fns;
+extern const struct hb_media_fns	ping_media_fns;
 
 static const struct hb_media_fns* hbmedia_types[] = {
 	&ip_media_fns,
 	&serial_media_fns,
 	&ppp_udp_media_fns,
+	&ping_media_fns,
 };
 
 const struct hb_media_fns** HB_media =  hbmedia_types;
@@ -247,7 +249,7 @@ struct directive {
 	const char * name;
 	int (*add_func) (const char *);
 }Directives[] =
-{	{KEY_HOST,	add_node}
+{	{KEY_HOST,	add_normal_node}
 ,	{KEY_HOPS,	set_hopfudge}
 ,	{KEY_KEEPALIVE,	set_keepalive}
 ,	{KEY_DEADTIME,	set_deadtime_interval}
@@ -374,21 +376,40 @@ parse_config(const char * cfgfile, char *nodename)
 
 	cticks = times(NULL);
 
-	for (j=0; j < nummedia; j++) {
-		for (i=0; i < config->nodecount; ++i) {
-			struct link *lnk = &config->nodes[i].links[j];
+	for (i=0; i < config->nodecount; ++i) {
+		if (config->nodes[i].nodetype == PINGNODE) {
+			config->nodes[i].nlinks = 1;
+			for (j=0; j < nummedia; j++) {
+				struct link *lnk = &config->nodes[i].links[0];
+				if (!sysmedia[j]->vf->isping
+				||	strcmp(config->nodes[i].nodename
+				,	sysmedia[j]->name) != 0) {
+					continue;
+				}
+				lnk->name = config->nodes[i].nodename;
+				lnk->lastupdate = cticks;
+				strcpy(lnk->status, DEADSTATUS);
+				lnk[1].name = NULL;
+				break;
+			}
+			continue;
+		}
+		config->nodes[i].nlinks = 0;
+		for (j=0; j < nummedia; j++) {
+			int nc = config->nodes[i].nlinks;
+			struct link *lnk = &config->nodes[i].links[nc];
+			if (sysmedia[j]->vf->isping) {
+				continue;
+			}
 			lnk->name = sysmedia[j]->name;
 			lnk->lastupdate = cticks;
 			strcpy(lnk->status, DEADSTATUS);
+			lnk[1].name = NULL;
+			++config->nodes[i].nlinks;
 		}
 	}
 
 	j++;
-
-	for (i=0; i < config->nodecount; ++i) {
-		struct link *lnk = &config->nodes[i].links[j];
-		lnk->name = NULL;
-	}
 
 	fclose(f);
 	return(errcount ? HA_FAIL : HA_OK);
@@ -544,7 +565,6 @@ add_option(const char *	option, const char * value)
 		}
 	}
 
-	/* I don't think this loop is ever executed any more... */
 	for (j=0; j < DIMOF(hbmedia_types); ++j) {
 		if (strcmp(option, hbmedia_types[j]->type) == 0
 		&&	hbmedia_types[j]->new != NULL) {
@@ -575,7 +595,7 @@ add_option(const char *	option, const char * value)
 
 /* Process a node declaration */
 int
-add_node(const char * value)
+add_node(const char * value, int nodetype)
 {
 	struct node_info *	hip;
 	if (config->nodecount >= MAXNODE) {
@@ -591,8 +611,17 @@ add_node(const char * value)
 	hip->local_lastupdate = times(NULL);
 	hip->track.nmissing = 0;
 	hip->track.last_seq = NOSEQUENCE;
+	hip->nodetype = nodetype;
 	return(HA_OK);
 }
+
+/* Process a node declaration */
+int
+add_normal_node(const char * value)
+{
+	return add_node(value, NORMALNODE);
+}
+
 
 
 /*
@@ -768,6 +797,7 @@ set_deadtime_interval(const char * value)
 	}
 	return(HA_FAIL);
 }
+
 /* Set the watchdog device */
 int
 set_watchdogdev(const char * value)
@@ -1004,6 +1034,7 @@ set_stonith_info(const char * value)
 	}
 
 	strncpy(StonithType, vp, tlen);
+	StonithType[tlen] = EOS;
 
 	if ((s = stonith_new(StonithType)) == NULL) {
 		ha_log(LOG_ERR, "Invalid Stonith type [%s]", StonithType);
