@@ -235,7 +235,9 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	struct ha_msg*	request;
 	struct ha_msg*	reply;
 	int		fd;
+#if 0
 	static char	ReplyFdBuf[MAXLINE];
+#endif
 	struct utsname	un;
 	int		rc;
 	const char *	result;
