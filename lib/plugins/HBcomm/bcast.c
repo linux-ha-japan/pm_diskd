@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.22 2002/09/11 07:11:23 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.23 2002/09/12 03:39:45 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -8,20 +8,21 @@ static const char _bcast_Id [] = "$Id: bcast.c,v 1.22 2002/09/11 07:11:23 alan E
  * 1999 from Tom Vogt's "Heart" program, and significantly mangled by
  *	Alan Robertson <alanr@unix.sh>
  *	
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  * 
- * This program is distributed in the hope that it will be useful,
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
  */
 
 #include <portability.h>
@@ -51,8 +52,8 @@ static const char _bcast_Id [] = "$Id: bcast.c,v 1.22 2002/09/11 07:11:23 alan E
 #define PIL_PLUGINTYPE_S        HB_COMM_TYPE_S
 #define PIL_PLUGIN              bcast
 #define PIL_PLUGIN_S            "bcast"
-#define PIL_PLUGINLICENSE 	LICENSE_GPL
-#define PIL_PLUGINLICENSEURL 	URL_GPL
+#define PIL_PLUGINLICENSE 	LICENSE_LGPL
+#define PIL_PLUGINLICENSEURL 	URL_LGPL
 #include <pils/plugin.h>
 
 struct ip_private {
@@ -236,7 +237,7 @@ bcast_new(const char * intf)
 	bcast_init();
 	ipi = new_ip_interface(intf, localudpport);
 	if (DEBUGPKT) {
-		PILCallLog(LOG, LOG_DEBUG, "bcast_new: attempting to open %s:%d", intf
+		PILCallLog(LOG, PIL_DEBUG, "bcast_new: attempting to open %s:%d", intf
 		,	localudpport);
 	}
 
@@ -255,13 +256,13 @@ bcast_new(const char * intf)
 		ret->wpipe[0] = 0;
 		ret->wpipe[1] = 0;
 		if (DEBUGPKT) {
-			PILCallLog(LOG, LOG_DEBUG, "bcast_new: returning ret (%s)", ret->name);
+			PILCallLog(LOG, PIL_DEBUG, "bcast_new: returning ret (%s)", ret->name);
 		}
 	}else{
 		FREE(ipi->interface);
 		FREE(ipi);
 		if (DEBUGPKT) {
-			PILCallLog(LOG, LOG_DEBUG, "bcast_new: ret was NULL");
+			PILCallLog(LOG, PIL_DEBUG, "bcast_new: ret was NULL");
 		}
 	}
 	return(ret);
@@ -285,12 +286,12 @@ bcast_open(struct hb_media* mp)
 		bcast_close(mp);
 		return(HA_FAIL);
 	}
-	PILCallLog(LOG, LOG_INFO
+	PILCallLog(LOG, PIL_INFO
 	,	"UDP Broadcast heartbeat started on port %d (%d) interface %s"
 	,	localudpport, ei->port, mp->name);
 
 	if (DEBUGPKT) {
-		PILCallLog(LOG, LOG_DEBUG
+		PILCallLog(LOG, PIL_DEBUG
 		,	"bcast_open : Socket %d opened for reading"
 		", socket %d opened for writing."
 		,	ei->rsocket, ei->wsocket);
@@ -344,7 +345,7 @@ bcast_read(struct hb_media* mp)
 	ei = (struct ip_private *) mp->pd;
 
 	if (DEBUGPKT) {
-		PILCallLog(LOG, LOG_DEBUG
+		PILCallLog(LOG, PIL_DEBUG
 		,	"bcast_read : reading from socket %d (writing to socket %d)"
 		,	ei->rsocket, ei->wsocket);
 	}
@@ -433,7 +434,7 @@ bcast_make_send_sock(struct hb_media * mp)
    	}
 
 	if (DEBUGPKT) {
-		PILCallLog(LOG, LOG_DEBUG
+		PILCallLog(LOG, PIL_DEBUG
 		,	"bcast_make_send_sock: Opened socket %d", sockfd);
 	}
 
@@ -447,7 +448,7 @@ bcast_make_send_sock(struct hb_media * mp)
 	}
 
 	if (DEBUGPKT) {
-		PILCallLog(LOG, LOG_DEBUG
+		PILCallLog(LOG, PIL_DEBUG
 		,	"bcast_make_send_sock: Modified %d"
 		" Added option SO_BROADCAST."
 			, sockfd);
@@ -464,7 +465,7 @@ bcast_make_send_sock(struct hb_media * mp)
 	}
 
 	if (DEBUGPKT) {
-		PILCallLog(LOG, LOG_DEBUG, "bcast_make_send_sock:"
+		PILCallLog(LOG, PIL_DEBUG, "bcast_make_send_sock:"
 		" Modified %d Added option SO_DONTROUTE."
 			, sockfd);
 	}
@@ -491,7 +492,7 @@ bcast_make_send_sock(struct hb_media * mp)
 		}
 
 		if (DEBUGPKT) {
-			PILCallLog(LOG, LOG_DEBUG
+			PILCallLog(LOG, PIL_DEBUG
 			, "bcast_make_send_sock: Modified %d"
 			" Added option SO_BINDTODEVICE."
 			,	sockfd);
@@ -551,7 +552,7 @@ bcast_make_receive_sock(struct hb_media * mp) {
 	}        
 
         if (DEBUGPKT) {
-		PILCallLog(LOG, LOG_DEBUG
+		PILCallLog(LOG, PIL_DEBUG
 		,	"bcast_make_receive_sock: Modified %d Added option SO_REUSEADDR."
 		, sockfd);
 	}
@@ -621,7 +622,7 @@ bcast_make_receive_sock(struct hb_media * mp) {
 		,	strerror(errno));
 	}
 	if (DEBUGPKT) {
-		PILCallLog(LOG, LOG_DEBUG
+		PILCallLog(LOG, PIL_DEBUG
 		,	"bcast_make_receive_sock: Returning %d", sockfd);
 	}
 	return(sockfd);
@@ -780,6 +781,10 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.23  2002/09/12 03:39:45  alan
+ * Fixed some logging level names in the code and also
+ * fixed an error in the license chosen for a file.
+ *
  * Revision 1.22  2002/09/11 07:11:23  alan
  * Updated a good bit of code to use logging functions more uniformly.
  * Some used printfs, and some used ha_log, and some used the PILS
