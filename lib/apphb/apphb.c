@@ -52,11 +52,7 @@ apphb_getrc(void)
 
 	struct IPC_MESSAGE * msg;
 
-	while (!hbcomm->ops->is_message_pending(hbcomm)) {
-		/* FIXME: Probably ought to do a poll here instead... */
-		;
-	}
-	hbcomm->ops->resume_io(hbcomm);
+	hbcomm->ops->waitin(hbcomm);
 	if (hbcomm->ops->recv(hbcomm, &msg) != IPC_OK) {
 		perror("Receive failure:");
 		return errno;
