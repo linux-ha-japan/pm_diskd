@@ -1,4 +1,4 @@
-const static char _serial_c_Id [] = "$Id: serial.c,v 1.26 2003/05/21 21:55:07 alan Exp $";
+const static char _serial_c_Id [] = "$Id: serial.c,v 1.27 2003/05/21 21:56:50 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -376,6 +376,10 @@ ttysetup(int fd, const char * ourtty)
 	return(HA_OK);
 }
 
+#ifndef O_NOCTTY
+#	define O_NOCTTY	0	/* Ignore it if not supported */
+#endif
+
 /* Open a tty and set it's line parameters */
 static int
 opentty(char * serial_device)
@@ -669,6 +673,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.27  2003/05/21 21:56:50  alan
+ * Minor tweak to the last tty fix from Carson Gaspar.
+ *
  * Revision 1.26  2003/05/21 21:55:07  alan
  * Put in a bug fix from Carson Gaspar <carson@taltos.org> to open our
  * serial ttys with O_NOCTTY to avoid having them become our controlling
