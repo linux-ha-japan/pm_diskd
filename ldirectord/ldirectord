@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.21 2000/12/12 10:31:50 jacob Exp $
+# $Id: ldirectord,v 1.22 2000/12/13 17:37:31 jacob Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -197,6 +197,10 @@ Scheduler to be used for loadbalance.
 B<persistent => I<n>
 
 Number of seconds for persistent client connections.
+
+B<netmask => I<w.x.y.z>
+
+Netmask to be used for granularity of persistent client connections.
 
 B<protocol = tcp>|B<udp>|B<fwm>
 
@@ -573,6 +577,9 @@ sub read_config
 				} elsif ($rcmd =~ /^persistent\s*=\s*(.*)/) {
 					$1 =~ /(\d+)/ or config_error($line, "invalid persistent timeout");
 					$vsrv{persistent} = $1;
+				} elsif ($rcmd =~ /^netmask\s*=\s*(.*)/) {
+					$1 =~ /(\d+\.\d+\.\d+\.\d+)/ or config_error($line, "invalid netmask");
+					$vsrv{netmask} = $1;
 				} elsif ($rcmd =~ /^protocol\s*=\s*(.*)/) {
 					lc($1);
 					if ( $1 =~ /(\w+)/ ) {
@@ -757,7 +764,10 @@ sub ld_setup
 		}
 		$$v{flags} = "$$v{proto} " .  &get_virtual($v) . " ";
 		$$v{flags} .= "-s $$v{scheduler} " if defined ($$v{scheduler});
-		$$v{flags} .= "-p $$v{persistent} " if defined ($$v{persistent});
+		if (defined $$v{persistent}) {
+			$$v{flags} .= "-p $$v{persistent} ";
+			$$v{flags} .= "-M $$v{netmask} " if defined ($$v{netmask});
+		}
 		my $real = $$v{real};
 		foreach $r (@$real) {
 			if ($$r{forward} eq "masq") {
@@ -814,7 +824,10 @@ sub ld_start
 	my %oldsrv;
 	my $real_service;
 	while (<IPVS>) {
-		if ($_ =~ /(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\d+)\s+(\w+)\s+persistent\s+(\d+)/) {
+		if ($_ =~ /(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\d+)\s+(\w+)\s+persistent\s+(\d+)\s+mask\s+(.*)/) {
+			$real_service = "$2 ".lc($1);
+			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$3, "persistent"=>$4, "netmask"=>$5};
+		} elsif ($_ =~ /(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\d+)\s+(\w+)\s+persistent\s+(\d+)/) {
 			$real_service = "$2 ".lc($1);
 			$oldsrv{"$real_service"} = {"real"=>{}, "scheduler"=>$3, "persistent"=>$4};
 		} elsif ($_ =~ /(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\d+)\s+(\w+)/) {
