@@ -67,34 +67,59 @@ class ResourceAudit(ClusterAudit):
 
             for resource in group:
 
-               ResourceNodes = self._doauditRsc(resource)
+		#
+		# _doauditRsc returns the set of nodes serving
+		# the given resource.  This is normally a single node.
+		#
 
-               if len(ResourceNodes) == 0 and self.CM.upcount() > 0:
-                   result.append("Resource " + repr(resource)
-                   +	" not served anywhere.")
-               elif len(ResourceNodes) > 1:
-                   result.append("Resource " + repr(resource)
-                   +	" served too many times: "
-                   +	repr(ResourceNodes))
-                   self.CM.log("Resource " + repr(resource)
-                   +	" served too many times: "
-                   +	repr(ResourceNodes))
-                   Fatal = 1
-               elif GrpServedBy == None:
-                   GrpServedBy = ResourceNodes
-               elif GrpServedBy != ResourceNodes:
-                   result.append("Resource group" + repr(resource)
-                   +	" served by different nodes: "
-                   +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
-                   self.CM.log("Resource " + repr(resource)
-                   +	" served too many times: "
-                   +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
-                   Fatal = 1
+                ResourceNodes = self._doauditRsc(resource)
 
-               if not Fatal and len(ResourceNodes) == 1:
-                   if not resource.IsWorkingCorrectly(ResourceNodes[0]):
-                     result.append("Resource " + repr(resource)
-                     +	" not operating properly.")
+
+		#	Is the resource served without quorum present?
+
+		if not self.CM.HasQuorum() and len(ResourceNodes) != 0:
+
+                    result.append("Resource " + repr(resource)
+                    +	" active without Quorum: "
+                    +	repr(ResourceNodes))
+
+		#	Is the resource served at all?
+
+                elif len(ResourceNodes) == 0 and self.CM.HasQuorum():
+                    result.append("Resource " + repr(resource)
+                    +	" not served anywhere.")
+
+		# Is the resource served too many times?
+
+                elif len(ResourceNodes) > 1:
+                    result.append("Resource " + repr(resource)
+                    +	" served too many times: "
+                    +	repr(ResourceNodes))
+                    self.CM.log("Resource " + repr(resource)
+                    +	" served too many times: "
+                    +	repr(ResourceNodes))
+                    Fatal = 1
+                elif GrpServedBy == None:
+                    GrpServedBy = ResourceNodes
+
+		# Are all the members of the Rsc Grp served by the same node?
+
+                elif GrpServedBy != ResourceNodes:
+                    result.append("Resource group" + repr(resource)
+                    +	" served by different nodes: "
+                    +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
+                    self.CM.log("Resource " + repr(resource)
+                    +	" served too many times: "
+                    +	repr(ResourceNodes)+" vs "+repr(GrpServedBy))
+                    Fatal = 1
+
+
+		# Is the resource actually working?
+
+                if not Fatal and len(ResourceNodes) == 1:
+                    if not resource.IsWorkingCorrectly(ResourceNodes[0]):
+                      result.append("Resource " + repr(resource)
+                      +	" not operating properly.")
 
         if (Fatal):
              result.insert(0, "FATAL")  # Kludgy.
