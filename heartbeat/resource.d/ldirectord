@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # Linux Director Daemon
-# $Id: ldirectord,v 1.3 2000/02/28 17:02:29 jacob Exp $
+# $Id: ldirectord,v 1.4 2000/03/23 09:49:46 jacob Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # with help from: Horms <horms@vergenet.net>
 # This is GPL software. You should own a few hundred copies
@@ -64,11 +64,11 @@ B<status> of the running daemon for the specified configuration.
 
 =head2 Description how to write configuration files
 
-B<virtual = >I<x.y.z.w:p>
+B<virtual = >I<x.y.z.w[/pr]:p>
 
-defines a virtual service by IP-address and port,
-all real services and flags for a virtual service must
-follow this line immediately and be indentet.
+Defines a virtual service by IP-address, prefix and port.  The prefix is
+optional.  All real services and flags for a virtual service must follow
+this line immediately and be indentet.
 
 B<timeout = >I<n>
 
@@ -160,12 +160,18 @@ Jacob Rief <jacob.rief@tis.at>
 # default values
 $TIMEOUT = 10;
 $CHECKINTERVAL = 10;
-$IPVSADM="/usr/sbin/ipvsadm";
+if(-f "/sbin/ipvsadm") {
+  $IPVSADM="/sbin/ipvsadm";
+}
+else {
+  $IPVSADM="/usr/sbin/ipvsadm";
+}
 $LDIRLOG="/var/log/ldirectord.log";
 $RUNPID="/var/run/ldirectord";
 $AUTOCHECK="no";
 $CALLBACK;
 @VIRTUAL;
+@REAL;
 @OLDVIRTUAL;
 $checksum;
 $initializing;
@@ -207,7 +213,7 @@ sub init
 		if (open(FILE, "<$RUNPID.$CONFIG.pid")) {
 			$_ = <FILE>;
 			chomp;
-			my $tmppid = $oldpid = $_;
+			my $tmppid = $_;
 			close(FILE);
 			# Check to make sure this isn't a stale pid file
 			if (open(FILE, "</proc/$tmppid/cmdline")) {
@@ -324,7 +330,7 @@ sub read_config
 	while(<CFGFILE>) {
 		$line++;
 		if ($_ =~ /^virtual\s*=\s*(.*)/) {
-			$1 =~ /(\d+\.\d+\.\d+\.\d+:\d+)/
+			$1 =~ /(\d+\.\d+\.\d+\.\d+(\/\d+)?:\d+)/
 			    or config_error($line, "invalid address for virtual server");
 			my (%vsrv, @rsrv);
 			$vsrv{server} = $1;
@@ -358,6 +364,19 @@ sub read_config
 						push(@rsrv, {"server"=>$rmt, "forward"=>$fwd, "weight"=>$1});
 					} else {
 						push(@rsrv, {"server"=>$rmt, "forward"=>$fwd});
+					}
+					my $realsrv=0;
+					foreach $r (@REAL){
+						if($r->{"real"} eq $vsrv{protocol}.":".$rmt){
+							my $ref=$r->{"virtual"};
+							push(@$ref, $vsrv{"protocol"}.":".$vsrv{"server"});
+							$realsrv=1;
+							last;
+						}
+					}
+					if($realsrv==0){
+						push(@REAL, { "real"=>$vsrv{protocol}.":".$rmt, 
+                                                              "virtual"=>[ $vsrv{protocol}.":".$vsrv{"server"} ] });
 					}
 				} elsif ($rcmd =~ /^request\s*=\s*\"(.*)\"/) {
 					$1 =~ /(.+)/ or config_error($line, "no request string specified");
@@ -417,6 +436,7 @@ sub read_config
 		}
 	}
 	close(CFGFILE);
+	return(0);
 }
 
 
@@ -503,7 +523,6 @@ sub ld_start
 		}
 		while(<IPVS>) {
 			last unless $_ =~ / ->\s+(\d+\.\d+\.\d+\.\d+\:\d+)\s+(\w+)\s+(\d+)/;
-			my $fwd;
 			if ($2 eq "Route") {
 				$fwd = "gate";
 			} elsif ($2 eq "Tunnel") {
@@ -599,10 +618,14 @@ sub ld_main
 	# Main failover checking code
 	while (1) {
 		open(LOGFILE, ">>$LDIRLOG");
+		my @real_checked;
 		foreach $v (@VIRTUAL) {
 			my $real = $$v{real};
 			foreach $r (@$real) {
-				check_server($v, $r);
+				unless(grep(/^$$v{protocol}:$$r{server}$/, @real_checked)){
+					check_server($v, $r);
+					push(@real_checked, "$$v{protocol}:$$r{server}");
+				}
 			}
 		}
 		check_cfgfile();
@@ -610,7 +633,6 @@ sub ld_main
 		sleep $CHECKINTERVAL;
 	}
 }
-
 
 
 sub check_server
@@ -627,24 +649,52 @@ sub check_server
 		my $res = $ua->request($req);
 		my $receive_string = $$v{receive};
 		if ($res->is_success && (!($receive_string =~ /.+/) || $res->content =~ /$receive_string/)) {
-			service_up($v, $r);
+			service_set($v, $r, "up");
 		} else {
-			service_down($v, $r);
+			service_set($v, $r, "down");
 		}
 	} elsif ($$v{service} eq "https") {
 		$$r{server} =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/;
 		my ($page, $result, %headers) = &Net::SSLeay::get_https($1, $2, $uri);
 		my $receive_string = $$v{receive};
 		if (!($receive_string =~ /.+/) || $page =~ /$receive_string/) {
-			service_up($v, $r);
+			service_set($v, $r, "up");
 		} else {
-			service_down($v, $r);
+			service_set($v, $r, "down");
 		}
 	}
 }
 
+sub service_set()
+{
+	my ($v, $r, $state) = @_;
 
-sub service_up
+	my ($real, $virtual, $virt);
+	foreach $real (@REAL) {
+		if($real->{"real"} eq "$$v{protocol}:$$r{server}"){
+			$virtual=$real->{"virtual"};
+			last;
+		}
+	}
+	return unless(defined($virtual));
+	return if($$r{status}!=0 and $state=~/up/i);
+	return if($$r{status}!=1 and $state=~/down/i);
+	foreach $v (@VIRTUAL){
+		if(grep(/^$$v{protocol}:$$v{server}$/, @$virtual)){
+			if($state=~/up/i){
+				$$r{status}=0;
+				_service_up($v, $r);
+			}
+			elsif($state=~/down/i){
+				$$r{status}=1;
+				_service_down($v, $r);
+			}
+		}
+	}
+}
+
+      
+sub _service_up
 {
 	my ($v, $r) = @_;
 	if ($$r{status}==0) {
@@ -662,7 +712,7 @@ sub service_up
 }
 
 
-sub service_down
+sub _service_down
 {
 	my ($v, $r) = @_;
 	if ($$r{status}==1) {
