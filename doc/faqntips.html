@@ -17,11 +17,11 @@ What gives?</a></li>
   <li> <a href="#what_is_it">What is a cluster?</a></li>
   <li> <a href="#res_scr">What is a resource script ?</a></li>
   <li> <a href="#mon">How to monitor various resources ?</a></li>
-  <li>If my one of my ethernet connections goes away (cable severence,
-NIC failure, locusts), but my current primary node (the one with the
-services) is otherwise fine, no one can get to my services and I want
-to fail them over to my other cluster node. &nbsp;Is there a way to do
-this?<br>
+  <li><a href="ipfail">If my one of my ethernet connections goes away
+(cable severence, NIC failure, locusts), but my current primary node
+(the one with the services) is otherwise fine, no one can get to my
+services and I want to fail them over to my other cluster node.
+&nbsp;Is there a way to do this?</a><br>
   </li>
   <li> <a href="#nettools">Every time my machine releases an IP alias,
 it loses the whole interface (i.e. eth0)!&nbsp; How do I fix this?</a></li>
@@ -117,10 +117,10 @@ scripts for adding and removing servers from ipvs list.</p>
   </li>
   <li>
     <p><a name="ipfail"></a>Yes! &nbsp;Use the ipfail plug-in.
-&nbsp;For each interface you wish to monitor, specify one or more
-"ping" nodes in your configuration. &nbsp;Each node in your cluster
-will monitor these ping nodes. &nbsp;Should one node detect a failure
-in one of these ping nodes, it will contact the other node in order to
+&nbsp;For each interface you wish to monitor, specify one or more "ping"
+nodes in your configuration. &nbsp;Each node in your cluster will
+monitor these ping nodes. &nbsp;Should one node detect a failure in one
+of these ping nodes, it will contact the other node in order to
 determine whether it or the ping node has the problem. &nbsp;If the
 cluster node has the problem, it will try to failover its resources (if
 it has any).</p>
@@ -146,8 +146,8 @@ just fail over one router address</a>.&nbsp; On your router, do the
 equivalent of "route add -net x.x.x.0/24 gw x.x.x.2", where x.x.x.2 is
 the cluster IP address controlled by heartbeat.&nbsp; Then, make every
 address within x.x.x.0/24 that you wish to failover a permanent alias of
-lo0 on BOTH cluster nodes.&nbsp; This is done via "ifconfig lo:2
-x.x.x.3 netmask 255.255.255.255 -arp" etc....</li>
+lo0 on BOTH cluster nodes.&nbsp; This is done via "ifconfig lo:2 x.x.x.3
+netmask 255.255.255.255 -arp" etc....</li>
   <li> <a name="serial">I</a>f anything makes your ethernet / IP stack
 fail, you may lose both connections. You definitely should run the
 cables differently, depending on how important your data is...</li>
@@ -202,8 +202,16 @@ Newer releases are better about also putting out startup messages to
 stderr in addition to whereever you have configured them to go. </li>
   <li> <a name="multiple_clusters">Use multicast</a> and give each its
 own multicast group. If you need to/want to use broadcast, then run each
-cluster on different port numbers.</li>
-  <li> <a name="CVS">There is a CVS repository for Linux-HA.</a> You can
+cluster on different port numbers. &nbsp;An example of a configuration
+using multicast would be to have the following line in your ha.cf file:<br>
+&nbsp; &nbsp; &nbsp;<span style="font-style: italic;">mcast eth0
+224.1.2.3 694 1 1</span><br>
+This sets eth0 as the interface over which to send the multicast,
+224.1.2.3 as the multicast group (will be same on each node in the same
+cluster), udp port 694 (heartbeat default), time to live of 1 (limit
+multicast to local network segment and not propagate through routers),
+multicast loopback enabled (typical).</li>
+  <li><a name="CVS">There is a CVS repository for Linux-HA.</a> You can
 find it at cvs.linux-ha.org.&nbsp; Read-only access is via login guest,
 password guest, module name linux-ha. More details are to be found in
 the announcement&nbsp; email.&nbsp; It is also available through the web
