@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.38 2000/04/27 13:24:34 alan Exp $
+#	$Id: Specfile,v 1.39 2000/04/27 13:42:52 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -34,6 +34,7 @@ It implements the following kinds of heartbeats:
 + Version 0.4.8  BETA series
   + Added the nice_failback feature. If the cluster is running when
         the primary starts it acts as a secondary. (Luis Claudio)
+  + Made the RPM more SuSE-compatible
   + Tidied up logging so it can be to files, to syslog or both (Horms)
   + Tidied up build process (Horms)
   + Updated ldirectord to produce and install a man page and be
