@@ -81,7 +81,7 @@ doatest(void)
 	}
 	
 	fprintf(stderr, "Client setting 2 second heartbeat period\n");
-	apphb_setinterval(2000);
+	rc = apphb_setinterval(2000);
 	if (rc < 0) {
 		perror("setinterval failure");
 		exit(2);
