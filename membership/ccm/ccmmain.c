@@ -44,7 +44,6 @@ typedef struct hb_usrdata_s {
 static gboolean
 hb_input_dispatch(int fd, gpointer user_data)
 {
-	
 	if (ccm_take_control(((hb_usrdata_t *)user_data)->ccmdata)) {
 		g_main_quit(((hb_usrdata_t *)user_data)->mainloop);
 		return FALSE;
@@ -171,6 +170,13 @@ ccm_debug(int signum)
 		global_verbose = !global_verbose;
 		break;
 	}
+
+	if(global_debug || global_verbose){
+		cl_log_enable_stderr(TRUE);
+	} else {
+		cl_log_enable_stderr(FALSE);
+	}
+
 }
 
 
@@ -192,7 +198,6 @@ main(int argc, char **argv)
 	} else {
 		cmdname = tmp_cmdname;
 	}
-	cl_log_enable_stderr(TRUE);
 	cl_log_set_entity(cmdname);
 	cl_log_set_facility(LOG_DAEMON);
 	while ((flag = getopt(argc, argv, OPTARGS)) != EOF) {
@@ -208,6 +213,8 @@ main(int argc, char **argv)
 				return 1;
 		}
 	}
+	if(global_verbose || global_debug)
+		cl_log_enable_stderr(TRUE);
 
 
 	CL_SIGNAL(SIGUSR1, ccm_debug);
@@ -232,10 +239,10 @@ main(int argc, char **argv)
 	/* we want hb_input_dispatch to be called when some input is
 	 * pending on the heartbeat fd, and every 1 second 
 	 */
-	G_main_add_fd(G_PRIORITY_HIGH, ccm_get_fd(usrdata.ccmdata), FALSE,
-			hb_input_dispatch, &usrdata, hb_input_destroy);
+	G_main_add_fd(G_PRIORITY_HIGH, ccm_get_fd(usrdata.ccmdata), 
+			FALSE, hb_input_dispatch, &usrdata, hb_input_destroy);
 	Gmain_timeout_add_full(G_PRIORITY_HIGH, SECOND, hb_timeout_dispatch,
-				&usrdata, NULL);
+				&usrdata, hb_input_destroy);
 
 	/* the clients wait channel is the other source of events.
 	 * This source delivers the clients connection events.
@@ -247,7 +254,6 @@ main(int argc, char **argv)
 		waitCh_input_destroy);
 
 
-	cl_log_enable_stderr(FALSE);
 	g_main_run(usrdata.mainloop);
 	g_main_destroy(usrdata.mainloop);
 

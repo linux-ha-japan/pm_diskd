@@ -375,18 +375,8 @@ graph_init()
 		gr->graph_node[i] = &graph[i];
 	}
 
-	/* initialise the time */
-	gr->graph_inittime = ccm_get_time();
-
 	return gr;
 }
-
-int
-graph_timeout_expired(graph_t *gr, long timeout)
-{
-	return(ccm_timeout(gr->graph_inittime, ccm_get_time(), timeout));
-}
-
 
 
 //
@@ -435,45 +425,6 @@ graph_add_to_membership(graph_t *gr, int src_uuid, int dst_uuid)
 	assert(0);
 }
 
-//
-// return TRUE if the member's connectivity information is already
-// updated.
-//
-int
-graph_membership_already_noted(graph_t *gr, int uuid)
-{
-	int i;
-	for ( i = 0 ; i < gr->graph_nodes; i++ ) {
-		if(gr->graph_node[i]->uuid == uuid) {
-			return(gr->graph_node[i]->bitmap != NULL);
-		}
-	}
-	return FALSE;
-}
-
-
-//
-// delete the connectivity information of the member whose id is 
-// 'uuid'
-//
-void
-graph_delete_membership(graph_t *gr, int uuid)
-{
-	int i;
-
-	for ( i = 0 ; i < gr->graph_nodes; i++ ) {
-		if(gr->graph_node[i]->uuid == uuid) {
-			/* assert that this is not a duplicate message */
-			if(gr->graph_node[i]->bitmap != NULL) {
-				bitmap_delete(gr->graph_node[i]->bitmap);
-				gr->graph_node[i]->bitmap = NULL;
-				gr->graph_rcvd--;
-			}
-			break;
-		}
-	}
-	return;
-}
 
 
 //
@@ -489,7 +440,10 @@ graph_update_membership(graph_t *gr,
 	for ( i = 0 ; i < gr->graph_nodes; i++ ) {
 		if(gr->graph_node[i]->uuid == uuid) {
 			/* assert that this is not a duplicate message */
-			assert(gr->graph_node[i]->bitmap == NULL);
+			if(gr->graph_node[i]->bitmap != NULL) {
+				bitmap_delete(gr->graph_node[i]->bitmap);
+				gr->graph_rcvd--;
+			}
 			gr->graph_node[i]->bitmap = bitlist;
 			/* postpone the calculation of count, because
 			 * we have to sanitize this graph after

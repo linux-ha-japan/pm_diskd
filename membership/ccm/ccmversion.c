@@ -22,7 +22,6 @@
  */
 #include <ccm.h>
 
-#define TIMEOUT 3
 #define MAXTRIES 3
 
 #define VERSION_GET_TIMER(ver) (ver->time)
@@ -30,6 +29,9 @@
 #define VERSION_GET_TRIES(ver) ver->numtries
 #define VERSION_RESET_TRIES(ver) ver->numtries = 0
 #define VERSION_INC_TRIES(ver) (ver->numtries)++
+#define VERSION_INC_NRESP(ver) (ver->n_resp)++
+#define VERSION_SET_NRESP(ver,val) ver->n_resp = val
+#define VERSION_GET_NRESP(ver) ver->n_resp
 
 
 extern int global_debug;
@@ -38,9 +40,10 @@ extern int global_debug;
 // for our version request.
 //
 static int
-version_timeout_expired(ccm_version_t *ver)
+version_timeout_expired(ccm_version_t *ver, longclock_t timeout)
 {
-	return(ccm_timeout(VERSION_GET_TIMER(ver), ccm_get_time(), TIMEOUT));
+	return(ccm_timeout(VERSION_GET_TIMER(ver), ccm_get_time(), 
+				timeout));
 }
 
 //
@@ -54,6 +57,7 @@ version_reset(ccm_version_t *ver)
 	(void)_ha_msg_h_Id; /* keeping compiler happy */
 	VERSION_SET_TIMER(ver,ccm_get_time());
 	VERSION_RESET_TRIES(ver);
+	VERSION_SET_NRESP(ver,0);
 }
 
 //
@@ -61,23 +65,22 @@ version_reset(ccm_version_t *ver)
 // else return false.
 //
 int
-version_retry(ccm_version_t *ver)
+version_retry(ccm_version_t *ver, longclock_t timeout)
 {
-	if(version_timeout_expired(ver)) {
+	if(version_timeout_expired(ver, timeout)) {
 		if(global_debug) {
 			cl_log(LOG_DEBUG, "%d tries left" 
 			,	3-VERSION_GET_TRIES(ver));
 		}
-
-		if (VERSION_GET_TRIES(ver) == MAXTRIES) {
-			return FALSE;
-		}else{
+		if(VERSION_GET_TRIES(ver) == MAXTRIES) {
+			return VER_TRY_END;
+		} else {
 			VERSION_INC_TRIES(ver);
 			VERSION_SET_TIMER(ver,ccm_get_time());
-			return TRUE;
+			return VER_TRY_AGAIN;
 		}
 	}
-	return TRUE;
+	return VER_NO_CHANGE;
 }
 
 //
@@ -89,4 +92,23 @@ void
 version_some_activity(ccm_version_t *ver)
 {
 	VERSION_RESET_TRIES(ver);
+}
+
+
+void
+version_inc_nresp(ccm_version_t *ver)
+{
+	VERSION_INC_NRESP(ver);
+}
+
+void
+version_set_nresp(ccm_version_t *ver, int val)
+{
+	VERSION_SET_NRESP(ver, val);
+}
+
+unsigned int
+version_get_nresp(ccm_version_t *ver)
+{
+	return VERSION_GET_NRESP(ver);
 }

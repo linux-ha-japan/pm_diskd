@@ -56,10 +56,19 @@
 typedef struct ccm_version_s {
 	longclock_t time;
 	int	numtries;
+	int	n_resp; // keeps track of the number of version
+				// responses recevied from other nodes
+				// after we received the first response.
 } ccm_version_t;
 void version_reset(ccm_version_t *);
 void version_some_activity(ccm_version_t *);
-int version_retry(ccm_version_t *);
+int version_retry(ccm_version_t *, longclock_t);
+void version_inc_nresp(ccm_version_t *);
+void version_set_nresp(ccm_version_t *, int);
+unsigned int version_get_nresp(ccm_version_t *);
+#define VER_TRY_AGAIN 1
+#define VER_NO_CHANGE 2
+#define VER_TRY_END   3
 
 // END OF version request tracking interfaces
 
@@ -193,7 +202,6 @@ typedef struct graph_s {
         int        graph_nodes;// no of nodes that had sent the join message
                                 //  whose bitmaps we are now expecting
         int        graph_rcvd; // no of nodes that have sent a memlistbitmap
-	longclock_t  graph_inittime; // the time graph got initialized
 } graph_t;  
 graph_t * graph_init(void);
 void graph_free(graph_t *);
@@ -201,10 +209,7 @@ void graph_add_uuid(graph_t *, int );
 void graph_update_membership(graph_t *, int , unsigned char *);
 int  graph_filled_all(graph_t *);
 int graph_get_maxclique(graph_t *, unsigned char **);
-int graph_membership_already_noted(graph_t *, int );
-void graph_delete_membership(graph_t *, int ); 
 void graph_add_to_membership(graph_t *, int, int);
-int  graph_timeout_expired(graph_t *, long);
 // END OF graph interfaces
 
 

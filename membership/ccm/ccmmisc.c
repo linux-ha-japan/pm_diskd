@@ -95,17 +95,16 @@ ccm_get_time(void)
 
 
 //
-// given two times, and a timeout interval(in seconds), 
+// given two times, and a timeout interval(in milliseconds), 
 // return true if the timeout has occured, else return
 // false.
-// NOTE: 'timeout' is in seconds.
+// NOTE: 'timeout' is in milliseconds.
 int
 ccm_timeout(longclock_t t1, longclock_t t2, unsigned long timeout)
 {
 	longclock_t t1cl;
 
-
-	t1cl = add_longclock(t1 , secsto_longclock(timeout));
+	t1cl = add_longclock(t1 , msto_longclock(timeout));
 
 	if(cmp_longclock(t1cl, t2) < 0) {
 		return TRUE;

@@ -58,6 +58,36 @@ typedef struct ccm_proto_s {
 } ccm_proto_t;
 
 
+typedef struct memcomp_s {
+	graph_t		*mem_graph;  // memlist calculation graph
+
+	GSList 		*mem_maxt; 	    // the maxtrans of each node
+				    // participating in the computation .
+				    // NOTE: the transition number of the
+				    // next transition is always 1 higher
+				    // than that of all transitions seen 
+				    // by each node participating in the 
+				    // membership
+	longclock_t  	mem_inittime; // the time got intialized
+} memcomp_t;
+#define 	MEMCOMP_GET_GRAPH(memc)  	memc->mem_graph
+#define 	MEMCOMP_GET_MAXT(memc)  	memc->mem_maxt
+#define 	MEMCOMP_GET_INITTIME(memc)  	memc->mem_inittime
+#define 	MEMCOMP_SET_GRAPH(memc, gr)  	memc->mem_graph=gr
+#define 	MEMCOMP_SET_MAXT(memc, list)  	memc->mem_maxt=list
+#define 	MEMCOMP_SET_INITTIME(memc,time)	memc->mem_inittime=time
+
+
+typedef struct ccm_tmout_s {
+	long	iff;  /* membership_Info_From_Followers_timeout */
+	long	itf;  /* membership_Info_To_Followers_timeout */
+	long	fl;  /* membership_Final_List_timeout */
+	long	u;  /* update timeout */
+	long	lu;  /* long update timeout */
+	long	vrs;  /* version timeout */
+} ccm_tmout_t;
+
+
 
 #define COOKIESIZE 15
 typedef struct ccm_info_s {
@@ -65,7 +95,10 @@ typedef struct ccm_info_s {
 
 	int		ccm_nodeCount;	//  number of nodes in the ccm cluster
 	int		ccm_member[MAXNODE];// members of the ccm cluster
-	graph_t		*ccm_graph; 	// memlist calculation graph 
+	memcomp_t	ccm_memcomp;	// the datastructure to compute the 
+					// final membership for each membership
+	 				// computation instance of the ccm protocol.
+	 				// used by the leader only.
 
 	ccm_proto_t  	ccm_proto;	// protocol version information
 #define ccm_active_proto ccm_proto.com_active_proto
@@ -83,6 +116,8 @@ typedef struct ccm_info_s {
 					// is used to figure out if this node
 					// was ever a part of the cluster.
 					// Should be intially set to 0
+	uint32_t	ccm_max_transition;//the maximum transition number seen
+					// by this node ever since it was born.
 	enum ccm_state 	ccm_node_state;	// cluster state of this node 
 	uint32_t	ccm_transition_minor;// minor transition number of the 
 					//cluster
@@ -93,6 +128,7 @@ typedef struct ccm_info_s {
 					// request. 
 	ccm_version_t  ccm_version;     // keeps track of version request 
 					// related info
+	ccm_tmout_t	tmout;
 } ccm_info_t;
 
 
@@ -101,11 +137,23 @@ typedef struct ccm_info_s {
 #define		CCM_SET_ACTIVEPROTO(info, val) \
 					info->ccm_active_proto = val
 #define		CCM_SET_MAJORTRANS(info, val) 	\
-					info->ccm_transition_major = val
+		{	\
+			info->ccm_transition_major = val; \
+			info->ccm_max_transition = \
+				(info->ccm_max_transition < val ? \
+				val: info->ccm_max_transition); \
+		}
 #define		CCM_SET_MINORTRANS(info, val) 	\
 					info->ccm_transition_minor = val
+#define		CCM_INIT_MAXTRANS(info) 	\
+					info->ccm_max_transition = 0
+
+// 	NOTE the reason the increment for majortrans is done
+// 	as below is to force recomputation of  ccm_max_transition 
 #define		CCM_INCREMENT_MAJORTRANS(info) 	\
-					info->ccm_transition_major++
+				CCM_SET_MAJORTRANS(info, \
+					CCM_GET_MAJORTRANS(info)+1)
+
 #define		CCM_INCREMENT_MINORTRANS(info) 	\
 					info->ccm_transition_minor++
 #define		CCM_RESET_MAJORTRANS(info) 	\
@@ -126,7 +174,6 @@ typedef struct ccm_info_s {
 					info->ccm_joined_transition = trans
 #define 	CCM_SET_COOKIE(info, val) \
 				strncpy(info->ccm_cookie, val, COOKIESIZE)
-#define 	CCM_SET_GRAPH(info, graph)  	info->ccm_graph = graph
 #define 	CCM_SET_CL(info, index)	info->ccm_cluster_leader = index
 #define 	CCM_SET_JOINERHEAD(info, ptr)	info->ccm_joiner_head = ptr
 
@@ -134,11 +181,12 @@ typedef struct ccm_info_s {
 #define		CCM_GET_ACTIVEPROTO(info) info->ccm_active_proto
 #define		CCM_GET_MAJORTRANS(info) info->ccm_transition_major
 #define		CCM_GET_MINORTRANS(info) info->ccm_transition_minor
+#define 	CCM_GET_MAXTRANS(info)   info->ccm_max_transition
 #define		CCM_GET_STATE(info) 	info->ccm_node_state 
 #define		CCM_GET_HIPROTO(info) 	info->ccm_hiproto 
 #define 	CCM_GET_LLM(info) 	(&(info->ccm_llm))
 #define 	CCM_GET_UPDATETABLE(info) (&(info->ccm_update))
-#define 	CCM_GET_GRAPH(info)  	info->ccm_graph
+#define 	CCM_GET_MEMCOMP(info) (&(info->ccm_memcomp))
 #define 	CCM_GET_JOINED_TRANSITION(info) info->ccm_joined_transition
 #define  	CCM_GET_LLM_NODECOUNT(info) LLM_GET_NODECOUNT(CCM_GET_LLM(info))
 #define  	CCM_GET_MY_HOSTNAME(info)  ccm_get_my_hostname(info)
@@ -156,12 +204,26 @@ typedef struct ccm_info_s {
 #define 	CCM_GET_VERSION(info)	&(info->ccm_version)
 
 
+#define 	CCM_TMOUT_SET_U(info,t) info->tmout.u=t
+#define 	CCM_TMOUT_SET_LU(info,t) info->tmout.lu=t
+#define 	CCM_TMOUT_SET_VRS(info,t) info->tmout.vrs=t
+#define 	CCM_TMOUT_SET_ITF(info,t) info->tmout.itf=t
+#define 	CCM_TMOUT_SET_IFF(info,t) info->tmout.iff=t
+#define 	CCM_TMOUT_SET_FL(info,t) info->tmout.fl=t
+#define 	CCM_TMOUT_GET_U(info) info->tmout.u
+#define 	CCM_TMOUT_GET_LU(info) info->tmout.lu
+#define 	CCM_TMOUT_GET_VRS(info) info->tmout.vrs
+#define 	CCM_TMOUT_GET_ITF(info) info->tmout.itf
+#define 	CCM_TMOUT_GET_IFF(info) info->tmout.iff
+#define 	CCM_TMOUT_GET_FL(info) info->tmout.fl
 
 /* PROTOTYPE */
 static void ccm_send_join_reply(ll_cluster_t *, ccm_info_t *);
-static int ccm_send_final_memlist(ll_cluster_t *, ccm_info_t *, char *, char *);
+static int ccm_send_final_memlist(ll_cluster_t *, ccm_info_t *, 
+		char *, char *, uint32_t );
 static void report_reset(void);
 static int ccm_already_joined(ccm_info_t *);
+static void ccm_memcomp_reset(ccm_info_t *);
 
 
 ////////////////////////////////////////////////////////////////
@@ -214,6 +276,7 @@ char  ccm_type_str[CCM_TYPE_LAST][TYPESTRSIZE] = {
 #define CCM_PROTOCOL    "ccmproto"        /* protocol version */
 #define CCM_MAJORTRANS  "ccmmajor"        /* major transition version*/
 #define CCM_MINORTRANS  "ccmminor"        /* minor transition version */
+#define CCM_MAXTRANS    "ccmmaxt"        /* minor transition version */
 #define CCM_COOKIE      "ccmcookie"       /* communication context */
 #define CCM_NEWCOOKIE   "ccmnewcookie"    /* new communication context */
 #define CCM_CLSIZE   	"ccmclsize"       /* new cluster size */
@@ -245,6 +308,28 @@ ccm_string2type(const char *type)
 
 // END OF TYPE_STR datastructure and associated functions
 
+
+//
+// timeout configuration function
+//
+static void
+ccm_configure_timeout(ll_cluster_t *hb, ccm_info_t *info)
+{
+	//long keepalive = hb->llc_ops->get_keepalive(hb);
+	long keepalive = 1000;
+
+	if(global_debug) {
+		cl_log(LOG_INFO, "ccm_configure_timeout  "
+			"keepalive=%ld", keepalive);
+	}
+
+	CCM_TMOUT_SET_U(info, 9*keepalive);
+	CCM_TMOUT_SET_LU(info, 30*keepalive);
+	CCM_TMOUT_SET_VRS(info, 9*keepalive);
+	CCM_TMOUT_SET_ITF(info, 18*keepalive);
+	CCM_TMOUT_SET_IFF(info, 12*keepalive);
+	CCM_TMOUT_SET_FL(info, CCM_TMOUT_GET_ITF(info)+5);
+}
 
 
 //
@@ -495,8 +580,7 @@ ccm_reset(ccm_info_t *info)
 	if(ccm_already_joined(info)) client_evicted();
 
 	CCM_RESET_MEMBERSHIP(info);
-	graph_free(CCM_GET_GRAPH(info));
-	CCM_SET_GRAPH(info,NULL);
+	ccm_memcomp_reset(info);
 	CCM_SET_ACTIVEPROTO(info, CCM_VER_NONE);
 	CCM_SET_COOKIE(info,"");
 	CCM_SET_MAJORTRANS(info,0);
@@ -516,9 +600,9 @@ ccm_reset(ccm_info_t *info)
 static void 
 ccm_init(ccm_info_t *info)
 {
-	CCM_SET_GRAPH(info,NULL);
 	update_init(CCM_GET_UPDATETABLE(info));
 	CCM_SET_JOINERHEAD(info, NULL);
+	CCM_INIT_MAXTRANS(info);
         leave_init();
         (void)timeout_msg_init(info);
 	ccm_reset(info);
@@ -644,35 +728,25 @@ ccm_free_random_cookie(char *cookie)
 // information is used by the cluster to extract out the members
 // of the cluster that have total connectivity.
 static int
-ccm_membership_already_noted(ccm_info_t *info, const char *orig)
+ccm_memcomp_cmpr(gconstpointer a, gconstpointer b)
 {
-	/* find the uuid of the originator */
-	int uuid = llm_get_uuid(CCM_GET_LLM(info), orig);
-	return graph_membership_already_noted(CCM_GET_GRAPH(info), uuid);
+	return(*((const uint32_t *)a)-*((const uint32_t *)b));
+}
+static void
+ccm_memcomp_free(gpointer data, gpointer userdata)
+{
+	if(data) g_free(data);
+	return;
 }
 
 static void
-ccm_modify_membership(ccm_info_t *info, const char *orig, const char *memlist)
-{
-	int numbytes;
-	unsigned char *bitlist;
-
-	int uuid = llm_get_uuid(CCM_GET_LLM(info), orig);
-
-	graph_delete_membership(CCM_GET_GRAPH(info), uuid);
-
-	/* convert the memlist into a bit map and feed it to the graph */
-	numbytes = ccm_str2bitmap(memlist, &bitlist);
-	
-	graph_update_membership(CCM_GET_GRAPH(info), uuid, bitlist);
-	/*NOTE DO NOT DELETE bitlist, because it is being handled by graph*/
-}
-
-static void
-ccm_note_membership(ccm_info_t *info, const char *orig, const char *memlist)
+ccm_memcomp_note(ccm_info_t *info, const char *orig, 
+		uint32_t maxtrans, const char *memlist)
 {
 	int uuid, numbytes;
 	unsigned char *bitlist;
+	uint32_t *ptr;
+	memcomp_t *mem_comp = CCM_GET_MEMCOMP(info);
 
 	/* find the uuid of the originator */
 	uuid = llm_get_uuid(CCM_GET_LLM(info), orig);
@@ -680,52 +754,62 @@ ccm_note_membership(ccm_info_t *info, const char *orig, const char *memlist)
 	/* convert the memlist into a bit map and feed it to the graph */
 	numbytes = ccm_str2bitmap(memlist, &bitlist);
 	
-	graph_update_membership(CCM_GET_GRAPH(info), uuid, bitlist);
-	/*NOTE DO NOT DELETE bitlist, because it is being handled by graph*/
+	graph_update_membership(MEMCOMP_GET_GRAPH(mem_comp), 
+			uuid, bitlist);
+	/*NOTE DO NOT DELETE bitlist, because it is 
+	 * being handled by graph*/
+
+	ptr = (uint32_t *)g_malloc(2*sizeof(uint32_t));
+	ptr[0] = maxtrans;
+	ptr[1] = uuid;
+	MEMCOMP_SET_MAXT(mem_comp, 
+		(g_slist_insert_sorted(MEMCOMP_GET_MAXT(mem_comp), 
+			ptr, ccm_memcomp_cmpr)));
+	return;
 }
 
 // called by the cluster leader only 
 static void
-ccm_note_my_membership(ccm_info_t *info)
+ccm_memcomp_note_my_membership(ccm_info_t *info)
 {
-	int uuid, numbytes;
-	unsigned char *bitlist;
 	char *memlist;
 	int str_len;
 
 	/* find the uuid of the originator */
-	uuid = llm_get_uuid(CCM_GET_LLM(info), ccm_get_my_hostname(info));
 	str_len = update_strcreate(CCM_GET_UPDATETABLE(info), 
-					&memlist, CCM_GET_LLM(info));
-	/* convert the memlist into a bit map and feed it to the graph */
-	numbytes = ccm_str2bitmap(memlist, &bitlist);
+			&memlist, CCM_GET_LLM(info));
+	ccm_memcomp_note(info, ccm_get_my_hostname(info), 
+			CCM_GET_MAXTRANS(info), memlist);
 	update_strdelete(memlist);
-	graph_update_membership(CCM_GET_GRAPH(info), uuid, bitlist);
-	/*NOTE DO NOT DELETE bitlist, because it is being handled by graph*/
 	return;
 }
 
 /* add a new member to the membership list */
 static void
-ccm_add_membership(ccm_info_t *info, const char *orig)
+ccm_memcomp_add(ccm_info_t *info, const char *orig)
 {
 	int uuid, myuuid;
+	memcomp_t *mem_comp = CCM_GET_MEMCOMP(info);
 
 	uuid = llm_get_uuid(CCM_GET_LLM(info), orig);
-	myuuid = llm_get_uuid(CCM_GET_LLM(info), ccm_get_my_hostname(info));
-	graph_add_uuid(CCM_GET_GRAPH(info), uuid);
-	graph_add_to_membership(CCM_GET_GRAPH(info), myuuid, uuid);
+	myuuid = llm_get_uuid(CCM_GET_LLM(info), 
+			ccm_get_my_hostname(info));
+	graph_add_uuid(MEMCOMP_GET_GRAPH(mem_comp), uuid);
+	graph_add_to_membership(MEMCOMP_GET_GRAPH(mem_comp), 
+			myuuid, uuid);
+	//ccm_memcomp_note(info, orig, maxtrans, memlist);
 	return;
 }
 
 static void 
-ccm_membership_init(ccm_info_t *info)
+ccm_memcomp_init(ccm_info_t *info)
 {
 	int track=-1;
 	int uuid;
 	
+	memcomp_t *mem_comp = CCM_GET_MEMCOMP(info);
 
-	CCM_SET_GRAPH(info, graph_init());
+	MEMCOMP_SET_GRAPH(mem_comp, graph_init());
 
 	/* go through the update list and note down all the members who
 	 * had participated in the join messages. We should be expecting
@@ -733,31 +817,74 @@ ccm_membership_init(ccm_info_t *info)
 	 */
 	while((uuid = update_get_next_uuid(CCM_GET_UPDATETABLE(info), 
 				CCM_GET_LLM(info), &track)) != -1) {
-		graph_add_uuid(CCM_GET_GRAPH(info),uuid); 
+		graph_add_uuid(MEMCOMP_GET_GRAPH(mem_comp),uuid); 
 	}
+	MEMCOMP_SET_MAXT(mem_comp,  NULL);
+	MEMCOMP_SET_INITTIME(mem_comp, ccm_get_time());
 }
+
 
 static void 
-ccm_membership_free(ccm_info_t *info)
+ccm_memcomp_reset(ccm_info_t *info)
 {
-	graph_free(CCM_GET_GRAPH(info));
-	CCM_SET_GRAPH(info,NULL);
+	GSList *head;
+	memcomp_t *mem_comp = CCM_GET_MEMCOMP(info);
+
+	graph_free(MEMCOMP_GET_GRAPH(mem_comp));
+	MEMCOMP_SET_GRAPH(mem_comp,NULL);
+	head = MEMCOMP_GET_MAXT(mem_comp);
+	g_slist_foreach(MEMCOMP_GET_MAXT(mem_comp), 
+			ccm_memcomp_free, NULL);
+	g_slist_free(MEMCOMP_GET_MAXT(mem_comp));
+	MEMCOMP_SET_MAXT(mem_comp,  NULL);
+	return;
+}
+
+
+static int
+ccm_memcomp_rcvd_all(ccm_info_t *info)
+{
+	return 
+	graph_filled_all(MEMCOMP_GET_GRAPH(CCM_GET_MEMCOMP(info)));
 }
 
 static int
-ccm_rcvd_all_memlist(ccm_info_t *info)
+ccm_memcomp_timeout(ccm_info_t *info, long timeout)
 {
-	return graph_filled_all(CCM_GET_GRAPH(info));
+	memcomp_t *mem_comp = CCM_GET_MEMCOMP(info);
+
+	return(ccm_timeout(MEMCOMP_GET_INITTIME(mem_comp), 
+				ccm_get_time(), timeout));
 }
-
-
 
 static int
-ccm_membership_timeout(ccm_info_t *info, long timeout)
+ccm_memcomp_get_maxmembership(ccm_info_t *info, unsigned char **bitmap)
 {
-	return graph_timeout_expired(CCM_GET_GRAPH(info), 
-		timeout);
+	GSList *head;
+	uint32_t *ptr;
+	int 	uuid;
+
+	memcomp_t *mem_comp = CCM_GET_MEMCOMP(info);
+
+	(void)graph_get_maxclique(MEMCOMP_GET_GRAPH(mem_comp), 
+			bitmap);
+
+	head = MEMCOMP_GET_MAXT(mem_comp);
+
+	while (head) {
+		ptr = (uint32_t *)g_slist_nth_data(head, 0);
+		uuid = ptr[1];
+		if(bitmap_test(uuid, *bitmap, MAXNODE)) 
+			return ptr[0];
+		head = g_slist_next(head);
+	}
+	return 0;
 }
+
+
+//
+// END OF the membership tracking functions.
+//
 
 
 static int 
@@ -780,10 +907,6 @@ ccm_am_i_member(ccm_info_t *info, const char *memlist)
 	bitmap_delete(bitmap);
 	return FALSE;
 }
-//
-// END OF the membership tracking functions.
-//
-
 
 
 //
@@ -1011,14 +1134,15 @@ static void
 ccm_compute_and_send_final_memlist(ll_cluster_t *hb, ccm_info_t *info)
 {
 	unsigned char *bitmap;
-	int count;
+	int maxtrans;
 	char *string;
 	char *cookie = NULL;
 	int numBytes;
 	int strsize;
 
 	/* get the maxmimum membership list */
-	count = graph_get_maxclique(CCM_GET_GRAPH(info), &bitmap);
+	maxtrans = ccm_memcomp_get_maxmembership(info, &bitmap);
+
 
 	/* create a string with the membership information */
 	numBytes = bitmap_size(MAXNODE);
@@ -1032,7 +1156,8 @@ ccm_compute_and_send_final_memlist(ll_cluster_t *hb, ccm_info_t *info)
 		cookie = ccm_generate_random_cookie();
 	}
 
-	while (ccm_send_final_memlist(hb, info, cookie, string) != HA_OK) {
+	while (ccm_send_final_memlist(hb, info, cookie, string, maxtrans+1) 
+					!= HA_OK) {
 		cl_log(LOG_ERR, "ccm_compute_and_send_final_memlist: failure "
 						"to send finalmemlist");
 		sleep(1);
@@ -1046,7 +1171,7 @@ ccm_compute_and_send_final_memlist(ll_cluster_t *hb, ccm_info_t *info)
 	/* increment the major transition number and reset the
 	 * minor transition number
 	 */
-	CCM_INCREMENT_MAJORTRANS(info); 
+	CCM_SET_MAJORTRANS(info, maxtrans+1); 
 	CCM_RESET_MINORTRANS(info);
 
 	/* if cookie has changed update it.
@@ -1059,20 +1184,21 @@ ccm_compute_and_send_final_memlist(ll_cluster_t *hb, ccm_info_t *info)
 	}
 
 	/* check if any joiner is waiting for a response from us. 
-	 * If so respond 
+	 * If so respond and free all the joiners.
 	 */
 	ccm_send_join_reply(hb, info);
+	g_slist_free(CCM_GET_JOINERHEAD(info));
+	CCM_SET_JOINERHEAD(info, NULL);
 	
 	CCM_SET_CL(info, ccm_get_my_membership_index(info));
 	report_mbrs(info);/* call this before update_reset() */
 	update_reset(CCM_GET_UPDATETABLE(info));
-	ccm_membership_free(info);
+	ccm_memcomp_reset(info);
 	CCM_SET_STATE(info, CCM_STATE_JOINED);
 	if(!ccm_already_joined(info)) 
 		CCM_SET_JOINED_TRANSITION(info, CCM_GET_MAJORTRANS(info));
 	return;
 }
-
 
 
 //
@@ -1160,13 +1286,16 @@ static int
 ccm_send_final_memlist(ll_cluster_t *hb, 
 			ccm_info_t *info, 
 			char *newcookie, 
-			char *finallist)
+			char *finallist,
+			uint32_t max_tran)
 {  
 	struct ha_msg *m;
 	char activeproto[3];
 	char majortrans[15]; /* 10 is the maximum number of digits in 
 				UINT_MAX , adding a buffer of 5 */
 	char minortrans[15]; /* 10 is the maximum number of digits in 
+				UINT_MAX , adding a buffer of 5 */
+	char maxtrans[15]; /* 10 is the maximum number of digits in 
 				UINT_MAX , adding a buffer of 5 */
 	char *cookie;
 	int rc;
@@ -1184,6 +1313,8 @@ ccm_send_final_memlist(ll_cluster_t *hb,
 					CCM_GET_MAJORTRANS(info));
 	snprintf(minortrans, sizeof(minortrans), "%d", 
 					CCM_GET_MINORTRANS(info));
+	snprintf(maxtrans, sizeof(maxtrans), "%d", max_tran);
+
 	cookie = CCM_GET_COOKIE(info);
 
 	assert(cookie);
@@ -1193,6 +1324,7 @@ ccm_send_final_memlist(ll_cluster_t *hb,
 							== HA_FAIL)
 		||(ha_msg_add(m, CCM_MAJORTRANS, majortrans) == HA_FAIL)
 		||(ha_msg_add(m, CCM_MINORTRANS, minortrans) == HA_FAIL)
+		||(ha_msg_add(m, CCM_MAXTRANS, maxtrans) == HA_FAIL)
 		||(ha_msg_add(m, CCM_COOKIE, cookie) == HA_FAIL)
 		||(ha_msg_add(m, CCM_MEMLIST, finallist) == HA_FAIL)
 		||(!newcookie? FALSE: (ha_msg_add(m, CCM_NEWCOOKIE, newcookie)
@@ -1388,6 +1520,7 @@ ccm_send_memlist_res(ll_cluster_t *hb,
 	char majortrans[15]; /* 10 is the maximum number of digits in 
 				UINT_MAX , adding a buffer of 5 */
 	char minortrans[15]; /*		ditto 	*/
+	char maxtrans[15]; /*		ditto 	*/
 	char *cookie;
 	int  rc;
 	unsigned char *bitmap;
@@ -1403,6 +1536,8 @@ ccm_send_memlist_res(ll_cluster_t *hb,
 					CCM_GET_MAJORTRANS(info));
 	snprintf(minortrans, sizeof(minortrans), "%d", 
 					CCM_GET_MINORTRANS(info));
+	snprintf(maxtrans, sizeof(maxtrans), "%d", 
+					CCM_GET_MAXTRANS(info));
 
 	cookie = CCM_GET_COOKIE(info);
 	assert(cookie);
@@ -1419,6 +1554,7 @@ ccm_send_memlist_res(ll_cluster_t *hb,
 		||(ha_msg_add(m, CCM_COOKIE, cookie) == HA_FAIL)
 		||(ha_msg_add(m, CCM_MAJORTRANS, majortrans) == HA_FAIL)
 		||(ha_msg_add(m, CCM_MINORTRANS, minortrans) == HA_FAIL)
+		||(ha_msg_add(m, CCM_MAXTRANS, maxtrans) == HA_FAIL)
 		||(ha_msg_add(m, CCM_MEMLIST, memlist) == HA_FAIL)) {
 		cl_log(LOG_ERR, "ccm_send_memlist_res: Cannot create "
 						"RES_MEMLIST message");
@@ -1706,6 +1842,8 @@ ccm_joining_to_joined(ll_cluster_t *hb, ccm_info_t *info)
 	 * If so respond 
 	 */
 	ccm_send_join_reply(hb, info);
+	g_slist_free(CCM_GET_JOINERHEAD(info));
+	CCM_SET_JOINERHEAD(info, NULL);
 	
 	CCM_SET_CL(info, ccm_get_my_membership_index(info));
 	update_reset(CCM_GET_UPDATETABLE(info));
@@ -1747,11 +1885,6 @@ ccm_init_to_joined(ccm_info_t *info)
 }
 
 
-#define MEMBERSHIP_INFO_FROM_FOLLOWERS_TIMEOUT  15
-#define MEMBERSHIP_INFO_TO_FOLLOWERS_TIMEOUT  25
-#define FINALLIST_TIMEOUT  MEMBERSHIP_INFO_TO_FOLLOWERS_TIMEOUT+5
-#define UPDATE_TIMEOUT  1
-#define UPDATE_LONG_TIMEOUT  45
 
 //
 // The state machine that processes message when it is
@@ -1765,16 +1898,17 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 {
 	const char *orig, *proto, *cookie, *trans, *clsize;
 	int trans_val, proto_val, clsize_val;
+	int try;
 
 	/* who sent this message */
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
-		cl_log(LOG_ERR, "ccm_state_version_request: "
+		cl_log(LOG_WARNING, "ccm_state_version_request: "
 			"received message from unknown");
 		return;
 	}
 
 	if(!llm_is_valid_node(CCM_GET_LLM(info), orig)) { 
-		cl_log(LOG_ERR, "ccm_state_version_request: "
+		cl_log(LOG_WARNING, "ccm_state_version_request: "
 			"received message from unknown host %s", orig);
 		return;
 	}
@@ -1785,14 +1919,14 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 
 		/* get the protocol version */
 		if ((proto = ha_msg_value(reply, CCM_PROTOCOL)) == NULL) {
-			cl_log(LOG_ERR, "ccm_state_version_request: "
+			cl_log(LOG_WARNING, "ccm_state_version_request: "
 					"no protocol information");
 			return;
 		}
 
 		proto_val = atoi(proto); /*TOBEDONE*/
 		if (proto_val >= CCM_VER_LAST) {
-			cl_log(LOG_ERR, "ccm_state_version_request: "
+			cl_log(LOG_WARNING, "ccm_state_version_request: "
 					"unknown protocol value");
 			ccm_reset(info);
 			return;
@@ -1806,13 +1940,13 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 		 */
 		if(resp_can_i_drop()) {
 			if ((clsize = ha_msg_value(reply, CCM_CLSIZE)) == NULL){
-				cl_log(LOG_ERR, "ccm_state_version_request: "
+				cl_log(LOG_WARNING, "ccm_state_version_request: "
 						" no cookie information");
 				return;
 			}
 			clsize_val = atoi(clsize);
-			if(clsize_val < 
-			   (llm_get_active_nodecount(CCM_GET_LLM(info))/2-1)) {
+			if((clsize_val+1) <=
+			   ((llm_get_active_nodecount(CCM_GET_LLM(info))+1)/2)) {
 				/* drop the response. We will wait for 
 			  	 * a response from a bigger group 
 				 */
@@ -1832,14 +1966,14 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 
 		/* get the cookie string */
 		if ((cookie = ha_msg_value(reply, CCM_COOKIE)) == NULL) {
-			cl_log(LOG_ERR, "ccm_state_version_request: no cookie "
+			cl_log(LOG_WARNING, "ccm_state_version_request: no cookie "
 							"information");
 			return;
 		}
 
 		/* get the major transition version */
 		if ((trans = ha_msg_value(reply, CCM_MAJORTRANS)) == NULL) { 
-			cl_log(LOG_ERR, "ccm_state_version_request: "
+			cl_log(LOG_WARNING, "ccm_state_version_request: "
 					"no protocol information");
 			return;
 		}
@@ -1852,12 +1986,13 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 		CCM_SET_MINORTRANS(info, 0);
 		CCM_SET_COOKIE(info, cookie);
 		while (ccm_send_join(hb, info) != HA_OK) {
-			cl_log(LOG_ERR, "ccm_state_version_request: failure to send join");
+			cl_log(LOG_WARNING, "ccm_state_version_request: failure to send join");
 			sleep(1);
 		}
 
 		/* initialize the update table  and set our state to JOINING */
 		update_reset(CCM_GET_UPDATETABLE(info));
+		version_set_nresp(CCM_GET_VERSION(info),0);
 		CCM_SET_STATE(info, CCM_STATE_JOINING);
 
 		/* free all the joiners that we accumulated */
@@ -1867,23 +2002,30 @@ ccm_state_version_request(enum ccm_type ccm_msg_type,
 		break;
 
         case CCM_TYPE_TIMEOUT:
-		if(version_retry(CCM_GET_VERSION(info))){
-			CCM_SET_STATE(info, CCM_STATE_NONE);
-		} else {
-			if(ccm_am_i_highest_joiner(info)) {
-				if(global_debug)
-					cl_log(LOG_DEBUG,"joined");
-				ccm_init_to_joined(info);
-			} else {
-				if(global_debug)
-					cl_log(LOG_DEBUG,
-						"joined but not really");
-				version_reset(CCM_GET_VERSION(info));
+		try = version_retry(CCM_GET_VERSION(info), 
+					CCM_TMOUT_GET_VRS(info));
+		switch (try) {
+			case VER_NO_CHANGE: 
+				break;
+			case VER_TRY_AGAIN:
 				CCM_SET_STATE(info, CCM_STATE_NONE);
-			}
-			/* free all the joiners that we accumulated */
-			g_slist_free(CCM_GET_JOINERHEAD(info));
-			CCM_SET_JOINERHEAD(info, NULL);
+				break;
+			case VER_TRY_END:
+				if(ccm_am_i_highest_joiner(info)) {
+					if(global_debug)
+						cl_log(LOG_DEBUG,"joined");
+					ccm_init_to_joined(info);
+				} else {
+					if(global_debug)
+						cl_log(LOG_DEBUG,
+							"joined but not really");
+					version_reset(CCM_GET_VERSION(info));
+					CCM_SET_STATE(info, CCM_STATE_NONE);
+				}
+				/* free all the joiners that we accumulated */
+				g_slist_free(CCM_GET_JOINERHEAD(info));
+				CCM_SET_JOINERHEAD(info, NULL);
+				break;
 		}
 		break;
 				
@@ -1931,13 +2073,13 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 	int  trans_majorval,trans_minorval=0, uptime_val;
 
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
-		cl_log(LOG_ERR, "ccm_state_joined: received message "
+		cl_log(LOG_WARNING, "ccm_state_joined: received message "
 							"from unknown");
 		return;
 	}
 
 	if(!llm_is_valid_node(CCM_GET_LLM(info), orig)) { 
-		cl_log(LOG_ERR, "ccm_state_joined: received message "
+		cl_log(LOG_WARNING, "ccm_state_joined: received message "
 				"from unknown host %s", orig);
 		return;
 	}
@@ -1946,7 +2088,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 
 		if(strncmp(CCM_GET_COOKIE(info), 
 			ha_msg_value(reply, CCM_COOKIE), COOKIESIZE) != 0){
-			cl_log(LOG_ERR, "ccm_state_joined: received message "
+			cl_log(LOG_WARNING, "ccm_state_joined: received message "
 					"with unknown cookie, just dropping");
 			return;
 		}
@@ -1955,7 +2097,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 
 		/* get the major transition version */
 		if ((trans = ha_msg_value(reply, CCM_MAJORTRANS)) == NULL) { 
-			cl_log(LOG_ERR, "ccm_state_joined: no transition major "
+			cl_log(LOG_WARNING, "ccm_state_joined: no transition major "
 				"information");
 			return;
 		}
@@ -1964,7 +2106,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 	 	/*drop the message if it has lower major transition number */
 		if (CCM_TRANS_EARLIER(trans_majorval,  
 					CCM_GET_MAJORTRANS(info))) {
-			cl_log(LOG_ERR, "ccm_state_joined: received "
+			cl_log(LOG_WARNING, "ccm_state_joined: received "
 				"CCM_TYPE_JOIN message with"
 				"a earlier major transition number");
 			return;
@@ -1973,7 +2115,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 
 		/* get the minor transition version */
 		if ((trans = ha_msg_value(reply, CCM_MINORTRANS)) == NULL) { 
-			cl_log(LOG_ERR, "ccm_state_joined: no transition minor "
+			cl_log(LOG_WARNING, "ccm_state_joined: no transition minor "
 					"information");
 			return;
 		}
@@ -1983,7 +2125,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 
 	switch (ccm_msg_type)  {
 		case CCM_TYPE_PROTOVERSION_RESP:
-			cl_log(LOG_ERR, "ccm_state_joined: dropping message "
+			cl_log(LOG_WARNING, "ccm_state_joined: dropping message "
 				"of type %s.  Is this a Byzantime failure?", 
 					ccm_type2string(ccm_msg_type));
 
@@ -1996,7 +2138,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 			if (ccm_am_i_leader(info)){
 				while (ccm_send_joiner_reply(hb, info, orig)
 						!= HA_OK) {
-					cl_log(LOG_ERR, "ccm_state_joined: "
+					cl_log(LOG_WARNING, "ccm_state_joined: "
 						"failure to send join reply");
 						sleep(1);
 				}
@@ -2006,7 +2148,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 		case CCM_TYPE_JOIN:
 			/* get the update value */
 			if ((uptime = ha_msg_value(reply, CCM_UPTIME)) == NULL){
-				cl_log(LOG_ERR, "ccm_state_joined: no update "
+				cl_log(LOG_WARNING, "ccm_state_joined: no update "
 						"information");
 				return;
 			}
@@ -2022,7 +2164,7 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 
 			CCM_SET_MINORTRANS(info, trans_minorval);
 			while (ccm_send_join(hb, info) != HA_OK) {
-				cl_log(LOG_ERR, "ccm_state_joined: failure "
+				cl_log(LOG_WARNING, "ccm_state_joined: failure "
 							"to send join");
 				sleep(1);
 			}
@@ -2035,8 +2177,9 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 			 * and go to JOINING state 
 			 */
 			if(ccm_get_membership_index(info, orig) == -1) break;
+			update_reset(CCM_GET_UPDATETABLE(info));
 			while (ccm_send_join(hb, info) != HA_OK) {
-				cl_log(LOG_ERR, "ccm_state_joined:"
+				cl_log(LOG_WARNING, "ccm_state_joined:"
 				" failure to send join");
 				sleep(1);
 			}
@@ -2076,16 +2219,16 @@ ccm_state_sent_memlistreq(enum ccm_type ccm_msg_type,
 			ccm_info_t *info)
 {
 	const char *orig,  *trans, *memlist, *uptime;
-	int   trans_majorval=0, trans_minorval=0, uptime_val;
+	int   trans_minorval=0, trans_majorval=0, trans_maxval=0, uptime_val;
 
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
-		cl_log(LOG_ERR, "ccm_state_sent_memlistreq: received message "
+		cl_log(LOG_WARNING, "ccm_state_sent_memlistreq: received message "
 						"from unknown");
 		return;
 	}
 
 	if(!llm_is_valid_node(CCM_GET_LLM(info), orig)) { 
-		cl_log(LOG_ERR, "ccm_state_sent_memlistreq: received message "
+		cl_log(LOG_WARNING, "ccm_state_sent_memlistreq: received message "
 				"from unknown host %s", orig);
 		return;
 	}
@@ -2094,14 +2237,14 @@ ccm_state_sent_memlistreq(enum ccm_type ccm_msg_type,
 
 	if(strncmp(CCM_GET_COOKIE(info), ha_msg_value(reply, CCM_COOKIE), 
 				COOKIESIZE) != 0){
-		cl_log(LOG_ERR, "ccm_state_memlist_res: received message "
+		cl_log(LOG_WARNING, "ccm_state_memlist_res: received message "
 				"with unknown cookie, just dropping");
 		return;
 	}
 
 	/* get the major transition version */
 	if ((trans = ha_msg_value(reply, CCM_MAJORTRANS)) == NULL) { 
-		cl_log(LOG_ERR, "ccm_state_sent_memlistreq:no transition major "
+		cl_log(LOG_WARNING, "ccm_state_sent_memlistreq:no transition major "
 				"information");
 		return;
 	}
@@ -2109,7 +2252,7 @@ ccm_state_sent_memlistreq(enum ccm_type ccm_msg_type,
 	trans_majorval = atoi(trans);
 	 /*	drop the message if it has lower major transition number */
 	if (CCM_TRANS_EARLIER(trans_majorval,  CCM_GET_MAJORTRANS(info))) {
-		cl_log(LOG_ERR, "ccm_state_sent_memlistreq: received "
+		cl_log(LOG_WARNING, "ccm_state_sent_memlistreq: received "
 					"CCM_TYPE_JOIN message with"
 					"a earlier major transition number");
 		return;
@@ -2118,7 +2261,7 @@ ccm_state_sent_memlistreq(enum ccm_type ccm_msg_type,
 
 	/* get the minor transition version */
 	if ((trans = ha_msg_value(reply, CCM_MINORTRANS)) == NULL) { 
-		cl_log(LOG_ERR, "ccm_state_sent_memlistreq:no transition minor "
+		cl_log(LOG_WARNING, "ccm_state_sent_memlistreq:no transition minor "
 				"information");
 		return;
 	}
@@ -2129,7 +2272,7 @@ switchstatement:
 	switch (ccm_msg_type)  {
 		case CCM_TYPE_PROTOVERSION_RESP:
 
-			cl_log(LOG_ERR, "ccm_state_sent_memlistreq: "
+			cl_log(LOG_WARNING, "ccm_state_sent_memlistreq: "
 				"dropping message of type %s. "
 				" Is this a Byzantime failure?",
 				ccm_type2string(ccm_msg_type));
@@ -2162,7 +2305,7 @@ switchstatement:
 			/* get the update value */
 			if ((uptime = ha_msg_value(reply, CCM_UPTIME)) 
 						== NULL){
-				cl_log(LOG_ERR, 
+				cl_log(LOG_WARNING, 
 					"ccm_state_sent_memlistreq: no "
 					"update information");
 				return;
@@ -2170,18 +2313,18 @@ switchstatement:
 			uptime_val = atoi(uptime);
 			update_add(CCM_GET_UPDATETABLE(info), 
 				CCM_GET_LLM(info), orig, uptime_val, FALSE);
-			ccm_add_membership(info, orig);
+			ccm_memcomp_add(info, orig);
 			break;
 
 		case CCM_TYPE_TIMEOUT:
-			if (ccm_membership_timeout(info,
-				MEMBERSHIP_INFO_FROM_FOLLOWERS_TIMEOUT)) {
+			if (ccm_memcomp_timeout(info,
+				CCM_TMOUT_GET_IFF(info))) {
 				/* we waited long for membership response 
 				 * from all nodes, stop waiting and send
 				 * final membership list
 				 */
-				if(ccm_membership_timeout(info,
-					MEMBERSHIP_INFO_TO_FOLLOWERS_TIMEOUT)) {
+				if(ccm_memcomp_timeout(info,
+					CCM_TMOUT_GET_ITF(info))){
 					/* its too long since I declared myself
 					 * as the leader. Nobody else will
 					 * be waiting on us. So just send
@@ -2228,7 +2371,8 @@ switchstatement:
 			 */
 			if(trans_minorval != CCM_GET_MINORTRANS(info)) break;
 			if(trans_majorval != CCM_GET_MAJORTRANS(info)) {
-				cl_log(LOG_INFO, "dropping CCM_TYPE_RES_MEMLIST "
+				cl_log(LOG_INFO, 
+				   "dropping CCM_TYPE_RES_MEMLIST "
 				   "from orig=%s mymajor=%d msg_major=%d", 
 				   orig, trans_majorval, 
 					CCM_GET_MAJORTRANS(info));
@@ -2237,28 +2381,43 @@ switchstatement:
 			}
 			if ((memlist = ha_msg_value(reply, CCM_MEMLIST)) 
 						== NULL) { 
-				cl_log(LOG_ERR, "ccm_state_sent_memlistreq: "
+				cl_log(LOG_WARNING, "ccm_state_sent_memlistreq: "
 						"no memlist ");
 				break;
 			}
-			ccm_note_membership(info, orig, memlist);
+			/* get the max transition version */
+			if (!(trans = ha_msg_value(reply, CCM_MAXTRANS))) { 
+				cl_log(LOG_WARNING, 
+					"ccm_state_sent_memlistreq: "
+					"no max transition "
+					"information %s, type=%d", 
+					orig, ccm_msg_type);
+				return;
+			}
 
-			if (ccm_rcvd_all_memlist(info)) {
-				if(ccm_membership_timeout(info,
-					MEMBERSHIP_INFO_TO_FOLLOWERS_TIMEOUT)) {
+			trans_maxval = atoi(trans);
+
+			ccm_memcomp_note(info, orig, trans_maxval, memlist);
+
+			if (ccm_memcomp_rcvd_all(info)) {
+				if(ccm_memcomp_timeout(info,
+					CCM_TMOUT_GET_ITF(info))){
 					/* its too long since I declared myself
 					 * as the leader. Nobody else will
 					 * be waiting on us. So just send
 					 * leave message and reset.
 				 	 */
-					while (ccm_send_leave(hb, info) != HA_OK) {
-						cl_log(LOG_ERR, "ccm_state_memlistreq: "
-							"failure to send leave");
+					while (ccm_send_leave(hb, info) 
+							!= HA_OK) {
+						cl_log(LOG_ERR, 
+						 "ccm_state_memlistreq: "
+						 "failure to send leave");
 						sleep(1);
 					}
 					ccm_reset(info);
 				} else {
-					ccm_compute_and_send_final_memlist(hb, info);
+					ccm_compute_and_send_final_memlist(hb, 
+							info);
 				}
 			}
 			break;
@@ -2278,28 +2437,27 @@ switchstatement:
 			
 			/* if this node had sent a memlist before dying,
 			 * reset its memlist information */
-			if(ccm_membership_already_noted(info, orig)) {
-				ccm_modify_membership(info, orig, "");
-			} else {
-				ccm_note_membership(info, orig, "");
-			}
+			ccm_memcomp_note(info, orig, 0, "");
 
-			if (ccm_rcvd_all_memlist(info)) {
-				if(ccm_membership_timeout(info,
-					MEMBERSHIP_INFO_TO_FOLLOWERS_TIMEOUT)) {
+			if (ccm_memcomp_rcvd_all(info)) {
+				if(ccm_memcomp_timeout(info,
+					CCM_TMOUT_GET_ITF(info))){
 					/* its too long since I declared myself
 					 * as the leader. Nobody else will
 					 * be waiting on us. So just send
 					 * leave message and reset.
 				 	 */
-					while (ccm_send_leave(hb, info) != HA_OK) {
-						cl_log(LOG_ERR, "ccm_state_memlistreq: "
-							"failure to send leave");
+					while (ccm_send_leave(hb, info) 
+							!= HA_OK) {
+						cl_log(LOG_ERR, 
+						 "ccm_state_memlistreq: "
+						 "failure to send leave");
 						sleep(1);
 					}
 					ccm_reset(info);
 				} else {
-					ccm_compute_and_send_final_memlist(hb, info);
+					ccm_compute_and_send_final_memlist(hb, 
+							info);
 				}
 			}
 			break;
@@ -2328,19 +2486,19 @@ ccm_state_memlist_res(enum ccm_type ccm_msg_type,
 		ccm_info_t *info)
 {
 	const char *orig,  *trans, *uptime, *memlist, *cookie, *cl;
-	int   trans_majorval=0, trans_minorval=0, uptime_val;
+	int   trans_majorval=0, trans_minorval=0, trans_maxval=0,uptime_val;
 	int  curr_major, curr_minor, indx;
 
 
 
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
-		cl_log(LOG_ERR, "ccm_state_memlist_res: received message "
+		cl_log(LOG_WARNING, "ccm_state_memlist_res: received message "
 							"from unknown");
 		return;
 	}
 
 	if(!llm_is_valid_node(CCM_GET_LLM(info), orig)) { 
-		cl_log(LOG_ERR, "ccm_state_memlist_res: received message "
+		cl_log(LOG_WARNING, "ccm_state_memlist_res: received message "
 				"from unknown host %s", orig);
 		return;
 	}
@@ -2349,14 +2507,14 @@ ccm_state_memlist_res(enum ccm_type ccm_msg_type,
 
 	if(strncmp(CCM_GET_COOKIE(info), ha_msg_value(reply, CCM_COOKIE), 
 				COOKIESIZE) != 0){
-		cl_log(LOG_ERR, "ccm_state_memlist_res: received message "
+		cl_log(LOG_WARNING, "ccm_state_memlist_res: received message "
 				"with unknown cookie, just dropping");
 		return;
 	}
 
 	/* get the major transition version */
 	if ((trans = ha_msg_value(reply, CCM_MAJORTRANS)) == NULL) { 
-		cl_log(LOG_ERR, "ccm_state_memlist_res: no transition major "
+		cl_log(LOG_WARNING, "ccm_state_memlist_res: no transition major "
 				"information");
 		return;
 	}
@@ -2364,7 +2522,7 @@ ccm_state_memlist_res(enum ccm_type ccm_msg_type,
 	trans_majorval = atoi(trans);
 	 /*	drop the message if it has lower major transition number */
 	if (CCM_TRANS_EARLIER(trans_majorval,  CCM_GET_MAJORTRANS(info))) {
-		cl_log(LOG_ERR, "ccm_state_memlist_res: received "
+		cl_log(LOG_WARNING, "ccm_state_memlist_res: received "
 					"CCM_TYPE_JOIN message with"
 					"a earlier major transition number");
 		return;
@@ -2373,7 +2531,7 @@ ccm_state_memlist_res(enum ccm_type ccm_msg_type,
 
 	/* get the minor transition version */
 	if ((trans = ha_msg_value(reply, CCM_MINORTRANS)) == NULL) { 
-		cl_log(LOG_ERR, "ccm_state_memlist_res: no transition minor "
+		cl_log(LOG_WARNING, "ccm_state_memlist_res: no transition minor "
 				"information");
 		return;
 	}
@@ -2385,7 +2543,7 @@ switchstatement:
 
 	switch (ccm_msg_type)  {
 		case CCM_TYPE_PROTOVERSION_RESP:
-			cl_log(LOG_ERR, "ccm_state_memlist_res:dropping message"
+			cl_log(LOG_WARNING, "ccm_state_memlist_res:dropping message"
 					" of type %s. Is this a Byzantime "
 					" failure?", 
 					ccm_type2string(ccm_msg_type));
@@ -2437,7 +2595,7 @@ switchstatement:
 				/* get the update value */
 				if ((uptime = ha_msg_value(reply, CCM_UPTIME)) 
 							== NULL){
-					cl_log(LOG_ERR, 
+					cl_log(LOG_WARNING, 
 						"ccm_state_memlist_res: no "
 						"update information");
 					return;
@@ -2501,7 +2659,7 @@ switchstatement:
 			 * just assume that the leader is dead and start over
 			 * a new round of the protocol
 			 */
-			if(!finallist_timeout(FINALLIST_TIMEOUT)) {
+			if(!finallist_timeout(CCM_TMOUT_GET_FL(info))) {
 				break;
 			}
 			update_reset(CCM_GET_UPDATETABLE(info));
@@ -2558,7 +2716,7 @@ switchstatement:
 				 * message and wait for a message from the 
 				 * our percieved master
 				 */
-				cl_log(LOG_ERR, "ccm_state_memlist_res: "
+				cl_log(LOG_WARNING, "ccm_state_memlist_res: "
 					"received final memlist from "
 					"non-master,neglecting");
 									
@@ -2574,7 +2732,7 @@ switchstatement:
 
 			if(curr_major != trans_majorval || 
 				curr_minor !=  trans_minorval){
-				cl_log(LOG_ERR, "ccm_state_memlist_res: "
+				cl_log(LOG_WARNING, "ccm_state_memlist_res: "
 					"received final memlist from master, "
 					"but transition versions do not match: "
 					"rejecting the message");
@@ -2583,10 +2741,17 @@ switchstatement:
 			
 			if ((memlist = ha_msg_value(reply, CCM_MEMLIST)) 
 						== NULL) { 
-				cl_log(LOG_ERR, "ccm_state_sent_memlistreq: "
+				cl_log(LOG_WARNING, "ccm_state_sent_memlistreq: "
 						"no membership list ");
 				return;
 			}
+			if ((trans = ha_msg_value(reply, CCM_MAXTRANS)) 
+						== NULL) { 
+				cl_log(LOG_WARNING, "ccm_state_sent_memlistreq: "
+						"no membership list ");
+				return;
+			}
+			trans_maxval = atoi(trans);
 
 			if (!ccm_am_i_member(info, memlist)) {
 				ccm_reset(info); 
@@ -2597,7 +2762,7 @@ switchstatement:
 			/* increment the major transition number and reset the
 			 * minor transition number
 			 */
-			CCM_INCREMENT_MAJORTRANS(info); 
+			CCM_SET_MAJORTRANS(info, trans_maxval); 
 			CCM_RESET_MINORTRANS(info);
 
 			/* check if leader has changed the COOKIE, this can
@@ -2617,6 +2782,8 @@ switchstatement:
 			update_reset(CCM_GET_UPDATETABLE(info));
 			finallist_reset();
 			CCM_SET_STATE(info, CCM_STATE_JOINED);
+			g_slist_free(CCM_GET_JOINERHEAD(info));
+			CCM_SET_JOINERHEAD(info, NULL);
 			if(!ccm_already_joined(info)) 
 				CCM_SET_JOINED_TRANSITION(info, 
 					CCM_GET_MAJORTRANS(info));
@@ -2652,13 +2819,13 @@ ccm_state_joining(enum ccm_type ccm_msg_type,
 	int   trans_majorval=0, trans_minorval=0, uptime_val;
 
 	if ((orig = ha_msg_value(reply, F_ORIG)) == NULL) {
-		cl_log(LOG_ERR, "ccm_state_joining: received message "
+		cl_log(LOG_WARNING, "ccm_state_joining: received message "
 							"from unknown");
 		return;
 	}
 
 	if(!llm_is_valid_node(CCM_GET_LLM(info), orig)) { 
-		cl_log(LOG_ERR, "ccm_state_joining: received message "
+		cl_log(LOG_WARNING, "ccm_state_joining: received message "
 				"from unknown host %s", orig);
 		return;
 	}
@@ -2667,7 +2834,15 @@ ccm_state_joining(enum ccm_type ccm_msg_type,
 
 	if(strncmp(CCM_GET_COOKIE(info), ha_msg_value(reply, CCM_COOKIE), 
 			COOKIESIZE) != 0){
-		cl_log(LOG_ERR, "ccm_state_joining: received message "
+
+		if(ccm_msg_type ==  CCM_TYPE_PROTOVERSION_RESP) {
+			version_inc_nresp(CCM_GET_VERSION(info));
+			cl_log(LOG_WARNING, "ccm_state_joining: received message "
+			"incrementing versionresp counter %d", 
+				version_get_nresp(CCM_GET_VERSION(info)));
+		}
+
+		cl_log(LOG_WARNING, "ccm_state_joining: received message "
 			"with unknown cookie, just dropping");
 		return;
 	}
@@ -2677,7 +2852,7 @@ ccm_state_joining(enum ccm_type ccm_msg_type,
 
 	/* get the major transition version */
 	if ((trans = ha_msg_value(reply, CCM_MAJORTRANS)) == NULL) { 
-		cl_log(LOG_ERR, "ccm_state_joining: no transition major "
+		cl_log(LOG_WARNING, "ccm_state_joining: no transition major "
 				"information");
 		return;
 	}
@@ -2685,7 +2860,7 @@ ccm_state_joining(enum ccm_type ccm_msg_type,
 	trans_majorval = atoi(trans);
 	 /*	drop the message if it has lower major transition number */
 	if (CCM_TRANS_EARLIER(trans_majorval,  CCM_GET_MAJORTRANS(info))) {
-		cl_log(LOG_ERR, "ccm_state_joining: received "
+		cl_log(LOG_WARNING, "ccm_state_joining: received "
 				"CCM_TYPE_JOIN message with"
 				"a earlier major transition number");
 		return;
@@ -2694,7 +2869,7 @@ ccm_state_joining(enum ccm_type ccm_msg_type,
 
 	/* get the minor transition version */
 	if ((trans = ha_msg_value(reply, CCM_MINORTRANS)) == NULL) { 
-		cl_log(LOG_ERR, "ccm_state_joining: no transition minor "
+		cl_log(LOG_WARNING, "ccm_state_joining: no transition minor "
 				"information");
 		return;
 	}
@@ -2714,14 +2889,14 @@ switchstatement:
 			 * message should not have arrived. A bug in the logic!
 			 */
 			if(ccm_already_joined(info)) {
-				cl_log(LOG_ERR, "ccm_state_joining: BUG:"
+				cl_log(LOG_WARNING, "ccm_state_joining: BUG:"
 					" received CCM_TYPE_PROTOVERSION_RESP "
 					"message when we have not asked for "
 					"it ");
 				break;
 			}
 
-			cl_log(LOG_ERR, "ccm_state_joining: dropping message "
+			cl_log(LOG_WARNING, "ccm_state_joining: dropping message "
 					" of type %s. Is this a Byzantime "
 					"failure?", 
 					ccm_type2string(ccm_msg_type));
@@ -2740,7 +2915,7 @@ switchstatement:
         	case CCM_TYPE_JOIN:
 			/* get the update value */
 			if((uptime = ha_msg_value(reply, CCM_UPTIME)) == NULL){ 
-				cl_log(LOG_ERR, "ccm_state_joining: no update "
+				cl_log(LOG_WARNING, "ccm_state_joining: no update "
 						"information");
 				return;
 			}
@@ -2767,7 +2942,7 @@ switchstatement:
 				CCM_SET_MINORTRANS(info, trans_minorval);
 				while (ccm_send_join(hb, info) != HA_OK) {
 					cl_log(LOG_ERR, 
-					 "ccm_state_version_request: failure "
+					 "ccm_state_joining: failure "
 						"to send join");
 					sleep(1);
 				}
@@ -2798,8 +2973,9 @@ switchstatement:
 							"memlist request");
 							sleep(1);
 						}
-						ccm_membership_init(info);
-						ccm_note_my_membership(info);
+						ccm_memcomp_init(info);
+						ccm_memcomp_note_my_membership(
+								info);
 						CCM_SET_STATE(info, 
 						  CCM_STATE_SENT_MEMLISTREQ);
 					} else {
@@ -2850,8 +3026,9 @@ switchstatement:
 			 * If I am the leader, send out the membershiplist request
 			 */
 			if (!update_timeout_expired(CCM_GET_UPDATETABLE(info), 
-							UPDATE_TIMEOUT))
+					CCM_TMOUT_GET_U(info))) {
 						break;
+			}
 
 			if (update_am_i_leader(CCM_GET_UPDATETABLE(info),
 						CCM_GET_LLM(info))) {
@@ -2861,7 +3038,15 @@ switchstatement:
 				 */
 				if (UPDATE_GET_NODECOUNT(
 					CCM_GET_UPDATETABLE(info)) == 1) {
-					ccm_joining_to_joined(hb, info);
+
+					if(ccm_already_joined(info) || 
+						!version_get_nresp(
+						  CCM_GET_VERSION(info))){
+						ccm_joining_to_joined(hb,
+							       	info);
+					} else {
+						ccm_reset(info);
+					}
 					break;
 				}
 
@@ -2873,8 +3058,8 @@ switchstatement:
 						"request");
 					sleep(1);
 				}
-				ccm_membership_init(info);
-				ccm_note_my_membership(info);
+				ccm_memcomp_init(info);
+				ccm_memcomp_note_my_membership(info);
 				CCM_SET_STATE(info, CCM_STATE_SENT_MEMLISTREQ);
 			} else {
 				/* check if we have already received memlist 
@@ -2889,10 +3074,11 @@ switchstatement:
 				if (ccm_send_cl_reply(hb, info) == TRUE) {
 					/* free the update data*/
 					finallist_init();
-					CCM_SET_STATE(info, CCM_STATE_MEMLIST_RES);
+					CCM_SET_STATE(info, 
+							CCM_STATE_MEMLIST_RES);
 				} else if(update_timeout_expired(
 						CCM_GET_UPDATETABLE(info),
-						UPDATE_LONG_TIMEOUT)) {
+						CCM_TMOUT_GET_LU(info))) {
 					while (ccm_send_leave(hb, info) 
 							!= HA_OK) {
 					   	cl_log(LOG_ERR, 
@@ -2929,6 +3115,7 @@ switchstatement:
 			 * and resend the
 				join message */
 			CCM_INCREMENT_MINORTRANS(info);
+			update_reset(CCM_GET_UPDATETABLE(info));
 			while (ccm_send_join(hb, info) != HA_OK) {
 				cl_log(LOG_ERR, "ccm_state_joining: failure "
 					"to send join");
@@ -3010,7 +3197,7 @@ LinkStatus(const char * node, const char * lnk, const char * status ,
 // changes.
 //
 static void
-nodelist_update(const char *id, const char *status, void *private)
+nodelist_update(const char *id, const char *status, int hbgen, void *private)
 {
 	ccm_info_t *info = (ccm_info_t *)private;
 	llm_info_t *llm;
@@ -3022,8 +3209,9 @@ nodelist_update(const char *id, const char *status, void *private)
 	 * leave message for us 
 	 */
 	if(global_debug)
-		cl_log(LOG_DEBUG, "nodelist update: Link %s now has status %s",
-				id,  status);
+		cl_log(LOG_DEBUG, 
+		"nodelist update: Node %s now has status %s gen=%d", 
+		id,  status, hbgen);
 	llm = CCM_GET_LLM(info);
 	if(llm_status_update(llm, id, status)) {
 		indx = ccm_get_membership_index(info,id);
@@ -3105,19 +3293,30 @@ ccm_control_process(ccm_info_t *info, ll_cluster_t * hb)
 		type = ha_msg_value(reply, F_TYPE);
 		orig = ha_msg_value(reply, F_ORIG);
 		status = ha_msg_value(reply, F_STATUS);
-		if(strncmp(type, "hbapi-clstat", TYPESTRSIZE) == 0){
+		if(strncmp(type, T_APICLISTAT, TYPESTRSIZE) == 0){
 			ha_msg_del(reply);
 		       	if((reply = ccm_handle_hbapiclstat(info, orig, status)) 
 					== NULL) {
 				return 0;
 			}
-		} else if((strncmp(type, "shutdone", TYPESTRSIZE)) == 0) {
-			ha_msg_del(reply);
+		} else if((strncmp(type, T_SHUTDONE, TYPESTRSIZE)) == 0) {
+			cl_log(LOG_DEBUG, "received shutdown orig=%s", orig);
 		       	if((reply = ccm_handle_shutdone(info, orig, status)) 
 					== NULL) {
 				return 1;
 			}
-		} 
+		} else if((strcasecmp(type, T_STATUS) == 0
+			        || strcasecmp(type, T_NS_STATUS) == 0)) {
+
+			int 	gen_val;
+			const char *gen = ha_msg_value(reply, F_HBGENERATION);
+
+			gen_val = atoi(gen?gen:"-1");
+
+			nodelist_update(orig, status, gen_val, info);
+			ha_msg_del(reply);
+			return 0;
+		}
 	} else {
 		reply = timeout_msg_mod(info);
 	}
@@ -3252,6 +3451,7 @@ ccm_get_fd(void *data)
 	return hbfd->llc_ops->inputfd(hbfd);
 }
 
+
 void *
 ccm_initialize()
 {
@@ -3268,8 +3468,6 @@ ccm_initialize()
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
-
-	system("clear");
 
 	if(global_debug) {
 		cl_log(LOG_DEBUG, "========================== Starting CCM ===="
@@ -3303,12 +3501,12 @@ ccm_initialize()
 		return NULL;
 	}
 
-	if (hb_fd->llc_ops->set_nstatus_callback(hb_fd, nodelist_update, global_info) 
+/*	if (hb_fd->llc_ops->set_nstatus_callback(hb_fd, nodelist_update, global_info) 
 					!=HA_OK){
 		cl_log(LOG_ERR, "Cannot set node status callback");
 		cl_log(LOG_ERR, "REASON: %s", hb_fd->llc_ops->errmsg(hb_fd));
 		return NULL;
-	}
+	} */
 
 	if (hb_fd->llc_ops->set_ifstatus_callback(hb_fd, LinkStatus, NULL)
 					!=HA_OK){
@@ -3373,6 +3571,7 @@ ccm_initialize()
 	CL_SIGINTERRUPT(SIGTERM, 1);
 
 	ccm_control_init(global_info);
+	ccm_configure_timeout(hb_fd, global_info);
 
 	ccmret->info = global_info;
 	ccmret->hbfd = hb_fd;
