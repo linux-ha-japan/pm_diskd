@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.27 2002/10/21 10:17:18 horms Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.28 2002/10/21 14:31:17 msoffen Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -206,6 +206,7 @@ struct ha_msg *
 controlfifo2msg(FILE * f)
 {
 	char		buf[MAXLINE];
+	char		garbbuf[MAXLINE];
 	const char *	bufmax = buf + sizeof(buf);
 	char *		getsret;
 	const char*	type;
@@ -213,9 +214,12 @@ controlfifo2msg(FILE * f)
 	int		j;
 	int		noseqno;
 
+
+	garbbuf[0] = '\0';
 	/* Skip until we find a MSG_START (hopefully we skip nothing) */
 	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
 	&&	strcmp(buf, MSG_START) != 0) {
+		/* Save this for travkin WHAT we got. */
 		/* Nothing */
 	}
 
@@ -223,10 +227,12 @@ controlfifo2msg(FILE * f)
 		return(NULL);
 	}
 
+	sprintf(garbbuf, "%s ", buf);
 	/* Add Name=value pairs until we reach MSG_END or EOF */
 	while ((getsret=fgets(buf, MAXLINE, f)) != NULL
 	&&	strcmp(buf, MSG_END) != 0) {
 
+		sprintf(garbbuf, "%s %s", garbbuf, buf);
 		/* This shouldn't happen but it does on FreeBSD! */
 		/* FIXME (FreeBSD gets a newline and blank lines) !! */
 		if ((*buf == '\n') || (*buf == EOS)) {
@@ -235,18 +241,26 @@ controlfifo2msg(FILE * f)
 
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
-			ha_log(LOG_ERR, "NV failure (controlfifo2msg)");
-			ha_log(LOG_INFO, "[%s] %ld chars", buf
-			,	(long)strlen(buf));
-			ha_log(LOG_INFO, "First char: 0x%02x"
-			,	(unsigned int)buf[0]);
+			ha_error("NV failure (controlfifo2msg):");
+			ha_log(LOG_DEBUG, "[%s] %ld chars", buf,
+				(long)strlen(buf));
+			ha_log(LOG_DEBUG, "Read in message    : '%s'",
+				garbbuf);
+			ha_log_message(ret);
 			ha_msg_del(ret);
 			return(NULL);
 		}
 	}
+
+	if (DEBUGPKTCONT) {
+		sprintf(garbbuf, "%s %s", garbbuf, buf);
+		ha_log(LOG_DEBUG, "Read in message    : '%s'", garbbuf);
+	}
+
 	if ((type = ha_msg_value(ret, F_TYPE)) == NULL) {
-		ha_log(LOG_ERR, "No type (controlfifo2msg)");
-		ha_log(LOG_INFO, "[%s] %ld chars", buf, (long)strlen(buf));
+		ha_error("No type (controlfifo2msg): ");
+		ha_log(LOG_DEBUG, "[%s] %ld chars", buf, (long)strlen(buf));
+		ha_log(LOG_DEBUG, "Read in message    : '%s'", garbbuf);
 		ha_log_message(ret);
 		ha_msg_del(ret);
 		return(NULL);
@@ -534,6 +548,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.28  2002/10/21 14:31:17  msoffen
+ * Additional debug to find actual cause of empty packets.
+ *
  * Revision 1.27  2002/10/21 10:17:18  horms
  * hb api clients may now be built outside of the heartbeat tree
  *
