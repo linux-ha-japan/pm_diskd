@@ -458,7 +458,8 @@ comm_up_resource_action(void)
 
 }
 void
-process_resources(const char * type, struct ha_msg* msg, struct node_info * thisnode)
+process_resources(const char * type, struct ha_msg* msg
+,	struct node_info * thisnode)
 {
 
 	enum hb_rsc_state	newrstate = resourcestate;
@@ -586,7 +587,7 @@ process_resources(const char * type, struct ha_msg* msg, struct node_info * this
 			}
 
 			other_holds_resources
-			=	HB_UPD_RSC(other_holds_resources,n);
+			=	HB_UPD_RSC(other_holds_resources, n);
 
 			if ((resourcestate != HB_R_STABLE
 			&&   resourcestate != HB_R_SHUTDOWN)
@@ -1244,9 +1245,10 @@ ask_for_resources(struct ha_msg *msg)
 				/* It's time to acquire resources */
 
 				ha_log(LOG_INFO
-				,	"standby: acquire [%s] resources from %s"
+				,	"standby: acquire [%s] resources"
+				" from %s"
 				,	decode_resources(rtype), from);
-				/* go_standby gets requested resources resources */
+				/* go_standby gets requested resources */
 				go_standby(OTHER, standby_rsctype);
 				going_standby = DONE;
 			}else{
@@ -1265,17 +1267,29 @@ ask_for_resources(struct ha_msg *msg)
 			standby_running = zero_longclock;
 			going_standby = NOT;
 			if (msgfromme) {
+				int	rup;
 				ha_log(LOG_INFO
-				,	"Standby resource acquisition done [%s]."
+				,	"Standby resource"
+				" acquisition done [%s]."
 				,	decode_resources(rtype));
-				procinfo->i_hold_resources |= rtype;
+				switch(rtype) {
+				case HB_LOCAL_RSC:	rup=HB_FOREIGN_RSC;
+							break;
+				case HB_FOREIGN_RSC:	rup=HB_LOCAL_RSC;
+							break;
+				case HB_ALL_RSC:	rup=HB_ALL_RSC;
+							break;
+				}
+
+				procinfo->i_hold_resources |= rup;
 			}else{
 				ha_log(LOG_INFO
 				,	"Other node completed standby"
 				" takeover of %s resources."
 				,	decode_resources(rtype));
 			}
-			hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
+			hb_send_resources_held(rsc_msg
+			[	procinfo->i_hold_resources]
 			,	1, NULL);
 			going_standby = NOT;
 		}else{
@@ -1339,6 +1353,16 @@ go_standby(enum standby who, int resourceset) /* Which resources to give up */
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "go_standby: other is unstable");
 		}
+		/* Make sure they know what we're doing and that we're
+		 * not done yet (not stable)
+		 * Since heartbeat doesn't guarantee message ordering
+		 * this could theoretically have problems, but all that
+		 * happens if it gets out of order is that we get
+		 * a funky warning message (or maybe two).
+		 */
+		procinfo->i_hold_resources &= ~resourceset;
+		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
+		,	0, "standby");
 		action = ACTION_GIVEUP;
 	}else{
 		action = ACTION_ACQUIRE;
@@ -1368,19 +1392,6 @@ go_standby(enum standby who, int resourceset) /* Which resources to give up */
 	CL_SIGNAL(SIGCHLD, SIG_DFL);
 
 
-	if (who == ME) {
-		/* Make sure they know what we're doing and that we're
-		 * not done yet (not stable)
-		 * Since heartbeat doesn't guarantee message ordering
-		 * this could theoretically have problems, but all that
-		 * happens if it gets out of order is that we get
-		 * a funky warning message (or maybe two).
-		 */
-		
-		procinfo->i_hold_resources &= ~resourceset;
-		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
-		,	0, "standby");
-	}
 
 	/* Figure out which resources to inquire about */
 	switch(resourceset) {
@@ -1494,7 +1505,8 @@ hb_giveup_resources(void)
 	resourcestate = HB_R_SHUTDOWN; /* or we'll get a whiny little comment
 				out of the resource management code */
 	if (nice_failback) {
-		hb_send_resources_held(decode_resources(procinfo->i_hold_resources)
+		hb_send_resources_held(decode_resources
+		(procinfo->i_hold_resources)
 		,	0, "shutdown");
 	}
 	ha_log(LOG_INFO, "Heartbeat shutdown in progress. (%d)"
@@ -1819,6 +1831,11 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.21  2003/05/19 14:42:57  alan
+ * Put in some code to fix some resource audit problems which showed up
+ * with the new standby enhancements.
+ * Fixed some long lines to be a little shorter.
+ *
  * Revision 1.20  2003/05/17 05:28:46  alan
  * Implemented a modified version of nice_failback allowing it to
  * move subsets of resources around - not just all of them...
