@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.13 2000/04/27 13:24:34 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.14 2000/05/17 13:39:55 alan Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -323,6 +323,9 @@ opentty(char * serial_device)
 		close(fd);
 		return(-1);
 	}
+	if (fcntl(fd, F_SETFD, FD_CLOEXEC)) {
+		ha_perror("Error setting the close-on-exec flag");
+	}
 	return(fd);
 }
 
@@ -522,6 +525,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.14  2000/05/17 13:39:55  alan
+ * Added the close-on-exec flag to sockets and tty fds that we open.
+ * Thanks to Christoph Jäger for noticing the problem.
+ *
  * Revision 1.13  2000/04/27 13:24:34  alan
  * Added comments about lock file fix. Minor corresponding code changes.
  *

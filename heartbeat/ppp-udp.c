@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.7 2000/05/17 13:01:49 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.8 2000/05/17 13:39:54 alan Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -76,6 +76,7 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.7 2000/05/17 13:01:49 ala
 #include <ctype.h>
 #include <time.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -875,6 +876,9 @@ ppp_udp_make_send_sock(struct hb_media * mp)
 		}
 	}
 #endif
+	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
+		ha_perror("Error setting the close-on-exec flag");
+	}
 	return(sockfd);
 }
 
@@ -955,6 +959,9 @@ ppp_udp_make_receive_sock(struct hb_media * mp) {
 	}
 	ha_log(LOG_NOTICE, "PPP/UDP socket open on interface (%s:%s)"
 	,	ei->interface, mp->name);
+	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
+		ha_perror("Error setting the close-on-exec flag");
+	}
 	return(sockfd);
 }
 #define	ALARMCNT	2
@@ -1159,6 +1166,10 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.8  2000/05/17 13:39:54  alan
+ * Added the close-on-exec flag to sockets and tty fds that we open.
+ * Thanks to Christoph Jäger for noticing the problem.
+ *
  * Revision 1.7  2000/05/17 13:01:49  alan
  * Changed argv[0] and cmdname to be shorter.
  * Changed ha parsing function to close ha.cf.

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.6 1999/10/10 20:12:58 alanr Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.7 2000/05/17 13:39:55 alan Exp $";
 /*
    About 150 lines of the code in this file borrowed 1999 from Tom Vogt's
 	"Heart" program, and significantly mangled by
@@ -26,6 +26,7 @@ static const char _udp_Id [] = "$Id: udp.c,v 1.6 1999/10/10 20:12:58 alanr Exp $
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -292,6 +293,9 @@ HB_make_send_sock(struct hb_media * mp)
 		}
 	}
 #endif
+	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
+		ha_perror("Error setting the close-on-exec flag");
+	}
 	return(sockfd);
 }
 
@@ -320,7 +324,7 @@ HB_make_receive_sock(struct hb_media * mp) {
 #if defined(SO_BINDTODEVICE)
 	{
 		/*
-		 *  We want to packets only from this PPP interface...
+		 *  We want to receive packets only from this interface...
 		 */
 		struct ifreq i;
 		strcpy(i.ifr_name,  ei->interface);
@@ -357,6 +361,9 @@ HB_make_receive_sock(struct hb_media * mp) {
 		ha_perror("Error binding socket");
 		close(sockfd);
 		return(-1);
+	}
+	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
+		ha_perror("Error setting the close-on-exec flag");
 	}
 	return(sockfd);
 }
@@ -449,6 +456,10 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.7  2000/05/17 13:39:55  alan
+ * Added the close-on-exec flag to sockets and tty fds that we open.
+ * Thanks to Christoph Jäger for noticing the problem.
+ *
  * Revision 1.6  1999/10/10 20:12:58  alanr
  * New malloc/free (untested)
  *
