@@ -204,6 +204,8 @@
  * and work well in the real world where plugins need to interact with
  * some kind of global system view, and with each other...
  *
+ * Probably need some better way of managing plugin versions, etc.
+ *
  *****************************************************************************
  */
 
