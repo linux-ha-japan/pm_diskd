@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.86 2003/06/04 15:39:23 alan Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.87 2003/06/19 04:04:00 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -104,6 +104,12 @@ static int set_generation_method(const char *);
 static int set_realtime(const char *);
 static int set_debuglevel(const char *);
 
+/*
+ * Each of these parameters is is automatically recorded by
+ * SetParameterValue().  They are then passed to the plugins
+ * for their use later.  This avoids coupling through global
+ * variables.
+ */
 struct directive {
 	const char * name;
 	int (*add_func) (const char *);
@@ -165,8 +171,6 @@ static int	parse_config(const char * cfgfile, char *nodename);
 static long	get_msec(const char * input);
 static int	add_option(const char *	option, const char * value);
 
-int	baudrate;
-int	serial_baud;
 
 int	num_hb_media_types;
 
@@ -974,10 +978,16 @@ StringToBaud(const char * baudstr)
 	}
 }
 
+/*
+ * All we do here is *validate* the baudrate.
+ * This parameter is automatically recorded by SetParameterValue()
+ * for later use by the plugins.
+ */
 static int
 set_baudrate(const char * value)
 {
 	static int	baudset = 0;
+	int		serial_baud =  0;
 	if (baudset) {
 		fprintf(stderr, "%s: Baudrate multiply specified.\n"
 		,	cmdname);
@@ -993,6 +1003,11 @@ set_baudrate(const char * value)
 	return(HA_OK);
 }
 
+/*
+ * All we do here is *validate* the udpport number.
+ * This parameter is automatically recorded by SetParameterValue()
+ * for later use by the plugins.
+ */
 static int
 set_udpport(const char * value)
 {
@@ -1014,8 +1029,6 @@ set_udpport(const char * value)
 		}
 	}
 	endservent();
-
-	SetParameterValue("udpport", value);
 	return(HA_OK);
 }
 
@@ -1402,7 +1415,8 @@ set_stonith_host_info(const char * value)
 			return(HA_OK);
 
 		case S_BADCONFIG:
-			ha_log(LOG_ERR, "Invalid Stonith configuration parameter [%s]"
+			ha_log(LOG_ERR
+			,	"Invalid Stonith configuration parameter [%s]"
 			,	evp);
 			break;
 		
@@ -1555,6 +1569,13 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.87  2003/06/19 04:04:00  alan
+ * Improved the documentation for how many configuration parameters are
+ * stored away by SetParameterValue() and then made available to the
+ * plugins through the GetParameterValue() function.
+ * Removed a now-superfluous global baudrate variable.
+ * These changes inspired by Carson Gaspar <carson@taltos.org>
+ *
  * Revision 1.86  2003/06/04 15:39:23  alan
  * Added some comments about some possible future work...
  *

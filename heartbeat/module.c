@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.50 2003/05/30 15:23:02 kevin Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.51 2003/06/19 04:04:00 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -68,7 +68,7 @@ static void		RegisterNewMedium(struct hb_media* mp);
 static const char *	GetParameterValue(const char * name);
 static void		RegisterCleanup(void(*)(void));
 struct hb_media_imports	CommImports =
-{	GetParameterValue
+{	GetParameterValue	/* So plugins can get option values */
 ,	RegisterNewMedium
 ,	ttylock
 ,	ttyunlock
@@ -155,6 +155,11 @@ RegisterNewMedium(struct hb_media* mp)
 }
 
 
+/* 
+ * SetParameterValue() records a class of options given in the configuration
+ * file so they can be passed to the plugins their use. This avoids coupling
+ * through global variables which is problematic for plugins on some platforms.
+ */
 void
 SetParameterValue(const char * name, const char * value)
 {
@@ -181,6 +186,11 @@ SetParameterValue(const char * name, const char * value)
 	valdup = g_strdup(value);
 	g_hash_table_insert(Parameters, namedup, valdup);
 }
+/* 
+ * GetParameterValue() provides information from the configuration file
+ * for the plugins to use. This avoids coupling through global variables.
+ */
+void
 static const char *
 GetParameterValue(const char * name)
 {
