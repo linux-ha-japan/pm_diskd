@@ -3,6 +3,7 @@ Makefile
 AudibleAlarm
 Filesystem
 IPaddr
+WinPopup
 Raid1
 MailTo
 .deps
