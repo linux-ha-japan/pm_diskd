@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.72 2002/11/22 07:04:39 horms Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.73 2003/01/08 21:17:39 msoffen Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -1008,7 +1008,7 @@ struct _syslog_code facilitynames[] =
 };
 
 /* set syslog facility config variable */
-int
+static int
 set_facility(const char * value)
 {
 	int		i;
@@ -1028,7 +1028,7 @@ set_facility(const char * value)
 }
 
 /* set syslog facility config variable */
-int
+static int
 set_dbgfile(const char * value)
 {
 	strncpy(config->dbgfile, value, PATH_MAX);
@@ -1038,7 +1038,7 @@ set_dbgfile(const char * value)
 }
 
 /* set syslog facility config variable */
-int
+static int
 set_logfile(const char * value)
 {
 	strncpy(config->logfile, value, PATH_MAX);
@@ -1048,7 +1048,7 @@ set_logfile(const char * value)
 }
 
 /* sets nice_failback behavior on/off */
-int
+static int
 set_nice_failback(const char * value)
 {
         if(!strcasecmp(value, "on")) {
@@ -1128,7 +1128,7 @@ get_msec(const char * input)
 }
 
 /* Set warntime interval */
-int
+static int
 set_warntime_ms(const char * value)
 {
 	long	warntime;
@@ -1149,7 +1149,7 @@ set_warntime_ms(const char * value)
  * stonith <type> <configfile>
  *
  */
-int
+static int
 set_stonith_info(const char * value)
 {
 	const char *	vp = value;
@@ -1214,7 +1214,7 @@ set_stonith_info(const char * value)
  * stonith_host <hostname> <type> <params...>
  *
  */
-int
+static int
 set_stonith_host_info(const char * value)
 {
 	const char *	vp = value; /* points to the current token */
@@ -1312,7 +1312,7 @@ set_stonith_host_info(const char * value)
 	}
 	return(HA_FAIL);
 }
-int
+static int
 add_client_child(const char * directive)
 {
 	struct client_child*	child;
@@ -1392,6 +1392,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.73  2003/01/08 21:17:39  msoffen
+ * Made changes to allow compiling with -Wtraditional to work.
+ *
  * Revision 1.72  2002/11/22 07:04:39  horms
  * make lots of symbols static
  *

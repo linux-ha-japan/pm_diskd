@@ -895,7 +895,7 @@ api_flush_msgQ(client_proc_t* client)
 
 }
 
-void
+static void
 api_clean_clientQ(client_proc_t* client)
 {
 	while (client->msgQ != NULL) {

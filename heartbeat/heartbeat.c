@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.234 2002/11/29 19:18:34 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.235 2003/01/08 21:17:39 msoffen Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -772,7 +772,7 @@ initialize_heartbeat()
 }
 
 /* Create a read child process (to read messages from hb medium) */
-void
+static void
 read_child(struct hb_media* mp)
 {
 	int	msglen;
@@ -2437,7 +2437,7 @@ send_cluster_msg(struct ha_msg* msg)
 
 
 /* Send our local status out to the cluster */
-int
+static int
 send_local_status()
 {
 	struct ha_msg *	m;
@@ -3399,7 +3399,7 @@ should_drop_message(struct node_info * thisnode, const struct ha_msg *msg,
  *
  * NOTE: It's our job to dispose of the packet we're given...
  */
-void
+static void
 process_control_packet(struct msg_xmit_hist*	msghist
 ,		struct ha_msg *	msg)
 {
@@ -3889,6 +3889,9 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.235  2003/01/08 21:17:39  msoffen
+ * Made changes to allow compiling with -Wtraditional to work.
+ *
  * Revision 1.234  2002/11/29 19:18:34  alan
  * Put in pointers to the documentation for deadtime in the returning
  * from cluster partition message.
