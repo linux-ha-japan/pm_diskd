@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.40 2000/04/28 21:34:58 horms Exp $
+#	$Id: Specfile,v 1.41 2000/05/09 04:00:53 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -32,8 +32,6 @@ It implements the following kinds of heartbeats:
      and Horms <horms@vergenet.net>
 
 + Version 0.4.8  BETA series
-  + Added the nice_failback feature. If the cluster is running when
-        the primary starts it acts as a secondary. (Luis Claudio)
   + Made the RPM more SuSE-compatible
   + Tidied up logging so it can be to files, to syslog or both (Horms)
   + Tidied up build process (Horms)
@@ -53,6 +51,7 @@ It implements the following kinds of heartbeats:
     the problem.
   + Changed the default port number to our official IANA port number (694)
   + Fixed the serial locking code so that it unlocks when it shuts down.
+  + Lock heartbeat into memory, and raise our priority
 
 * Sat Dec 25 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
