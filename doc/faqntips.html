@@ -35,8 +35,6 @@ loses the whole interface (i.e. eth0)!&nbsp; How do I fix this?</a></li>
 than 8).&nbsp; What's the best way?</a></li>
    <li> <a href="#serial">The documentation indicates that a serial line is
 a good idea, is there really a drawback to using two ethernet connections?</a></li>
-   <li> <a href="#nice_failback">What is a difference between normal and nice
-failback ?</a></li>
    <li> <a href="#firewall">How to use heartbeat with ipchains firewall?</a></li>
    <li> <a href="#nolocalheartbeat">I got this message
 	<tt>ERROR: No local heartbeat. Forcing shutdown</tt>
@@ -186,8 +184,8 @@ files:<br>
      documentation</a> for more details on the concepts.
      
     <p>IPaddr1..N are your ping nodes. &nbsp;<span
- style="font-weight: bold;">NOTE: &nbsp;</span>ipfail requires the "nice_failback
-on" option.<br>
+ 	style="font-weight: bold;">NOTE: &nbsp;</span>ipfail requires the auto_failback
+	option to be set to on or off (not legacy).<br>
      </p>
    </li><br>
    <li>     
@@ -203,24 +201,11 @@ address controlled by heartbeat.&nbsp; Then, make every address within x.x.x.0/2
 that you wish to failover a permanent alias of lo0 on BOTH cluster nodes.&nbsp;
 This is done via "ifconfig lo:2 x.x.x.3 netmask 255.255.255.255 -arp"
 etc...</li><br>
-   <li> <a name="serial">I</a>f anything makes your ethernet / IP stack fail,
+
+   <li> <a name="serial">If</a> anything makes your ethernet / IP stack fail,
 you may lose both connections. You definitely should run the cables differently,
 depending on how important your data is...</li><br>
-   <li> <a name="nice_failback">Normal failback mode:</a> <br>
- In this mode, one of the two machines is designated as the preferred provider
-of a given resource group. If that machine is up, then it will always be
-the provider of every resource group for which it is preferred provider.
-Failovers occur when the preferred provider goes out of service, and when
-it comes back (failback). This mode is required if you wish to run an active-active
-configuration. <br>
- Nice failback mode: <br>
- In this mode, there is no natural affinity between a resource group and a
-particular node in the cluster (haresources file notwithstanding). Instead,
-there is an affinity between a resource group and whatever machine it is
-currently running on. Failovers occur *only* when a machine which is providing
-a service goes out of service. There is no concept of failback in this mode.
-This mode minimizes service interruptions, but cannot run an active-active
-configuration.</li><br>
+
    <li> <a name="firewall">To make heartbeat work with ipchains</a>, you must
 accept incoming and outgoing traffic on 694 UDP port. Add something like
     <br>
