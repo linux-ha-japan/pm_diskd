@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.2 1999/09/26 14:01:18 alanr Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.3 1999/09/30 15:55:12 alanr Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -42,8 +42,8 @@ STATIC char *		ttygets(char * inbuf, int length
 ,				struct serial_private *tty);
 STATIC int		serial_write(struct hb_media*mp, struct ha_msg *msg);
 STATIC int		serial_open(struct hb_media* mp);
-STATIC int              ttylock(const char *devname);
-STATIC int              ttyunlock(const char *devname);
+STATIC int              ttylock(const char *serial_device);
+STATIC int              ttyunlock(const char *serial_device);
 STATIC int		ttysetup(int fd);
 STATIC int		opentty(char * serial_device);
 STATIC int		serial_close(struct hb_media* mp);
@@ -170,7 +170,7 @@ serial_close(struct hb_media* mp)
 
 
 /* lock a tty (using lock files, see linux `man 2 open` close to O_EXCL) 
- * devname has to be _the complete path_, i.e. including '/dev/' to the
+ * serial_device has to be _the complete path_, i.e. including '/dev/' to the
  * special file, which denotes the tty to lock -tho
  * return 0 on success, 
  * -1 if device is locked (lockfile exists and isn't stale),
@@ -178,7 +178,7 @@ serial_close(struct hb_media* mp)
  * other negative value, if something unexpected happend (failure anyway)
  */
 STATIC int
-ttylock(const char *devname)
+ttylock(const char *serial_device)
 {
 	char lf_name[256], tf_name[256], buf[12];
 	int fd;
@@ -188,9 +188,9 @@ ttylock(const char *devname)
 
 	mypid = getpid();
 	snprintf(lf_name, 256, "%s/LCK..%s", TTY_LOCK_D,
-		 devname + sizeof("/dev/") - 1);
+		 serial_device + sizeof("/dev/") - 1);
 	snprintf(tf_name, 256, "%s/tmp%d-%s", TTY_LOCK_D, 
-		 mypid, devname + sizeof("/dev/") - 1);
+		 mypid, serial_device + sizeof("/dev/") - 1);
 	if ((fd = open(lf_name, O_RDONLY)) >= 0) {
 		sleep(1); /* if someone was about to create on, give'm a
 			   * sec to do so */
@@ -253,12 +253,12 @@ ttylock(const char *devname)
  * returns 0 on success
  * <0 if some failure occured */ 
 STATIC
-int ttyunlock(const char *devname)
+int ttyunlock(const char *serial_device)
 {
 	char lf_name[256];
 	
 	snprintf(lf_name, 256, "%s/LCK..%s", TTY_LOCK_D,
-		 devname + sizeof("/dev/") - 1);
+		 serial_device + sizeof("/dev/") - 1);
 	return unlink(lf_name);
 }
 
@@ -467,6 +467,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.3  1999/09/30 15:55:12  alanr
+ * Added Matt Soffen's fix to change devname to serial_device for some kind
+ * of FreeBSD compatibility.
+ *
  * Revision 1.2  1999/09/26 14:01:18  alanr
  * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
  *
