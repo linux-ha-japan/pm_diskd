@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.114 2001/06/07 21:29:44 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.115 2001/06/08 04:57:47 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -236,7 +236,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.114 2001/06/07 21:29
  *
  */
 
-#include <config.h>
+#include <portability.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -3997,6 +3997,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.115  2001/06/08 04:57:47  alan
+ * Changed "config.h" to <portability.h>
+ *
  * Revision 1.114  2001/06/07 21:29:44  alan
  * Put in various portability changes to compile on Solaris w/o warnings.
  * The symptoms came courtesy of David Lee.

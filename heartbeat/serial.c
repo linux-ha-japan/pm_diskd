@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.26 2001/05/31 15:51:08 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.27 2001/06/08 04:57:48 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -24,7 +24,7 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.26 2001/05/31 15:51:08 ala
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#include <config.h>
+#include <portability.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -478,6 +478,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.27  2001/06/08 04:57:48  alan
+ * Changed "config.h" to <portability.h>
+ *
  * Revision 1.26  2001/05/31 15:51:08  alan
  * Put in more fixes to get module loading (closer to) working...
  *

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.33 2001/05/31 16:22:32 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.34 2001/06/08 04:57:47 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -20,7 +20,7 @@ const static char * _heartbeat_c_Id = "$Id: config.c,v 1.33 2001/05/31 16:22:32 
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#include <config.h>
+#include <portability.h>
 
 #include <stdio.h>
 #include <stdlib.h>

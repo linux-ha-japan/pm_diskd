@@ -1,4 +1,4 @@
-const static char * _ha_if_c_Id = "$Id: ha_if.c,v 1.4 2001/05/17 14:42:35 alan Exp $";
+const static char * _ha_if_c_Id = "$Id: ha_if.c,v 1.5 2001/06/08 04:57:47 alan Exp $";
 
 /*
  * ha_if.c - code that extracts information about a network interface
@@ -30,7 +30,7 @@ const static char * _ha_if_c_Id = "$Id: ha_if.c,v 1.4 2001/05/17 14:42:35 alan E
  *
  */
 
-#include <config.h>
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>

@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.9 2001/05/26 17:38:01 mmoerz Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.10 2001/06/08 04:57:48 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -22,7 +22,7 @@ static const char _mcast_Id [] = "$Id: mcast.c,v 1.9 2001/05/26 17:38:01 mmoerz 
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-#include <config.h>
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -794,6 +794,9 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.10  2001/06/08 04:57:48  alan
+ * Changed "config.h" to <portability.h>
+ *
  * Revision 1.9  2001/05/26 17:38:01  mmoerz
  * *.cvsignore: added automake generated files that were formerly located in
  * 	     config/
