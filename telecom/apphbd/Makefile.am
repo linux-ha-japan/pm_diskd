@@ -27,22 +27,30 @@ halibdir		= $(libdir)/@HEARTBEATPKG@
 commmoddir		= $(halibdir)/modules/comm
 havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
 
+COMMONLIBS		= $(top_builddir)/lib/clplumbing/libplumb.la	\
+			$(GLIBLIB)
 
 CFLAGS			= @CFLAGS@	\
--DVAR_LIB_D='"$(havarlibdir)"'
+			-DVAR_LIB_D='"$(havarlibdir)"'
 
 ## binary progs
-halib_PROGRAMS		= apphbd
+halib_PROGRAMS		= apphbd apphbtest
 
 ## SOURCES
 apphbd_SOURCES	= apphbd.c
-apphbd_LDADD		= $(top_builddir)/replace/libreplace.la	\
-			$(top_builddir)/lib/pils/libpils.la	\
-			$(top_builddir)/lib/clplumbing/libplumb.la	\
-			$(top_builddir)/libltdl/libltdlc.la 	\
-			$(GLIBLIB)
+#
+#	We don't really need libpils/libltdl (yet...)
+#
+apphbd_LDADD		= $(COMMONLIBS) 				\
+			$(top_builddir)/lib/pils/libpils.la		\
+			$(top_builddir)/libltdl/libltdlc.la 
 
 apphbd_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlpreopen force \
 			-dlopen self
 
+## SOURCES
+apphbtest_SOURCES	= apphbtest.c
+apphbtest_LDADD		= $(COMMONLIBS) 				\
+			$(top_builddir)/lib/apphb/libapphb.la
+apphbtest_LDFLAGS	=

@@ -31,10 +31,12 @@
  * TODO list:
  *
  *	- Make it a real production-grade daemon process...
+ * 
+ *	- change all the fprintfs
  *
  *	- Log things in the event log
  *
- *	- Implement plugins for other notification mechanisms...
+ *	- Implement plugins for (other) notification mechanisms...
  * 
  */
 
@@ -66,11 +68,13 @@ struct apphb_client {
 	guint			timerid;	/* timer source id */
 	guint			sourceid;	/* message source id */
 	long			timerms;	/* heartbeat timeout in ms */
+	gboolean		missinghb;	/* True if missing a hb */
 	struct OCF_IPC_CHANNEL*	ch;		/* client comm channel */
 	GPollFD*		ifd;		/* ifd for poll */
 	GPollFD*		ofd;		/* ofd for poll */
 	struct OCF_IPC_MESSAGE	rcmsg;		/* return code msg */
 	struct apphb_rc		rc;		/* last return code */
+	gboolean		deleteme;	/* Delete after next call */
 };
 
 void apphb_client_remove(apphb_client_t* client);
@@ -115,8 +119,9 @@ apphb_putrc(apphb_client_t* client, int rc)
 	client->rc.rc = rc;
 
 	if (client->ch->ops->send(client->ch, &client->rcmsg) != CH_SUCCESS) {
-		apphb_client_remove(client);
+		client->deleteme = TRUE;
 	}
+	
 }
 
 /* Oops!  Client heartbeat timer expired! -- Bad client! */
@@ -124,8 +129,9 @@ static gboolean
 apphb_timer_popped(gpointer data)
 {
 	apphb_client_t*	client = data;
-	fprintf(stderr, "OOPS! client %s (pid %d) didn't heartbeat"
+	fprintf(stderr, "OOPS! client '%s' (pid %d) didn't heartbeat\n"
 	,	client->appname, client->pid);
+	client->missinghb = TRUE;
 	client->timerid = 0;
 	return FALSE;
 }
@@ -135,8 +141,10 @@ static gboolean
 apphb_prepare(gpointer Src, GTimeVal*now, gint*timeout, gpointer Client)
 {
 	apphb_client_t*		client  = Client;
-
-	return client->ch->ops->is_message_pending(client->ch);
+	if (client->deleteme) {
+		apphb_client_remove(client);
+	}
+	return FALSE;
 }
 
 /* gmainloop "source" check function */
@@ -145,6 +153,7 @@ apphb_check(gpointer Src, GTimeVal*now, gpointer Client)
 {
 	GPollFD*		src = Src;
 	apphb_client_t*		client  = Client;
+
 
 	client->ch->ops->resume_io(client->ch);
 
@@ -156,7 +165,14 @@ apphb_check(gpointer Src, GTimeVal*now, gpointer Client)
 static gboolean
 apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 {
+	GPollFD*		src = Src;
 	apphb_client_t*		client  = Client;
+
+	if (src->revents & G_IO_HUP) {
+		fprintf(stderr, "pid: %d: client HUP!\n", getpid());
+		apphb_client_remove(client);
+		return FALSE;
+	}
 
 	client->ch->ops->resume_io(client->ch);
 
@@ -180,13 +196,16 @@ apphb_client_new(struct OCF_IPC_CHANNEL* ch)
 
 	ret = g_new(apphb_client_t, 1);
 
+	fprintf(stderr, "Creating new apphb client\n");
 	ret->appname = NULL;
 	ret->ch = ch;
 	ret->timerid = 0;
 	ret->pid = 0;
+	ret->deleteme = FALSE;
+	ret->missinghb = FALSE;
 
 	/* Create the standard result code (errno) message to send client
-	 * NOTE: this disallows multiple outstanding calls from client
+	 * NOTE: this disallows multiple outstanding calls from a client
 	 * (IMHO this is not a problem)
 	 */
 	ret->rcmsg.msg_body = &ret->rc;
@@ -202,7 +221,10 @@ apphb_client_new(struct OCF_IPC_CHANNEL* ch)
 
 	if (rdfd == wrfd) {
 		/* We only need to poll one FD */
+		/* FIXME: We ought to handle output blocking */
+#if 0
 		rdflags |= wrflags;
+#endif
 		wrflags = 0;
 		ret->ofd = NULL;
 	}else{
@@ -231,11 +253,12 @@ static int
 apphb_client_register(apphb_client_t* client, void* Msg,  int length)
 {
 	struct apphb_signupmsg*	msg = Msg;
-	int			namelen;
+	int			namelen = -1;
 
 	if (client->appname) {
 		return EEXIST;
 	}
+
 	if (length < sizeof(*msg)
 	||	(namelen = strnlen(msg->appname, sizeof(msg->appname))) < 1
 	||	namelen >= sizeof(msg->appname)) {
@@ -286,7 +309,7 @@ apphb_client_remove(apphb_client_t* client)
 static int
 apphb_client_disconnect(apphb_client_t* client , void * msg, int msgsize)
 {
-	apphb_client_remove(client);
+	client->deleteme=TRUE;
 	return 0;
 }
 
@@ -307,6 +330,12 @@ apphb_client_set_timeout(apphb_client_t* client, void * Msg, int msgsize)
 static int
 apphb_client_hb(apphb_client_t* client, void * Msg, int msgsize)
 {
+	if (client->missinghb) {
+		fprintf(stderr, "Client '%s' (pid %d) alive again.\n"
+		,	client->appname, client->pid);
+		client->missinghb = FALSE;
+	}
+		
 	if (client->timerid) {
 		g_source_remove(client->timerid);
 		client->timerid = 0;
@@ -336,9 +365,7 @@ apphb_read_msg(apphb_client_t* client)
 
 
 		case CH_BROKEN:
-		fprintf(stderr, "CH_BROKEN for client %s (pid %d)"
-		,	client->appname, client->pid);
-		apphb_client_remove(client);
+		client->deleteme = TRUE;
 		break;
 
 
@@ -359,7 +386,7 @@ struct hbcmd {
 };
 
 /*
- * Leave HEARTBEAT first - it is by far the most common message...
+ * Put HEARTBEAT message first - it is by far the most common message...
  */
 struct hbcmd	hbcmds[] =
 {
@@ -411,7 +438,7 @@ static gboolean
 apphb_new_prepare(gpointer src, GTimeVal*now, gint*timeout
 ,	gpointer user)
 {
-	return 0;
+	return FALSE;
 }
 
 /* gmainloop client connection source "check" function */
@@ -430,14 +457,15 @@ apphb_new_dispatch(gpointer Src, GTimeVal*now, gpointer user)
 	struct OCF_IPC_WAIT_CONNECTION*		conn = user;
 	struct OCF_IPC_CHANNEL*			newchan;
 
-
 	newchan = conn->ops->accept_connection(conn, NULL);
 	if (newchan != NULL) {
 		/* This sets up comm channel w/client
 		 * Ignoring the result value is OK, because
-		 * it registers itself w/event system.
+		 * the client registers itself w/event system.
 		 */
 		(void)apphb_client_new(newchan);
+	}else{
+		perror("accept_connection failed!");
 	}
 	return TRUE;
 }
@@ -468,7 +496,7 @@ main(int argc, char ** argv)
 	wconn = ipc_wait_conn_constructor(IPC_ANYTYPE, wconnattrs);
 
 	if (wconn == NULL) {
-		fprintf(stderr, "UhOh! No wconn!");
+		perror("UhOh! No wconn!");
 		exit(1);
 	}
 
@@ -476,10 +504,10 @@ main(int argc, char ** argv)
 	wcfd = wconn->ops->get_select_fd(wconn);
 	pollfd.fd = wcfd;
 	pollfd.events = G_IO_IN | G_IO_NVAL | G_IO_PRI | G_IO_HUP;
+	pollfd.revents = 0;
 	g_main_add_poll(&pollfd, G_PRIORITY_DEFAULT);
 
 	/* Create a source to handle new connection requests */
-
 	g_source_add(G_PRIORITY_HIGH, FALSE
 	,	&apphb_connsource, &pollfd, wconn, NULL);
 

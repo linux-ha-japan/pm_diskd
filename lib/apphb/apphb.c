@@ -34,6 +34,8 @@
 #include <clplumbing/ipc.h>
 #include <clplumbing/apphb_cs.h>
 
+#include <stdio.h>
+
 static struct OCF_IPC_CHANNEL*	hbcomm = NULL;
 static GHashTable *		hbattrs;
 static int			hbstatus = -1;
@@ -50,8 +52,13 @@ apphb_getrc(void)
 
 	struct OCF_IPC_MESSAGE * msg;
 
+	while (!hbcomm->ops->is_message_pending(hbcomm)) {
+		;
+	}
+	hbcomm->ops->resume_io(hbcomm);
 	if (hbcomm->ops->recv(hbcomm, &msg) != CH_SUCCESS) {
-		return EIO;
+		perror("Receive failure:");
+		return errno;
 	}
 	rcs = msg->msg_body;
 	rc = rcs->rc;
