@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.9 2001/10/25 15:00:27 alan Exp $
+#	$Id: heartbeat.in,v 1.10 2001/10/25 16:12:06 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -21,6 +21,9 @@
 HA_DIR=@sysconfdir@/ha.d; export HA_DIR
 CONFIG=$HA_DIR/ha.cf
 . $HA_DIR/shellfuncs
+
+LOCKDIR=@localstatedir@/lock/subsys
+RUNDIR=@localstatedir@/run
 
 if
   [ -r /etc/SuSE-release ]
@@ -196,7 +199,7 @@ StartHA() {
     #	Create /dev/watchdog and load module if we should
     init_watchdog
   fi
-  rm -f @localstatedir@/run/ppp.d/*
+  rm -f $RUNDIR/ppp.d/*
   if
     [  -f $HA_DIR/ipresources -a ! -f $HA_DIR/haresources ]
   then
@@ -266,8 +269,8 @@ case "$1" in
 	if
 	  [ $RC -eq 0 ]
 	then
-	  [ ! -d /var/lock/subsys ] && mkdir -p /var/lock/subsys
-	  touch /var/lock/subsys/$SUBSYS
+	  [ ! -d $LOCKDIR ] && mkdir -p $LOCKDIR
+	  touch $LOCKDIR/$SUBSYS
 	fi
 	;;
 
@@ -275,7 +278,7 @@ case "$1" in
 	StopHA
 	RC=$?
 	Echo
-	[ $RC -eq 0 ] && rm -f /var/lock/subsys/$SUBSYS
+	[ $RC -eq 0 ] && rm -f $LOCKDIR/$SUBSYS
 	;;
 
   status)
@@ -305,6 +308,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.10  2001/10/25 16:12:06  alan
+#  Put in a portability change on path names...
+#
 #  Revision 1.9  2001/10/25 15:00:27  alan
 #  Put in naming patch from Matt Soffen for heartbeat.in
 #
