@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.2 2001/06/28 20:35:00 alan Exp $
+#	$Id: heartbeat.in,v 1.3 2001/10/05 22:38:06 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -17,6 +17,26 @@
 # processname: heartbeat
 # pidfile: /var/run/heartbeat.pid
 # config: /etc/ha.d/ha.cf
+
+if
+  [ -d /usr/linux/bin -a -x /usr/linux/bin/echo ]
+then
+  PATH=/usr/linux/bin:$PATH; export PATH
+  echononl() {
+    /usr/linux/bin/echo -n "$@"
+  }
+  echonwithesc() {
+    /usr/linux/bin/echo -e "$@"
+  }
+else
+  echononl() {
+    echo -n "$@"
+  }
+  echonoesc() {
+    echo -e "$@"
+  }
+fi
+  
   
 if
   [ -r /etc/SuSE-release ]
@@ -71,12 +91,12 @@ then
 	$HA_BIN/heartbeat -s
   }
   echo_failure() {
-      echo -e " Heartbeat failure [rc=$1]. $rc_failed"
+      echoesc " Heartbeat failure [rc=$1]. $rc_failed"
       return $1
   }
   echo_success() {
 	: Cool!  It started!
-      echo -e "$rc_done"
+      echoesc "$rc_done"
   }
 else
   . $DISTFUNCS
@@ -88,16 +108,23 @@ fi
 if
   [ ! -f $CONFIG ]
 then
-  echo -n "Heartbeat not configured."
+  echononl "Heartbeat not configured."
   echo_failure 1
   exit 0
 fi
 
+init_watchdog() {
+  if
+    [  -f /proc/devices -a  -x $INSMOD ]
+  then
+    init_watchdog_linux
+  fi
+}
 
 #
 #	Install the softdog module if we need to
 #
-init_watchdog() {
+init_watchdog_linux() {
 #
 # 	We need to install it if watchdog is specified in $CONFIG, and
 #	/dev/watchdog refers to a softdog device, or it /dev/watchdog
@@ -155,7 +182,7 @@ init_watchdog() {
     minor=`cat /proc/misc | grep watchdog | cut -c1-4`
     mknod -m 600 $WATCHDEV c $MISCDEV $minor
   fi
-} # init_watchdog()
+} # init_watchdog_linux()
 
 
 #
@@ -178,7 +205,7 @@ start_heartbeat() {
 #
 
 StartHA() {
-  echo -n "Starting High-Availability services: "
+  echononl "Starting High-Availability services: "
   $HA_BIN/ResourceManager verifyallidle
   if
     [ $USE_MODULES = 1 ]
@@ -213,7 +240,7 @@ StartHA() {
 #	Ask heartbeat to stop.  It will give up its resources...
 #
 StopHA() {
-  echo -n "Stopping High-Availability services: "
+  echononl "Stopping High-Availability services: "
 
   if
     $HA_BIN/heartbeat -k &> /dev/null	# Kill it
@@ -231,7 +258,7 @@ StopHA() {
 #	Ask heartbeat to restart.  It will *keep* its resources
 #
 ReloadHA() {
-  echo -n "Reloading High-Availability services: "
+  echononl "Reloading High-Availability services: "
 
   if
     $HA_BIN/heartbeat -r # Restart, and keep your resources
@@ -290,6 +317,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.3  2001/10/05 22:38:06  alan
+#  Put in some code to make us more portable.
+#
 #  Revision 1.2  2001/06/28 20:35:00  alan
 #  Patch from Juri to install our scripts with paths patched appropriately.
 #
