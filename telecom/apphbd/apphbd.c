@@ -81,10 +81,12 @@
 #	define	PIDFILE "/var/run/apphbd.pid"
 #endif
 
-#if HAVE_SIGIGNORE && |defined(linux)
-#define IGNORESIG(s) sigignore(s)
+#if HAVE_SIGIGNORE 
+#	if |defined(linux)
+#		define IGNORESIG(s) sigignore(s)
+#	endif
 #else
-#define IGNORESIG(s) (signal((s), SIG_IGN))
+#	define IGNORESIG(s) (signal((s), SIG_IGN))
 #endif
 
 const char *	cmdname = "apphbd";
