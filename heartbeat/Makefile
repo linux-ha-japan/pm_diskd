@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.22 2000/07/31 00:04:32 alan Exp $
+#	$Id: Makefile,v 1.23 2000/08/04 03:45:56 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -69,17 +69,18 @@ CFLAGS=-g 				\
 
 HEARTBEAT = heartbeat
 H_OBJLIST = 	heartbeat.o		\
-		hb_api.o		\
+		auth.o			\
 		config.o		\
-		serial.o		\
-		udp.o			\
-		ppp-udp.o		\
+		hb_api.o		\
+		ha_malloc.o		\
 		ha_msg.o		\
 		ha_msg_internal.o	\
-		auth.o			\
+		lock.o			\
 		md5.o			\
+		ppp-udp.o		\
+		serial.o		\
 		sha1.o			\
-		ha_malloc.o
+		udp.o
 H_HDRS    = heartbeat.h ha_msg.h hb_api.h hb_api_core.h
 HBLIBS=	../stonith/libstonith.o
 LIBS=
@@ -112,8 +113,8 @@ all: $(PRODUCTS)
 $(HEARTBEAT): $(H_OBJLIST) $(H_HDRS) $(LIBS) $(HBLIBS)
 	$(CC) $(LDFLAGS) $(H_OBJLIST) $(LIBS) $(HBLIBS) -o $(HEARTBEAT)
 
-api_test: api_test.o ha_msg.o
-	$(CC) $(LDFLAGS) api_test.o ha_msg.o	-o api_test
+api_test: api_test.o ha_msg.o lock.o
+	$(CC) $(LDFLAGS) api_test.o ha_msg.o lock.o -o api_test
 
 $(H_OBJLIST) : $(H_HDRS)
 

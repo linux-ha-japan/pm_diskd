@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.15 2000/07/26 05:17:19 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.16 2000/08/04 03:45:56 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -41,6 +41,7 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.15 2000/07/26 05:17:19 ala
 #include <sys/stat.h>
 
 #include <heartbeat.h>
+#include <lock.h>
 
 struct serial_private {
         char *  ttyname;
@@ -58,8 +59,6 @@ STATIC char *		ttygets(char * inbuf, int length
 ,				struct serial_private *tty);
 STATIC int		serial_write(struct hb_media*mp, struct ha_msg *msg);
 STATIC int		serial_open(struct hb_media* mp);
-STATIC int              ttylock(const char *serial_device);
-STATIC int              ttyunlock(const char *serial_device);
 STATIC int		ttysetup(int fd);
 STATIC int		opentty(char * serial_device);
 STATIC int		serial_close(struct hb_media* mp);
@@ -184,101 +183,6 @@ serial_close(struct hb_media* mp)
 	rc = close(sp->ttyfd) < 0 ? HA_FAIL : HA_OK;
 	ttyunlock(sp->ttyname);
 	return rc;
-}
-
-
-/* lock a tty (using lock files, see linux `man 2 open` close to O_EXCL) 
- * serial_device has to be _the complete path_, i.e. including '/dev/' to the
- * special file, which denotes the tty to lock -tho
- * return 0 on success, 
- * -1 if device is locked (lockfile exists and isn't stale),
- * -2 for temporarily failure, try again,
- * other negative value, if something unexpected happend (failure anyway)
- */
-STATIC int
-ttylock(const char *serial_device)
-{
-	char lf_name[256], tf_name[256], buf[12];
-	int fd;
-	pid_t pid, mypid;
-	int rc;
-	struct stat sbuf;
-
-	mypid = getpid();
-	snprintf(lf_name, 256, "%s/LCK..%s", TTY_LOCK_D,
-		 serial_device + sizeof("/dev/") - 1);
-	snprintf(tf_name, 256, "%s/tmp%d-%s", TTY_LOCK_D, 
-		 mypid, serial_device + sizeof("/dev/") - 1);
-	if ((fd = open(lf_name, O_RDONLY)) >= 0) {
-		sleep(1); /* if someone was about to create on, give'm a
-			   * sec to do so */
-		if (read(fd, buf, 12) < 1) {
-			/* lockfile empty -> rm it and go on */
-		} else {
-			if (sscanf(buf, "%d", &pid) < 1) {
-				/* lockfile screwed up -> rm it and go on */
-			} else {
-				if (kill(pid, 0) < 0 && errno != ESRCH) {
-					/* tty is locked by existing (not
-					 * necessarily running) process
-					 * -> give up */
-					close(fd);
-					return -1;
-				} else {
-					/* stale lockfile -> rm it and go on */
-				}
-			}
-		}
-		unlink(lf_name);
-	}
-	if ((fd = open(tf_name, O_CREAT | O_WRONLY, 0660)) < 0) {
-		/* Hmmh, why did we fail? Anyway, nothing we can do about */
-		return -3;
-	}
-	sprintf(buf, "%10d\n", mypid);
-	if(write(fd, buf, 12) < 12) {
-		/* again, nothing we can do about */
-		return -3;
-	}
-	close(fd);
-	switch(link(tf_name, lf_name)) {
-	case 0:
-		if(stat(tf_name, &sbuf) < 0) {
-			/* something weird happened */
-			rc = -3;
-			break;
-		}
-		if(sbuf.st_nlink < 2) {
-			/* somehow, it didn't get through - NFS trouble? */
-			rc = -2;
-			break;
-		}
-		rc = 0;
-		break;
-	case EEXIST:
-		rc = -1;
-		break;
-	default:
-		rc = -3;
-	}
-	unlink(tf_name);
-	return rc;
-}
-
-/* unlock a tty (remove its lockfile) 
- * do we need to check, if its (still) ours? No, IMHO, if someone else
- * locked our line, it's his fault  -tho
- * returns 0 on success
- * <0 if some failure occured
- */ 
-STATIC
-int ttyunlock(const char *serial_device)
-{
-	char lf_name[256];
-	
-	snprintf(lf_name, 256, "%s/LCK..%s", TTY_LOCK_D,
-		 serial_device + sizeof("/dev/") - 1);
-	return unlink(lf_name);
 }
 
 /* Set up a serial line the way we want it be done */
@@ -541,6 +445,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.16  2000/08/04 03:45:56  alan
+ * Moved locking code into lock.c, so it could be used by both heartbeat and
+ * the client code.  Also restructured it slightly...
+ *
  * Revision 1.15  2000/07/26 05:17:19  alan
  * Added GPL license statements to all the code.
  *

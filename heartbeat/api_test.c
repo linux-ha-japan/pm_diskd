@@ -61,6 +61,7 @@
 #include <heartbeat.h>
 #include <hb_api_core.h>
 #include <hb_api.h>
+#include <lock.h>
 
 struct stringlist {
 	char *			value;
@@ -85,6 +86,7 @@ typedef struct gen_callback {
 }gen_callback_t;
 
 #define	MXFIFOPATH	128
+#define	HBPREFIX	"LCK..hbapi:"
 
 /*
  *	Our heartbeat private data
@@ -260,6 +262,10 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		OurClientID = OurPid;
 		iscasual = 1;
 	}
+
+	if (!iscasual && DoLock(HBPREFIX, OurClientID) != 0) {
+		ha_log(LOG_ERR, "Cannot lock FIFO for %s", OurClientID);
+	}
 	pi->iscasual = iscasual;
 	directory = (iscasual ? CASUALCLIENTDIR : NAMEDCLIENTDIR);
 
@@ -402,6 +408,9 @@ hb_api_signoff(struct ll_cluster* cinfo)
 		ZAPMSG(request);
 		ha_perror("can't send message to MsgFIFO");
 		return HA_FAIL;
+	}
+	if (!pi->iscasual && DoLock(HBPREFIX, OurClientID) != 0) {
+		ha_log(LOG_ERR, "Cannot lock FIFO for %s", OurClientID);
 	}
 	ZAPMSG(request);
 	OurClientID = NULL;
