@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.8 1999/10/05 04:35:26 alanr Exp $
+#	$Id: heartbeat.sh,v 1.9 1999/10/05 05:17:49 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -36,14 +36,15 @@ USE_MODULES=1
 
 #
 #	Source in Red Hat's function library.
-#	Unfortunately, I require this for "status"
-#	As a result, "status" only works on the Red Hat distribution
 #
 if
   [ ! -x $RHFUNCS ]
 then
   daemon() {
 	$*
+  }
+  status() {
+	$HA_BIN/heartbeat -s
   }
 else
   . $RHFUNCS
@@ -270,6 +271,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.9  1999/10/05 05:17:49  alanr
+#  Added -s (status) option to heartbeat, and used it in heartbeat.sh...
+#
 #  Revision 1.8  1999/10/05 04:35:26  alanr
 #  Changed it to use the new heartbeat -k option to shut donw heartbeat.
 #

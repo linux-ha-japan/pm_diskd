@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.12 1999/10/05 04:35:10 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.13 1999/10/05 05:17:34 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -158,7 +158,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.12 1999/10/05 04:35:
 #include <heartbeat.h>
 #include <ha_msg.h>
 
-#define OPTARGS		"vdrk"
+#define OPTARGS		"dkrsv"
 
 
 int		verbose = 0;
@@ -169,6 +169,7 @@ int		Argc = -1;
 int		debug = 0;
 int		isarestart = 0;
 int		killrunninghb = 0;
+int		rpt_hb_status = 0;
 int		childpid = -1;
 char *		watchdogdev = NULL;
 int		watchdogfd = -1;
@@ -2081,19 +2082,21 @@ main(int argc, const char ** argv)
 
 		switch(flag) {
 
-			case 'v':
-				++verbose;
-				break;
-
 			case 'd':
 				++debug;
 				break;
-
+			case 'k':
+				++killrunninghb;
+				break;
 			case 'r':
 				++isarestart;
 				break;
-			case 'k':
-				++killrunninghb;
+			case 's':
+				++rpt_hb_status;
+				break;
+
+			case 'v':
+				++verbose;
 				break;
 
 			default:
@@ -2143,6 +2146,21 @@ main(int argc, const char ** argv)
 		fprintf(stderr, "ERROR: Could not kill pid %d", running_hb_pid);
 		perror(" ");
 		cleanexit(1);
+	}
+
+	/*
+	 *	Report status of heartbeat processes, etc.
+	 */
+	if (rpt_hb_status) {
+		pid_t	running_hb_pid = get_running_hb_pid();
+
+		if (running_hb_pid < 0) {
+			printf("%s is stopped.\n", cmdname);
+		}else{
+			printf("%s [pid %d et al] is running...\n"
+			,	cmdname, running_hb_pid);
+		}
+		cleanexit(0);
 	}
 
 	/*
@@ -2620,6 +2638,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.13  1999/10/05 05:17:34  alanr
+ * Added -s (status) option to heartbeat, and used it in heartbeat.sh...
+ *
  * Revision 1.12  1999/10/05 04:35:10  alanr
  * Changed it to use the new heartbeat -k option to shut donw heartbeat.
  *
