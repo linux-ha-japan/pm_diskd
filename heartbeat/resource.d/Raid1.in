@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Raid1.in,v 1.4 2002/03/14 04:28:51 alan Exp $
+# $Id: Raid1.in,v 1.5 2002/04/16 13:39:12 lars Exp $
 # 
 # Raid1
 #      Description: Manages a software Raid1 device on a shared storage medium.
@@ -91,13 +91,13 @@ exec_prefix=@exec_prefix@
 
 
 # Utilities used by this script
-MODPROBE=/sbin/modprobe
-FSCK=/sbin/fsck
-FUSER=/sbin/fuser
-RAIDSTART=/sbin/raidstart
-MOUNT=/bin/mount
-UMOUNT=/bin/umount
-RAIDSTOP=/sbin/raidstop
+MODPROBE=@MODPROBE@
+FSCK=@FSCK@
+FUSER=@FUSER@
+RAIDSTART=@RAIDSTART@
+MOUNT=@MOUNT@
+UMOUNT=@UMOUNT@
+RAIDSTOP=@RAIDSTOP@
 
 check_util () {
     if [ ! -x "$1" ] ; then
@@ -113,7 +113,7 @@ cat <<-EOT;
 	<raidtab_config_file> : name of MD configuration file. e.g. /etc/raidtab
 	<md_dev_name>         : of the form /dev/md?? (the block device to use)
 
-	$Id: Raid1.in,v 1.4 2002/03/14 04:28:51 alan Exp $
+	$Id: Raid1.in,v 1.5 2002/04/16 13:39:12 lars Exp $
 EOT
 }
 

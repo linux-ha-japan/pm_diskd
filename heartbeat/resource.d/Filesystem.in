@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: Filesystem.in,v 1.7 2002/04/15 16:01:25 lars Exp $
+# $Id: Filesystem.in,v 1.8 2002/04/16 13:39:12 lars Exp $
 # 
 # Filesystem
 #      Description: Manages a Filesystem on a shared storage medium.
@@ -67,13 +67,12 @@ exec_prefix=@exec_prefix@
 . /etc/ha.d/shellfuncs
 
 # Utilities used by this script
-MODPROBE=/sbin/modprobe
-FSCK=/sbin/fsck
-FUSER=/sbin/fuser
-MOUNT=/bin/mount
-UMOUNT=/bin/umount
+MODPROBE=@MODPROBE@
+FSCK=@FSCK@
+FUSER=@FUSER@
+MOUNT=@MOUNT@
+UMOUNT=@UMOUNT@
 BLOCKDEV=@BLOCKDEV@
-BLOCKDEV=/sbin/blockdev
 
 check_util () {
     if [ ! -x "$1" ] ; then
@@ -92,7 +91,7 @@ cat <<-EOT;
 	<directory> : the mount point for the filesystem
 	<fstype>    : name of the filesystem type. e.g. ext2
 
-	$Id: Filesystem.in,v 1.7 2002/04/15 16:01:25 lars Exp $
+	$Id: Filesystem.in,v 1.8 2002/04/16 13:39:12 lars Exp $
 	EOT
 }
 
