@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.29 2002/09/26 06:09:38 horms Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.30 2002/10/02 13:36:42 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -196,7 +196,7 @@ ha_msg_add_nv(struct ha_msg* msg, const char * nvline, const char * bufmax)
 	if ((namelen = strcspn(nvline, EQUAL)) <= 0
 	||	nvline[namelen] != '=') {
 		ha_log(LOG_WARNING, "ha_msg_add_nv: line doesn't contain '='");
-		ha_log(LOG_INFO, nvline);
+		ha_log(LOG_INFO, "%s", nvline);
 		return(HA_FAIL);
 	}
 	valp = nvline + namelen +1; /* Point just *past* the '=' */
@@ -465,6 +465,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.30  2002/10/02 13:36:42  alan
+ * Put in a fix from Nathan Wallwork for a potential security vulnerability.
+ *
  * Revision 1.29  2002/09/26 06:09:38  horms
  * log a debug message if it looks like an feild in a heartbeat message has been truncated
  *
