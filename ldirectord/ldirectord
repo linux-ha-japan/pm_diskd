@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.52 2002/07/31 08:39:27 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.53 2002/08/01 01:28:16 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -1319,7 +1319,7 @@ sub ld_start
 			# remove remaining entries for real servers
 			for my $k (keys %$or) {
 				&system_wrapper("$IPVSADM -d $$nv{proto} " . &get_virtual($nv) . " -r $k");
-				print ("Removed real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
+				&ld_log("Removed real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
 			}
 			delete $oldsrv->{&get_virtual($nv) . " " . $$nv{protocol}};
 		} else {
