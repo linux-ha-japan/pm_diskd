@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.9 2002/07/08 04:14:12 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.10 2002/08/16 14:18:41 msoffen Exp $";
 /* 
  * send_arp
  * 
@@ -29,7 +29,10 @@ const static char * _send_arp_c = "$Id: send_arp.c,v 1.9 2002/07/08 04:14:12 ala
  *
  */
 
+#include <portability.h>
+
 #include <libnet.h>
+#include <syslog.h>
 
 int send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask);
 
@@ -71,14 +74,14 @@ main(int argc, char *argv[])
     
     if ((ip = libnet_name_resolve(argv[2], 1)) == -1)
     {
-        fprintf(stderr, "Cannot resolve IP address\n");
+        syslog(LOG_ERR, "Cannot resolve IP address\n");
         exit(EXIT_FAILURE);
     }
 
     l = libnet_open_link_interface(device, errbuf);
     if (!l)
     {
-        fprintf(stderr, "libnet_open_link_interface: %s\n", errbuf);
+        syslog(LOG_ERR, "libnet_open_link_interface: %s\n", errbuf);
         exit(EXIT_FAILURE);
     }
 
@@ -116,7 +119,7 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
 
     if (libnet_init_packet(LIBNET_ARP_H + LIBNET_ETH_H, &buf) == -1)
     {
-        perror("libnet_init_packet memory:");
+	syslog(LOG_ERR, "libnet_init_packet memory:");
         exit(EXIT_FAILURE);
     }
 
@@ -144,7 +147,7 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
 
     n = libnet_write_link_layer(l, device, buf, LIBNET_ARP_H + LIBNET_ETH_H);
 
-    fprintf(stderr, ".");
+    syslog(LOG_ERR, ".");
 
     libnet_destroy_packet(&buf);
     return (n);
@@ -152,6 +155,11 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.10  2002/08/16 14:18:41  msoffen
+ * Changes to get IP takeover working properly on OpenBSD
+ * Changed how *BSD deletes an alias.
+ * Create get_hw_addr (uses libnet package).
+ *
  * Revision 1.9  2002/07/08 04:14:12  alan
  * Updated comments in the front of various files.
  * Removed Matt's Solaris fix (which seems to be illegal on Linux).

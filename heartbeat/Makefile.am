@@ -60,7 +60,7 @@ libhbclient_la_SOURCES	= ha_msg.c lock.c client_lib.c
 libhbclient_la_LDFLAGS	= -version-info 0:0:0
 
 ## binary progs
-halib_PROGRAMS		= heartbeat send_arp findif api_test
+halib_PROGRAMS		= heartbeat send_arp findif api_test get_hw_addr
 
 ## SOURCES
 heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c \
@@ -86,6 +86,13 @@ send_arp.o: $(send_arp_SOURCES)
 	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(send_arp_SOURCES) \
 		-o $$old_pwd/$@ $(CPPFLAGS) $(send_arp_CFLAGS) )
 
+get_hw_addr_SOURCES	= get_hw_addr.c
+get_hw_addr_CFLAGS	 	= @LIBNETDEFINES@
+get_hw_addr_LDADD	 	= @LIBNETLIBS@
+
+get_hw_addr.o: $(get_hw_addr_SOURCES)
+	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(get_hw_addr_SOURCES) \
+		-o $$old_pwd/$@ $(CPPFLAGS) $(get_hw_addr_CFLAGS) )
 
 findif_SOURCES		= findif.c
 findif_LDADD		=$(top_builddir)/replace/libreplace.la

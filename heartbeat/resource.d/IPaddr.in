@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.26 2002/08/15 16:15:35 msoffen Exp $
+#	$Id: IPaddr.in,v 1.27 2002/08/16 14:18:42 msoffen Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -27,6 +27,7 @@ VARLIB=@localstatedir@/lib/@HEARTBEATPKG@
 VLDIR=$VARLIB/rsctmp/IPaddr
 ROUTE=@ROUTE@
 SENDARP=$HA_BIN/send_arp
+GET_HW_ADDR=$HA_BIN/get_hw_addr
 FINDIF=$HA_BIN/findif
 USAGE="usage: $0 ip-address {start|stop|status|monitor}";
 SYSTYPE="`uname -s`"
@@ -235,7 +236,7 @@ ip_stop() {
 			esac
 			;;
 	*BSD)
-			CMD="$IFCONFIG $IF delete $BASEIP"
+			CMD="$IFCONFIG $IF inet $BASEIP -alias"
 			;;
 
 	*)		CMD="$IFCONFIG $IF down"
@@ -424,7 +425,7 @@ ip_start() {
 
   TARGET_INTERFACE=`echo $IF | sed 's%:.*%%'`
 
-  MACADDR=`GetMACaddr "$TARGET_INTERFACE"`
+  MACADDR=`$GET_HW_ADDR "$TARGET_INTERFACE"`
 
   if [ "X$MACADDR" = "X" ]; then
 	ha_log "ERROR: Could not locate obtain hardware address" \
@@ -490,7 +491,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.26 2002/08/15 16:15:35 msoffen Exp $"
+  echo "$Id: IPaddr.in,v 1.27 2002/08/16 14:18:42 msoffen Exp $"
 }
 
 #
@@ -537,6 +538,11 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.27  2002/08/16 14:18:42  msoffen
+# Changes to get IP takeover working properly on OpenBSD
+# Changed how *BSD deletes an alias.
+# Create get_hw_addr (uses libnet package).
+#
 # Revision 1.26  2002/08/15 16:15:35  msoffen
 # Corrected so that BSD will properly get the status/etc. since it has
 # a single device for both IP's (not device:n).
