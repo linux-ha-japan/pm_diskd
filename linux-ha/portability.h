@@ -27,4 +27,11 @@ scandir (const char *directory_name,
 	);
 
 #endif /* HAVE_SCANDIR */
+#ifndef HAVE_INET_PTON
+  /* We supply a replacement function, but need a prototype */
+int
+inet_pton(int af, const char *src, void *dst);
+
+#endif /* HAVE_INET_PTON */
+
 #endif /* HAVE_CONFIG_H */

@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.10 2001/06/08 04:57:48 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.11 2001/06/23 04:30:26 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -579,26 +579,11 @@ new_mcast_private(const char *ifn, const char *mcast, u_short port,
 
 	/* Set up multicast address */
 
-#ifdef HAVE_INET_ATON
-	/* The proper "modern" function to use is inet_aton */
-
-	if (inet_aton(mcast, &mcp->mcast) == -1) {
+	if (inet_pton(AF_INET, mcast, (void *)&mcp->mcast) <= 0) {
 		ha_free(mcp->interface);
 		ha_free(mcp);
 		return NULL;
 	}
-#else
-	/* Oh Well... Fall back to the obsolescent inet_addr function */
-#	ifndef INADDR_NONE
-#		define	INADDR_NONE	((unsigned long int)-1L)
-#	endif
-
-	if ((mcp->mcast.s_addr = inet_addr(mcast)) == INADDR_NONE) {
-		ha_free(mcp->interface);
-		ha_free(mcp);
-		return NULL;
-	}
-#endif /* HAVE_INET_ATON */
 
 	memset(&mcp->addr, 0, sizeof(mcp->addr));	/* zero the struct */
 	mcp->addr.sin_family = AF_INET;		/* host byte order */
@@ -794,6 +779,10 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.11  2001/06/23 04:30:26  alan
+ * Changed the code to use inet_pton() when it's available, and
+ * emulate it when it's not...  Patch was from Chris Wright.
+ *
  * Revision 1.10  2001/06/08 04:57:48  alan
  * Changed "config.h" to <portability.h>
  *

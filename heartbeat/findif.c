@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.10 2001/06/07 21:29:44 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.11 2001/06/23 04:30:26 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *	It's really simple to write in C, but hard to write in the shell...
@@ -43,12 +43,14 @@ static const char _findif_c [] = "$Id: findif.c,v 1.10 2001/06/07 21:29:44 alan 
  *	in the subnet.
  *
  */
+#include <portability.h>
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #undef __OPTIMIZE__	/* This gets rid of some silly -Wtraditional warnings on Linux
  			 * because the netinet header has some slightly funky constants
 			 * in it.
@@ -132,7 +134,7 @@ main(int argc, char ** argv) {
 
 	/* Is the IP address we're supposed to find valid? */
 	 
-	if (inet_aton(address, &in) == 0) {
+	if (inet_pton(AF_INET, address, (void *)&in) <= 0) {
 		fprintf(stderr, "IP address [%s] not valid.", address);
 		usage();
 		return(1);
@@ -267,6 +269,10 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
+ * Revision 1.11  2001/06/23 04:30:26  alan
+ * Changed the code to use inet_pton() when it's available, and
+ * emulate it when it's not...  Patch was from Chris Wright.
+ *
  * Revision 1.10  2001/06/07 21:29:44  alan
  * Put in various portability changes to compile on Solaris w/o warnings.
  * The symptoms came courtesy of David Lee.

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.10 2001/06/08 04:57:48 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.11 2001/06/23 04:30:26 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -62,9 +62,7 @@ static const char _udp_Id [] = "$Id: ping.c,v 1.10 2001/06/08 04:57:48 alan Exp 
 #	include <netinet/ip_fw.h>
 #endif /* HAVE_NETINET_IP_FW_H */
 
-#include <sys/socket.h>
 #include <netinet/ip_icmp.h>
-#include <arpa/inet.h>
 #include <netdb.h>
 #include <signal.h>
 #include "heartbeat.h"
@@ -163,7 +161,7 @@ new_ping_interface(const char * host)
 #endif
 	ppi->addr.sin_family = AF_INET;
 
-	if (inet_aton(host, &ppi->addr.sin_addr) == 0) {
+	if (inet_pton(AF_INET, host, (void *)&ppi->addr.sin_addr) <= 0) {
 		struct hostent *hep;
 		hep = gethostbyname(host);
 		if (hep == NULL) {

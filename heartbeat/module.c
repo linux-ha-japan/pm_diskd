@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.25 2001/06/21 00:17:19 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.26 2001/06/23 04:30:26 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -1414,5 +1414,22 @@ RegisterAPlugin(MLModule* modinfo
 
 	return 1;
 }
+/*
+ * We need the following functions:
+ *
+ * Module functions:
+ *
+ * MLloadModule()	- loads a module into memory and calls the
+ * 				ml_module_init() entry point in the module.
+ *
+ * MLModulePath()	- returns path name for a given module
+ *
+ * MLModuleTypeList()	- returns list of modules of a given type
+ * 
+ *
+ * PluginPlugin functions:
+ *
+ *
+ */
 
 #endif /* NEWMODULECODE */
