@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.11 2000/02/23 18:44:53 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.12 2000/04/11 22:12:22 horms Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -202,7 +202,7 @@ ttylock(const char *serial_device)
 			if (sscanf(buf, "%d", &pid) < 1) {
 				/* lockfile screwed up -> rm it and go on */
 			} else {
-				if (kill(pid, 0) != ESRCH) {
+				if (kill(pid, 0)==-1 && errno != ESRCH) {
 					/* tty is locked by existing (not
 					 * necessarily running) process
 					 * -> give up */
@@ -521,6 +521,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.12  2000/04/11 22:12:22  horms
+ * Now cleans locks on serial devices from dead processes succesfully
+ *
  * Revision 1.11  2000/02/23 18:44:53  alan
  * Put in a bug fix from Cliff Liang <lqm@readworld.com> to fix the tty
  * locking code.  The parameters to sscanf were mixed up.
