@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.55 2000/08/30 22:36:27 alan Exp $
+#	$Id: Specfile,v 1.56 2000/09/01 02:32:24 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -287,21 +287,6 @@ then
   mkdir -p $TEMPL
 fi
 install -m 644 rc.config.heartbeat $TEMPL
-
-#
-# This stuff is disabled because it uses the undocumented
-# "Check" command, which mangles lots of things on your system unrelated
-# to the package I'm building, and is generally broken unless you happen
-# to be building in the one-of-a-kind SuSE chrooted build environment in
-# Germany.
-#
-if
-  [ -r /etc/SuSE-release ] && false
-then
-  %{?suse_check}
-  # use this with SuSE <= 6.2 instead:
-  #test "$UID" = 0 -a -x /usr/sbin/Check && /usr/sbin/Check
-fi
 
 %files
 %defattr(-,root,root)
