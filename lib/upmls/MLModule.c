@@ -28,7 +28,8 @@ static MLPlugin*		pipi_register_plugin(MLPluginType* env
 				,	void * exports, void * ud_plugin
 				,	void** imports);
 static ML_rc			pipi_unregister_plugin(MLPlugin* plugin);
-static ML_rc			pipi_close_plugin(MLPlugin* plugin, MLPlugin* pi2);
+static ML_rc			pipi_close_plugin(MLPlugin* plugin
+				,	MLPlugin* pi2);
 
 static MLPluginType*	pipi_new_plugintype(MLPluginUniv*);
 static void			pipi_del_plugintype(MLPluginType*);
@@ -70,9 +71,10 @@ PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 	MLPlugin*	piinfo;
 	MLPluginType*	piuniv;
 	void*		dontcare;
+	ML_rc		rc;
 
 	if (univ->piuniv) {
-		return 0;
+		return ML_INVAL;
 	}
 
 	/* We are the creator of the MLPluginType object */
@@ -81,8 +83,9 @@ PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 	memset(piuniv, 0, sizeof(*piuniv));
 
 	/* We can call register_module, since it doesn't depend on us... */
-	if (imports->register_module(&PluginPluginModinfo, &ModExports) == 0) {
-		return(0);
+	rc = imports->register_module(&PluginPluginModinfo, &ModExports);
+	if (rc != ML_OK) {
+		return(rc);
 	}
 	/*
 	 * Now, we're registering plugins, and are into some deep
@@ -104,7 +107,8 @@ PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 	piinfo = pipi_register_plugin(piuniv, PLUGIN_PLUGIN, &PiExports
 	,	NULL, &dontcare);
 
-	return(1);
+	/* FIXME (unfinished module) */
+	return(ML_OK);
 }
 
 
@@ -213,7 +217,7 @@ pipi_unregister_plugin(MLPlugin* plugin)
 	MLPluginType*	univ = plugin->plugintype;
 	g_hash_table_remove(univ->plugins, plugin->pluginname);
 	MLPlugin_del(plugin);
-	return 0;
+	return ML_OK;
 }
 
 
@@ -277,7 +281,7 @@ MLPlugin_new(MLPluginType*	plugintype
 		ret->exports = exports;
 		ret->ud_plugin = ud_plugin;
 		ret->pluginname = g_strdup(pluginname);
-		g_hash_table_insert(plugintype->plugins, ret->pluginname, ret);
+		g_hash_table_insert(plugintype->plugins, g_strdup(ret->pluginname), ret);
 		ret->refcnt = 1;
 	}
 	return ret;
@@ -383,7 +387,7 @@ RegisterAPlugin(MLModule* modinfo
 	||	(piuniv = moduniv->piuniv)	== NULL
 	) {
 		REPORTERR("bad parameters");
-		return 0;
+		return ML_INVAL;
 	}
 
 	/* Now we have lots of info, but not quite enough... */
@@ -391,13 +395,13 @@ RegisterAPlugin(MLModule* modinfo
 	if ((pitype = g_hash_table_lookup(piuniv->pitypes, plugintype))
 	==	NULL) {
 		/* Really ought to try and autoload this plugin module */
-		return 0;
+		return ML_BADTYPE;
 	}
 	if ((piinfo = g_hash_table_lookup(pitype->plugins, pluginname))
 	!=	NULL) {
 		g_warning("Attempt to register duplicate plugin: %s/%s"
 		,	plugintype, pluginname);
-		return 0;
+		return ML_EXIST;
 	}
 	/*
 	 * OK...  Now we know it is valid, and isn't registered...
@@ -406,22 +410,23 @@ RegisterAPlugin(MLModule* modinfo
 	if ((pipitype = g_hash_table_lookup(piuniv->pitypes, PLUGIN_PLUGIN))
 	==	NULL) {
 		REPORTERR("No " PLUGIN_PLUGIN " type!");
-		return 0;
+		return ML_OOPS;
 	}
 	if ((pipiinfo = g_hash_table_lookup(pipitype->plugins, PLUGIN_PLUGIN))
 	==	NULL) {
 		REPORTERR("No " PLUGIN_PLUGIN " plugin!");
-		return 0;
+		return ML_OOPS;
 	}
 
 	/* Now we have all the information anyone could possibly want ;-) */
 
 	piops = pipiinfo->exports;
-	piops->RegisterPlugin(pitype, pluginname, Ops
+	piinfo = piops->RegisterPlugin(pitype, pluginname, Ops
 	,	ud_plugin
 	,	Imports);
 
-	return 1;
+	/* FIXME! Probably need to do something with rc from RegisterPlugin */
+	return (piinfo == NULL ? ML_OOPS : ML_OK);
 }
 /*
  * We need to write lots more functions:  These include...

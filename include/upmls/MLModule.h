@@ -202,7 +202,14 @@
  *
  *****************************************************************************
  */
-typedef int			ML_rc;	/* Return code from Module fns*/
+typedef enum {
+	ML_OK=0,		/* Success */
+	ML_INVAL,	/* Invalid Parameters */
+	ML_BADTYPE,	/* Bad module/plugin type */
+	ML_EXIST,	/* Duplicate Module/Plugin name */
+	ML_OOPS,	/* Internal Error */
+	ML_NOMODULE,	/* No such module or Plugin */
+}ML_rc;			/* Return code from Module fns*/
 
 typedef struct MLModuleImports_s	MLModuleImports;
 typedef struct MLModuleOps_s		MLModuleOps;
