@@ -27,7 +27,7 @@ hadir			= $(sysconfdir)/ha.d
 halibdir		= $(libdir)/@HB_PKG@
 commmoddir		= $(halibdir)/modules/comm
 havarlibdir		= $(localstatedir)/lib/@HB_PKG@
-PIDFILE			= $(localstatedir)/run/apphbd/apphbd.pid
+PIDFILE			= $(localstatedir)/run/apphbd.pid
 
 COMMONLIBS		= $(top_builddir)/lib/clplumbing/libplumb.la	\
 			$(GLIBLIB)
