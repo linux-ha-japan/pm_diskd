@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.49 2003/02/07 08:37:17 horms Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.50 2003/05/30 15:23:02 kevin Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -46,7 +46,6 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.49 2003/02/07 08:37:17 ho
 #include <hb_module.h>
 #include <hb_signal.h>
 #include <pils/generic.h>
-#include "../libltdl/config.h"
 #include <HBcomm.h>
 #include <hb_config.h>
 #include "lock.h"
