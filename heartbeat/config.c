@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.11 2000/06/12 06:11:09 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.12 2000/06/13 04:20:41 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -862,7 +862,7 @@ int
 set_logfile(const char * value)
 {
 	strncpy(config->logfile, value, PATH_MAX);
-	config->use_dbgfile=1;
+	config->use_logfile=1;
 	return(HA_OK);
 }
 

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.54 2000/06/12 23:01:14 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.55 2000/06/13 04:20:41 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -1427,34 +1427,40 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		}
 
 		n = encode_resources(p);
+
 		if (thisnode != curnode) {
-			const char *	f_stable;
-			if ((f_stable = ha_msg_value(msg, F_ISSTABLE)) != NULL
-			&&	strcmp(f_stable, "1") == 0) {
-				other_is_stable = 1;
-				ha_log(LOG_INFO, "remote resource"
-				" transition completed.");
-			}else if (f_stable != NULL) {
-				other_is_stable = 0;
-			}
 			/*
 			 * This T_RESOURCES message is from the other side.
 			 */
+
+			const char *	f_stable;
+
+			if ((f_stable = ha_msg_value(msg, F_ISSTABLE)) != NULL
+			&&	strcmp(f_stable, "1") == 0
+			&&	! other_is_stable) {
+				ha_log(LOG_INFO, "remote resource"
+				" transition completed.");
+				other_is_stable = 1;
+			}else if (f_stable != NULL) {
+				other_is_stable = 0;
+			}
 			other_holds_resources=UPD_RSC(other_holds_resources,n);
-			if (rstate != R_BOTHSTARTING) {
+
+			if (rstate != R_BOTHSTARTING && rstate != R_STABLE) {
 				/* I wonder if there's a timing hole here? */
-				newrstate = R_STABLE;
+				/* I also wonder if BOTHSTARTING is OK here */
 				ha_log(LOG_INFO
 				,	"local resource transition completed.");
+				newrstate = R_STABLE;
 				req_our_resources(newrstate == R_STABLE);
 			}
 		}else{
 			const char *	comment = ha_msg_value(msg, F_COMMENT);
 			/*
-			 * This T_RESOURCES message is from us.  It be from the
-			 * "mach_down" script or our own response to the other
-			 * side's T_STARTING message.  The mach_down script
-			 * sets the info (F_COMMENT) field to "mach_down".
+			 * This T_RESOURCES message is from us.  It might be
+			 * from the "mach_down" script or our own response to
+			 * the other side's T_STARTING message.  The mach_down
+			 * script sets the info (F_COMMENT) field to "mach_down".
 			 *
 			 * We do this so the audits work cleanly AND we can
 			 * avoid a potential race condition.  See the code near
@@ -1491,6 +1497,7 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 
 	/* Real code ends here */
+
 	/*******************************************************
 	 *	Look for for duplicated or orphaned resources
 	 *******************************************************/
@@ -3348,6 +3355,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.55  2000/06/13 04:20:41  alan
+ * Fixed a bug for handling logfile.  It never worked, except by the default case.
+ * Fixed a bug related to noting when various nodes were out of transition.
+ *
  * Revision 1.54  2000/06/12 23:01:14  alan
  * Added comments about new behavior for -r flag with nice_failover.
  *
