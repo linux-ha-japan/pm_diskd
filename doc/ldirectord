@@ -1,12 +1,12 @@
 The ldirectord (Linux Director Daemon) is a stand-alone daemon to monitor
-services of real servers, currently http and https service. It is simple
+services of real servers, currently http, https and ftp service. It is simple
 to install and can be started on its own or be started from the heartbeat
 daemon. It is very useful to manage real servers through ipvsadm. ipvsadm
 is part of the Linux Virtual Server (http://www.linuxvirtualserver.org/)
 Project and is used to redirect TCP- and UDP/IP traffic from a virtual
 server to many real servers. Thus LVS, heartbeat and ldirectord can be used
-to build up a redundant, fault-tolerant server farm of http- and https-servers.
-Other types of services may be added in future.
+to build up a redundant, fault-tolerant server farm of http-, https- and 
+ftp-servers. Other types of services may be added in future or upon request.
 
 Installation  and configuration guide:
 ldirectord is written in Perl, thus no compilation is neccessary. Two Perl-
@@ -15,10 +15,18 @@ and https-servers.
 
 These are:
 libwww-perl from www.CPAN.org
+to check http service
 
-and if You need https
+libnet-perl from www.CPAN.org
+to check ftp service
+
 Crypt-SSLeay from www.CPAN.org
 openssl from www.openssl.org
+to check https service
+
+If for any reason You don't need to check certain services,
+simply comment out the full function check_http, check_https
+or check_ftp in ldirectord.
 
 ldirectord is located in /etc/ha.d/resource.d/ldirectord
 If ldirectord often must be started manually it is useful to create a softlink.

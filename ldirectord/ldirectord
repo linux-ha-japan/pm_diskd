@@ -1,9 +1,8 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details 
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.11 2000/06/23 08:01:36 jacob Exp $
+# $Id: ldirectord,v 1.12 2000/07/06 07:55:19 jacob Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
-# with help from: Horms <horms@vergenet.net>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
 
@@ -131,12 +130,13 @@ This may be used to send a request over a transparent proxy.
 
 =head2 More than one of these entries may be inside a virtual section:
 
-B<service = http>|B<https>|B<none>
+B<service = http>|B<https>|B<ftp>|B<none>
 
 The type of service to monitor. None denotes a service that will not be
-monitored. If a port is specfied for the service and is 443 the default is
-https. If a port is specified and is 80 the default is http. Otherwise the
-default is none.
+monitored. If the port specfied for the virtual server is 80 the default
+service is B<http>.  If the port specified is 443 the default service is B<https>.
+If the port specified is 21 the default service is B<ftp>. Otherwise the default
+service is B<none>.
 
 B<request = ">I<uri to requested object>B<">
 
@@ -149,6 +149,8 @@ B<receive = ">I<string to compare>B<">
 If the requested result contains this I<string to compare>, the real server
 is declared alive. The string must be inside quotes. Note that this string may
 be overridden by an optional per real-server based receive-string.
+This string is ignored for ftp services. Ftp service only checks if the
+file exists.
 
 B<scheduler = rr>|B<wrr>|B<lc>|B<wlc>
 
@@ -180,7 +182,9 @@ L<ipvsadm>, L<heartbeat>
 
 =head1 AUTHORS
 
-Jacob Rief <jacob.rief@tis.at>
+Jacob Rief <jacob.rief@tiscover.com>
+
+Simon Horm <horms@vergenet.net>
 
 =cut
 
@@ -204,9 +208,7 @@ $checksum;
 $initializing;
 
 use Getopt::Std;
-use LWP::UserAgent;
 #use LWP::Parallel::UserAgent;
-use Net::SSLeay;
 getopts("dh");
 
 # main code
@@ -364,10 +366,12 @@ sub read_config
 			$vsrv{server} = $1;
 			if ($vsrv{server} =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/) {
 			        $vsrv{protocol} = "tcp";
-				if ($2 eq "443") {
-					$vsrv{service} = "https";
-				} elsif ($2 eq "80") {
+				if ($2 eq "80") {
 					$vsrv{service} = "http";
+				} elsif ($2 eq "443") {
+					$vsrv{service} = "https";
+				} elsif ($2 eq "21") {
+					$vsrv{service} = "ftp";
 				} else {
 					$vsrv{service} = "none";
 				}
@@ -380,6 +384,8 @@ sub read_config
 			$vsrv{scheduler} = "wrr";
 			$vsrv{request} = "/";
 			$vsrv{receive} = "";
+			$vsrv{login} = "anonymous";
+			$vsrv{passwd} = "ldirectord\@$ENV{HOSTNAME}";
 			push(@VIRTUAL, \%vsrv);
 			while(<CFGFILE>) {
 				$line++;
@@ -425,6 +431,12 @@ sub read_config
 				} elsif ($rcmd =~ /^receive\s*=\s*\"(.*)\"/) {
 					$1 =~ /(.+)/ or config_error($line, "invalid receive string");
 					$vsrv{receive} = $1;
+				} elsif ($rcmd =~ /^login\s*=\s*\"(.*)\"/) {
+					$1 =~ /(.+)/ or config_error($line, "invalid login string");
+					$vsrv{login} = $1;
+				} elsif ($rcmd =~ /^passwd\s*=\s*\"(.*)\"/) {
+					$1 =~ /(.+)/ or config_error($line, "invalid password");
+					$vsrv{passwd} = $1;
 				} elsif ($rcmd =~ /^load\s*=\s*\"(.*)\"/) {
 					$1 =~ /(\w+)/ or config_error($line, "invalid string for load testing");
 					$vsrv{load} = $1;
@@ -457,8 +469,9 @@ sub read_config
 					}
 				} elsif ($rcmd =~ /^service\s*=\s*(.*)/) {
 					lc($1);
-					$1 =~ /(\w+)/ && ($1 eq "http" || $1 eq "https" || $1 eq "none")
-					    or config_error($line, "service must be http, https or none");
+					$1 =~ /(\w+)/ && ($1 eq "http" || $1 eq "https"
+					    || $1 eq "ftp" || $1 eq "none")
+					    or config_error($line, "service must be http, https, ftp or none");
 					$vsrv{service} = $1;
 				} elsif ($rcmd =~ /^sitename\s*=\s*(.*)/) {
 					$1 =~ /(\w+)/ or config_error($line, "invalid sitename");
@@ -572,6 +585,7 @@ sub ld_setup
 				my $uri = $$v{request};
 				$uri =~ s/^\///g;
 				$$r{url} = "$$v{service}:\/\/$$r{server}\/$uri";
+                		$$r{request} = $$v{request} unless defined $$r{request};
                 		$$r{receive} = $$v{receive};
 			}
 		}
@@ -716,6 +730,8 @@ sub ld_main
 						# $ua->register($req, \&http_received);
 					} elsif ($$v{service} eq "https") {
 						check_https($v, $r);
+					} elsif ($$v{service} eq "ftp") {
+						check_ftp($v, $r);
 					} else {
 						check_server($v, $r);
 					}
@@ -761,6 +777,7 @@ sub http_received
 
 sub check_http
 {
+	use LWP::UserAgent;
 	my ($v, $r) = @_;
 	my $ua = new LWP::UserAgent;
 	$ua->agent("LinuxDirector/0.1".$ua->agent);
@@ -778,12 +795,32 @@ sub check_http
 
 sub check_https
 {
+	use Net::SSLeay;
 	my ($v, $r) = @_;
 	$uri = $$v{request};
 	$$r{server} =~ /(\d+\.\d+\.\d+\.\d+):(\d+)/;
 	my ($page, $result, %headers) = &Net::SSLeay::get_https($1, $2, $uri);
 	my $recstr = $$v{receive};
 	if (!($recstr =~ /.+/) || $page =~ /$recstr/) {
+		service_set($v, $r, "up");
+	} else {
+		service_set($v, $r, "down");
+	}
+}
+
+
+sub check_ftp
+{
+	use Net::FTP;
+	my ($v, $r) = @_;
+	my $TMPFILE = "/tmp/ldirectord.recvftp";
+	my $ftp = Net::FTP->new("$$v{server}", Timeout=>$TIMEOUT);
+	$ftp->login($$v{login}, $$v{passwd});
+	$ftp->cwd("/");
+	$ftp->binary();
+	my $localfile = $ftp->get("$$r{request}", $TMPFILE);
+	$ftp->quit();
+	if ($localfile eq $TMPFILE) {
 		service_set($v, $r, "up");
 	} else {
 		service_set($v, $r, "down");
