@@ -25,6 +25,7 @@ hard_SCRIPTS	=			\
 			apache		\
 			AudibleAlarm	\
 			db2		\
+			Delay		\
 			Filesystem	\
 			ICP		\
 			IPaddr		\
