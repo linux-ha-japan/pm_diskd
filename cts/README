@@ -22,6 +22,12 @@ Note that wherever machine names are mentioned, they must match the machines'
 `uname -n` name.  This may or may not match the machines' FQDN (fully qualified
 domain name) - it depends on how you (and your OS) have named the machine.
 
+Make sure the at service is enabled on the test cluster machines.
+(this is normally the 'atd' service started by /etc/init.d/atd).
+This doesn't mean just start it, it means enable it to start on every boot into
+your default init state (probably either 3 or 5).  Enabling it for both state
+3 and 5 is a good choice.
+
 
 Here's what you need to do to run CTS
 
