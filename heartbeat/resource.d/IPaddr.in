@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.13 2001/10/24 20:23:09 alan Exp $
+#	$Id: IPaddr.in,v 1.14 2002/01/18 18:55:49 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -66,6 +66,39 @@ find_interface() {
     esac
   done
   return 1
+}
+
+#
+#	Return the MAC address of the given interface in the form
+#	sendarp wants to see it...
+#
+
+GetMACaddr() {
+  case $SYSTYPE in
+
+    *BSD|SunOS)
+	# Does this catch all types of interfaces on *BSD and SunOS?
+	MACtmp=`$IFCONFIG "$1"  |
+	fgrep "ether" |  sed  "s/^.*ether  *//"`
+	ifconfig2sendarp "$MACtmp";;
+
+    *)	MACtmp=`$IFCONFIG "$1"  | 
+	fgrep "$1" |  sed "s/^.*HWaddr  *//"`
+	ifconfig2sendarp "$MACtmp";;
+  esac
+}
+
+
+  # Transform a MACaddr from ifconfig style to sendarp style
+
+#HWsed='s%\(..\):\(..\):\(..\):\(..\):\(..\):\(..\).*$%\1\2\3\4\5\6%'
+
+#
+# This routine should handle any type of interface, but has only been
+# tested on ethernet-type NICs.
+#
+ifconfig2sendarp() {
+	echo "$1" | sed "s%:%%g"
 }
 
 
@@ -253,14 +286,12 @@ ip_start() {
 
   TARGET_INTERFACE=`echo $IF | sed 's%:.*%%'`
 
-  MACADDR=`$IFCONFIG $TARGET_INTERFACE  | \
-      fgrep $TARGET_INTERFACE | \
-      sed \
-      's/^.*HWaddr \(..\):\(..\):\(..\):\(..\):\(..\):\(..\).*$/\1\2\3\4\5\6/'`
+  MACADDR=`GetMACaddr "$TARGET_INTERFACE"`
 
-  if [ "${MACADDR:=NULL}" = "NULL" ]; then
-      ha_log "ERROR: Could not locate obtain hardware address" \
-      "for $TARGET_INTERFACE"
+  if [ "X$MACADDR" = "X" ]; then
+	ha_log "ERROR: Could not locate obtain hardware address" \
+		"for $TARGET_INTERFACE"
+	exit 1
   fi
 
   ha_log "info: Sending Gratuitous Arp for $BASEIP on $IF [$TARGET_INTERFACE]"
@@ -352,6 +383,10 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.14  2002/01/18 18:55:49  alan
+# Put in a generalization suggested by Matt Soffen to allow us
+# to handle BSD and Solaris network interfaces.
+#
 # Revision 1.13  2001/10/24 20:23:09  alan
 # Changed INFO: to info: for consistency.
 #
