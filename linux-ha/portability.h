@@ -72,6 +72,9 @@ inet_pton(int af, const char *src, void *dst);
  *
  * Older UNIX systems used to call this (CLK_TCK) HZ.
  *
+ * NOTE:  We're moving away from times - to the longclock_t types
+ * which solve this problem much more nicely...
+ *
  */
 #ifdef CLK_TCK_IN_TIME_H
 #  include <time.h>
@@ -89,4 +92,12 @@ inet_pton(int af, const char *src, void *dst);
 #  endif
 #endif
 #  endif /* HAVE_CONFIG_H */
+
+
+#ifndef HAVE_STRNLEN
+#	define	strnlen(a,b) strlen(a)
+#else
+#	define USE_GNU
+#endif
+
 #endif /* !PORTABILITY_H */

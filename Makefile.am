@@ -1,7 +1,7 @@
 #
-# linux-ha: Linux-HA heartbeat code
+# linux-ha: Linux-HA telecom code
 #
-# Copyright (C) 2001 Michael Moerz
+# Copyright (C) 2002 Alan Robertson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License

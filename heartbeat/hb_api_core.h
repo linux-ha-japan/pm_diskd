@@ -21,6 +21,7 @@
 #ifndef _HB_API_CORE_H
 #	define _HB_API_CORE_H 1
 #include <sys/types.h>
+#include <clplumbing/longclock.h>
 #include <ha_msg.h>
 
 /*
@@ -32,15 +33,18 @@ typedef struct client_process {
 	pid_t	pid;		/* PID of client process */
 	uid_t	uid;		/* UID of client  process */
 	int	iscasual;	/* 1 if this is a "casual" client */
-	int	beingremoved;	/* 1 if client is being removed */
-	FILE*	input_fifo;	/* Input FIFO file pointer */
-	GList*	msgQ;		/* Queue of msgs for client */
-	int	msgcount;	/* length of client message queue */
-	int     signal;		/* What signal to indicate new msgs with */
-	int     desired_types;	/* A bit mask of desired message types*/
+	int		beingremoved;	/* 1 if client is being removed */
+	FILE*		input_fifo;	/* Input FIFO file pointer */
+	GList*		msgQ;		/* Queue of msgs for client */
+	int		msgcount;	/* length of client message queue */
+	int    	 signal;		/* What signal to indicate new msgs */
+	int   	  desired_types;	/* A bit mask of desired message types*/
 	struct client_process*  next;
-	GPollFD	gpfd;		/* Glib main Poll file descriptor */
-	guint	g_source_id;	/* return from g_source_add */
+	GPollFD		gpfd;		/* Glib main Poll file descriptor */
+	guint		g_source_id;	/* return from g_source_add */
+	guint		g_app_hb_id;	/* Application heartbeat timer id */
+	longclock_t	next_app_hb;	/* Next application heartbeat time */
+	longclock_t	app_hb_ticks;	/* ticks between app heartbeats */
 }client_proc_t;
 
 /*

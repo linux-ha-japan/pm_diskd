@@ -88,6 +88,10 @@ static int api_ping_iflist(const struct ha_msg* msg, struct node_info * node
 ,	struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason);
 
+static void	api_client_hb_stop(client_proc_t* client);
+static void	api_client_hb_settime(client_proc_t* client, unsigned long ms);
+static void	api_client_hb_tickle(client_proc_t* client);
+
 struct api_query_handler query_handler_list [] = {
 	{ API_SIGNOFF, api_signoff },
 	{ API_SETFILTER, api_setfilter },
@@ -949,6 +953,7 @@ api_remove_client(client_proc_t* req, const char * reason)
 
 				g_main_remove_poll(&client->gpfd);
 				g_source_remove(client->g_source_id);
+				api_client_hb_stop(client);
 			}
 			/* Clean up after casual clients */
 			if (client->iscasual) {
@@ -972,6 +977,43 @@ api_remove_client(client_proc_t* req, const char * reason)
 		prev = client;
 	}
 	ha_log(LOG_ERR,	"api_remove_client: could not find pid [%d]", req->pid);
+}
+
+static void
+api_client_hb_stop(client_proc_t* client)
+{
+	if (client->g_app_hb_id) {
+		g_source_remove(client->g_app_hb_id);
+	}
+	client->g_app_hb_id = 0;
+}
+
+static void
+api_client_hb_settime(client_proc_t* client, unsigned long ms)
+{
+	/*FIXME!! */
+	(void)api_client_hb_settime;
+
+	client->app_hb_ticks =	msto_longclock(ms);
+
+	if (ms == 0) {
+		api_client_hb_stop(client);
+		return;
+	}
+
+	api_client_hb_tickle(client);
+}
+
+static void
+api_client_hb_tickle(client_proc_t* client)
+{
+
+	api_client_hb_stop(client);
+
+	client->next_app_hb
+	=	add_longclock(time_longclock(), client->app_hb_ticks);
+
+	/* FIXME!  ENABLE CHECKING OF HEARTBEATS! */
 }
 
 /*

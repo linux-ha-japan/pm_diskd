@@ -1,7 +1,7 @@
 #
-# pils: Linux-HA heartbeat code
+# heartbeat: Linux-HA telecom code: application heartbeat daemon
 #
-# Copyright (C) 2001 Alan Robertson
+# Copyright (C) 2002 Alan Robertson
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -20,37 +20,29 @@
 MAINTAINERCLEANFILES    = Makefile.in
 
 INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
-			-I$(top_builddir)/linux-ha -I$(top_srcdir)/linux-ha  \
 			-I$(top_builddir)/libltdl -I$(top_srcdir)/libltdl
 
-
-CFLAGS			= @CFLAGS@
-
-## include files
-#pkginclude_HEADERS	= $(top_srcdir)/include/pils/plugin.h \
-#			$(top_srcdir)/include/pils/interface.h
-
-## binaries
-#sbin_PROGRAMS		= main
+hadir			= $(sysconfdir)/ha.d
+halibdir		= $(libdir)/@HEARTBEATPKG@
+commmoddir		= $(halibdir)/modules/comm
+havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
 
 
-#main_SOURCES		= main.c
+CFLAGS			= @CFLAGS@	\
+-DVAR_LIB_D='"$(havarlibdir)"'
 
-#main_LDADD		= libpils.la $(top_builddir)/libltdl/libltdlc.la \
-#			$(GLIBLIB) \
-#			$(top_builddir)/replace/libreplace.la
-#main_LDFLAGS		= @LIBADD_DL@ @LIBLTDL@ -export-dynamic -dlopen force -dlopen self
+## binary progs
+halib_PROGRAMS		= apphbd
 
+## SOURCES
+apphbd_SOURCES	= apphbd.c
+apphbd_LDADD		= $(top_builddir)/replace/libreplace.la	\
+			$(top_builddir)/lib/pils/libpils.la	\
+			$(top_builddir)/lib/clplumbing/libplumb.la	\
+			$(top_builddir)/libltdl/libltdlc.la 	\
+			$(GLIBLIB)
 
-## libraries
+apphbd_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
+			-dlpreopen force \
+			-dlopen self
 
-lib_LTLIBRARIES		= libpils.la
-
-plugindir		= $(pkglibdir)/plugins/test
-plugin_LTLIBRARIES	= test.la 
-
-libpils_la_SOURCES	= pils.c
-libpils_la_LDFLAGS	= -version-info 0:0:0
-libpils_la_LIBADD	= $(top_builddir)/libltdl/libltdlc.la $(GLIBLIB)
-test_la_SOURCES		= test.c
-test_la_LDFLAGS		= -export-dynamic -module -avoid-version

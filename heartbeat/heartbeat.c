@@ -1,9 +1,9 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.188 2002/04/29 07:21:57 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.189 2002/06/06 06:10:03 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
  *
- * Copyright (C) 1999,2000,2001 Alan Robertson <alanr@unix.sh>
+ * Copyright (C) 1999-2002 Alan Robertson <alanr@unix.sh>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -6040,6 +6040,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.189  2002/06/06 06:10:03  alan
+ * Fixed some problems running with newer versions of libtool and automake
+ * Added first draft of code for apphbd daemon
+ * Added beginnings of application heartbeating for heartbeat clients.
+ *
  * Revision 1.188  2002/04/29 07:21:57  alan
  * Small code reformatting...
  *

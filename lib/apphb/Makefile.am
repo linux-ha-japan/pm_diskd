@@ -1,7 +1,7 @@
 #
-# pils: Linux-HA heartbeat code
+# apphb: OCF application heartbeat library
 #
-# Copyright (C) 2001 Alan Robertson
+# Copyright (C) 2002 Alan Robertson, International Business Machines
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -26,31 +26,12 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 
 CFLAGS			= @CFLAGS@
 
-## include files
-#pkginclude_HEADERS	= $(top_srcdir)/include/pils/plugin.h \
-#			$(top_srcdir)/include/pils/interface.h
-
-## binaries
-#sbin_PROGRAMS		= main
-
-
-#main_SOURCES		= main.c
-
-#main_LDADD		= libpils.la $(top_builddir)/libltdl/libltdlc.la \
-#			$(GLIBLIB) \
-#			$(top_builddir)/replace/libreplace.la
-#main_LDFLAGS		= @LIBADD_DL@ @LIBLTDL@ -export-dynamic -dlopen force -dlopen self
-
-
 ## libraries
 
-lib_LTLIBRARIES		= libpils.la
+lib_LTLIBRARIES		= libapphb.la
 
-plugindir		= $(pkglibdir)/plugins/test
-plugin_LTLIBRARIES	= test.la 
+libapphb_la_SOURCES	= 		\
+			apphb.c	
 
-libpils_la_SOURCES	= pils.c
-libpils_la_LDFLAGS	= -version-info 0:0:0
-libpils_la_LIBADD	= $(top_builddir)/libltdl/libltdlc.la $(GLIBLIB)
-test_la_SOURCES		= test.c
-test_la_LDFLAGS		= -export-dynamic -module -avoid-version
+libapphb_la_LDFLAGS	= -version-info 0:0:0
+
