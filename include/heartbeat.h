@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.5 2001/10/04 21:14:30 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.6 2001/10/12 19:29:38 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -106,7 +106,7 @@ enum deadreason {
 #	define HA_PLUGIN_D	HALIB "/plugins"
 #endif
 #ifndef TTY_LOCK_D
-#	if !defined(__FreeBSD__)
+#	if defined(linux)
 #		define	TTY_LOCK_D	"/var/lock"
 #	else
 #		define	TTY_LOCK_D	"/var/spool/lock"
