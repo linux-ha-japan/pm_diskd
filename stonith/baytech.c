@@ -126,6 +126,7 @@ static struct Etoken Rebooting[] =	{ {"ebooting selected outlet", 0, 0}
 static int	RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout);
 static int	RPC_connect_device(struct BayTech * bt);
 static int	RPCLogin(struct BayTech * bt);
+static int	RPCRobustLogin(struct BayTech * bt);
 static int	RPCNametoOutlet(struct BayTech*, const char * name);
 static int	RPCReset(struct BayTech*, int unitnum, const char * rebootid);
 static int	RPCScanLine(struct BayTech* bt, int timeout, char * buf, int max);
@@ -291,6 +292,17 @@ RPCLogin(struct BayTech * bt)
 	return(S_OK);
 }
 
+static int
+RPCRobustLogin(struct BayTech * bt)
+{
+	int	rc=S_OOPS;
+
+	for (j=0; j < 5 && rc != S_OK; ++j) {
+		rc = RPCLogin(bt);
+	}
+	return rc;
+}
+
 /* Log out of the Baytech RPC */
 
 static int
@@ -404,7 +416,7 @@ RPC_onoff(struct BayTech* bt, int unitnum, const char * unitid, int req)
 		return(S_OOPS);
 	}
 
-	if ((rc = RPCLogin(bt) != S_OK)) {
+	if ((rc = RPCRobustLogin(bt) != S_OK)) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(rc);
 	}
@@ -536,7 +548,7 @@ st_status(Stonith  *s)
 		return(S_OOPS);
 	}
 
-	if ((rc = RPCLogin(bt) != S_OK)) {
+	if ((rc = RPCRobustLogin(bt) != S_OK)) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(rc);
 	}
@@ -578,7 +590,7 @@ st_hostlist(Stonith  *s)
 		return(NULL);
 	}
 
-	if (RPCLogin(bt) != S_OK) {
+	if (RPCRobustLogin(bt) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 		return(NULL);
 	}
@@ -764,7 +776,7 @@ st_reset(Stonith * s, int request, const char * host)
 		return(rc);
 	}
 
-	if ((rc = RPCLogin(bt)) != S_OK) {
+	if ((rc = RPCRobustLogin(bt)) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
 	}else{
 		int	noutlet;

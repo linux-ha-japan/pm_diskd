@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.36 2000/11/12 04:35:47 alan Exp $
+#	$Id: Makefile,v 1.37 2000/11/12 21:02:17 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -171,7 +171,7 @@ install_bin: all
 	[ -p $(FIFO) ]      || mkfifo -m 600    $(FIFO)
 	[ -p $(APIREG) ]    || mkfifo -m 620    $(APIREG)
 	[ -d $(APIDIR) ]    || mkdir  -m 755 -p $(APIDIR)
-	[ -d $(APICASUAL) ] || mkdir  -m 755 -p $(APICASUAL)
+	[ -d $(APICASUAL) ] || mkdir  -m 1770 -p $(APICASUAL)
 	chgrp $(APIGROUP) $(APICASUAL) $(APIREG)
 	$(INSTALL) -cm 755 $(LIBCMDS) $(LIBSCRIPTS) $(HALIB)
 	$(INSTALL) -cm 755 $(RCCMDS) $(HARCD)

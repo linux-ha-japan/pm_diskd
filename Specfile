@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.64 2000/11/12 04:46:03 alan Exp $
+#	$Id: Specfile,v 1.65 2000/11/12 21:02:17 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -34,7 +34,7 @@ It implements the following kinds of heartbeats:
 	- UDP/IP braodcast (ethernet, etc)
 	- Bidirectional Serial PPP/UDP Rings (using PPP)
 	- "ping" heartbeats (for routers, switches, etc.)
-	   (used for breaking ties in 2-node systems)
+	   (to be used for breaking ties in 2-node systems)
 
 %description ldirectord
 The Linux Director Daemon (ldirectord) was written by Jacob Rief
@@ -82,6 +82,7 @@ machine. It's simple and reliable, albiet admittedly brutal.
 	There are probably more, related to input ;-)
   + More SuSE-compatibility changes thanks to Marius Tomaschewski <mt@suse.de>
   + Removed the 8-alias limitation from the IPaddr resource script.
+  + IP address takeovers now occur faster (ARPs now occur asynchronously)
   + Added two new Stonith modules (thanks to Eric Ayers)
   + Fetch broadcast IP from kernel calls instead of output of ifconfig in udp.c
   + Accept multiple arguments for resource scripts
@@ -95,6 +96,7 @@ machine. It's simple and reliable, albiet admittedly brutal.
   + Added a group for heartbeat API clients and changed modes of things
 	to match.
   + Moved several files, etc. from /var/run to /var/lib/heartbeat
+  + Baytech Stonith code now retries failed login sequences
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
@@ -359,7 +361,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 %attr (600, root, root)       /var/lib/%PKG%/fifo
 %attr (750, root, %APIGROUP%) /var/lib/%PKG%/api
 %attr (620, root, %APIGROUP%) /var/lib/%PKG%/register
-%attr (770, root, %APIGROUP%) /var/lib/%PKG%/casual
+%attr (1770, root, %APIGROUP%) /var/lib/%PKG%/casual
 %doc doc/*
 
 #  Things for the director deamon
