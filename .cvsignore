@@ -7,3 +7,4 @@ libtool
 config.*
 Makefile.in
 Makefile
+.*.swp
