@@ -1,6 +1,11 @@
-#!/bin/bash
-#Running bash because /bin/sh is a complete piece of shit on solaris
-#I wonder how long it will take the fuckwits at Sun to wake up
+#!/bin/sh
+
+#
+#	This code is known to work with bash, might have trouble with /bin/sh
+#	on some systems.  Our goal is to not require dragging along anything
+#	more than we need.  So, if this doesn't work on your system,
+#	(i.e., your /bin/sh is broken) send us a patch.
+#
 
 # Run this to generate all the initial makefiles, etc.
 
@@ -14,64 +19,86 @@ srcdir=`dirname $0`
 test -z "$srcdir" && srcdir=.
 
 THEDIR=`pwd` || die "Error running pwd"
-cd $srcdir || die "Error cding into \"$srcdir\""
 
+#
+#	All errors are fatal from here on out...
+#	The shell will complain and exit on any "uncaught" error code.
+#
+#	Uncaught means not in the if-clause of a conditional statement
+#
+set -e
+
+#
+#	And this will ensure sure some kind of error message comes out.
+#
+trap 'echo ""; echo "$0 exiting due to error (sorry!)." >&2' 0
+cd $srcdir
 
 DIE=0
 
-(autoconf --version) < /dev/null > /dev/null 2>&1 || {
-	echo >&2
-	echo "You must have autoconf installed to compile heartbeat." >&2
-	echo "Download the appropriate package for your distribution," >&2
-	echo "or get the source tarball at " \
-             "ftp://ftp.gnu.org/pub/gnu/autoconf/" >&2
-	DIE=1
-}
+gnu="ftp://ftp.gnu.org/pub/gnu/"
 
-(automake --version) < /dev/null > /dev/null 2>&1 || {
-	echo >&2
-	echo "You must have automake installed to compile heartbeat." >&2
-	echo "Download the appropriate package for your distribution," >&2
-	echo "or get the source tarball at " \
-             "ftp://ftp.gnu.org/pub/gnu/automake/" >&2
-	DIE=1
-}
+for command in autoconf automake libtoolize
+do
+    case $command in 
+      libtoolize)
+    	  URL=$gnu/libtool/
+          pkg=libtool;;
 
-(libtoolize --version) < /dev/null > /dev/null 2>&1 || {
-	echo >&2
-	echo "You must have libtool installed to compile heartbeat." >&2
-	echo "Download the appropriate package for your distribution," >&2
-	echo "or get the source tarball at " \
-             "ftp://ftp.gnu.org/pub/gnu/libtool/" >&2
-	DIE=1
-}
+      *)  URL=$gnu/libtool/$command/
+	  pkg=$command;;
+    esac
+  if
+    $command --version </dev/null >/dev/null 2>&1
+  then
+    : OK $pkg is installed
+  else
+    cat <<-!EOF >&2
+
+	You must have $pkg installed to compile the linux-ha package.
+	Download the appropriate package for your system,
+	or get the source tarball at: $URL
+	!EOF
+    DIE=1
+  fi
+done
 
 if test "$DIE" -eq 1; then
 	exit 1
 fi
 
-if test -z "$*"; then
-	echo "I am going to run ./configure with no arguments - if you wish "
-        echo "to pass any to it, please specify them on the $0 command line."
+if
+  test -z "$*"
+then
+  cat <<-!
+	Running ./configure with no arguments.
+	If you wish to pass any arguments to it, please specify them
+	       on the $0 command line.
+	!
 fi
 
+#	Is this set in the environment before starting?
 case $CC in
-xlc )
+  xlc)
     am_opt=--include-deps;;
 esac
 
-aclocal $ACLOCAL_FLAGS || die "Error running aclocal"
+aclocal $ACLOCAL_FLAGS
 
-(autoheader --version)  < /dev/null > /dev/null 2>&1 && autoheader || \
-        die "Error running autoheader"
+#
+#	Do we really want to ignore missing autoheader?
+#
+(autoheader --version)  < /dev/null > /dev/null 2>&1	\
+&&		autoheader
 
-libtoolize --ltdl --force --copy || die "Error running libtoolize (sic)"
-automake --add-missing $am_opt || die "Error running automake"
-autoconf || die "Error running autoconf"
+libtoolize --ltdl --force --copy
+automake --add-missing $am_opt
+autoconf
 
-cd $THEDIR || die "Error cding into \"$THEDIR\""
+cd $THEDIR
 
-$srcdir/configure "$@" || die "Error runnig configure"
+$srcdir/configure "$@"
 
 echo 
-echo "Now type 'make' to compile heartbeat."
+echo "Now type 'make' to compile the system."
+trap '' 0
