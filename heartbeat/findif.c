@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.24 2003/04/14 09:53:17 horms Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.25 2003/04/14 10:22:44 horms Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -87,7 +87,7 @@ static const char _findif_c [] = "$Id: findif.c,v 1.24 2003/04/14 09:53:17 horms
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 void ConvertQuadToInt (char *dest);
 
@@ -121,13 +121,12 @@ SearchRoute *search_mechs[] = {
 void GetAddress (char *inputaddress, char **address, char **netmaskbits
 ,	 char **bcast_arg, char **if_specified);
 
-void ValidateNetmaskBits (char *netmaskbits, long *netmask);
+void ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask);
 
 const char *	cmdname = "findif";
 void usage(void);
 
 #define DELIM	'/'
-#define	BAD_NETMASK	(~0L)
 #define	BAD_BROADCAST	(0L)
 #define	MAXSTR	128
 
@@ -398,7 +397,7 @@ GetAddress (char *inputaddress, char **address, char **netmaskbits
 }
 
 void
-ValidateNetmaskBits (char *netmaskbits, long *netmask)
+ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask)
 {
 	if (netmaskbits != NULL) {
 		if ((strspn(netmaskbits, "0123456789")
@@ -408,7 +407,7 @@ ValidateNetmaskBits (char *netmaskbits, long *netmask)
 			" [%s]", netmaskbits);
 			usage();
 		}else{
-			long	bits = atoi(netmaskbits);
+			unsigned long	bits = atoi(netmaskbits);
 
 			if (bits < 1 || bits > 32) {
 				fprintf(stderr
@@ -433,7 +432,7 @@ main(int argc, char ** argv) {
 	char *	netmaskbits = NULL;
 	struct in_addr	in;
 	struct in_addr	addr_out;
-	long	netmask = BAD_NETMASK;
+	unsigned long	netmask;
 	char	best_if[MAXSTR];
 	char *	if_specified = NULL;
 	unsigned long	best_netmask = INT_MAX;
@@ -487,7 +486,7 @@ main(int argc, char ** argv) {
 		}
 	}
 
-	if (netmask != BAD_NETMASK) {
+	if (netmaskbits) {
 		best_netmask = netmask;
 	}else if (best_netmask == 0L) {
 		fprintf(stderr
@@ -625,6 +624,9 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.25  2003/04/14 10:22:44  horms
+ * should now work correclty with /32
+ *
  * Revision 1.24  2003/04/14 09:53:17  horms
  * minor reformating
  *
