@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.sh,v 1.5 1999/10/03 03:14:04 alanr Exp $
+#	$Id: heartbeat.sh,v 1.6 1999/10/04 01:47:22 alanr Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -106,7 +106,7 @@ init_watchdog() {
       fi;;
   esac
   if
-    [ ! -c $WATCHDEV -a $insmod = yes ]
+    [ "X$WATCHDEV" != X -a ! -c "$WATCHDEV" -a $insmod = yes ]
   then
     minor=`cat /proc/misc | grep watchdog | cut -c1-4`
     mknod -m 600 $WATCHDEV c $MISCDEV $minor
@@ -298,6 +298,10 @@ exit $RC
 #
 #
 #  $Log: heartbeat.sh,v $
+#  Revision 1.6  1999/10/04 01:47:22  alanr
+#  Fix the problem reported by Thomas Hepper with the code for loading the watchdog
+#  device correctly.
+#
 #  Revision 1.5  1999/10/03 03:14:04  alanr
 #  Moved resource acquisition to 'heartbeat', also no longer attempt to make the FIFO, it's now done in heartbeat.  It should now be possible to start it up more readily...
 #
