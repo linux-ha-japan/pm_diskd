@@ -579,6 +579,29 @@ int st_reset(Stonith * s, int request, const char *host)
 			continue;
 		}
 		
+	        // prepare oid
+	        snprintf(objname, MAX_STRING, OID_OUTLET_REBOOT_DURATION, outlet);
+
+	        // read reboot_duration of the port
+	        if ((state = APC_read(ad->sptr, 
+			objname, ASN_INTEGER)) == NULL) {
+#ifdef APC_DEBUG
+		   syslog(LOG_DEBUG, 
+			"%s: cannot read outlet's reboot duration.",
+		       __FUNCTION__);
+#endif
+		   return (S_ACCESS);
+	        }
+	        if (outlet == 0) {
+		   // save the inital value of the first port
+		   reboot_duration = *state;
+	        } else if (reboot_duration != *state) {
+		  syslog(LOG_WARNING, "%s: Outlet %d has a different reboot duration!", 
+				__FUNCTION__, outlet);
+	    	  if (reboot_duration < *state)
+				reboot_duration = *state;
+	        }
+	    
 		/* Ok, add it to the list of outlets to control */
 		outlets[num_outlets]=outlet;
 		num_outlets++;
@@ -617,28 +640,6 @@ int st_reset(Stonith * s, int request, const char *host)
 		syslog(LOG_DEBUG, "%s: command pending.", __FUNCTION__);
 #endif
 		return (S_RESETFAIL);
-	    }
-	    // prepare oid
-	    snprintf(objname, MAX_STRING, OID_OUTLET_REBOOT_DURATION, outlet);
-
-	    // read reboot_duration of the port
-	    if ((state = APC_read(ad->sptr, 
-			objname, ASN_INTEGER)) == NULL) {
-#ifdef APC_DEBUG
-		syslog(LOG_DEBUG, 
-			"%s: cannot read outlet's reboot duration.",
-		       __FUNCTION__);
-#endif
-		return (S_ACCESS);
-	    }
-	    if (i == 0) {
-		// save the inital value of the first port
-		reboot_duration = *state;
-	    } else if (reboot_duration != *state) {
-		syslog(LOG_WARNING, "%s: Outlet %d has a different reboot duration!", 
-				__FUNCTION__, outlet);
-	    	if (reboot_duration < *state)
-				reboot_duration = *state;
 	    }
 	    
 	    // prepare objnames
