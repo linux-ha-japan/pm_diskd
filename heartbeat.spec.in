@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.63 2003/05/22 06:07:18 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.64 2003/06/14 16:42:46 alan Exp $
 
 # Workaround for a change in RPM 4.1.x; needs proper fixing soon!
 %define _unpackaged_files_terminate_build 0
@@ -589,12 +589,6 @@ install -m 644 rc.config.heartbeat $TEMPL
 @sysconfdir@/ha.d/shellfuncs
 @sysconfdir@/ha.d/rc.d
 @sysconfdir@/ha.d/README.config
-@sysconfdir@/ha.d/cts/CM_fs.py
-@sysconfdir@/ha.d/cts/CM_hb.py
-@sysconfdir@/ha.d/cts/CTS.py
-@sysconfdir@/ha.d/cts/CTSaudits.py
-@sysconfdir@/ha.d/cts/CTSlab.py
-@sysconfdir@/ha.d/cts/CTStests.py
 @libdir@/heartbeat
 @libdir@/libhbclient.*
 @libdir@/libccmclient.*
