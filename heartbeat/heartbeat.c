@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.242 2003/03/07 01:13:05 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.243 2003/03/24 08:17:04 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3911,6 +3911,12 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.243  2003/03/24 08:17:04  horms
+ * merged in changes from stable branch
+ *
+ * Revision 1.241.2.1  2003/03/12 18:24:50  lars
+ * Syncing 1.0.x series with CVS head in preparation for 1.0.2 release.
+ *
  * Revision 1.242  2003/03/07 01:13:05  alan
  * Put in code for a time-based generation number option.
  *

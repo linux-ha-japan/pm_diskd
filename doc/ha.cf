@@ -113,6 +113,15 @@ logfacility	local0
 #
 #mcast eth0 225.0.0.1 694 1 1
 #
+#	Set up a unicast / udp heartbeat medium
+#	ucast [dev] [peer-ip-addr]
+#
+#	[dev]		device to send/rcv heartbeats on
+#	[peer-ip-addr]	IP address of peer to send packets to
+#
+#ucast eth0 192.168.1.2
+#
+#
 #	Watchdog is the watchdog timer.  If our own heart doesn't beat for
 #	a minute, then our machine will reboot.
 #

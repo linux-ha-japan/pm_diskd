@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.38 2003/03/15 02:18:54 horms Exp $
+#	$Id: IPaddr.in,v 1.39 2003/03/24 08:17:05 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -644,7 +644,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.38 2003/03/15 02:18:54 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.39 2003/03/24 08:17:05 horms Exp $"
 }
 
 #
@@ -691,6 +691,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.39  2003/03/24 08:17:05  horms
+# merged in changes from stable branch
+#
 # Revision 1.38  2003/03/15 02:18:54  horms
 # Fixed mkdir logic and removed bash-isms. Alan
 #

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: Delay.in,v 1.1 2003/03/07 01:18:57 alan Exp $
+#	$Id: Delay.in,v 1.2 2003/03/24 08:17:05 horms Exp $
 #
 #	This script is a test resource for introducing delay.
 #
@@ -14,7 +14,7 @@
 usage() {
   cat <<-!
 	usage: $0 [delay [stopdelay]] {start|stop|status|monitor}";
-  	$Id: Delay.in,v 1.1 2003/03/07 01:18:57 alan Exp $
+  	$Id: Delay.in,v 1.2 2003/03/24 08:17:05 horms Exp $
 	!
   exit 1
 }

@@ -19,3 +19,4 @@ copyright-stamp
 install-stamp
 build-stamp
 .*.swp
+autom4te*

@@ -45,7 +45,7 @@ halib_PROGRAMS		= recoverymgrd
 recoverymgrd_SOURCES	= y.tab.c lex.yy.c  recoverymgrd.c 
 
 recoverymgrd_CFLAGS		= -DHA_VARLIBDIR='"@HA_VARLIBDIR@"'
-recoverymgrd_LDADD		= $(COMMONLIBS) 				\
+recoverymgrd_LDADD		= $(COMMONLIBS) 			\
 			$(top_builddir)/lib/pils/libpils.la		\
 			$(top_builddir)/lib/apphb/libapphb.la		\
 			$(top_builddir)/replace/libreplace.la		\

@@ -36,6 +36,8 @@ Contributors, ordered by last name:
 	Friedrich Lobenstock <fl@fl.priv.at> - SuSE compatibility fixes
 	Lars Marowsky-Brée <lmb@suse.de>
 		LVM, ICP and ssh STONITH support, many fixes
+		SuSE package maintainer
+		STABLE_1_0 / 1.0.x release maintenance
 	Michael Moerz <mike@cubit.at> - automake support
 	Ram Pai <linuxram@us.ibm.com> - Consensus Membership module
 	Rudy Pawul <rpawul@iso-ne.com>

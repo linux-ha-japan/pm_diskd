@@ -1,8 +1,8 @@
-heartbeat (1.0.1-1) unstable; urgency=low
+heartbeat (1.1.1-1) unstable; urgency=low
 
   * New upstream
 
- -- Simon Horman <horms@vergenet.net>  Mon, 10 Mar 2003 13:27:07 +1100
+ -- Simon Horman <horms@vergenet.net>  Mon, 24 Mar 2003 10:28:08 +0900
 
 heartbeat (0.4.9-1) unstable; urgency=low
 

@@ -714,6 +714,17 @@ get_nodelist(llc_private_t* pi)
 		zap_nodelist(pi);
 		ZAPMSG(reply);
 	}
+	if (reply == NULL) {
+		ha_api_log(LOG_ERR, "General read_api_msg() failure");
+	}else if (result == NULL) {
+		ha_api_log(LOG_ERR, "API reply missing " F_APIRESULT " field.");
+	}else if (strcmp(result, API_MORE) != 0 && strcmp(result, API_OK) != 0) {
+		ha_api_log(LOG_ERR, "Unexpected API result value: [%s]", result);
+	}else if (ha_msg_value(reply, F_NODENAME) == NULL) {
+		ha_api_log(LOG_ERR, "No nodename in API reply");
+	}else{
+		ha_api_log(LOG_ERR, "new_stringlist() failure.");
+	}
 
 	return HA_FAIL;
 }

@@ -111,6 +111,13 @@ lcase() {
 }
 
 GetConfigureFLAGS() {
+  case $CROSSCOMPILE in
+    yes)	GetCrossConfigureFlags;;
+    *)		GetNativeConfigureFlags;;
+  esac
+}
+
+GetNativeConfigureFlags() {
   case `uname -s | lcase` in
     linux)	ConfigureLinux;;
     aix)	ConfigureAIX;;
@@ -122,6 +129,15 @@ GetConfigureFLAGS() {
     *)		ConfigureGenericUNIX;;
   esac
 }
+
+GetCrossConfigureFlags() {
+  case $CC in
+           # Don't force endianness on ARM - it can be either type
+    *arm*) FLAGS="--prefix=/usr/local/arm-linux/arm-linux --sysconfdir=/etc --localstatedir=/var";;
+    *)	   echo "Error: Unsupported cross-compiler: [$CC]"; exit 1;;
+  esac
+}
+
 
 Run() {
   echo "Running $@"
@@ -139,12 +155,17 @@ PackageItUp() {
   fi
 }
 
+cmd=`echo $1 | lcase`
+
+case $cmd in
+  cross-*)	CROSSCOMPILE=yes; cmd=`echo $cmd |cut -c7-`;;
+  *)		CROSSCOMPILE=no;;
+esac
 
 GetConfigureFLAGS
 echo ""
 echo "Configure flags for $CFENV: $FLAGS"
 
-cmd=`echo $1 | lcase`
 shift
 
 case $cmd in

@@ -1,4 +1,8 @@
-#	$Id: heartbeat.spec.in,v 1.55 2003/02/24 13:35:25 lclaudio Exp $
+#	$Id: heartbeat.spec.in,v 1.56 2003/03/24 08:17:04 horms Exp $
+
+# Workaround for a change in RPM 4.1.x; needs proper fixing soon!
+%define _unpackaged_files_terminate_build 0
+
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -68,6 +72,27 @@ PILS is designed to support any number of plugins
 implementing any number of interfaces.
 
 %changelog
+* Wed Mar 19 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
++ Version 1.0.2:
+  + Fixed comment errors in heartbeat init script to allow it to run on RH 8.0
+  + Changed apphbd to use poll(2) instead of sigtimedwait(2)
+  + Put missing files into tarball
+  + Documentation improvements for IPaddr and other things
+  + Fixed an error in hb_standby which kept it from working if releasing 
+    resources takes more than 10 seconds
+  + Added a fix to allow heartbeat to run on systems without writable disk
+    (like routers booting from CD-ROM)
+  + Added configuration file for apphbd
+  + Added fix from Adam Li to keep recoverymgr stop looping at high priority
+  + Added fix to ServeRAID resource to make it work with (new) supported 
+    hardware
+  + Added Delay resource script
+  + Added fix to Filesystem to allow it to support NFS mounts and allow
+    user to specify mount options
+  + Added fix to IPaddr to make tmp directory for restoring loopback device
+  + Added fix to ipcsocket code to deal correctly with EAGAIN when sending
+    message body
+
 * Mon Feb 17 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
 + Version 1.0.1:
   + Fixed some compile errors on different platforms, and library versions
@@ -568,24 +593,25 @@ install -m 644 rc.config.heartbeat $TEMPL
 %doc @mandir@/man8/heartbeat.8*
 %doc @mandir@/man8/apphbd.8*
 %doc @mandir@/man8/stonith.8*
-%doc doc/AUTHORS 
-%doc doc/COPYING 
-%doc doc/ChangeLog 
+%doc doc/AUTHORS
+%doc doc/COPYING
+%doc doc/ChangeLog
+%doc doc/GettingStarted.html
 %doc doc/GettingStarted.txt
-%doc doc/GettingStarted.html 
+%doc doc/HardwareGuide.html
 %doc doc/HardwareGuide.txt
-%doc doc/HardwareGuide.html 
-%doc doc/README 
+%doc doc/README
+%doc doc/Requirements.html
 %doc doc/Requirements.txt
-%doc doc/Requirements.html 
-%doc doc/authkeys 
-%doc doc/faqntips.html 
+%doc doc/apphbd.cf
+%doc doc/authkeys
+%doc doc/faqntips.html
 %doc doc/faqntips.txt
-%doc doc/rsync.html 
-%doc doc/rsync.txt
-%doc doc/ha.cf 
-%doc doc/startstop
+%doc doc/ha.cf
 %doc doc/haresources
+%doc doc/rsync.html
+%doc doc/rsync.txt
+%doc doc/startstop
 #
 # if ENABLE_SNMP_SUBAGENT=1; then
 #	install mib files and other subagent related stuff;

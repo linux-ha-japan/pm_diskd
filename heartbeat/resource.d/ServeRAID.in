@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.9 2003/03/12 15:51:09 alan Exp $
+# $Id: ServeRAID.in,v 1.10 2003/03/24 08:17:05 horms Exp $
 # 
 # ServeRAID
 #
@@ -85,7 +85,7 @@ usage() {
 	You will need at least version 5.10 (~July 2002 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.9 2003/03/12 15:51:09 alan Exp $
+	$Id: ServeRAID.in,v 1.10 2003/03/24 08:17:05 horms Exp $
 	!
   exit 1
 }
