@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.9 2001/10/12 22:38:06 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.10 2001/10/25 17:06:04 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -51,6 +51,53 @@ machine in the cluster is not using a resource, pull the plug on the other
 machine. It's simple and reliable, albeit admittedly brutal.
 
 %changelog
+
+* Fri Oct 26 2001 Alan Robertson <alanr@unix.sh>,
+     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
+     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
+     Guenther Thomsen <thomsen@cs.tu-berlin.de>,
+     Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
+     Marcelo Tosatti <marcelo@conectiva.com.br>,
+     Horms <horms@vergenet.net>, Eric Ayers <eric.ayers@compgen.com>,
+     Mike Tilstra <conrad@sistina.com> 
+     Juan Pedro Paredes Caballero <juampe@retemail.es>
+     Andreas Piesk's <a.piesk@gmx.net>, Chris Wright <chris@wirex.com>
+
++ Version 0.5.0 beta series
+
+  + Cluster partitioning  now handled correctly (really!)
+  + Complete rearchitecture of plugin system
+  + Complete restructure of build system to use automake and port things
+	to AIX, FreeBSD and solaris.
+  + Added Lclaudio's "standby" capability to put a node into standby
+	mode on demand.
+  + Added code to send out gratuitous ARP requests as well as gratuitous
+	arp replies during IP address takeover.
+  + Suppress stonith operations for nodes which went down gracefully.
+  + Significantly improved real-time performance
+  + Added code to make serial ports flush stale data on new connections.
+  + The Famous CLK_TCK compile time fixes (really!)
+  + Added a document which describes the heartbeat API
+  + Changed the code which makes FIFOs to not try and make the FIFOs for
+        named clients, and several other minor API client changes.
+  + Fixed a fairly rare client API bug where it would shut down the
+        client for no apparent reason.
+  + Added stonith plugins for: apcmaster, apcmastersnmp switches, and ssh
+        module (for test environments only)
+  + Integrated support for the Baytech RPC-3 switch into baytech module
+  + Fixes to APC UPS plugin
+  + Got rid of "control_process: NULL message" message
+  + Got rid of the "controlfifo2msg: cannot create message" message
+  + Added -h option to give usage message for stonith command...
+  + Changed where usage messages go depending on exit status from usage().
+  + Made some more functions static.
+  + Real-time performance improvement changes
+  + Updated the faqntips document
+  + Added a feature to heartbeat.h so that log messages get checked as
+        printf-style messages on GNU C compilers
+  + Changed several log messages to have the right parameters (discovered
+        as a result of the change above)
+  + Changed send_arp code to send out both ARP requests and responses
 
 * Fri Mar 16 2001 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
