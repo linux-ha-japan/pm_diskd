@@ -727,15 +727,19 @@ class RandomTests:
         self.CM = cm
         self.Env = cm.Env
         self.Scenario = scenario
+        self.Tests = []
 
         for test in tests:
             if not issubclass(test.__class__, CTStests.CTSTest):
                 raise ValueError("Init value must be a subclass of CTSTest")
+            if test.is_applicable():
+                self.Tests.append(test)
+
         if not scenario.IsApplicable():
                 raise ValueError("Scenario not applicable in"
                 " given Environment")
 
-        self.Tests=tests
+       
         self.Stats = {"success":0, "failure":0, "BadNews":0}
         self.IndividualStats= {}
 

@@ -172,6 +172,10 @@ class StartTest(CTSTest):
             return self.success()
         else:
             return self.failure("did not find pattern " + pat)
+
+    def is_applicable(self):
+        '''StartTest is always applicable'''
+        return 1
 #
 # We don't register StartTest because it's better when called by
 # another test...
@@ -211,6 +215,10 @@ class FlipTest(CTSTest):
         else:
             return self.failure("%s failure" % type)
 
+    def is_applicable(self):
+        '''FlipTest is always applicable'''
+        return 1
+
 #	Register FlipTest as a good test to run
 AllTestClasses.append(FlipTest)
 
@@ -245,6 +253,10 @@ class RestartTest(CTSTest):
         if not ret2:
             return self.failure("start failure")
         return self.success()
+
+    def is_applicable(self):
+        '''RestartTest is always applicable'''
+        return 1
 
 #	Register RestartTest as a good test to run
 AllTestClasses.append(RestartTest)
@@ -326,6 +338,13 @@ class StonithTest(CTSTest):
         else:
             return self.failure(reason)
 
+    def is_applicable(self):
+        '''StonithTest is applicable unless suppressed by CM.Env["DoStonith"] == FALSE'''
+
+        if self.CM.Env.has_key("DoStonith"):
+            return self.CM.Env["DoStonith"]
+        return 1
+
 #	Register StonithTest as a good test to run
 AllTestClasses.append(StonithTest)
 
@@ -371,6 +390,10 @@ class IPaddrtest(CTSTest):
             return self.failure("Could not start")
 
         return self.success()
+
+    def is_applicable(self):
+        '''IPaddrtest is always applicable (but shouldn't be)'''
+        return 1
 
 
 def TestList(cm):

@@ -283,6 +283,7 @@ if __name__ == '__main__':
 
     Environment = CtsLab(["sgi1", "sgi2"])
     #Environment["RandSeed"] = (1,2,3)
+    Environment["DoStonith"] = 0
     Environment.SupplyDefaults()
 
     print Environment
