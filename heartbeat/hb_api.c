@@ -826,10 +826,19 @@ api_flush_msgQ(client_proc_t* client)
 
 	fifoname = client_fifo_name(client, 0);
 
+	/*
+	 *	FIXME realtime:
+	 *	This code costs us realtime every time we open the fifo,
+	 *	because we might block searching for the FIFO inode.
+	 */
 	if ((fd=open(fifoname, O_WRONLY|O_NDELAY)) < 0) {
 		if (!client->beingremoved) {
-			ha_perror("api_send_client: can't open %s", fifoname);
-			api_remove_client(client, "FIFO");
+			/* Sometimes they've gone before we know it */
+			/* Then we get ENXIO.  So we ignore those. */
+			if (errno != ENXIO) {
+				ha_perror("api_send_client: can't open %s", fifoname);
+			}
+			api_remove_client(client, "FIFOerr");
 		}
 		return;
 	}
@@ -1502,6 +1511,13 @@ open_reqfifo(client_proc_t* client)
 
 	/* How about that! */
 	client->uid = s.st_uid;
+	/*
+	 *	FIXME realtime:
+	 *	This code costs us realtime.
+	 *	To fix it we need to switch to sockets which we only open
+	 *	once when we first start up.  Our socket-based IPC library
+	 *	is nicer, but it will take some work to get there...
+	 */
 	fd = open(fifoname, O_RDONLY|O_NDELAY);
 	if (fd < 0) {
 		return(NULL);
