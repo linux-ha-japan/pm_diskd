@@ -93,7 +93,11 @@ then
 	!
 fi
 
-AC_version=`autoconf --version | line | sed -e 's%^[^0-9]*%%'`
+oneline() {
+  read x; echo "$x"
+}
+
+AC_version=`autoconf --version | oneline | sed -e 's%^[^0-9]*%%'`
 AC_majvers=`echo "$AC_version" | sed 's%\..*%%'`
 AC_minvers=`echo "$AC_version" | sed 's%^.*\.%%'`
 AC_minnum=`echo  "$AC_minvers" | sed 's%[^0-9].*%%'`
