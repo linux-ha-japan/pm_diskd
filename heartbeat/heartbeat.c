@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.145 2001/10/12 22:38:06 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.146 2001/10/12 23:05:21 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -4451,12 +4451,18 @@ IncrGeneration(unsigned long * generation)
 }
 
 
-void ask_for_resources(struct ha_msg *msg)
+void
+ask_for_resources(struct ha_msg *msg)
 {
 
 	const char * info, * from;
 	int 	msgfromme;
 								
+	if (!nice_failback) {
+		ha_log(LOG_INFO
+		,	"Standby mode only implemented when nice_failback on");
+		return;
+	}
 	info = ha_msg_value(msg, F_COMMENT);
 	from = ha_msg_value(msg, F_ORIG);
 	msgfromme = !strcmp(from, curnode->nodename);
@@ -4542,6 +4548,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.146  2001/10/12 23:05:21  alan
+ * Put in a message about standby only being implemented when nice_failback
+ * is on.
+ *
  * Revision 1.145  2001/10/12 22:38:06  alan
  * Added Luis' patch for providing the standby capability
  *
