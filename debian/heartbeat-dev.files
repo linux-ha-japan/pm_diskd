@@ -32,5 +32,6 @@ usr/include/heartbeat/apphb.h
 usr/include/heartbeat/ha_msg.h
 usr/include/heartbeat/hb_api.h
 usr/include/heartbeat/heartbeat.h
+usr/include/heartbeat/ha_config.h
 usr/include/ocf/oc_event.h
 usr/include/ocf/oc_membership.h
