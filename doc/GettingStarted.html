@@ -46,11 +46,11 @@ between your clustered nodes (via the crossover cable).&nbsp; For an example,
 we will assume that our cluster will have the following addresses:
 <p>Node 1 (linuxha1):&nbsp;&nbsp; 192.168.85.1&nbsp; (normal 192x net)
 <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-10.0.0.1 (private 10x net)
+10.0.0.1 (private 10x net for heartbeat)
 <br>Node 2 (linuxha2):&nbsp;&nbsp; 192.168.85.2&nbsp; (192x)
 <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 10.0.0.2&nbsp; (10x)
-<br><i><font color="#FF0000">Note:&nbsp; Neither of these addresses should
+<br><i><font color="#FF0000">Note:&nbsp; Neither of the 192 addresses should
 be your "cluster address" - the address handled by heartbeat and failed
 over between nodes!</font></i>
 <p>&nbsp; Red Hat makes this easy during installation (please don't think
