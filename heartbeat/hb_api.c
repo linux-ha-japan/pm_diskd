@@ -104,6 +104,11 @@ extern int	UseOurOwnPoll;
 int		debug_client_count = 0;
 int		total_client_count = 0;
 client_proc_t*	client_list = NULL;	/* List of all our API clients */
+static gboolean	client_output_pending = FALSE;  
+                                     /* TRUE when any client has message
+					to be delivered */
+
+
 struct node_info *curnode;
 
 void api_process_request(client_proc_t* client, struct ha_msg *msg);
@@ -111,6 +116,7 @@ static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
 static void api_send_client_status(client_proc_t* client, const char * status
 ,	const char *	reason);
 static void api_flush_msgQ(client_proc_t* client);
+static void api_flush_pending_msgQ(void);
 static void api_clean_clientQ(client_proc_t* client);
 static void api_remove_client_int(client_proc_t* client, const char * reason);
 static int api_add_client(struct ha_msg* msg);
@@ -149,6 +155,7 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
 
+	api_flush_pending_msgQ();
 
 	/* This kicks out most messages, since debug clients are rare */
 
@@ -846,6 +853,31 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 	api_flush_msgQ(client);
 }
 
+
+/* check for any messages to be flushed to any of the clients 	
+ * Attempt should be made to  deliver messages that were not  	
+ * deliverable to clients earlier   			
+ */
+static void
+api_flush_pending_msgQ(void)
+{
+	client_proc_t* client;
+	if (client_output_pending) {
+		client_output_pending = FALSE;
+		for (client=client_list; client != NULL; client=client->next) {
+			if(client->msgcount) {
+				/* 
+				 * NOTE: api_flush_msgQ() may set 
+			 	 * client_output_pending if the client
+				 * messages temporarily fail to be
+				 * delivered.
+				 */
+				api_flush_msgQ(client);
+			}
+		}
+	}
+}
+
 static void
 api_flush_msgQ(client_proc_t* client)
 {
@@ -902,6 +934,7 @@ api_flush_msgQ(client_proc_t* client)
 				" %ld (write failure %d)"
 				,	(long) clientpid, rc);
 			}
+			client_output_pending = TRUE;
 			break;
 		}
 		if (DEBUGPKTCONT) {
