@@ -2,5 +2,8 @@
 heartbeat*.tar.gz
 build-stamp
 configure
+aclocal.m4
+libtool
+config.*
 Makefile.in
 Makefile

@@ -5,4 +5,5 @@ Makefile
 heartbeat
 send_arp
 findif
+api_test
 *.la
