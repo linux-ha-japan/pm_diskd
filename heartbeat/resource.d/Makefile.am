@@ -22,6 +22,7 @@ MAINTAINERCLEANFILES    = Makefile.in
 harddir			= $(sysconfdir)/ha.d/resource.d
 
 hard_SCRIPTS	=			\
+			apache		\
 			AudibleAlarm	\
 			db2		\
 			Filesystem	\
