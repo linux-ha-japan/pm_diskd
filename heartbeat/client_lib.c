@@ -109,6 +109,7 @@ typedef struct llc_private {
 	int			iscasual;	/* 1 if casual client */
 	long			deadtime_ms;	/* heartbeat's deadtime */
 	long			keepalive_ms;	/* heartbeat's keepalive time*/
+	int			logfacility;	/* heartbeat's logging facility */
 	struct stringlist*	nextnode;	/* Next node for walknode */
 	struct stringlist*	nextif;		/* Next interface for walkif */
 }llc_private_t;
@@ -248,7 +249,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	FILE*		RegFIFO;
 	struct stat	sbuf;
 	llc_private_t* pi;
-	const char	*deadtime_str, *keepalive_str;
+	const char	*tmpstr;
 
 	/*
 	 * A little explanation about our FIFOs...
@@ -430,19 +431,25 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 			ZAPMSG(reply);
 			return HA_FAIL;
 		}
-		if ((deadtime_str = ha_msg_value(reply, F_DEADTIME)) == NULL) {
+		if ((tmpstr = ha_msg_value(reply, F_DEADTIME)) == NULL
+		||	sscanf(tmpstr, "%lx", &(pi->deadtime_ms)) != 1) {
 			ha_api_log(LOG_ERR, "hb_api_signon: Can't get deadtime ");
 			ZAPMSG(reply);
 			return HA_FAIL;
 		}
-		sscanf(deadtime_str, "%lx", &(pi->deadtime_ms));
-		if ((keepalive_str = ha_msg_value(reply, F_KEEPALIVE)) == NULL) {
+		if ((tmpstr = ha_msg_value(reply, F_KEEPALIVE)) == NULL
+		||	sscanf(tmpstr, "%lx", &(pi->keepalive_ms)) != 1) {
 			ha_api_log(LOG_ERR, "hb_api_signon: Can't get "
 					"keepalive time ");
 			ZAPMSG(reply);
 			return HA_FAIL;
 		}
-		sscanf(keepalive_str, "%lx", &(pi->keepalive_ms));
+		/* Sometimes they don't use syslog logging... */
+		tmpstr = ha_msg_value(reply, F_LOGFACILITY);
+		if (tmpstr == NULL
+		||	sscanf(tmpstr, "%d", &(pi->logfacility)) != 1) {
+			pi->logfacility = -1;
+		}
 	}else{
 		rc = HA_FAIL;
 	}
@@ -835,7 +842,7 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 /*
  * Return heartbeat's keepalive time
  */
-static const long
+static long
 get_keepalive(ll_cluster_t* lcl)
 {
 	llc_private_t* pi;
@@ -853,7 +860,7 @@ get_keepalive(ll_cluster_t* lcl)
 /*
  * Return heartbeat's dead time
  */
-static const long
+static long
 get_deadtime(ll_cluster_t* lcl)
 {
 	llc_private_t* pi;
@@ -865,6 +872,21 @@ get_deadtime(ll_cluster_t* lcl)
 	pi = (llc_private_t*)lcl->ll_cluster_private;
 
 	return (pi->deadtime_ms);
+}
+
+/*
+ * Return suggested logging facility
+ */
+static int
+get_logfacility(ll_cluster_t* lcl)
+{
+	llc_private_t* pi;
+	if (!ISOURS(lcl)) {
+		ha_api_log(LOG_ERR, "get_logfacility: bad cinfo");
+		return -1;
+	}
+	pi = (llc_private_t*)lcl->ll_cluster_private;
+	return (pi->logfacility);
 }
 
 /*
@@ -1727,6 +1749,7 @@ static struct llc_ops heartbeat_ops = {
 	get_deadtime,		/* deadtime */
 	get_keepalive,		/* keepalive */
 	get_mynodeid,		/* my node id */
+	get_logfacility,	/* suggested logging facility */
 	APIError,		/* errormsg */
 };
 

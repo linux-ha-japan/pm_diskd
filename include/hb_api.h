@@ -228,13 +228,13 @@ struct llc_ops {
 /*
  *	Return heartbeat's deadtime
  */
-	const long (*get_deadtime)(ll_cluster_t *);
+	long (*get_deadtime)(ll_cluster_t *);
 
 
 /*
  *	Return heartbeat's keepalive time
  */
-	const long (*get_keepalive)(ll_cluster_t *);
+	long (*get_keepalive)(ll_cluster_t *);
 
 /*
  *	Return my node id
@@ -242,8 +242,17 @@ struct llc_ops {
 	const char * (*get_mynodeid)(ll_cluster_t *);
 
 
+/*
+ *	Return a suggested logging facility for cluster things
+ *
+ *	< 0 means we're not logging to syslog.
+ */
+	int (*get_logfacility)(ll_cluster_t *);
+
+
 	const char * (*errmsg)(ll_cluster_t*);
 };
+
 
 ll_cluster_t*	ll_cluster_new(const char * llctype);
 #endif /* __HB_API_H */

@@ -22,7 +22,7 @@
 
 #ifndef _HA_MSG_H
 #	define _HA_MSG_H 1
-static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.14 2003/02/07 08:37:17 horms Exp $";
+static const char * _ha_msg_h_Id = "$Id: ha_msg.h,v 1.15 2003/02/10 05:06:27 alan Exp $";
 #include <stdio.h>
 #include <clplumbing/ipc.h>
 
@@ -71,6 +71,7 @@ struct ha_msg {
 #define F_IFNAME	"ifname"	/* Interface name */
 #define F_DEADTIME	"deadtime"	/* Dead time interval in milliseconds */
 #define F_KEEPALIVE	"keepalive"	/* Keep alive time interval in milliseconds */
+#define F_LOGFACILITY	"logfacility"	/* Suggested cluster syslog facility */
 
 	/* Message types */
 #define	T_STATUS	"status"	/* Status (heartbeat) */

@@ -278,6 +278,7 @@ gotsig(int nsig)
 }
 
 
+#define	DEFAULT_FACILITY	LOG_DAEMON
 
 int
 main(int argc, char **argv)
@@ -288,12 +289,13 @@ main(int argc, char **argv)
 	const char *node;
 /*	const char *intf;  --Out until ifwalk is fixed */
 	char pid[10];
+	int	facility;
 
 	(void)_heartbeat_h_Id;
 	(void)_ha_msg_h_Id;
 	cl_log_enable_stderr(TRUE) ;
 	cl_log_set_entity(argv[0]) ;
-	cl_log_set_facility(LOG_DAEMON);
+	cl_log_set_facility(DEFAULT_FACILITY);
 
 	hb = ll_cluster_new("heartbeat");
 
@@ -310,6 +312,10 @@ main(int argc, char **argv)
 		cl_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
 		exit(1);
 	}
+	if ((facility = hb->llc_ops->get_logfacility(hb)) <= 0) {
+		facility = DEFAULT_FACILITY;
+	}
+	cl_log_set_facility(facility);
 
 	if (hb->llc_ops->set_msg_callback(hb, "num_ping_nodes", msg_ping_nodes, hb) !=HA_OK){
 		cl_log(LOG_ERR, "Cannot set msg callback");
