@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.201 2002/08/27 17:17:46 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.202 2002/09/05 12:48:27 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -4747,7 +4747,7 @@ main(int argc, char * argv[], char * envp[])
 
 	if (module_init() != HA_OK) {
 		ha_log(LOG_ERR, "Heartbeat not started: module init error.");
-		return(HA_FAIL);
+		cleanexit(1);
 	}
 
 	/*
@@ -6079,6 +6079,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.202  2002/09/05 12:48:27  alan
+ * Fixed a bug in exit codes for failure of the generic plugin loader noted by Nathan Wallwork.
+ *
  * Revision 1.201  2002/08/27 17:17:46  alan
  * Put in code which hopefully fixes a restart problem which had been
  * seen on Solaris, and might also affect Linux.
