@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.52 2003/02/17 04:29:04 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.53 2003/02/17 21:09:16 alan Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -68,6 +68,13 @@ PILS is designed to support any number of plugins
 implementing any number of interfaces.
 
 %changelog
+* Mon Feb 17 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
++ Version 1.0.1:
+  + Fixed some compile errors on different platforms, and library versions
+  + Disable ccm from running on 'ping' nodes
+  + Put in Steve Snodgrass' fix to send_arp to make it work on non-primary
+	interfaces.
+
 * Thu Feb 13 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
 + Version 1.0.1 beta series
 
