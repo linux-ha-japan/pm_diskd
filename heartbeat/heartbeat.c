@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.143 2001/10/10 13:18:35 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.144 2001/10/12 17:18:37 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -352,7 +352,7 @@ const char *ha_log_priority[8] = {
 #define DING_SIG                        0x0040
 #define FALSE_ALARM_SIG                 0x0080
 
-int pending_handlers = 0;
+unsigned volatile long pending_handlers = 0;
 
 struct sys_config *	config = NULL;
 struct node_info *	curnode = NULL;
@@ -1973,7 +1973,7 @@ init_status_alarm(void)
 {
 	siginterrupt(SIGALRM, 1);
 	signal(SIGALRM, ding_sig);
-	alarm(1);
+	ding_action();
 }
 
 
@@ -2377,6 +2377,10 @@ reread_config_action(void)
 
 #define	ONEDAY	(24*60*60)
 
+#define	HB_uS_HZ 	10L		/* 10 HZ = 100ms/tick */
+#define	HB_uS_PERIOD	(1000000L/HB_uS_HZ)
+			/* 100000 microseconds = 100 milliseconds = 10 HZ */
+
 /* Ding!  Activated once per second in the status process */
 void
 ding_sig(int sig)
@@ -2388,16 +2392,23 @@ ding_sig(int sig)
 void
 ding_action(void)
 {
-	static int	dingtime = 1;
-	TIME_T		now = time(NULL);
+	TIME_T			now = time(NULL);
+	struct tms		proforma_tms;
+	clock_t			clknow = times(&proforma_tms);
+	static clock_t		clknext = 0L;
+	struct itimerval	nexttime =
+	{	{(HB_uS_PERIOD/1000000), (HB_uS_PERIOD % 1000000)}	/* Repeat Interval */
+	,	{(HB_uS_PERIOD/1000000), (HB_uS_PERIOD % 1000000)}};	/* Timer Value */
 
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Ding!");
 	}
 
-	dingtime --;
-	if (dingtime <= 0) {
-		dingtime = config->heartbeat_interval;
+	if (clknow >= clknext) {
+		clknext = clknow + config->heartbeat_interval * CLK_TCK;
+		if (clknext - clknow > 1) {
+			clknext --; /* Be conservative */
+		}
 		/* Note that it's time to send out our status update */
 		send_status_now = 1;
 	}
@@ -2407,7 +2418,7 @@ ding_action(void)
 		}
 		next_statsdump = now + ONEDAY;
 	}
-	alarm(1);
+	setitimer(ITIMER_REAL, &nexttime, NULL);
 }
 
 void
@@ -2429,32 +2440,38 @@ false_alarm_action(void)
 void
 process_pending_handlers(void)
 {
-        if (pending_handlers&REAPER_SIG) {
-                reaper_action();
-        }
-        if (pending_handlers&GIVEUP_RESOURCES_AND_TERM_SIG) {
-                giveup_resources_and_term_action();
-        }
-        if (pending_handlers&TERM_SIG) {
-                term_action();
-        }
-        if (pending_handlers&PARENT_DEBUG_USR1_SIG) {
-                parent_debug_usr1_action();
-        }
-        if (pending_handlers&PARENT_DEBUG_USR2_SIG) {
-                parent_debug_usr2_action();
-        }
-        if (pending_handlers&REREAD_CONFIG_SIG) {
-                reread_config_action();
-        }
-        if (pending_handlers&DING_SIG) {
-                ding_action();
-        }
-        if (pending_handlers&FALSE_ALARM_SIG) {
-                false_alarm_action();
-        }
 
-        pending_handlers=0;
+	/* Be careful! We could get more signals while we're in here... */
+
+	while (pending_handlers) {
+		unsigned long	save_handlers = pending_handlers;
+        	pending_handlers=0;
+
+		if (save_handlers&REAPER_SIG) {
+			reaper_action();
+		}
+		if (save_handlers&GIVEUP_RESOURCES_AND_TERM_SIG) {
+			giveup_resources_and_term_action();
+		}
+		if (save_handlers&TERM_SIG) {
+			term_action();
+		}
+		if (save_handlers&PARENT_DEBUG_USR1_SIG) {
+			parent_debug_usr1_action();
+		}
+		if (save_handlers&PARENT_DEBUG_USR2_SIG) {
+			parent_debug_usr2_action();
+		}
+		if (save_handlers&REREAD_CONFIG_SIG) {
+			reread_config_action();
+		}
+		if (save_handlers&DING_SIG) {
+			ding_action();
+		}
+		if (save_handlers&FALSE_ALARM_SIG) {
+			false_alarm_action();
+		}
+	}
 }
 
 /* See if any nodes or links have timed out */
@@ -2922,7 +2939,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 	&& 	ha_msg_add(hmsg, F_TYPE, T_STONITH)    == HA_OK
 	&&	ha_msg_add(hmsg, F_NODE, nodename) == HA_OK
 	&&	ha_msg_add(hmsg, F_APIRESULT, result) == HA_OK) {
-		/* Send a re-transmit request */
+		/* Send a Stonith request */
 		if (send_cluster_msg(hmsg) == HA_FAIL) {
 			ha_log(LOG_ERR, "cannot send " T_STONITH
 			" request for %s", nodename);
@@ -4044,6 +4061,7 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 	hist->lastmsg = slot;
 }
 
+#define	MAX_REXMIT_BATCH	10	
 void
 process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 {
@@ -4053,6 +4071,7 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 	unsigned long	lseq = 0;
 	unsigned long	thisseq;
 	int		firstslot = hist->lastmsg-1;
+	int		rexmit_pkt_count = 0;
 
 	if ((cfseq = ha_msg_value(msg, F_FIRSTSEQ)) == NULL
 	||	(clseq = ha_msg_value(msg, F_LASTSEQ)) == NULL
@@ -4102,6 +4121,14 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 			&&	(now - last_rexmit) < CLK_TCK) {
 				/* Continue to outer loop */
 				goto NextReXmit;
+			}
+			/*
+			 *	Don't send too many packets all at once...
+			 *	or we could flood serial links...
+			 */
+			++rexmit_pkt_count;
+			if (rexmit_pkt_count > MAX_REXMIT_BATCH) {
+				return;
 			}
 			/* Found it!	Let's send it again! */
 			firstslot = msgslot -1;
@@ -4286,6 +4313,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.144  2001/10/12 17:18:37  alan
+ * Changed the code to allow for signals happening while signals are being processed.
+ * Changed the code to allow us to have finer heartbeat timing resolution.
+ *
  * Revision 1.143  2001/10/10 13:18:35  alan
  * Fixed a typo on ClockJustJumped.  Oops!
  *
