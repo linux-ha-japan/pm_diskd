@@ -50,7 +50,9 @@ fi
 #	Ignore this request if we don't own this resource
 #
 case `$RSCMGR status $IPADDR` in
-  *[Rr]unning*)	;;
+	#	Red Hat:	running
+	#	SuSE:		OK
+  *[Rr]unning*|OK)	;;
   *)		exit 0;;
 esac
   
