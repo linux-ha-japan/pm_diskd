@@ -14,6 +14,7 @@ main(int argc, char ** argv)
 
 	printf("Load of foo: %d\n", MLLoadModule(u, "Plugin", "test", NULL));
 	printf("Error = [%s]\n", lt_dlerror());
+	DelMLModuleUniv(u); u = NULL;
 
 	return 0;
 }

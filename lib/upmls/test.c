@@ -38,6 +38,12 @@ static MLPluginOps		OurPiOps = {
 
 ML_rc ML_MODULE_INIT(MLModule*us, MLModuleImports* imports, void*);
 
+static ML_rc
+PiClose(MLPlugin*pi, void* ud_plugin)
+{
+	OurModImports->log(ML_DEBUG, "In Piclose (test module)");
+	return ML_OK;
+}
 
 ML_rc
 ML_MODULE_INIT(MLModule*us, MLModuleImports* imports, void *user_ptr)
@@ -68,7 +74,7 @@ ML_MODULE_INIT(MLModule*us, MLModuleImports* imports, void *user_ptr)
 	,	MODTYPE
 	,	MODNAME
 	,	&OurPiOps	/* Exported plugin operations */
-	,	NULL		/* Plugin Close function */
+	,	PiClose		/* Plugin Close function */
 	,	&OurPi
 	,	(void**)&OurPiImports
 	,	NULL);

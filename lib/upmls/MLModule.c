@@ -33,6 +33,8 @@ static int	ModuleDebugLevel = 5;
 static ML_rc PluginPlugin_module_init(MLModuleUniv* univ);
 
 static char** MLModTypeListModules(MLModuleType* mtype, int* modcount);
+static MLPlugin* FindPI(MLModuleUniv* universe, const char *pitype
+,	const char * piname);
 
 
 void	DelMLModuleUniv(MLModuleUniv*);
@@ -51,7 +53,7 @@ void	DelMLModuleUniv(MLModuleUniv*);
  *			string name
  *			MLModuleType* object with the given name.
  */
-static void	RmAMLModuleType
+static gboolean	RmAMLModuleType
 (	gpointer modtname	/* Name of this module type */
 ,	gpointer modtype	/* MLModuleType* */
 ,	gpointer notused
@@ -67,7 +69,7 @@ static void	DelMLModuleType(MLModuleType*);
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  */
-static void	RmAMLModule
+static gboolean	RmAMLModule
 (	gpointer modname	/* Name of this module  */
 ,	gpointer module		/* MLModule* */
 ,	gpointer notused
@@ -94,7 +96,7 @@ static void		DelMLPluginUniv(MLPluginUniv*);
  *	not necessarily, so they have gpointer arguments.  When calling
  *	them by hand, take special care to pass the right argument types.
  */
-static void		RmAMLPluginType
+static gboolean		RmAMLPluginType
 (	gpointer pitypename	/* Name of this plugin type  */
 ,	gpointer pitype		/* MLPluginType* */
 ,	gpointer notused
@@ -112,7 +114,7 @@ static void		DelMLPluginType(MLPluginType*);
  *	them by hand, take special care to pass the right argument types.
  *	They can be called from other places safely also.
  */
-static void		RmAMLPlugin
+static gboolean		RmAMLPlugin
 (	gpointer piname		/* Name of this plugin */
 ,	gpointer module		/* MLPlugin* */
 ,	gpointer notused
@@ -209,16 +211,22 @@ static MLPluginOps  PiExports =
 static int	PiRefCount(MLPlugin * pih);
 static int	PiModRefCount(MLPlugin*epiinfo,int plusminus);
 static void	PiForceUnregister(MLPlugin *epiinfo);
-static void	PiForEachClient(MLPlugin* manangerpi
-	,	void(*f)(MLPlugin* clientpi, void * other)
+static void	PiForEachClientRemove(MLPlugin* manangerpi
+	,	gboolean(*f)(MLPlugin* clientpi, void * other)
 	,	void* other);
 
 static MLPluginImports PIHandlerImports =
 {	PiRefCount
 ,	PiModRefCount
 ,	PiForceUnregister
-,	PiForEachClient
+,	PiForEachClientRemove
 };
+static void MLValidateModule(gpointer key, gpointer module, gpointer mtype);
+static void MLValidateModType(gpointer key, gpointer modtype, gpointer muniv);
+static void MLValidateModUniv(gpointer key, gpointer modtype, gpointer);
+static void MLValidatePlugin(gpointer key, gpointer plugin, gpointer pitype);
+static void MLValidatePluginType(gpointer key, gpointer pitype, gpointer piuniv);
+static void MLValidatePluginUniv(gpointer key, gpointer puniv, gpointer);
 
 /*****************************************************************************
  *
@@ -233,12 +241,19 @@ NewMLModule(	MLModuleType* mtype
 	,	MLModuleInitFun ModuleSym)
 {
 	MLModule*	ret = NEW(MLModule);
+
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "NewMLModule(0x%x)", (unsigned long)ret);
+	}
+
+	ret->MagicNum = ML_MAGIC_MODULE;
 	ret->module_name = g_strdup(module_name);
 	ret->moduletype = mtype;
 	ret->Plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	ret->refcnt = 0;
 	ret->dlhandle = dlhand;
 	ret->dlinitfun = ModuleSym;
+	MLValidateModule(ret->module_name, ret, mtype);
 	return ret;
 }
 static void
@@ -247,29 +262,21 @@ DelMLModule(MLModule*mod)
 	DELETE(mod->module_name);
 
 	mod->moduletype = NULL;
-	if (g_hash_table_size(mod->Plugins) > 0) {
-		MLLog(ML_CRIT, "DelMLModule: Plugins not empty");
-	}
 	g_hash_table_destroy(mod->Plugins);
-	mod->Plugins = NULL;
 
 	if (mod->refcnt > 0) {
 		MLLog(ML_CRIT, "DelMLModule: Non-zero refcnt");
 	}
 
-	lt_dlclose(mod->dlhandle); mod->dlhandle=NULL;
-	mod->dlhandle = NULL;
-
-	mod->dlinitfun = NULL;
-	mod->ud_module = NULL;
-
+	lt_dlclose(mod->dlhandle);
 	ZAP(mod);
 	DELETE(mod);
 }
 
 
 static MLModuleType dummymlmtype =
-{	NULL			/*moduletype*/
+{	ML_MAGIC_MODTYPE
+,	NULL			/*moduletype*/
 ,	NULL			/*moduniv*/
 ,	NULL			/*Modules*/
 ,	MLModrefcount		/* refcount */
@@ -283,24 +290,29 @@ NewMLModuleType(MLModuleUniv* moduleuniv
 )
 {
 	MLModuleType*	ret = NEW(MLModuleType);
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "NewMLModuletype(0x%x)", (unsigned long)ret);
+	}
 
 	*ret = dummymlmtype;
 
 	ret->moduletype = g_strdup(moduletype);
 	ret->moduniv = moduleuniv;
 	ret->Modules = g_hash_table_new(g_str_hash, g_str_equal);
+	MLValidateModType(ret->moduletype, ret, moduleuniv);
 	return ret;
 }
 static void
 DelMLModuleType(MLModuleType*mtype)
 {
-	DELETE(mtype->moduletype);
-
-	if (g_hash_table_size(mtype->Modules) > 0) {
-		MLLog(ML_CRIT, "DelMLModuleType: Modules not empty");
+	MLValidateModType(NULL, mtype, NULL);
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "DelMLModuleType(%s)", mtype->moduletype);
 	}
-	g_hash_table_foreach(mtype->Modules, RmAMLModule, NULL);
+
+	g_hash_table_foreach_remove(mtype->Modules, RmAMLModule, NULL);
 	g_hash_table_destroy(mtype->Modules);
+	DELETE(mtype->moduletype);
 	ZAP(mtype);
 	DELETE(mtype);
 }
@@ -312,8 +324,8 @@ DelMLModuleType(MLModuleType*mtype)
  *	may not be pointing at the key to actually free, but a copy
  *	of the key.
  */
-static void
-RmAMLModule	/* IsA GHFunc: required for g_hash_table_foreach() */
+static gboolean
+RmAMLModule	/* IsA GHFunc: required for g_hash_table_foreach_remove() */
 (	gpointer modname	/* Name of this module  */
 ,	gpointer module		/* MLModule* */
 ,	gpointer notused	
@@ -323,16 +335,24 @@ RmAMLModule	/* IsA GHFunc: required for g_hash_table_foreach() */
 	MLModuleType*	Mtype = Module->moduletype;
 	gpointer	key;
 
+	MLValidateModule(modname, module, NULL);
+	MLValidateModType(NULL, Mtype, NULL);
+	g_assert(IS_MLMODULE(Module));
+	
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "RmAMLModule(%s/%s)", Mtype->moduletype
+		,	Module->module_name);
+	}
 	/* Normally (but not always) called from g_hash_table_forall */
 
 	if (g_hash_table_lookup_extended(Mtype->Modules
 	,	modname, &key, &module)) {
-		g_hash_table_remove(Mtype->Modules, key);
 		DelMLModule(module);
 		DELETE(key);
 	}else{
 		g_assert_not_reached();
 	}
+	return TRUE;
 }
 
 MLModuleUniv*
@@ -340,15 +360,20 @@ NewMLModuleUniv(const char * basemoduledirectory)
 {
 	MLModuleUniv*	ret = NEW(MLModuleUniv);
 
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "NewMLModuleUniv(0x%x)", (unsigned long)ret);
+	}
 	if (!g_path_is_absolute(basemoduledirectory)) {
 		DELETE(ret);
 		return(ret);
 	}
+	ret->MagicNum = ML_MAGIC_MODUNIV;
 	ret->rootdirectory = g_strdup(basemoduledirectory);
 
 	ret->ModuleTypes = g_hash_table_new(g_str_hash, g_str_equal);
 	ret->imports = &MLModuleImportSet;
 	ret->piuniv = NewMLPluginUniv(ret);
+	MLValidateModUniv(NULL, ret, NULL);
 	return ret;
 }
 
@@ -356,17 +381,18 @@ void
 DelMLModuleUniv(MLModuleUniv* moduniv)
 {
 
-	DELETE(moduniv->rootdirectory);
 
-	if (g_hash_table_size(moduniv->ModuleTypes) > 0) {
-		MLLog(ML_CRIT, "DelMLModuleUniv: ModuleTypes not empty");
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "DelMLModuleUniv(0x%lx)"
+		,	(unsigned long)moduniv);
 	}
-	g_hash_table_foreach(moduniv->ModuleTypes, RmAMLModuleType, NULL);
-	g_hash_table_destroy(moduniv->ModuleTypes);
-	moduniv->ModuleTypes = NULL;
+	MLValidateModUniv(NULL, moduniv, NULL);
 	DelMLPluginUniv(moduniv->piuniv);
 	moduniv->piuniv = NULL;
-	moduniv->imports = NULL;
+	g_hash_table_foreach_remove(moduniv->ModuleTypes, RmAMLModuleType, NULL);
+	g_hash_table_destroy(moduniv->ModuleTypes);
+	DELETE(moduniv->rootdirectory);
+	ZAP(moduniv);
 	DELETE(moduniv);
 }
 
@@ -378,7 +404,7 @@ DelMLModuleUniv(MLModuleUniv* moduniv)
  *	may not be pointing at the key to actually free, but a copy
  *	of the key.
  */
-static void	/* IsA GHFunc: required for g_hash_table_foreach() */
+static gboolean	/* IsA GHFunc: required for g_hash_table_foreach_remove() */
 RmAMLModuleType
 (	gpointer modtname	/* Name of this module type */
 ,	gpointer modtype	/* MLModuleType* */
@@ -389,20 +415,26 @@ RmAMLModuleType
 	MLModuleUniv*	Moduniv = Modtype->moduniv;
 	gpointer	key;
 
+	g_assert(IS_MLMODTYPE(Modtype));
+	MLValidateModType(modtname, modtype, NULL);
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "RmAMLModuleType(%s)"
+		,	Modtype->moduletype);
+	}
 	/*
 	 * This function is usually but not always called by
-	 * g_hash_table_foreach()
+	 * g_hash_table_foreach_remove()
 	 */
 
 	if (g_hash_table_lookup_extended(Moduniv->ModuleTypes
 	,	modtname, &key, &modtype)) {
 
-		g_hash_table_remove(Moduniv->ModuleTypes, key);
 		DelMLModuleType(modtype);
 		DELETE(key);
 	}else{
 		g_assert_not_reached();
 	}
+	return TRUE;
 }
 
 /*
@@ -454,7 +486,7 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	 *
 	 * So, instead of calling imports->register_plugin(), we have to do
 	 * the work ourselves here...
-	 *
+	 *  
 	 * Since no one should yet be registered to handle Plugin plugins, we
 	 * need to bypass the hash table handler lookup that register_plugin
 	 * would do and call the function that register_plugin would call...
@@ -464,7 +496,14 @@ PluginPlugin_module_init(MLModuleUniv* univ)
 	/* The first argument is the MLPluginType* */
 	piinfo = NewMLPlugin(pitype, PLUGIN_PLUGIN, &PiExports
 	,	close_pipi_plugin, NULL);
+	piinfo->pimanager = pitype->pipi_ref = piinfo;
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "PluginPlugin_module_init(0x%lx/%s)"
+		,	(unsigned long)piinfo, piinfo->pluginname);
+	}
+	MLValidateModUniv(NULL, univ, NULL);
 	pipi_register_plugin(piinfo, &dontcare);
+	MLValidateModUniv(NULL, univ, NULL);
 
 	return(ML_OK);
 }/*PluginPlugin_module_init*/
@@ -521,6 +560,10 @@ NewMLPlugin(MLPluginType*	plugintype
 		DelMLPlugin(look);
 	}
 	ret = NEW(MLPlugin);
+	ret->MagicNum = ML_MAGIC_PLUGIN;
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "NewMLPlugin(0x%x)", (unsigned long)ret);
+	}
 
 	if (ret) {
 		ret->plugintype = plugintype;
@@ -531,17 +574,25 @@ NewMLPlugin(MLPluginType*	plugintype
 		g_hash_table_insert(plugintype->plugins
 		,	g_strdup(ret->pluginname), ret);
 		ret->pi_close = closefun;
-		ret->refcnt = 0;
+		ret->refcnt = 1;
+		if (DEBUGMODULE) {
+			MLLog(ML_DEBUG, "NewMLPlugin(0x%lx:%s/%s)**********"
+			,	(unsigned long)ret
+			,	plugintype->typename
+			,	ret->pluginname);
+		}
 	}
 	return ret;
 }
 static void
 DelMLPlugin(MLPlugin* pi)
 {
-	DELETE(pi->pluginname);
-	if (pi->refcnt > 0) {
-		MLLog(ML_CRIT, "DelMLPlugin: refcnt not zero");
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "DelMLPlugin(0x%lx/%s)"
+		,	(unsigned long)pi, pi->pluginname);
 	}
+	DELETE(pi->pluginname);
+	ZAP(pi);
 	DELETE(pi);
 }
 
@@ -552,6 +603,12 @@ NewMLPluginType(MLPluginUniv*univ, const char * typename
 	MLPluginType*	pipi_types;
 	MLPlugin*	pipi_ref;
 	MLPluginType*	ret = NEW(MLPluginType);
+
+
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "NewMLPluginType(0x%x)", (unsigned long)ret);
+	}
+	ret->MagicNum = ML_MAGIC_PLUGINTYPE;
 	ret->typename = g_strdup(typename);
 	ret->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 	ret->ud_pi_type = user_data;
@@ -566,20 +623,49 @@ NewMLPluginType(MLPluginUniv*univ, const char * typename
 		}else {
 		      g_assert(strcmp(typename, PLUGIN_PLUGIN) == 0);
 		}
+	}else {
+		g_assert(strcmp(typename, PLUGIN_PLUGIN) == 0);
 	}
 	return ret;
 }
 static void
 DelMLPluginType(MLPluginType*pit)
 {
-	if (g_hash_table_size(pit->plugins) > 0) {
-		MLLog(ML_CRIT, "DelMLPluginType: plugins not empty");
+	MLPluginUniv*	u = pit->universe;
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "DelMLPluginType(%s)"
+		,	pit->typename);
 	}
-	g_hash_table_foreach(pit->plugins, RmAMLPlugin, NULL);
+
+	MLValidatePluginUniv(NULL, u, NULL);
+
+	/*
+	 *	RmAMLPlugin refuses to remove the plugin for the Plugin
+	 *	manager, because it must be removed last.
+	 *
+	 *	Otherwise we won't be able to unregister interfaces
+	 *	for other types of objects, and we'll be very confused.
+	 */
+
+	g_hash_table_foreach_remove(pit->plugins, RmAMLPlugin, NULL);
+
+	MLValidatePluginUniv(NULL, u, NULL);
+
+	if (g_hash_table_size(pit->plugins) > 0) {
+		gpointer	key, pitype;
+		MLLog(ML_DEBUG, "DelMLPluginType(%s): table size (%d)"
+		,	pit->typename, g_hash_table_size(pit->plugins));
+		if (g_hash_table_lookup_extended(pit->plugins
+		,	PLUGIN_PLUGIN, &key, &pitype)) {
+			g_hash_table_remove(pit->plugins, key);
+			DelMLPlugin((MLPlugin*)pitype);
+			DELETE(key);
+		}
+	}
 	DELETE(pit->typename);
 	g_hash_table_destroy(pit->plugins);
 	ZAP(pit);
-	DELETE(pit); pit = NULL;
+	DELETE(pit);
 }
 
 /*
@@ -590,7 +676,7 @@ DelMLPluginType(MLPluginType*pit)
  *	may not be pointing at the key to actually free, but a copy
  *	of the key.
  */
-static void	/* IsAGHFunc: required for g_hash_table_foreach() */
+static gboolean	/* IsAGHFunc: required for g_hash_table_foreach_remove() */
 RmAMLPlugin
 (	gpointer piname	/* Name of this plugin */
 ,	gpointer pi	/* MLPlugin* */
@@ -601,19 +687,38 @@ RmAMLPlugin
 	MLPluginType*	Pitype = Pi->plugintype;
 	gpointer	key;
 
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "RmAMLPlugin(0x%lx/%s)"
+		,	(unsigned long)Pi, Pi->pluginname);
+	}
+	g_assert(IS_MLPLUGIN(Pi));
+
+	/*
+	 * Don't remove the master plugin manager this way, or
+	 * Somebody will have a cow... 
+	 */
+	if (Pi == Pi->pimanager) {
+		return FALSE;
+	}
+	MLValidatePlugin(piname, Pi, Pitype);
+	MLValidatePluginType(NULL, Pitype, NULL);
+
 	/*
 	 * This function is usually but not always called by
-	 * g_hash_table_foreach()
+	 * g_hash_table_foreach_remove()
 	 */
 
 	if (g_hash_table_lookup_extended(Pitype->plugins
 	,	piname, &key, &pi)) {
-		g_hash_table_remove(Pitype->plugins, key);
-		DelMLPlugin(Pi);
+		g_assert(pi == Pi);
+		g_assert(strcmp(key, (char*)piname) == 0);
+		MLunregister_plugin(Pi);
 		DELETE(key);
+		DelMLPlugin(Pi);
 	}else{
 		g_assert_not_reached();
 	}
+	return TRUE;
 }
 
 
@@ -631,21 +736,33 @@ pipi_register_plugin(MLPlugin* pi
 	return ML_OK;
 }
 
+static gboolean
+RemoveAllClients(MLPlugin*plugin, void * managerpi)
+{
+	/*
+	 * Careful!  We can't remove ourselves this way... 
+	 * This gets taken care of as a special case in DelMLPluginUniv...
+	 */
+	if (managerpi == plugin) {
+		return FALSE;
+	}
+	MLunregister_plugin(plugin);
+	return TRUE;
+}
+
 /* Unconditionally unregister a plugin manager (Plugin Plugin) */
 static ML_rc
 pipi_unregister_plugin(MLPlugin* plugin)
 {
-	gpointer	origkey;
-	gpointer	value;
-	MLPluginType*	pitype = plugin->plugintype;
-
-	/* Call g_hash_table_lookup_extended to get the key pointer */
-	if (g_hash_table_lookup_extended(pitype->plugins
-	,	pitype->plugins, &origkey, &value)) {
-		g_hash_table_remove(pitype->plugins, plugin->pluginname);
-		DELETE(origkey);
+	/*
+	 * We need to unregister every plugin we manage
+	 */
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "pipi_unregister_plugin(%s)"
+		,	plugin->pluginname);
 	}
-	DelMLPlugin(plugin);
+
+	PiForEachClientRemove(plugin, RemoveAllClients, plugin);
 	return ML_OK;
 }
 
@@ -653,6 +770,10 @@ pipi_unregister_plugin(MLPlugin* plugin)
 static ML_rc
 close_pipi_plugin(MLPlugin* us, void* ud_plugin)
 {
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "close_pipi_plugin(%s)"
+		,	us->pluginname);
+	}
 	/* Nothing much to do */
 	return ML_OK;
 }
@@ -676,60 +797,117 @@ PiModRefCount(MLPlugin*epiinfo, int plusminus)
 	return epiinfo->refcnt;
 }
 
+static MLPlugin*
+FindPI(MLModuleUniv* universe, const char *pitype, const char * piname)
+{
+	MLPluginUniv*	puniv;
+	MLPluginType*	ptype;
+
+	if (universe == NULL || (puniv = universe->piuniv) == NULL
+	||	(ptype=g_hash_table_lookup(puniv->pitypes, pitype))==NULL){
+		return NULL;
+	}
+	return g_hash_table_lookup(ptype->plugins, piname);
+}
+
+ML_rc		
+MLIncrPIRefCount(MLModuleUniv* mu
+,		const char *	plugintype
+,		const char *	pluginname
+,		int	plusminus)
+{
+		MLPlugin*	pi = FindPI(mu, plugintype, pluginname);
+
+		if (pi) {
+			PiModRefCount(pi, plusminus);
+			return ML_OK;
+		}
+		return ML_NOMODULE;
+}
+
+int
+MLGetPIRefCount(MLModuleUniv*	mu
+,		const char *	plugintype
+,		const char *	pluginname)
+{
+		MLPlugin*	pi = FindPI(mu, plugintype, pluginname);
+
+		if (!pi) {
+			return -1;
+		}
+		return pi->refcnt;
+}
+
 static void
 PiForceUnregister(MLPlugin *id)
 {
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "PiForceUnRegister(%s)"
+		,	id->pluginname);
+	}
 	RmAMLPlugin(id->pluginname, id, NULL);
 }
 
 struct f_e_c_helper {
-	void(*fun)(MLPlugin* clientpi, void * passalong);
+	gboolean(*fun)(MLPlugin* clientpi, void * passalong);
 	void*	passalong;
 };
 
-static void PiForEachClientHelper(gpointer key
+static gboolean PiForEachClientHelper(gpointer key
 ,	gpointer pitype, gpointer helper_v);
 
-static void
+static gboolean
 PiForEachClientHelper(gpointer unused, gpointer pitype, gpointer v)
 {
-	struct f_e_c_helper*	s;
-	s = (struct f_e_c_helper*)v;
-	s->fun((MLPlugin*)pitype, s->passalong);
+	struct f_e_c_helper*	s = (struct f_e_c_helper*)v;
+
+	g_assert(IS_MLPLUGIN((MLPlugin*)pitype));
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "PiForEachClientHelper(%s)"
+		,	((MLPlugin*)pitype)->pluginname);
+	}
+
+	return s->fun((MLPlugin*)pitype, s->passalong);
 }
 
 
 static void
-PiForEachClient(MLPlugin* mgrpi
-	,	void(*f)(MLPlugin* clientpi, void * passalong)
-	,	void* passalong)
+PiForEachClientRemove
+(	MLPlugin* mgrpi
+,	gboolean(*f)(MLPlugin* clientpi, void * passalong)
+,	void* passalong
+)
 {
 	MLPluginType*	mgrt;
 	MLPluginUniv*	u;
 	const char *	piname;
 	MLPluginType*	clientt;
-	struct f_e_c_helper	h;
+
+	struct f_e_c_helper	h = {f, passalong};
 		
 
 	if (mgrpi == NULL || (mgrt = mgrpi->plugintype) == NULL
 	||	(u = mgrt->universe) == NULL
 	||	(piname = mgrpi->pluginname) == NULL) {
-		MLLog(ML_WARN, "bad parameters to PiForEachClient");
+		MLLog(ML_WARN, "bad parameters to PiForEachClientRemove");
 		return;
 	}
 
 	if ((clientt = g_hash_table_lookup(u->pitypes, piname)) == NULL) {
-		MLLog(ML_WARN, "cannot find PI type %s", piname);
+		MLLog(ML_WARN, "Plugin %s/%s has no clients"
+		,	PLUGIN_PLUGIN, piname);
 		return;
 	};
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "PiForEachClientRemove(%s:%s)"
+		,	mgrt->typename, clientt->typename);
+	}
 	if (clientt->pipi_ref != mgrpi) {
 		MLLog(ML_WARN, "Bad pipi_ref ptr in MLPluginType");
 		return;
 	}
 
-	
-	g_hash_table_foreach(clientt->plugins, PiForEachClientHelper, &h);
-
+	g_hash_table_foreach_remove(clientt->plugins, PiForEachClientHelper, &h);
 }
 
 static ML_rc
@@ -742,6 +920,10 @@ MLregister_module(MLModule* modinfo, const MLModuleOps* commonops)
 static ML_rc
 MLunregister_module(MLModule* modinfo)
 {
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "MLunregister_module(%s)"
+		,	modinfo->module_name);
+	}
 	RmAMLModule(modinfo->module_name, modinfo, NULL);
 	return ML_OK;
 }
@@ -926,7 +1108,7 @@ MLLoadModule(MLModuleUniv* universe, const char * moduletype
 	 */
 	modinfo = NewMLModule(mtype, modulename, dlhand, initfun);
 	g_assert(modinfo != NULL);
-	g_hash_table_insert(mtype->Modules, modinfo->module_name, modinfo);
+	g_hash_table_insert(mtype->Modules, g_strdup(modinfo->module_name), modinfo);
 	if (DEBUGMODULE) {
 		MLLog(ML_DEBUG, "Module %s/%s loaded and constructed."
 		,	moduletype, modulename);
@@ -978,9 +1160,10 @@ MLRegisterPlugin(MLModule* modinfo
 	||	(modtype = modinfo->moduletype)	== NULL
 	||	(moduniv = modtype->moduniv)	== NULL
 	||	(piuniv = moduniv->piuniv)	== NULL
-	||	piuniv->pitypes	== NULL
+	||	piuniv->pitypes			== NULL
+	||	close_func			== NULL
 	) {
-		REPORTERR("bad parameters");
+		REPORTERR("bad parameters to MLRegisterPlugin");
 		return ML_INVAL;
 	}
 
@@ -1026,7 +1209,6 @@ MLRegisterPlugin(MLModule* modinfo
 	/* Now we have all the information anyone could possibly want ;-) */
 
 	piinfo = NewMLPlugin(pitype, pluginname, Ops, close_func, ud_plugin);
-	g_hash_table_insert(pitype->plugins, g_strdup(pluginname), piinfo);
 	*pluginid = piinfo;
 
 	/* Call the registration function for our plugin type */
@@ -1070,7 +1252,10 @@ MLunregister_plugin(MLPlugin* id)
 		MLLog(ML_WARN, "MLunregister_plugin: bad pluginid");
 		return ML_INVAL;
 	}
-
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "MLunregister_plugin(%s/%s)"
+		,	t->typename, id->pluginname);
+	}
 
 	/* Call the close function supplied by the plugin */
 
@@ -1084,6 +1269,10 @@ MLunregister_plugin(MLPlugin* id)
 	pipi_info = t->pipi_ref;
 
 	g_assert(pipi_info != NULL);
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "MLunregister_plugin(%s/%s)#2"
+		,	pipi_info->pluginname, id->pluginname);
+	}
 
 	/* Find the exported functions from that PIPI */
 	exports =  pipi_info->exports;
@@ -1093,10 +1282,13 @@ MLunregister_plugin(MLPlugin* id)
 	/* Call the plugin manager unregister function */
 	exports->UnRegisterPlugin(id);
 
-	RmAMLPlugin(id->pluginname, id, NULL);
-
 	/* Decrement reference count of plugin manager */
 	PiModRefCount(pipi_info, -1);
+
+	/* FIXME!! We need to delete this outside this function... */
+#if 0
+	RmAMLPlugin(id->pluginname, id, NULL);
+#endif
 
 	return rc;
 }
@@ -1106,6 +1298,10 @@ NewMLPluginUniv(MLModuleUniv* moduniv)
 {
 	MLPluginUniv*	ret = NEW(MLPluginUniv);
 
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "NewMLPluginUniv(0x%x)", (unsigned long)ret);
+	}
+	ret->MagicNum = ML_MAGIC_PLUGINUNIV;
 	/* Make the two universes point at each other */
 	ret->moduniv = moduniv;
 	moduniv->piuniv = ret;
@@ -1120,14 +1316,16 @@ static void
 DelMLPluginUniv(MLPluginUniv* piuniv)
 {
 	g_assert(piuniv!= NULL && piuniv->pitypes != NULL);
+	MLValidatePluginUniv(NULL, piuniv, NULL);
 
-	if (g_hash_table_size(piuniv->pitypes) > 0) {
-		MLLog(ML_CRIT, "DelMLPluginUniv: pitypes not empty");
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "DelMLPluginUniv(0x%lx)"
+		,	(unsigned long) piuniv);
 	}
-	g_hash_table_foreach(piuniv->pitypes, RmAMLPluginType, NULL);
+	g_hash_table_foreach_remove(piuniv->pitypes, RmAMLPluginType, NULL);
 	g_hash_table_destroy(piuniv->pitypes);
-	piuniv->pitypes = NULL;
-	piuniv->moduniv = NULL;
+	ZAP(piuniv);
+	DELETE(piuniv);
 }
 
 /*
@@ -1138,7 +1336,7 @@ DelMLPluginUniv(MLPluginUniv* piuniv)
  *	may not be pointing at the key to actually free, but a copy
  *	of the key.
  */
-static void	/* IsA GHFunc: required for g_hash_table_foreach() */
+static gboolean	/* IsA GHFunc: required for g_hash_table_foreach_remove() */
 RmAMLPluginType
 (	gpointer typename	/* Name of this plugin type  */
 ,	gpointer pitype		/* MLPluginType* */
@@ -1150,18 +1348,28 @@ RmAMLPluginType
 	MLPluginUniv*	Piuniv = Pitype->universe;
 
 	/*
-	 * We are not always called by g_hash_table_foreach()
+	 * We are not always called by g_hash_table_foreach_remove()
 	 */
+
+	g_assert(IS_MLPLUGINTYPE(Pitype));
+	MLValidatePluginUniv(NULL, Piuniv, NULL);
+	if (DEBUGMODULE) {
+		MLLog(ML_DEBUG, "RmAMLPluginType(%s)"
+		,	(char*)typename);
+	}
 
 	if (g_hash_table_lookup_extended(Piuniv->pitypes
 	,	typename, &key, &pitype)) {
 
-		g_hash_table_remove(Piuniv->pitypes, key);
+		MLValidatePluginUniv(NULL, Piuniv, NULL);
+		g_assert(pitype == Pitype);
+		g_assert(strcmp(key, (char*)typename) == 0);
 		DelMLPluginType(pitype);
 		DELETE(key);
 	}else{
 		g_assert_not_reached();
 	}
+	return TRUE;
 }
 
 static int
@@ -1326,3 +1534,92 @@ MLFreeModuleList(char ** modulelist)
 	DELETE(modulelist);
 }
 
+
+static void
+MLValidateModule(gpointer key, gpointer module, gpointer mtype)
+{
+	const char * Key = key;
+	const MLModule * Module = module;
+
+	g_assert(IS_MLMODULE(Module));
+
+	g_assert(Key == NULL || strcmp(Key, Module->module_name) == 0);
+	g_assert (Module->Plugins != NULL);
+
+	g_assert (Module->refcnt >= 0 );
+
+	/* g_assert (Module->moduleops != NULL ); */
+	g_assert (strcmp(Key, PLUGIN_PLUGIN) == 0 || Module->dlinitfun != NULL );
+	g_assert (strcmp(Module->module_name, PLUGIN_PLUGIN) == 0
+	||	Module->dlhandle != NULL);
+	g_assert(Module->moduletype != NULL);
+	g_assert(IS_MLMODTYPE(Module->moduletype));
+	g_assert(mtype == NULL || mtype == Module->moduletype);
+}
+
+static void
+MLValidateModType(gpointer key, gpointer modtype, gpointer muniv)
+{
+	char * Key = key;
+	MLModuleType * Mtype = modtype;
+	MLModuleUniv * Muniv = muniv;
+
+	g_assert(IS_MLMODTYPE(Mtype));
+	g_assert(Muniv == NULL || IS_MLMODUNIV(Muniv));
+	g_assert(Key == NULL || strcmp(Key, Mtype->moduletype) == 0);
+	g_assert(IS_MLMODUNIV(Mtype->moduniv));
+	g_assert(muniv == NULL || muniv == Mtype->moduniv);
+	g_assert(Mtype->Modules != NULL);
+	g_hash_table_foreach(Mtype->Modules, MLValidateModule, Mtype);
+}
+static void MLValidateModUniv(gpointer key, gpointer muniv, gpointer dummy)
+{
+	MLModuleUniv * Muniv = muniv;
+
+	g_assert(IS_MLMODUNIV(Muniv));
+	g_assert(Muniv->rootdirectory != NULL);
+	g_assert(Muniv->imports != NULL);
+	g_hash_table_foreach(Muniv->ModuleTypes, MLValidateModType, muniv);
+	MLValidatePluginUniv(NULL, Muniv->piuniv, muniv);
+}
+static void
+MLValidatePlugin(gpointer key, gpointer plugin, gpointer pitype)
+{
+	char *		Key = key;
+	MLPlugin*	Plugin = plugin;
+	g_assert(IS_MLPLUGIN(Plugin));
+	g_assert(Key == NULL || strcmp(Key, Plugin->pluginname) == 0);
+	g_assert(IS_MLPLUGINTYPE(Plugin->plugintype));
+	g_assert(pitype == NULL || pitype == Plugin->plugintype);
+	g_assert(Plugin->pimanager!= NULL);
+	g_assert(IS_MLPLUGIN(Plugin->pimanager));
+	g_assert(strcmp(Plugin->plugintype->typename
+	,	Plugin->pimanager->pluginname)== 0);
+	g_assert(Plugin->exports != NULL);
+	g_assert(Plugin->pi_close != NULL);
+}
+static void
+MLValidatePluginType(gpointer key, gpointer pitype, gpointer piuniv)
+{
+	char *		Key = key;
+	MLPluginType*	Pitype = pitype;
+	g_assert(IS_MLPLUGINTYPE(Pitype));
+	g_assert(Key == NULL || strcmp(Key, Pitype->typename) == 0);
+	g_assert(piuniv == NULL || Pitype->universe == piuniv);
+	g_assert(Pitype->plugins != NULL);
+	g_assert(Pitype->pipi_ref != NULL);
+	g_assert(IS_MLPLUGIN(Pitype->pipi_ref));
+	g_assert(Key == NULL || strcmp(Key, Pitype->pipi_ref->pluginname) == 0);
+
+	g_hash_table_foreach(Pitype->plugins, MLValidatePlugin, pitype);
+}
+static void
+MLValidatePluginUniv(gpointer key, gpointer piuniv, gpointer moduniv)
+{
+	MLPluginUniv*	Piuniv = piuniv;
+	MLModuleUniv*	Moduniv = moduniv;
+	g_assert(IS_MLPLUGINUNIV(Piuniv));
+	g_assert(Moduniv == NULL || IS_MLMODUNIV(Moduniv));
+	g_assert(moduniv == NULL || moduniv == Piuniv->moduniv);
+	g_hash_table_foreach(Piuniv->pitypes, MLValidatePluginType, piuniv);
+}
