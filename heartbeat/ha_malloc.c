@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.17 2003/04/18 17:06:43 alan Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.18 2003/05/05 11:39:14 alan Exp $";
 #include <portability.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -15,8 +15,21 @@ static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.17 2003/04/18 17:06:
 
 #include <ltdl.h>
 
-#define	MARK_PRISTINE	1
-#define	MAKE_GUARD	1
+/*
+ * Compile time malloc debugging switches:
+ *
+ * MARK_PRISTINE - puts known byte pattern in freed memory
+ *			Good at finding "use after free" cases
+ *			Cheap in memory, but expensive in CPU
+ *
+ * MAKE_GUARD	 - puts a 4-byte known pattern *after* allocated memory
+ *			Good at finding overrun problems after the fact
+ *			Cheap in CPU, adds 4 bytes to each malloc item
+ *
+ */
+
+#define	MARK_PRISTINE	1	/* Expensive in CPU time */
+#define	MAKE_GUARD	1	/* Adds 4 bytes memory - cheap in CPU*/
 
 void audit_xmit_hist(void);
 
@@ -70,9 +83,28 @@ void audit_xmit_hist(void);
 #define	HA_FREE_MAGIC	0xDEADBEEFUL
 
 
+/*
+ * We put a struct ha_mhdr in front of every malloc item.
+ * This means each malloc item is 12 bytes bigger than it theoretically
+ * needs to be.  But, it allows this code to be fast and recognize
+ * multiple free attempts, and memory corruption *before* the object
+ *
+ * It's probably possible to combine these fields a bit,
+ * since bucket and reqsize are only needed for allocated items,
+ * both are bounded in value, and fairly strong integrity checks apply
+ * to them.  But then we wouldn't be able to tell *quite* as reliably
+ * if someone gave us an item to free that we didn't allocate...
+ *
+ * Could even make the bucket and reqsize objects into 16-bit ints...
+ *
+ * The idea of getting it all down into 16-bits of overhead is
+ * an interesting thought...
+ */
 
 struct ha_mhdr {
+#	ifdef HA_MALLOC_MAGIC
 	unsigned long	magic;	/* Must match HA_*_MAGIC */
+#endif
 	size_t		reqsize;
 	int		bucket;
 };
@@ -173,11 +205,11 @@ ha_malloc(size_t size)
 				,	"attempt to allocate memory"
 				" which is not pristine.");
 				ha_dump_item(buckptr);
-				abort();
 			}
 		}
 #endif
 
+#ifdef HA_MALLOC_MAGIC
 		switch (buckptr->hdr.magic) {
 
 			case HA_FREE_MAGIC:
@@ -189,7 +221,6 @@ ha_malloc(size_t size)
 				" already allocated at 0x%lx"
 				,	(unsigned long)ret);
 				ha_dump_item(buckptr);
-				abort();
 				ret=NULL;
 				break;
 
@@ -198,11 +229,11 @@ ha_malloc(size_t size)
 				, "corrupt malloc buffer at 0x%lx"
 				,	(unsigned long)ret);
 				ha_dump_item(buckptr);
-				abort();
-				buckptr->hdr.magic = HA_FREE_MAGIC;
+				ret=NULL;
 				break;
 		}
 		buckptr->hdr.magic = HA_MALLOC_MAGIC;
+#endif /* HA_MALLOC_MAGIC */
 		if (curproc) {
 			curproc->nbytes_req += size;
 			curproc->nbytes_alloc+=ha_bucket_sizes[numbuck];
@@ -228,7 +259,11 @@ int
 ha_is_allocated(const void *ptr)
 {
 
+#ifdef HA_MALLOC_MAGIC
 	return (ptr && CBHDR(ptr)->hdr.magic == HA_MALLOC_MAGIC);
+#else
+	return (ptr != NULL);
+#endif
 }
 
 /*
@@ -255,6 +290,7 @@ ha_free(void *ptr)
 
 	bhdr = BHDR(ptr);
 
+#ifdef HA_MALLOC_MAGIC
 	switch (bhdr->hdr.magic) {
 		case HA_MALLOC_MAGIC:
 			break;
@@ -265,25 +301,28 @@ ha_free(void *ptr)
 			" object at 0x%lx"
 			,	(unsigned long)ptr);
 			ha_dump_item(bhdr);
-			abort();
+			return;
 			break;
 		default:
 			ha_log(LOG_ERR, "ha_free: Bad magic number"
 			" in object at 0x%lx"
 			,	(unsigned long)ptr);
 			ha_dump_item(bhdr);
-			abort();
+			return;
 			break;
 	}
+#endif
 	if (!GUARD_IS_OK(ptr)) {
 		ha_log(LOG_ERR
 		,	"ha_free: attempt to free guard-corrupted"
 		" object at 0x%lx", (unsigned long)ptr);
 		ha_dump_item(bhdr);
-		abort();
+		return;
 	}
 	bucket = bhdr->hdr.bucket;
+#ifdef HA_MALLOC_MAGIC
 	bhdr->hdr.magic = HA_FREE_MAGIC;
+#endif
 
 	/*
 	 * Return it to the appropriate bucket (linked list), or just free
@@ -345,7 +384,9 @@ ha_new_mem(size_t size, int numbuck)
 
 	hdrret->hdr.reqsize = size;
 	hdrret->hdr.bucket = numbuck;
+#ifdef HA_MALLOC_MAGIC
 	hdrret->hdr.magic = HA_MALLOC_MAGIC;
+#endif
 
 	if (curproc) {
 		curproc->nbytes_alloc += mallocsize;
@@ -411,10 +452,20 @@ ha_dump_item(struct ha_bucket*b)
 	unsigned char *	cp;
 	ha_log(LOG_INFO, "Dumping ha_malloc item @ 0x%lx, bucket address: 0x%lx"
 	,	((unsigned long)b)+ha_malloc_hdr_offset, (unsigned long)b);
+#ifdef HA_MALLOC_MAGIC
 	ha_log(LOG_INFO, "Magic number: 0x%lx reqsize=%ld"
 	", bucket=%d, bucksize=%ld"
-	,	b->hdr.magic, (long)b->hdr.reqsize, b->hdr.bucket
-	,	(long)(b->hdr.bucket >= NUMBUCKS ? 0 : ha_bucket_sizes[b->hdr.bucket]));
+	,	b->hdr.magic
+	,	(long)b->hdr.reqsize, b->hdr.bucket
+	,	(long)(b->hdr.bucket >= NUMBUCKS ? 0 
+	:	ha_bucket_sizes[b->hdr.bucket]));
+#else
+	ha_log(LOG_INFO, "reqsize=%ld"
+	", bucket=%d, bucksize=%ld"
+	,	(long)b->hdr.reqsize, b->hdr.bucket
+	,	(long)(b->hdr.bucket >= NUMBUCKS ? 0 
+	:	ha_bucket_sizes[b->hdr.bucket]));
+#endif
 	cbeg = ((char *)b)+ha_malloc_hdr_offset;
 	cend = cbeg+b->hdr.reqsize+GUARDSIZE;
 
