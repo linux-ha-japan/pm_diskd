@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.7 2001/10/03 13:54:16 alan Exp $
+#	$Id: IPaddr.in,v 1.8 2001/10/03 15:00:26 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -102,7 +102,7 @@ ip_stop() {
 			;;
   esac
 
-  echo "info: $CMD"
+  ha_log "info: $CMD"
   $CMD
 
   case $SYSTYPE in
@@ -201,6 +201,11 @@ ip_start() {
   fi
   IF=`echo "$IFINFO" | cut -f1`
 
+  #
+  #	On Linux the Alias is named ethx:y
+  #	This will remove the "extra" interface Data 
+  #	leaving us with just ethx
+  #
   case $SYSTYPE in
     *BSD|SunOS)
 		IFEXTRA=""
@@ -342,6 +347,11 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.8  2001/10/03 15:00:26  alan
+# Patch from Matt Soffen to add a comment about the IFEXTRA logic in the
+# IPaddr resource script.
+# Matt also replaced an errant echo with an ha_log() call.
+#
 # Revision 1.7  2001/10/03 13:54:16  alan
 # Merged in Matt Soffen's changes and added some of my own for IPaddr...
 #
