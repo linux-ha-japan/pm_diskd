@@ -2098,8 +2098,11 @@ ccm_state_joined(enum ccm_type ccm_msg_type,
 		if (CCM_TRANS_EARLIER(trans_majorval,  
 					CCM_GET_MAJORTRANS(info))) {
 			cl_log(LOG_WARNING, "ccm_state_joined: received "
-				"CCM_TYPE_JOIN message with"
-				"a earlier major transition number");
+				"%s message with "
+				"a earlier major transition number "
+				"recv_trans=%d, mytrans=%d",
+				ccm_type2string(ccm_msg_type), trans_majorval, 
+				CCM_GET_MAJORTRANS(info));
 			return;
 		}
 
