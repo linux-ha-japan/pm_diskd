@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.10 2001/10/03 05:22:19 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.11 2001/10/04 21:14:30 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -327,6 +327,10 @@ ttysetup(int fd, const char * ourtty)
 	ti.c_oflag &= ~(OPOST);
 	ti.c_cflag &= ~(CBAUD|CSIZE|PARENB);
 
+#ifndef CRTSCTS
+#	define CRTSCTS 0	/* AIX and others don't have this */
+#endif
+
 /*
  * Make a silly Linux/Gcc -Wtraditional warning go away
  * This is not my fault, you understand...                       ;-)
@@ -594,6 +598,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.11  2001/10/04 21:14:30  alan
+ * Patch from Reza Arbab <arbab@austin.ibm.com> to make it compile correctly
+ * on AIX.
+ *
  * Revision 1.10  2001/10/03 05:22:19  alan
  * Added code to save configuration parameters so we can pass them to the various communication plugins...
  *

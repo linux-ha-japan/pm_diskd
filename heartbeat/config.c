@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.50 2001/10/03 21:28:35 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.51 2001/10/04 21:14:30 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -36,13 +36,13 @@ const static char * _heartbeat_c_Id = "$Id: config.c,v 1.50 2001/10/03 21:28:35 
 #include <unistd.h>
 #include <dirent.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <netdb.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
-#include <sys/fcntl.h>
 #include <sys/signal.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
-#include <netdb.h>
 
 #include <heartbeat.h>
 #include <ha_msg.h>
@@ -1225,6 +1225,10 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.51  2001/10/04 21:14:30  alan
+ * Patch from Reza Arbab <arbab@austin.ibm.com> to make it compile correctly
+ * on AIX.
+ *
  * Revision 1.50  2001/10/03 21:28:35  alan
  * Put in Andreas Piesk's fix to the funny question mark at the end of the line
  * on ps output when you have a multicast comm link.

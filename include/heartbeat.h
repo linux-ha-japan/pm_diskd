@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.4 2001/10/03 21:28:36 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.5 2001/10/04 21:14:30 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -29,7 +29,7 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.4 2001/10/03 21:28:3
 #	define	FLUSH(fd)	ioctl(fd, TCFLSH, 2)
 #else
 #	define TERMIOS	termios
-#	include <sys/termios.h>
+#	include <termios.h>
 #	define	GETATTR(fd, s)	tcgetattr(fd, s)
 #	define	SETATTR(fd, s)	tcsetattr(fd, TCSAFLUSH, s)
 #	define	FLUSH(fd)	tcflush(fd, TCIOFLUSH)

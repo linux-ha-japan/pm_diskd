@@ -92,37 +92,37 @@ stonithlib_LTLIBRARIES	=	\
 
 
 apcmaster_la_SOURCES	= apcmaster.c expect.c 
-apcmaster_la_LDFLAGS	= -no-undefined -module -avoid-version
+apcmaster_la_LDFLAGS	= -module -avoid-version
 
 apcmastersnmp_la_SOURCES	= apcmastersnmp.c
-apcmastersnmp_la_LDFLAGS	= -no-undefined -module -avoid-version -lsnmp -lcrypto
+apcmastersnmp_la_LDFLAGS	= -module -avoid-version -lsnmp -lcrypto
 
 apcsmart_la_SOURCES	= apcsmart.c expect.c
-apcsmart_la_LDFLAGS	= -no-undefined -module -avoid-version
+apcsmart_la_LDFLAGS	= -module -avoid-version
 
 baytech_la_SOURCES	= baytech.c expect.c 
-baytech_la_LDFLAGS	= -no-undefined -module -avoid-version
+baytech_la_LDFLAGS	= -module -avoid-version
 
 meatware_la_SOURCES	= meatware.c expect.c 
-meatware_la_LDFLAGS	= -no-undefined -module -avoid-version
+meatware_la_LDFLAGS	= -module -avoid-version
 
 null_la_SOURCES		= null.c 
-null_la_LDFLAGS		= -no-undefined -module -avoid-version
+null_la_LDFLAGS		= -module -avoid-version
 
 nw_rpc100s_la_SOURCES	= nw_rpc100s.c expect.c
-nw_rpc100s_la_LDFLAGS	= -no-undefined -module -avoid-version
+nw_rpc100s_la_LDFLAGS	= -module -avoid-version
 
 rps10_la_SOURCES	= rps10.c expect.c
-rps10_la_LDFLAGS	= -no-undefined -module -avoid-version
+rps10_la_LDFLAGS	= -module -avoid-version
 
 ssh_la_SOURCES		= ssh.c
-ssh_la_LDFLAGS		= -no-undefined -module -avoid-version
+ssh_la_LDFLAGS		= -module -avoid-version
 
 vacm_la_SOURCES		= vacm.c expect.c 
-vacm_la_LDFLAGS		= -no-undefined -module -avoid-version -lvacmclient
+vacm_la_LDFLAGS		= -module -avoid-version -lvacmclient
 
 wti_nps_la_SOURCES	= meatware.c expect.c 
-wti_nps_la_LDFLAGS	= -no-undefined -module -avoid-version
+wti_nps_la_LDFLAGS	= -module -avoid-version
 
 ## Man pages
 
