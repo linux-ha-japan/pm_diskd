@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.17 1999/11/09 06:14:26 alan Exp $
+#	$Id: Makefile,v 1.18 1999/11/10 20:35:43 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -48,7 +48,7 @@ MAKE=make
 MAKE_CMD = $(MAKE) $(VARS)
 
 NONKERNELDIRS= doc heartbeat
-KERNELDIRS= proc-ha
+KERNELDIRS= 
 BUILDDIRS= $(NONKERNELDIRS) $(KERNELDIRS)
 
 #
