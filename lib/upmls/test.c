@@ -44,20 +44,24 @@ ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports, void *user_ptr)
 {
 	ML_rc		ret;
 	/*
-	 * Trigger some much-appreciated type checking...
+	 * Force compiler to check our parameters...
 	 */
-	MLModuleInitFun	fun = ML_MODULE_INIT; (void)fun;
+	MLModuleInitFun	fun = &ML_MODULE_INIT; (void)fun;
 
 
 	OurModImports = imports;
 	OurModule = us;
 
-	imports->log(ML_DEBUG, "%s: user_ptr = %d", (unsigned long)user_ptr);
+	imports->log(ML_DEBUG, "Module %s: user_ptr = %lx"
+	,	MODNAME, (unsigned long)user_ptr);
+
 	imports->log(ML_DEBUG, "Registering ourselves as a module");
-	/* Register ourself as a module */
+
+	/* Register as a module */
 	imports->register_module(us, &OurModExports);
  
 	imports->log(ML_DEBUG, "Registering our plugins");
+
 	/*  Register our plugins */
 	ret = imports->register_plugin(us
 	,	MODTYPE
