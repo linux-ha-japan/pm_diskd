@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.7 2000/08/30 20:32:39 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.8 2001/02/05 04:55:27 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *	It's really simple to write in C, but hard to write in the shell...
@@ -156,11 +156,7 @@ main(int argc, char ** argv) {
 			bits = 32 - bits;
 			netmask = (1L<<(bits))-1L;
 			netmask = ((~netmask)&0xffffffffUL);
-			netmask = (netmask&0x000000ffUL) <<24
-			|	  (netmask&0x0000ff00UL) <<8
-			|	  (netmask&0x00ff0000UL) >>8
-			|	  (netmask&0xff000000UL) >>24;
-			/* BYTE ORDERING DEPENDENCY PROBLEM! */
+			netmask = htonl(netmask);
 		}
 	}
 
@@ -267,6 +263,9 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
+ * Revision 1.8  2001/02/05 04:55:27  alan
+ * Sparc fix from Uzi.
+ *
  * Revision 1.7  2000/08/30 20:32:39  alan
  * Fixed a byte ordering problem in findif.c.  There's probably another one in the code yet.
  *
