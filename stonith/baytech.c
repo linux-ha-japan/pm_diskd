@@ -216,6 +216,12 @@ RPCLookFor(struct BayTech* bt, struct Etoken * tlist, int timeout)
 		RPCkillcomm(bt);
 		return(-1);
 	}
+#if 0
+	syslog(LOG_INFO
+	,	"BayTech: Expecting [%s] Received [%s]"
+	,	tlist[0].string
+	,	savebuf);
+#endif
 	return(rc);
 }
 
