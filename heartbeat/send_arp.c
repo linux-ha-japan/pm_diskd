@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.3 1999/10/05 06:17:29 alanr Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.4 2000/12/04 20:33:17 alan Exp $";
 /* send_arp.c
 
 This program sends out one ARP packet with source/target IP and Ethernet
@@ -27,6 +27,7 @@ volobuev@t1.chem.umn.edu
 #	include <linux/in.h>
 #endif
 #include <netinet/in.h>
+#include <net/if.h>
 #include <netinet/if_ether.h>
 #include <arpa/inet.h>
 
@@ -156,6 +157,9 @@ for(i=0;i<ETH_HW_ADDR_LEN;i++){
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.4  2000/12/04 20:33:17  alan
+ * OpenBSD fixes from Frank DENIS aka Jedi/Sector One <j@c9x.org>
+ *
  * Revision 1.3  1999/10/05 06:17:29  alanr
  * Fixed various uninitialized variables
  *
