@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.9 2002/09/12 03:52:07 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.10 2002/09/19 22:40:18 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -418,12 +418,12 @@ mcast_read(struct hb_media* hbm)
 	mcp = (struct mcast_private *) hbm->pd;
 
 	if ((numbytes=recvfrom(mcp->rsocket, buf, MAXLINE-1, 0
-	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
+	,	(struct sockaddr *)&their_addr, &addr_len)) < 0) {
 		if (errno != EINTR) {
 			LOG(PIL_CRIT, "Error receiving from socket: %s"
 			,	strerror(errno));
-			return NULL;
 		}
+		return NULL;
 	}
 	/* Avoid possible buffer overruns */
 	buf[numbytes] = EOS;
@@ -432,7 +432,7 @@ mcast_read(struct hb_media* hbm)
 		LOG(PIL_DEBUG, "got %d byte packet from %s"
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
-	if (Debug >= PKTCONTTRACE) {
+	if (Debug >= PKTCONTTRACE && numbytes > 0) {
 		LOG(PIL_DEBUG, buf);
 	}
 	return(string2msg(buf, sizeof(buf)));
@@ -819,6 +819,12 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.10  2002/09/19 22:40:18  alan
+ * Changed a few error return checks to not print anything and return
+ * if an error was encountered.
+ * Changed a few debug messages to only print if a strictly positive number
+ * of chars was received.
+ *
  * Revision 1.9  2002/09/12 03:52:07  alan
  * Fixed up a comment :-(.
  *

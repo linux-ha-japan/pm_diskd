@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.24 2002/09/12 03:52:07 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.25 2002/09/19 22:40:17 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -364,7 +364,7 @@ bcast_read(struct hb_media* mp)
 		PILCallLog(LOG, PIL_DEBUG, "got %d byte packet from %s"
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
-	if (DEBUGPKTCONT) {
+	if (DEBUGPKTCONT && numbytes > 0) {
 		PILCallLog(LOG, PIL_DEBUG, buf);
 	}
 	return(string2msg(buf, sizeof(buf)));
@@ -779,6 +779,12 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.25  2002/09/19 22:40:17  alan
+ * Changed a few error return checks to not print anything and return
+ * if an error was encountered.
+ * Changed a few debug messages to only print if a strictly positive number
+ * of chars was received.
+ *
  * Revision 1.24  2002/09/12 03:52:07  alan
  * Fixed up a comment :-(.
  *

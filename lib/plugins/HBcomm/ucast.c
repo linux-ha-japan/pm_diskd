@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.4 2002/09/13 14:37:27 msoffen Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.5 2002/09/19 22:40:18 alan Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -343,9 +343,12 @@ ucast_read(struct hb_media* mp)
 	ei = (struct ip_private *) mp->pd;
 
 	if ((numbytes=recvfrom(ei->rsocket, buf, MAXLINE-1, 0
-	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		LOG(PIL_CRIT, "Error receiving from socket: %s"
-		,	strerror(errno));
+	,	(struct sockaddr *)&their_addr, &addr_len)) < 0) {
+		if (errno != EINTR) {
+			LOG(PIL_CRIT, "Error receiving from socket: %s"
+			,	strerror(errno));
+		}
+		return NULL;
 	}
 	buf[numbytes] = EOS;
 

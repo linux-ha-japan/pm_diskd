@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.10 2002/09/12 12:36:09 horms Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.11 2002/09/19 22:40:18 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -326,8 +326,10 @@ ping_read(struct hb_media* mp)
 	ei = (struct ping_private *) mp->pd;
 
 	if ((numbytes=recvfrom(ei->sock, (void *) &buf.cbuf, sizeof(buf.cbuf)-1, 0
-	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		LOG(PIL_CRIT, "Error receiving from socket: %s", strerror(errno));
+	,	(struct sockaddr *)&their_addr, &addr_len)) < 0) {
+		if (errno != EINTR) {
+			LOG(PIL_CRIT, "Error receiving from socket: %s", strerror(errno));
+		}
 		return NULL;
 	}
 	/* Avoid potential buffer overruns */
@@ -356,7 +358,7 @@ ping_read(struct hb_media* mp)
 		LOG(PIL_DEBUG, "got %d byte packet from %s"
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
-	if (DEBUGPKTCONT) {
+	if (DEBUGPKTCONT && numbytes > 0) {
 		LOG(PIL_DEBUG, "%s", &icp.icmp_data[0]);
 	
 	}
