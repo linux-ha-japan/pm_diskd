@@ -1,5 +1,20 @@
+* Tue Apr 8 2000 Alan Robertson <alanr@henge.com>,
+     Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
+     Mitja Sarp <mitja@lysator.liu.se>, Jacob Rief <jacob.rief@tis.at>
+     Guenther Thomsen <thomsen@cs.tu-berlin.de>, 
+     Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>,
+     Marcelo Tosatti <marcelo@conectiva.com.br>
+     and Horms <horms@vergenet.net>
 
-* Tue Apr 04 2000  Luis Claudio R. Gonçalves <lclaudio@conectiva.com.br>
++ Version 0.4.8  0.5 BETA
+  + Added the nice_failback feature. If the cluster is running when
+	the primary starts it acts as a secondary. (Luis Claudio)
+  + Tidied up loging so it can be to files, to syslog or both (Horms)
+  + Tidied up build process (Horms)
+  + Updated ldirectord to produce and install a man page and be
+    compatible with the fwmark options to The Linux Virtual Server (Horms)
+  + Added log rotation for ldirectord and heartbeat using logrotate
+    if it is installed
 
 * Sat Dec 25 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
