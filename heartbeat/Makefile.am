@@ -79,6 +79,12 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 			-dlopen self
 
 send_arp_SOURCES	= send_arp.c
+send_arp_CFLAGS	 	= @LIBNETDEFINES@
+send_arp_LDADD	 	= @LIBNETLIBS@
+
+send_arp.o: send_arp.c
+	$(CC) -c $(send_arp_SOURCES) -o $(send_arp_OBJECTS) $(CPPFLAGS) $(send_arp_CFLAGS)
+
 
 findif_SOURCES		= findif.c
 findif_LDADD		=$(top_builddir)/replace/libreplace.la

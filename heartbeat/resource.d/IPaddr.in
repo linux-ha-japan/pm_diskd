@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.19 2002/05/15 04:25:47 msoffen Exp $
+#	$Id: IPaddr.in,v 1.20 2002/05/28 18:25:48 msoffen Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -49,8 +49,6 @@ find_interface_solaris() {
     do
       : Nothing
     done
-
-    ha_log "$ipaddr $ifname"
 
     case $ifname in
       *:*)	;;
@@ -216,13 +214,16 @@ ip_stop() {
 					CMD="$IFCONFIG $IF unplumb"
 					;;
 				*)
-					CMD="$IFCONFIG $IF 0";;
+					CMD="$IFCONFIG $IF 0 down"
+					;;
 			esac
 			;;
-	*BSD|SunOS)
-			CMD="$IFCONFIG $IF delete $BASEIP";;
+	*BSD)
+			CMD="$IFCONFIG $IF delete $BASEIP"
+			;;
 
-	*)		CMD="$IFCONFIG $IF down";;
+	*)		CMD="$IFCONFIG $IF down"
+			;;
   esac
   ha_log "info: $CMD"
   $CMD
@@ -381,7 +382,7 @@ ip_start() {
 				CMD="$IFCONFIG $IF inet $BASEIP $IFEXTRA up"
 				;;
 			*)
-				CMD="$IFCONFIG $IF inet $BASEIP $IFEXTRA"
+				CMD="$IFCONFIG $IF inet $BASEIP $IFEXTRA up"
 				;;
 		esac
 		;;
@@ -423,17 +424,10 @@ ip_start() {
 
   for j in 1 2 3 4 5
   do
-   case $SYSTYPE in
-	SunOS)
-		:
-		;;
-	*)	
-	   ha_log "$SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff"
-	   $SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff \
-   ||	ha_log "ERROR: Could not send gratuitous arp"
-		;;
-    esac
-     sleep 2
+	ha_log "$SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff"
+	$SENDARP $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ffffffffffff \
+   	||	ha_log "ERROR: Could not send gratuitous arp"
+        sleep 2
   done &
 }
 
@@ -470,7 +464,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.19 2002/05/15 04:25:47 msoffen Exp $"
+  echo "$Id: IPaddr.in,v 1.20 2002/05/28 18:25:48 msoffen Exp $"
 }
 
 #
@@ -517,6 +511,10 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.20  2002/05/28 18:25:48  msoffen
+# Changes to replace send_arp with a libnet based version.  This works accross
+# all operating systems we currently "support" (Linux, FreeBSD, Solaris).
+#
 # Revision 1.19  2002/05/15 04:25:47  msoffen
 # Corrected Ping problem so that it would work in FreeBSD (using parameters from configure.in).
 #
