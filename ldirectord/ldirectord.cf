@@ -14,6 +14,7 @@ checkinterval=1
 fallback=127.0.0.1:80
 autoreload=yes
 #logfile="/var/log/ldirectord.log"
+#logfile="local0"
 quiescent=yes
 
 # A sample virual with a fallback that will override the gobal setting
