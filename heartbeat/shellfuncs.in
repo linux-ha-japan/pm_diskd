@@ -18,6 +18,21 @@ export HA_DIR HA_RCDIR HA_FIFO HA_BIN
 export HA_DEBUGLOG HA_LOGFILE HA_LOGFACILITY
 export HA_DATEFMT HA_RESOURCEDIR HA_DOCDIR
 
+#	A suitable echo command
+Echo() {
+  @ECHO_CMD@ "$@"
+}
+
+#	Echo without putting a newline on the end
+EchoNoNl() {
+    Echo @ECHO_N@ "$@@ECHO_C@"
+}
+
+#	Echo with escapes enabled...
+EchoEsc() {
+    Echo @ECHO_E@ "$@"
+}
+
 hadate() {
   date "+${HA_DATEFMT}"
 }
@@ -39,9 +54,9 @@ ha_log() {
 	  [ -n "$HA_LOGFILE" ]
 	then
 	  : appending to $HA_LOGFILE
-	  echo "$HA_LOGTAG: "`hadate`"${*}" >> $HA_LOGFILE
+	  Echo "$HA_LOGTAG: "`hadate`"${*}" >> $HA_LOGFILE
 	else
-	  echo `hadate`"${*}" >&2
+	  Echo `hadate`"${*}" >&2
 	fi
 }
 
@@ -56,9 +71,9 @@ ha_debug() {
 	  [ -n "$HA_DEBUGLOG" ]
 	then
 	  : appending to $HA_DEBUGLOG
-	  echo "$HA_LOGTAG: "`hadate`"${*}" >> $HA_DEBUGLOG
+	  Echo "$HA_LOGTAG: "`hadate`"${*}" >> $HA_DEBUGLOG
 	else
-	  echo `hadate`"${*}" .$HA_LOGFACILITY. >&2
+	  Echo `hadate`"${*}" .$HA_LOGFACILITY. >&2
 	fi
 }
 
@@ -84,5 +99,5 @@ ha_parameter() {
 			VALUE=`expr $ka '*' 2 '+' 1`;;
     esac
   fi
-  echo $VALUE
+  Echo $VALUE
 }
