@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.51 2003/06/19 04:04:00 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.52 2003/06/23 14:46:39 msoffen Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -190,7 +190,6 @@ SetParameterValue(const char * name, const char * value)
  * GetParameterValue() provides information from the configuration file
  * for the plugins to use. This avoids coupling through global variables.
  */
-void
 static const char *
 GetParameterValue(const char * name)
 {
