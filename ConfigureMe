@@ -102,7 +102,7 @@ ConfigureGenericUNIX() {
 lcase() {
   #  Convert to lower-case in a portable way
   if
-    [ "`echo A | dd conv=lcase 2>/dev/null`" = Xa ]
+    [ X"`echo A | dd conv=lcase 2>/dev/null`" = Xa ]
   then
     dd conv=lcase 2>/dev/null
   else
