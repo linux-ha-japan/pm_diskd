@@ -34,6 +34,12 @@ PACKAGECMD=""
 ConfigureLinux() {
   DFLAGS=""
   if
+    [ -f /etc/UnitedLinux-release -a -s /etc/UnitedLinux-release ]
+  then
+    distro=UL
+    PACKAGECMD="make rpm"
+    DFLAGS="--with-ucd-snmp-devel=ucdsnmp --with-group-id=90 --with-ccmuser-id=90"
+  elif
     [ -f /etc/SuSE-release -a -s /etc/SuSE-release ]
   then
     distro=SuSE

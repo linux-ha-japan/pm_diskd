@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.198 2002/08/10 02:21:11 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.199 2002/08/14 21:38:05 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -5198,10 +5198,10 @@ tickle_watchdog(void)
 {
 	if (watchdogfd >= 0) {
 		if (write(watchdogfd, "", 1) != 1) {
-			close(watchdogfd);
-			watchdogfd=-1;
 			ha_perror("Watchdog write failure: closing %s!\n"
 			,	watchdogdev);
+			close_watchdog();
+			watchdogfd=-1;
 		}
 	}
 }
@@ -6071,6 +6071,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.199  2002/08/14 21:38:05  alan
+ * Capabilities for plugins for apphbd, also for watchdog support.
+ *
+ * Put in a "fixed" version of base64.c with different logging code.
+ *
+ * Changed the API for the IPC code slightly.
+ *
  * Revision 1.198  2002/08/10 02:21:11  alan
  * Moved the SIGIGNORE stuff to the common portability.h file
  * Added a OpenBSD fix - we used to open a FIFO as O_RDWR.  Now we open

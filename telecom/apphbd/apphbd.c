@@ -48,12 +48,32 @@
  *
  * TODO list:
  *
- *	- Implement plugins for (other) notification mechanisms...
+ *	- Implement plugins for notification mechanisms...
  * 
  *	- Consider merging all the timeouts into some kind of single
  *		timeout source.  This would probably more efficient for
  *		large numbers of clients.  But, it may not matter ;-)
- * 
+ *
+ *	- Implement command line option parsing:
+ *		for notification plugins to load
+ *		for the name of a watchdog device to open
+ *		for the group id members must belong to
+ *		for the name of configuration file to use?
+ *
+ *	- Implement a reload option for config file?
+ *
+ *
+ *	Notification plugin API exported functions
+ *		cregister (pid_t pid, const char * appname
+ *		,	void * clienthandle)
+ *		cunregister(pid_t pid, const char * appname)
+ *		status(pid_t pid, const char * appname, apphb_event_t what)
+ *
+ *	Notification plugin imported functions:
+ *		authenticate_client(void * handle, uidlist, gidlist)
+ *			This returns TRUE if the app at apphandle
+ *			properly authenticates according to the gidlist
+ *			and the uidlist.
  */
 
 #include <syslog.h>
@@ -64,6 +84,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <apphb.h>
 #define	time	footime
@@ -75,6 +96,8 @@
 #include <clplumbing/ipc.h>
 #include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/apphb_cs.h>
+#include <pils/generic.h>
+#include <pils/plugin.h>
 
 #define __USE_UNIX98
 #include <signal.h>
@@ -110,9 +133,39 @@ struct apphb_client {
 
 typedef enum apphb_event apphb_event_t;
 enum apphb_event {
-	APPHB_HUP,
-	APPHB_NOHB,
-	APPHB_HBAGAIN
+	APPHB_HUP	= 1,
+	APPHB_NOHB	= 2,
+	APPHB_HBAGAIN	= 3,
+	APPHB_HBUNREG	= 4,
+};
+
+#define	MAXNOTIFYPLUGIN	100
+
+/*
+ * Definitions for plugins
+ */
+typedef struct AppHBNotifyOps_s AppHBNotifyOps;
+typedef struct AppHBNotifyImports_s AppHBNotifyImports;
+
+/*
+ * Plugin exported functions.
+ */
+struct AppHBNotifyOps_s {
+	int (*cregister)(pid_t pid, const char * appname, void * handle);
+	int (*status)(const char * appname, pid_t pid, apphb_event_t event);
+};
+
+AppHBNotifyOps*	NotificationPlugins[MAXNOTIFYPLUGIN];
+int		n_Notification_Plugins = 0;
+static int	watchdogfd = -1;
+
+
+/*
+ * Plugin imported functions.
+ */
+struct AppHBNotifyImports_s {
+	gboolean (*auth)	(void * clienthandle
+,	uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
 };
 
 static void apphb_notify(const char * appname, pid_t pid, apphb_event_t event);
@@ -122,15 +175,21 @@ static int init_start(void);
 static int init_stop(void);
 static int init_status(void);
 static int init_restart(void);
+static void load_notification_plugin(const char *optarg);
+static gboolean open_watchdog(const char * dev);
+static void tickle_watchdog(void);
+static void close_watchdog(void);
 
 void apphb_client_remove(apphb_client_t* client);
 static void apphb_putrc(apphb_client_t* client, int rc);
 static gboolean	apphb_timer_popped(gpointer data);
+static gboolean	tickle_watchdog_timer(gpointer data);
 static apphb_client_t* apphb_client_new(struct IPC_CHANNEL* ch);
 static int apphb_client_register(apphb_client_t* client, void* Msg, int len);
 static void apphb_read_msg(apphb_client_t* client);
 static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
 void apphb_process_msg(apphb_client_t* client, void* msg,  int length);
+static gboolean authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist, int nuid, int ngid);
 
 /* gmainloop "event source" functions for client communication */
 static gboolean apphb_prepare(gpointer src, GTimeVal*now, gint*timeout
@@ -364,6 +423,7 @@ apphb_client_disconnect(apphb_client_t* client , void * msg, int msgsize)
 {
 	/* We can't delete it right away... */
 	client->deleteme=TRUE;
+	apphb_notify(client->appname, client->pid, APPHB_HBUNREG);
 	return 0;
 }
 
@@ -534,24 +594,41 @@ apphb_notify(const char * appname, pid_t pid, apphb_event_t event)
 {
 	int	logtype = LOG_WARNING;
 	const char *	msg;
+	int		j;
+
+
 	switch(event) {
 	case	APPHB_HUP:
-		msg = "disconnected";
+		msg = "hangup";
 		logtype = LOG_ERR;
 		break;
+
 	case	APPHB_NOHB:
 		msg = "failed to heartbeat";
 		logtype = LOG_WARNING;
 		break;
+
 	case	APPHB_HBAGAIN:
 		msg = "resumed heartbeats";
+		logtype = LOG_INFO;
+		break;
+
+	case	APPHB_HBUNREG:
+		msg = "unregistered";
 		logtype = LOG_INFO;
 		break;
 	default:
 		return;
 	}
-	syslog(logtype, "client '%s' (pid %d) %s"
-	,	appname, pid, msg);
+	if (event != APPHB_HBUNREG) {
+		syslog(logtype, "client '%s' (pid %d) %s"
+		,	appname, pid, msg);
+	}
+	
+	/* Tell the plugins something happened */
+	for (j=0; j < n_Notification_Plugins; ++j) {
+		NotificationPlugins[j]->status(appname, pid, event);
+	}
 	
 }
 
@@ -562,31 +639,60 @@ extern pid_t getsid(pid_t);
  */
 GMainLoop*	mainloop = NULL;
 
+#define OPTARGS	"sSrRw:n:"
 int
 main(int argc, char ** argv)
 {
+	int		flag;
+	const char *	watchdogdev = NULL;
+
 	cmdname = argv[0];
 
 	if (argc < 2) {
 		return init_start();
 	}
 
-	if (strcmp(argv[1], "--start") == 0) {
-		return init_start();
+	while ((flag = getopt(argc, argv, OPTARGS)) != EOF) {
+		switch(flag) {
+			case 's':		/* Status */
+			return init_status();
+
+			case 'S':		/* Stop */
+			return init_stop();
+
+			case 'r':		/* Restart */
+			return init_restart();
+
+			case 'w':
+			watchdogdev = optarg;
+			break;
+
+			case 'n':
+			load_notification_plugin(optarg);
+			break;
+		}
 	}
-	if (strcmp(argv[1], "--stop") == 0) {
-		return init_stop();
+
+	if (watchdogdev) {
+		open_watchdog(watchdogdev);
 	}
-	if (strcmp(argv[1], "--status") == 0) {
-		return init_status();
-	}
-	if (strcmp(argv[1], "--restart") == 0) {
-		return init_restart();
-	}
-	fprintf(stderr, "usage: %s --(start|stop|status|restart)\n"
-	,	cmdname);
-	exit(1);
+	return init_start();
 }
+
+static void
+shutdown(int nsig)
+{
+	static int	shuttingdown = 0;
+	signal(nsig, shutdown);
+
+	if (!shuttingdown) {
+		/* Let the watchdog get us if we can't shut down */
+		tickle_watchdog();
+		shuttingdown = 1;
+	}
+	g_main_quit(mainloop);
+}
+
 
 static int
 init_start(void)
@@ -631,12 +737,15 @@ init_start(void)
 	/* Create the mainloop and run it... */
 	mainloop = g_main_new(FALSE);
 	syslog(LOG_INFO, "Starting %s", cmdname);
+	if (watchdogfd >= 0) {
+		Gmain_timeout_add(1000, tickle_watchdog_timer, NULL);
+	}
 	g_main_run(mainloop);
+	close_watchdog();
 	wconn->ops->destroy(wconn);
 	unlink(PIDFILE);
 	return 0;
 }
-
 
 static void
 make_daemon(void)
@@ -650,6 +759,7 @@ make_daemon(void)
 		,	cmdname, pid);
 		syslog(LOG_CRIT, "already running: [pid %ld]."
 		,	pid);
+		close_watchdog();
 		exit(1);
 	}
 
@@ -683,7 +793,7 @@ make_daemon(void)
 
 	IGNORESIG(SIGINT);
 	IGNORESIG(SIGHUP);
-	IGNORESIG(SIGTERM);
+	signal(SIGTERM, shutdown);
 }
 
 static long
@@ -748,4 +858,147 @@ init_status(void)
 	}
 	fprintf(stderr, "%s is stopped.\n", cmdname);
 	return 3;
+}
+
+/*
+ *	Notification plugin imported functions:
+ *		authenticate_client(void * handle, uidlist, gidlist)
+ *			This returns TRUE if the app at apphandle
+ *			properly authenticates according to the gidlist
+ *			and the uidlist.
+ */
+
+static gboolean
+authenticate_client(void * clienthandle, uid_t * uidlist, gid_t* gidlist
+,	int nuid, int ngid)
+{
+	struct apphb_client*	client = clienthandle;
+	struct IPC_AUTH*	auth;
+	struct IPC_CHANNEL*	ch;
+	gboolean		rc = FALSE;
+
+
+	if ((auth = ipc_set_auth(uidlist, gidlist, nuid, ngid)) == NULL) {
+		return FALSE;
+	}
+
+	if (client != NULL && (ch = client->ch) != NULL) {
+		rc =  ch->ops->verify_auth(ch, auth) == IPC_OK;
+	}
+	ipc_destroy_auth(auth);
+	return rc;
+}
+
+
+static const char *	watchdogdev = NULL;
+
+static gboolean
+open_watchdog(const char * dev)
+{
+
+ 	if (watchdogfd >= 0 || watchdogdev == NULL) {
+		syslog(LOG_WARNING, "Watchdog device already open.");
+		return FALSE;
+	}
+	watchdogfd = open(dev, O_WRONLY);
+	if (watchdogfd >= 0) {
+		if (fcntl(watchdogfd, F_SETFD, FD_CLOEXEC)) {
+			syslog(LOG_WARNING, "Error setting the "
+			"close-on-exec flag for watchdog");
+		}
+		syslog(LOG_NOTICE, "Using watchdog device: %s"
+		,       watchdogdev);
+		tickle_watchdog();
+		watchdogdev = dev;
+		return TRUE;
+	}else{
+		syslog(LOG_ERR, "Cannot open watchdog device: %s"
+		,       watchdogdev);
+	}
+	return FALSE;
+}
+
+static void
+close_watchdog(void)
+{
+	if (watchdogfd >= 0) {
+		if (write(watchdogfd, "V", 1) != 1) {
+			syslog(LOG_CRIT
+			,	"Watchdog write magic character failure:"
+			" closing %s!\n"
+			,       watchdogdev);
+		}
+		close(watchdogfd);
+		watchdogfd=-1;
+	}
+}
+
+static void
+tickle_watchdog(void)
+{
+	if (watchdogfd >= 0) {
+		if (write(watchdogfd, "", 1) != 1) {
+			syslog(LOG_CRIT
+			,	"Watchdog write failure: closing %s!\n"
+			,       watchdogdev);
+			close_watchdog();
+			watchdogfd=-1;
+		}
+	}
+}
+
+static gboolean
+tickle_watchdog_timer(gpointer data)
+{
+	tickle_watchdog();
+	return TRUE;
+}
+
+static PILPluginUniv*	pisys = NULL;
+static GHashTable*	Notifications = NULL;
+
+
+AppHBNotifyImports	piimports = {
+	authenticate_client
+};
+
+static PILGenericIfMgmtRqst RegistrationRqsts [] =
+{	{"AppHBNotification", &Notifications, &piimports, NULL, NULL},
+	{NULL,			NULL,		NULL,     NULL, NULL}
+};
+
+static void
+load_notification_plugin(const char * pluginname)
+{
+	PIL_rc	rc;
+	void*	exports;
+	if (pisys == NULL) {
+		pisys = NewPILPluginUniv("/usr/lib/heartbeat/plugins");
+		if (pisys == NULL) {
+			return;
+		}
+		if ((rc = PILLoadPlugin(pisys, "InterfaceMgr", "generic"
+		,	&RegistrationRqsts)) !=	PIL_OK) {
+
+			syslog(LOG_ERR
+			,       "ERROR: cannot load generic interface manager"
+		       " [%s/%s]: %s"
+			,       "InterfaceMgr", "generic"
+			,       PIL_strerror(rc));
+			return;
+		}
+	}
+	rc = PILLoadPlugin(pisys, "AppHBNotification"
+	,        pluginname, NULL);
+	if (rc != PIL_OK) {
+		syslog(LOG_ERR, "cannot load plugin %s", pluginname);
+		return;
+	}
+	if ((exports = g_hash_table_lookup(Notifications, pluginname))
+	== NULL) {
+		syslog(LOG_ERR, "cannot find plugin %s", pluginname);
+		return;
+	}
+	NotificationPlugins[n_Notification_Plugins] = exports;
+	n_Notification_Plugins ++;
 }
