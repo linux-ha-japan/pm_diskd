@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.71 2000/11/23 15:53:08 jacob Exp $
+#	$Id: Specfile,v 1.72 2000/11/25 13:46:53 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -400,11 +400,30 @@ then
 else
   GROUPOPT="-g %APIGID%"
   if
-    usr/sbin/groupadd $GROUPOPT %APIGROUP%
+    usr/sbin/groupadd $GROUPOPT %APIGROUP% 2>/dev/null
   then
     : OK we were able to add group %APIGROUP%
   else
     usr/sbin/groupadd %APIGROUP%
+  fi
+fi
+#
+#  Multi-distribution kludge for init scripts...
+#
+if
+  [ ! -d etc/init.d ]
+then
+  if
+    [ -d sbin/init.d  -a ! -L sbin/init.d ]
+  then
+    ln -s sbin/init.d etc/init.d
+  elif
+    [ -d etc/rc.d/init.d ]
+  then
+    ln -s sbin/rc.d/init.d etc/init.d
+  else
+    # I give up!
+    mkdir -p etc/init.d
   fi
 fi
 %post
@@ -412,7 +431,7 @@ fi
 #	Hack to allow ppp-udp to be notified about PPP processes starting
 #
 Install_PPP_hack() {
-  file2hack=/etc/ppp/ip-up.local
+  file2hack=etc/ppp/ip-up.local
   echo "NOTE: Modifying $file2hack"
   if
     [ ! -x bin/ed ]
@@ -481,8 +500,8 @@ true
 %preun
 
 Uninstall_PPP_hack() {
-  file2hack=/etc/ppp/ip-up.local
-  echo "NOTE: Restoring $file2hack"
+  file2hack=etc/ppp/ip-up.local
+  echo "NOTE: Restoring /$file2hack"
   MARKER="Heartbeat"
   ed -s $file2hack <<-!EOF  2>/dev/null
 H

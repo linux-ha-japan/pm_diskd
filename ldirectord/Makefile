@@ -11,10 +11,9 @@
 POD2MAN		= pod2man
 SBIN		= $(BUILD_ROOT)/usr/sbin
 MAN		= $(BUILD_ROOT)/usr/man/man8
-LOGROTATED	= /etc/logrotate.d
+LOGROTATED	= etc/logrotate.d
 LOGROTATE	= $(BUILD_ROOT)/$(LOGROTATED)
-INITD		=\
-$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
+INITD		= etc/init.d
 INIT		= $(BUILD_ROOT)/$(INITD)
 CONF            = $(BUILD_ROOT)/etc/ha.d/conf
 INSTALL		= install
@@ -41,16 +40,10 @@ install: ldirectord.8
 	$(INSTALL) -m 0755 ldirectord $(SBIN)
 	[ -d $(MAN) ] ||  $(MKDIR) -p $(MAN)
 	$(INSTALL) -m 0644 ldirectord.8 $(MAN)
-	if [ -d $(LOGROTATED) ]; then 					 \
-		[ -d $(LOGROTATE) ] ||  $(MKDIR) -p $(LOGROTATE) 	;\
-		$(INSTALL) -m 0644 					\
-			ldirectord.logrotate $(LOGROTATE)/ldirectord	;\
-	fi
-	if [ -d $(INITD) ]; then 					 \
-		[ -d $(INIT) ] ||  $(MKDIR) -p $(INIT) 			;\
-		$(INSTALL) -m 0755 					\
-			ldirectord.sh $(INIT)/ldirectord		;\
-	fi
+	[ -d $(LOGROTATE) ] ||  $(MKDIR) -p $(LOGROTATE) 
+	$(INSTALL) -m 0644  ldirectord.logrotate $(LOGROTATE)/ldirectord
+	[  -d $(INIT) ]     ||  $(MKDIR) -p $(INIT)	
+	$(INSTALL) -m 0755  ldirectord.sh $(INIT)/ldirectord
 	
 # Override implicit rule so ldirectord won't get clobered by ldirectord.sh
 ldirectord:

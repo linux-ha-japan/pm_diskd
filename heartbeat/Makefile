@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.41 2000/11/25 13:07:44 alan Exp $
+#	$Id: Makefile,v 1.42 2000/11/25 13:46:54 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -8,7 +8,7 @@
 #
 PKG=heartbeat
 
-INITD=$(shell [ -d /etc/init.d ] && echo /etc/init.d || echo /etc/rc.d/init.d )
+INITD=/etc/init.d
 LOGROTATED=$(BUILD_ROOT)/etc/logrotate.d
 
 #       Debian wants things to start with DESTDIR,
