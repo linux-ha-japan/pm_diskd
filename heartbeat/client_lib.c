@@ -1595,7 +1595,7 @@ ha_log(int priority, const char * fmt, ...)
 void
 ha_error(const char * msg)
 {
-	ha_log(0, msg);
+	ha_log(LOG_ERR, "%s", msg);
 }
 
 extern int	sys_nerr;
