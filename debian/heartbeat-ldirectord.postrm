@@ -18,7 +18,7 @@ set -e
 
 case "$1" in
        purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-	update-rc.d  ldirectord remove >/dev/null
+	update-rc.d heartbeat-ldirectord remove >/dev/null
         ;;
 
     *)

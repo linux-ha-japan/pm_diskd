@@ -19,6 +19,7 @@ set -e
 case "$1" in
        purge|remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
 	update-rc.d  heartbeat remove >/dev/null
+	rm -f /var/lib/heartbeat/fifo /var/lib/heartbeat/register 
         ;;
 
     *)

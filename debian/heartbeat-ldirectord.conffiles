@@ -1,2 +1,2 @@
 /etc/logrotate.d/ldirectord
-/etc/init.d/ldirectord
+/etc/init.d/heartbeat-ldirectord

@@ -43,7 +43,8 @@ install: build
 	install -c -m 644 ldirectord/ldirectord.cf \
 	  `pwd`/debian/tmp/usr/share/doc/heartbeat-ldirectord/
 	-mkdir -p `pwd`/debian/tmp/etc/init.d
-	install -c -m 644 ldirectord/ldirectord.sh `pwd`/debian/tmp/etc/init.d/
+	install -c -m 755 ldirectord/ldirectord.sh \
+		`pwd`/debian/tmp/etc/init.d/heartbeat-ldirectord
 	cd `pwd`/debian/tmp/etc/ha.d/resource.d \
 	  && ln -s /usr/sbin/ldirectord ldirectord
 

@@ -24,7 +24,7 @@ set -e
 
 case "$1" in
     configure)
-    	update-rc.d ldirectord defaults >/dev/null
+    	update-rc.d heartbeat-ldirectord defaults >/dev/null
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
