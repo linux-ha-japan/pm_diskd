@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.35 1999/11/26 07:19:17 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.36 1999/11/27 16:00:02 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -2290,6 +2290,7 @@ add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 	}
 	/* Throw away old packet in this slot */
 	if (hist->msgq[slot] != NULL) {
+		/* Lowseq is less than the lowest recorded seqno */
 		hist->lowseq = hist->seqnos[slot];
 		ha_msg_del(hist->msgq[slot]);
 	}
@@ -2320,7 +2321,8 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 	for (thisseq = lseq; thisseq >= fseq; --thisseq) {
 		int	msgslot;
 		int	foundit = 0;
-		if (thisseq < hist->lowseq) {
+		if (thisseq <= hist->lowseq) {
+			/* Lowseq is less than the lowest recorded seqno */
 			nak_rexmit(thisseq, "seqno too low");
 			continue;
 		}
@@ -2467,6 +2469,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.36  1999/11/27 16:00:02  alan
+ * Fixed a minor bug about where a continue should go...
+ *
  * Revision 1.35  1999/11/26 07:19:17  alan
  * Changed heartbeat.c so that it doesn't say "seqno not found" for a
  * packet which has been retransmitted recently.
