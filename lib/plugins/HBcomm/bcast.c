@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.8 2001/10/02 20:15:41 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.9 2001/10/03 05:33:28 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -192,10 +192,15 @@ bcast_init(void)
 	(void)_ha_msg_h_Id;
 
 	g_assert(OurImports != NULL);
+
 	if (udpport <= 0) {
 		const char *	chport;
 		if ((chport  = OurImports->ParamValue("port")) != NULL) {
 			sscanf(chport, "%d", &udpport);
+			if (udpport <= 0) {
+				LOG(PIL_CRIT, "bad port number");
+				return HA_FAIL;
+			}
 		}
 	}
 
@@ -751,6 +756,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.9  2001/10/03 05:33:28  alan
+ * Added a little more error checking for the broadcast port number...
+ *
  * Revision 1.8  2001/10/02 20:15:41  alan
  * Debug code, etc. from Matt Soffen...
  *
