@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2001 SuSE Linux AG
  *
- * Author: Joachim Gleissner <jg@suse.de>
+ * Authors: Joachim Gleissner <jg@suse.de>, Lars Marowsky-Brée <lmb@suse.de>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -40,7 +40,7 @@
 #define SSH_COMMAND "ssh -q -x -o PasswordAuthentication=no StrictHostKeyChecking=no" 
 */
 /* use this if you have the (broken) OpenSSH 2.1.1 */
-#define SSH_COMMAND "ssh -q -x -n"
+#define SSH_COMMAND "ssh -q -x -n -l root"
 
 /* We need to do a real hard reboot without syncing anything to simulate a
  * power cut. 
