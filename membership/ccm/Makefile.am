@@ -78,7 +78,7 @@ ccm_LDADD	= $(top_builddir)/heartbeat/libhbclient.la  \
 
 ccm_LDFLAGS		= 
 
-ccm_testclient_SOURCES	= ccm_testclient.c oc_event.h
+ccm_testclient_SOURCES	= ccm_testclient.c
 ccm_testclient_LDADD	= libccmclient.la \
 			  $(top_builddir)/lib/clplumbing/libplumb.la \
 			  $(gliblib) 
