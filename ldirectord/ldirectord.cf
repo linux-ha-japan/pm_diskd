@@ -11,7 +11,7 @@
 #
 # Prepared: April 2000
 
-timeout=3
+checktimeout=3
 checkinterval=1
 fallback=127.0.0.1:80
 virtual=192.168.6.240:80
@@ -37,3 +37,15 @@ virtual=192.168.6.240:80
 #        receive="Test Page"
 #        scheduler=rr
 #        #persistent=600
+
+
+# Sample configuration for a service using a range of real servers
+# and a single real server for a virtual service
+
+#virtual=192.168.6.240:80
+#        real=192.168.6.2-192.168.6.30:80 gate
+#        real=192.168.6.32:80 gate
+#        service=http
+#        request="index.html"
+#        receive="Test Page"
+#        scheduler=rr

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # Linux Director Daemon - run "perldoc ldirectord" for details
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.14 2000/07/18 08:23:20 jacob Exp $
+# $Id: ldirectord,v 1.15 2000/07/20 18:13:40 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -117,17 +117,19 @@ an alternative logfile might be specified with this directive.
 =head2 These commands must follow a B<virtual> entry and must
 be indented (minimum 4 spaces or one tab)
 
-B<real => I<x.y.z.w:p> B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
+B<real => I<w.x.y.z[-a.b.c.d]:p> B<gate>|B<masq>|B<ipip> [I<weight>] [B<">I<request>B<", ">I<receive>B<">]
 
-Defines a real service by IP-address and port. The second argument
-defines the forwarding method, must be B<gate>, B<ipip> or B<masq>.
-The thrid argument is optional and defines the weight for that real server.
-The last two arguments are optional. They define a request-receive pair to
-be used to check if a server is alive. They override the request-receive
-pair in the virtual server section. These two strings must be quoted.
-If the request string starts with I<http://...> the IP-address of the real
-server is overridden, otherwise the IP-address of the real server is used.
-This may be used to send a request over a transparent proxy.
+Defines a real service by IP-address and port. Optionally a range of IP
+addresses may be given, in which case each IP address in the range will be
+treated as a real server using the given port. The second argument defines
+the forwarding method, must be B<gate>, B<ipip> or B<masq>.  The thrid
+argument is optional and defines the weight for that real server. The last
+two arguments are optional. They define a request-receive pair to be used
+to check if a server is alive. They override the request-receive pair in
+the virtual server section. These two strings must be quoted. If the
+request string starts with I<http://...> the IP-address of the real server
+is overridden, otherwise the IP-address of the real server is used. This
+may be used to send a request over a transparent proxy.
 
 =head2 More than one of these entries may be inside a virtual section:
 
@@ -141,9 +143,9 @@ B<service = http>|B<https>|B<ftp>|B<none>
 
 The type of service to monitor. None denotes a service that will not be
 monitored. If the port specfied for the virtual server is 80 the default
-service is B<http>.  If the port specified is 443 the default service is B<https>.
-If the port specified is 21 the default service is B<ftp>. Otherwise the default
-service is B<none>.
+service is B<http>.  If the port specified is 443 the default service is
+B<https>.  If the port specified is 21 the default service is B<ftp>.
+Otherwise the default service is B<none>.
 
 B<checkport = >I<n>
 
@@ -152,15 +154,15 @@ Default is port specified for the virtual server.
 
 B<request = ">I<uri to requested object>B<">
 
-This object will be requested each checkinterval seconds on each real server.
-The string must be inside quotes. Note that this string may be overridden
-by an optional per real-server based request-string.
+This object will be requested each checkinterval seconds on each real
+server.  The string must be inside quotes. Note that this string may be
+overridden by an optional per real-server based request-string.
 
 B<receive = ">I<string to compare>B<">
 
 If the requested result contains this I<string to compare>, the real server
-is declared alive. The string must be inside quotes. Note that this string may
-be overridden by an optional per real-server based receive-string.
+is declared alive. The string must be inside quotes. Note that this string
+may be overridden by an optional per real-server based receive-string.
 This string is ignored for ftp services. Ftp service only checks if the
 file exists.
 
@@ -198,7 +200,7 @@ L<ipvsadm>, L<heartbeat>
 
 Jacob Rief <jacob.rief@tiscover.com>
 
-Simon Horm <horms@vergenet.net>
+Horms <horms@vergenet.net>
 
 Skliarouk Peter <skliaroukp@bigfoot.com>
 
@@ -435,35 +437,12 @@ sub read_config
 				my $rcmd = $1;
 				next if ($rcmd =~ /^#/);
 				if ($rcmd =~ /^real\s*=\s*(.*)/) {
-					$1 =~ /(\d+\.\d+\.\d+\.\d+):(\d+)\s+(.*)/
+					$1 =~ /(\d+\.\d+\.\d+\.\d+)(-(\d+\.\d+\.\d+\.\d+))?:(\d+)\s+(.*)/ 
 					    or config_error($line, "invalid address for real server");
-					my ($rmts, $rmtp) = ($1, $2);
-					$3 =~ /(\w+)(.*)/ && (lc($1) eq "gate" || lc($1) eq "masq" || lc($1) eq "ipip")
-					    or config_error($line, "forward method must be gate, masq or ipip");
-					my $fwd = lc($1);
-					if ($2 =~ /\s*(\d+)\s*(.*)/) {
-						my $weight = $1;
-						if ($2 =~ /\"(.*)\",\s*\"(.*)\"/) {
-							push(@rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight, "request"=>$1, "receive"=>$2});
-						} else {
-							push(@rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight});
-						}
-					} elsif ($2 =~ /\s*\"(.*)\",\s*\"(.*)\"/) {
-						push(@rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "request"=>$1, "receive"=>$2});
+					if ( defined ($2) ) {
+						add_real_server_range($line, \%vsrv, \@rsrv, $1, $3, $4, $5);
 					} else {
-						push(@rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd});
-					}
-					my $realsrv=0;
-					foreach $r (@REAL){
-						if ($r->{"real"} eq $vsrv{protocol}.":".$rmts.":".$rmtp){
-							my $ref=$r->{"virtual"};
-							push(@$ref, $vsrv{"protocol"}.":".$vsrv{"server"}.":".$vsrv{"port"});
-							$realsrv=1;
-							last;
-						}
-					}
-					if($realsrv==0){
-						push(@REAL, { "real"=>$vsrv{protocol}.":".$rmts.":".$rmtp, "virtual"=>[ $vsrv{protocol}.":".$vsrv{"server"}.":".$vsrv{"port"} ] });
+						add_real_server($line, \%vsrv, \@rsrv, $1, $4, $5);
 					}
 				} elsif ($rcmd =~ /^request\s*=\s*\"(.*)\"/) {
 					$1 =~ /(.+)/ or config_error($line, "no request string specified");
@@ -560,6 +539,9 @@ sub read_config
 				config_error($line, "unable to open logfile: $1");
 			}
 		} else {
+			if ($_ =~ /^timeout\s*=\s*(.*)/) {
+				config_error($line, "timeout directive deprciated in favour of checktimeout");
+			}
 			config_error($line, "Unknown command $_");
 		}
 	}
@@ -567,6 +549,68 @@ sub read_config
 	return(0);
 }
 
+sub add_real_server_range
+{
+	my ($line, $vsrv, $rsrv, $first, $last, $port, $flags) = (@_);
+
+        my (@tmp, $first_i, $last_i, $i);
+       
+	if ( ($first_i=ip_to_decimal($first)) <0 ) {
+		config_error($line, "Invalid IP address: $first");
+	}
+	if ( ($last_i=ip_to_decimal($last)) <0 ) {
+		config_error($line, "Invalid IP address: $last");
+	}
+
+	if ($first_i>$last_i) {
+		config_error($line, "Invalid Range: $first-$last: First value must be less than or equal to the second value");
+	}
+
+	# A for loop didn't seem to want to work
+	$i=$first_i;
+	while ( $i le $last_i ) {
+		add_real_server($line, $vsrv, $rsrv, decimal_to_ip($i), $port, $flags);
+		$i++;
+	}
+}
+
+sub add_real_server
+{
+	my ($line, $vsrv, $rsrv, $rmts, $rmtp, $flags) = (@_);
+
+	my $ref;
+	my $realsrv=0;
+
+	$flags =~ /(\w+)(.*)/ && ($1 eq "gate" || $1 eq "masq" || $1 eq "ipip")
+	    or config_error($line, "forward method must be gate, masq or ipip");
+	my $fwd = $1;
+	if ($2 =~ /\s+(\d+)\s+(.*)/) {
+		my $weight = $1;
+		if ($2 =~ /\"(.*)\",\s*\"(.*)\"/) {
+			push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight, "request"=>$1, "receive"=>$2});
+		} else {
+			push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "weight"=>$weight});
+		}
+	} elsif ($2 =~ /\s+\"(.*)\",\s*\"(.*)\"/) {
+		push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd, "request"=>$1, "receive"=>$2});
+	} else {
+		push(@$rsrv, {"server"=>$rmts, "port"=>$rmtp, "forward"=>$fwd});
+	}
+
+        my $real    = $vsrv->{"protocol"}.":".$rmts.":".$rmtp;
+	my $virtual = $vsrv->{"protocol"}.":".$vsrv->{"server"}.":".$vsrv->{"port"};
+	foreach $r (@REAL){
+		if($r->{"real"} eq $real){
+			my $ref=$r->{"virtual"};
+			push(@$ref, $virtual);
+			$realsrv=1;
+			last;
+		}
+	}
+	if($realsrv==0){
+		push(@REAL, { "real"=>$real, "virtual"=>[ $virtual ] });
+	}
+}
 
 sub config_error
 {
@@ -1030,14 +1074,86 @@ sub check_cfgfile
 # pre: LIST: arguments to pass to system()
 # post: system is called and if it returns non-zero a failure message is logged
 # return: none
-#
-# Added by Horms, 11th January 2000
+
 sub system_wrapper
 {
 	my (@args)=(@_);
 
 	my $now = localtime() . "|$CONFIG";
-	system(@_)== 0 or print LOGFILE  "[$now] system(@args) failed\n"
+	system(@_) == 0 or print LOGFILE  "[$now] system(@args) failed\n"
+}
+
+
+# See if a number is an octet, that is >=0 and <=255
+# pre: alleged_octet: the octect to test
+# post: 1 if the alleged_octet is an octet
+#       0 otherwise
+
+sub is_octet {
+  my ($alleged_octet)=(@_);
+
+  if($alleged_octet<0){ return 0; }
+  if($alleged_octet>255){ return 0; }
+
+  return(1);
+}
+
+
+# is_ip
+# Check that a given string is an IP address
+# pre: alleged_ip: string representing ip address
+# post: 1 if alleged_ip is a valid ip address
+#       0 otherwise
+
+sub is_ip {
+  my ($alleged_ip)=(@_);
+
+  #If we don't have four, . delimited numbers then we have no hope
+  unless($alleged_ip=~m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) { return 0; }
+
+  #Each octet mist be >=0 and <=255
+  unless(&is_octet($1)){ return 0; }
+  unless(&is_octet($2)){ return 0; }
+  unless(&is_octet($3)){ return 0; }
+  unless(&is_octet($4)){ return 0; }
+
+  return(1);
+}
+
+
+# ip_to_decimal
+# Turn an IP address given as a dotted quad into a decimal
+# pre: ip_address: string representing IP address
+# post: -1 if an error occurs
+#       decimal representation of IP address otherwise
+
+sub ip_to_decimal {
+  my ($ip_address)=(@_);
+
+    unless(&is_ip($ip_address)){ return(-1); }
+    unless($ip_address=~m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/){ return(-1); }
+
+    return(((((($1<<8)+$2)<<8)+$3)<<8)+$4);
+}
+
+# decimal_to_ip
+# Turn an IP address given as a dotted quad into a decimal
+# pre: ip_address: string representing IP address
+# post: -1 if an error occurs
+#       decimal representation of IP address otherwise
+
+sub decimal_to_ip {
+  my ($ip_address)=(@_);
+
+    my $result="";
+
+    return(sprintf(
+      "%d.%d.%d.%d",
+      ($ip_address>>24)&255,
+      ($ip_address>>16)&255,
+      ($ip_address>>8)&255,
+      $ip_address&255
+    ));
 }
 
 
