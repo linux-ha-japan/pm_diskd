@@ -35,7 +35,7 @@
  * (which is good enough for our purposes - as described below)
  */
 
-#define PAGE_SIZE 4096
+#define OURPAGE_SIZE 4096
 
 enum process_type {
 	PROC_UNDEF=0,		/* OOPS! ;-) */
@@ -78,7 +78,7 @@ struct process_info {
 
 /* This figure contains a couple of probably unnecessary fudge factors */
 
-#define	MXPROCS	((PAGE_SIZE-5*sizeof(int))/sizeof(struct process_info)-1)
+#define	MXPROCS	((OURPAGE_SIZE-5*sizeof(int))/sizeof(struct process_info)-1)
 
 struct pstat_shm {
 	int	nprocs;

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.202 2002/09/05 12:48:27 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.203 2002/09/10 04:35:58 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -577,7 +577,7 @@ init_procinfo()
 	}
 	if (shm) {
 		procinfo = shm;
-		memset(shm, 0, PAGE_SIZE);
+		memset(shm, 0, sizeof(*procinfo));
 	}
 
 	/*
@@ -6079,6 +6079,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.203  2002/09/10 04:35:58  alan
+ * Removed references to PAGE_SIZE to avoid conflicts in OpenBSD.
+ *
  * Revision 1.202  2002/09/05 12:48:27  alan
  * Fixed a bug in exit codes for failure of the generic plugin loader noted by Nathan Wallwork.
  *
