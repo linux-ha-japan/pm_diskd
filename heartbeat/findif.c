@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.16 2001/10/13 21:03:12 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.17 2002/04/29 07:18:44 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -152,8 +152,30 @@ ConvertBitsToMask (char *mask)
 	unsigned long int maskflag = 0x1;
 	unsigned long int longmask = 0;
 	int i;
+	int count;
+	char *p;
+	char maskwithoutdots[12];
 
-	maskbits = atoi(mask);
+	/*
+	 * Are there '.'s inside ?
+	 * (like from the output of the "route get" command)
+	 */
+	if ((p = strtok(mask, ".")) != NULL) {
+		i = strlen(p);
+
+		strncpy(maskwithoutdots, p, (i <= 3 ? i : 3));
+
+		for (count=0; count < 3; count++) {
+			p=strtok(NULL, ".");
+			i = strlen(p);
+			strncat(maskwithoutdots, p, (i <= 3 ? i : 3));
+		}
+
+		maskbits = atoi(maskwithoutdots);
+
+	}else{
+		maskbits = atoi(mask);
+	}
 
 	for (i = 0; i < 32; i++) {
 		if (i <  maskbits) {
@@ -283,6 +305,9 @@ SearchUsingRouteCmd (char *address, struct in_addr *in, struct in_addr *addr_out
 	}
 	ConvertQuadToInt  (dest);
 	ConvertBitsToMask (mask);
+/*
+	ConvertMaskToInt (mask);
+*/
 
 	if (inet_pton(AF_INET, address, addr_out) <= 0) {
 		sprintf(errmsg, "IP address [%s] not valid.", address);
@@ -566,6 +591,9 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.17  2002/04/29 07:18:44  alan
+ * Patch from Thomas Hepper for Solaris.
+ *
  * Revision 1.16  2001/10/13 21:03:12  alan
  * Put in a fix to the findif command which makes it test which way to get
  * routing information at run time rather than at compile time.
