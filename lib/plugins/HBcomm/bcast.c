@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.11 2002/03/25 23:54:52 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.12 2002/04/09 12:45:36 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -344,8 +344,11 @@ bcast_read(struct hb_media* mp)
 
 	if ((numbytes=recvfrom(ei->rsocket, buf, MAXLINE-1, MSG_WAITALL
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		LOG(PIL_CRIT
-		,	"Error receiving from socket: %s", strerror(errno));
+		if (errno != EINTR) {
+			LOG(PIL_CRIT
+			,	"Error receiving from socket: %s", strerror(errno));
+		}
+		return NULL;
 	}
 	buf[numbytes] = EOS;
 
@@ -758,6 +761,10 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.12  2002/04/09 12:45:36  alan
+ * Put in changes to the bcast, mcast and serial code such that
+ * interrupted system calls in reads are ignored.
+ *
  * Revision 1.11  2002/03/25 23:54:52  alan
  * Put in fixes to two bugs noted by Gamid Isayev of netzilla networks.
  * One of the two fixes is also due to him.

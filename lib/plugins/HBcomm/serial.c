@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.14 2002/04/04 09:21:59 lars Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.15 2002/04/09 12:45:36 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -452,11 +452,13 @@ serial_write (struct hb_media*mp, struct ha_msg*m)
 				last_norts = now;
 				LOG(LOG_ERR
 				,	"TTY write timeout on [%s]"
-				" (no connection or bad cable (see documentation)?)", mp->name);
+				" (no connection or bad cable"
+				"? [see documentation])"
+				,	mp->name);
 			}
 		}else{
-			LOG(PIL_CRIT, "TTY write failure on [%s]: %s", mp->name
-			,	strerror(errno));
+			LOG(PIL_CRIT, "TTY write failure on [%s]: %s"
+			,	mp->name, strerror(errno));
 		}
 	}
 	ha_free(str);
@@ -519,7 +521,7 @@ serial_read (struct hb_media*mp)
 	if (buf[0] == EOS) {
 		++thissp->consecutive_errors;
 		if ((thissp->consecutive_errors % 10) == 0) {
-			LOG(PIL_CRIT
+			LOG(PIL_WARN
 			,	"10 consecutive EOF errors from serial port %s"
 			,	thissp->ttyname);
 			sleep(10);
@@ -604,9 +606,13 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 		/* One read per char -- yecch  (but it's easy) */
 		rc = read(fd, cp, 1);
 		if (rc != 1) {
-			LOG(PIL_CRIT, "EOF in ttygets [%s]: %s [%d]"
-			,	tty->ttyname,	strerror(errno), rc);
-			return(NULL);
+			if (rc == 0 || errno == EINTR) {
+				LOG(PIL_CRIT, "EOF in ttygets [%s]: %s [%d]"
+				,	tty->ttyname, strerror(errno), rc);
+				return(NULL);
+			}
+			errno = 0;
+			continue;
 		}
 		if (*cp == '\r' || *cp == '\n') {
 			break;
@@ -617,6 +623,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.15  2002/04/09 12:45:36  alan
+ * Put in changes to the bcast, mcast and serial code such that
+ * interrupted system calls in reads are ignored.
+ *
  * Revision 1.14  2002/04/04 09:21:59  lars
  * Make the serial code also report a bad cable as the likely cause of the error.
  * (Most common mistake on the lists so far)

@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.3 2002/01/17 15:21:23 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.4 2002/04/09 12:45:36 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -414,7 +414,11 @@ mcast_read(struct hb_media* hbm)
 
 	if ((numbytes=recvfrom(mcp->rsocket, buf, MAXLINE-1, 0
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		LOG(PIL_WARN, "Error receiving from socket: %s", strerror(errno));
+		if (errno != EINTR) {
+			LOG(PIL_CRIT, "Error receiving from socket: %s"
+			,	strerror(errno));
+			return NULL;
+		}
 	}
 	buf[numbytes] = EOS;
 
@@ -809,6 +813,10 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.4  2002/04/09 12:45:36  alan
+ * Put in changes to the bcast, mcast and serial code such that
+ * interrupted system calls in reads are ignored.
+ *
  * Revision 1.3  2002/01/17 15:21:23  alan
  * Put in Ram Pai's patch for the bug in the multicast code.
  *
