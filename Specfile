@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.63 2000/11/12 04:29:22 alan Exp $
+#	$Id: Specfile,v 1.64 2000/11/12 04:46:03 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -90,6 +90,11 @@ machine. It's simple and reliable, albiet admittedly brutal.
   + Added -M (don't manage resources) flag to allow "observer" nodes
 	(doesn't work with nice_failback on other 2 nodes)
   + Fixed a bug which kept you from logging to both syslog and files
+  + Fixed a bug where shutdown stopped giving out heartbeats before the
+	resources were taken over.
+  + Added a group for heartbeat API clients and changed modes of things
+	to match.
+  + Moved several files, etc. from /var/run to /var/lib/heartbeat
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
