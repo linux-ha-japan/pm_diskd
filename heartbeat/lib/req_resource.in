@@ -25,9 +25,8 @@ RESOURCE=$1
 #
 #	Do we already have this resource?
 #
-case `$HA_BIN/ResourceManager status $RESOURCE` in
-  *[Rr]unning*)		exit 0;;
-esac
+
+$HA_BIN/ResourceManager status $RESOURCE && exit 0
 
 #
 #	Now give our ip-request-message...
@@ -44,8 +43,6 @@ ipaddr=$RESOURCE
 !MSG
 
 ( sleep $TIMEOUT
-  case `$HA_BIN/ResourceManager status $RESOURCE` in
-    *[Rr]unning*)		exit 0;;
-  esac
+  $HA_BIN/ResourceManager status $RESOURCE && exit 0
   $HA_BIN/ResourceManager takegroup $RESOURCE
 )&
