@@ -143,11 +143,12 @@ class StopTest(CTSTest):
 class StartTest(CTSTest):
 ###################################################################
     '''Start (activate) the cluster manager on a node'''
-    def __init__(self, cm):
+    def __init__(self, cm, debug=None):
         CTSTest.__init__(self,cm)
         self.name="start"
         self.uspat   = self.CM["Pat:We_started"]
         self.thempat = self.CM["Pat:They_started"]
+        self.debug = debug
 
     def __call__(self, node):
         '''Perform the 'start' test. '''
@@ -164,7 +165,7 @@ class StartTest(CTSTest):
             pat = (self.thempat % node)
 
         watch = CTS.LogWatcher(self.CM["LogFileName"], [pat]
-        ,	timeout=self.CM["StartTime"]+10)
+        ,	timeout=self.CM["StartTime"]+10, debug=self.debug)
         watch.setwatch()
 
         self.CM.StartaCM(node)
@@ -172,6 +173,8 @@ class StartTest(CTSTest):
         if watch.look():
             return self.success()
         else:
+            self.CM.log("START FAILURE: did not find pattern " + pat)
+            self.CM.log("START TIMEOUT = %d " % self.CM["StartTime"])
             return self.failure("did not find pattern " + pat)
 
     def is_applicable(self):
@@ -202,7 +205,7 @@ class FlipTest(CTSTest):
             ret = self.stop(node)
             type="up->down"
             # Give the cluster time to recognize it's gone...
-            time.sleep(self.CM["DeadTime"]+10)
+            time.sleep(self.CM["DeadTime"]+2)
         elif self.CM.ShouldBeStatus[node] == self.CM["down"]:
             self.incr("started")
             ret = self.start(node)
@@ -246,7 +249,7 @@ class RestartTest(CTSTest):
 
         ret1 = self.stop(node)
         # Give the cluster time to recognize we're gone...
-        time.sleep(self.CM["DeadTime"]+10)
+        time.sleep(self.CM["DeadTime"]+2)
         ret2 = self.start(node)
 
         if not ret1:
@@ -304,7 +307,12 @@ class StonithTest(CTSTest):
 
 	#	Reset (stonith) the node
 
-        if not self.CM.Env.ResetNode(node):
+        StonithWorked=None
+        for tries in 1,2,3,4,5:
+          if self.CM.Env.ResetNode(node):
+            StonithWorked=1
+            break
+        if not StonithWorked:
             return self.failure("Stonith failure")
 
         upwatch.setwatch()
