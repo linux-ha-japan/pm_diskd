@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.117 2001/06/23 07:01:48 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.118 2001/06/27 23:33:46 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1157,8 +1157,9 @@ master_status_process(void)
 	/* Reset timeout times to "now" */
 	for (j=0; j < config->nodecount; ++j) {
 		struct node_info *	hip;
+		struct tms		proforma_tms;
 		hip= &config->nodes[j];
-		hip->local_lastupdate = times(NULL);
+		hip->local_lastupdate = times(&proforma_tms);
 	}
 
 	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
@@ -1262,14 +1263,14 @@ process_clustermsg(FILE * f)
 	const char *		type;
 	int			action;
 	clock_t			messagetime;
-
+	struct tms		proforma_tms;
 
 
 	if ((msg = if_msgfromstream(f, iface)) == NULL) {
 		return;
 	}
 	now = time(NULL);
-	messagetime = times(NULL);
+	messagetime = times(&proforma_tms);
 
 	/* Extract message type, originator, timestamp, auth */
 	type = ha_msg_value(msg, F_TYPE);
@@ -1560,7 +1561,8 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 	static clock_t		local_takeover = 0L;
 
 	const char *		type;
-	clock_t			now = times(NULL);
+	struct tms		proforma_tms;
+	clock_t			now = times(&proforma_tms);
 	enum rsc_state		newrstate = rstate;
 	int			first_time = 1;
 
@@ -2242,11 +2244,13 @@ AlarmUhOh(int sig)
 void
 check_for_timeouts(void)
 {
-	clock_t	now = times(NULL);
+	struct tms		proforma_tms;
+	clock_t			now = times(&proforma_tms);
 	struct node_info *	hip;
-	clock_t dead_ticks = (CLK_TCK * config->deadtime_interval);
-	clock_t	TooOld;
-	int	j;
+	clock_t			dead_ticks
+	=	(CLK_TCK * config->deadtime_interval);
+	clock_t			TooOld;
+	int			j;
 
 	if (heartbeat_comm_state != COMM_LINKSUP) {
 		/*
@@ -3666,8 +3670,9 @@ void
 request_msg_rexmit(struct node_info *node, unsigned long lowseq, unsigned long hiseq)
 {
 	struct ha_msg*	hmsg;
-	char	low[16];
-	char	high[16];
+	char		low[16];
+	char		high[16];
+	struct tms	proforma_tms;
 	if ((hmsg = ha_msg_new(6)) == NULL) {
 		ha_log(LOG_ERR, "no memory for " T_REXMIT);
 	}
@@ -3686,7 +3691,7 @@ request_msg_rexmit(struct node_info *node, unsigned long lowseq, unsigned long h
 			ha_log(LOG_ERR, "cannot send " T_REXMIT
 			" request to %s", node->nodename);
 		}
-		node->track.last_rexmit_req = times(NULL);
+		node->track.last_rexmit_req = times(&proforma_tms);
 	}else{
 		ha_log(LOG_ERR, "no memory for " T_REXMIT);
 	}
@@ -3702,13 +3707,14 @@ check_rexmit_reqs(void)
 		struct node_info *	hip = &config->nodes[j];
 		struct seqtrack *	t = &hip->track;
 		int			seqidx;
+		struct tms		proforma_tms;
 
 		if (t->nmissing <= 0 ) {
 			continue;
 		}
 		/* We rarely reach this code, so avoid the extra system call */
 		if (now == 0L) {
-			now = times(NULL);
+			now = times(&proforma_tms);
 		}
 		/* Allow for lbolt wraparound here */
 		if ((now - t->last_rexmit_req) <= CLK_TCK
@@ -3805,10 +3811,11 @@ process_rexmit (struct msg_xmit_hist * hist, struct ha_msg* msg)
 
 		for (msgslot = firstslot
 		;	!foundit && msgslot != (firstslot+1); --msgslot) {
-			char *	smsg;
-			int	len;
-			clock_t	now = times(NULL);
-			clock_t	last_rexmit;
+			char *		smsg;
+			int		len;
+			struct tms	proforma_tms;
+			clock_t		now = times(&proforma_tms);
+			clock_t		last_rexmit;
 			if (msgslot < 0) {
 				msgslot = MAXMSGHIST;
 			}
@@ -4000,6 +4007,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.118  2001/06/27 23:33:46  alan
+ * Put in the changes to use times(&proforma_tms) instead of times(NULL)
+ *
  * Revision 1.117  2001/06/23 07:01:48  alan
  * Changed CLOCKS_PER_SEC back into CLK_TCK.
  * Quite a few places, and add portability stuff for it to portability.h

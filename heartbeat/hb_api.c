@@ -199,10 +199,11 @@ api_audit_clients(void)
 	clock_t		now;
 	client_proc_t*	client;
 	client_proc_t*	nextclient;
+	struct tms	proforma_tms;
 
 
 	/* Allow for clock wraparound */
-	now = times(NULL);
+	now = times(&proforma_tms);
 	if (now > lastnow && now < audittime) {
 		lastnow = now;
 		return;

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.36 2001/06/23 07:01:48 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.37 2001/06/27 23:33:46 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -328,6 +328,7 @@ parse_config(const char * cfgfile, char *nodename)
 	int		i;
 	clock_t		cticks;
 	struct stat	sbuf;
+	struct tms	proforma_tms;
 
 	if ((f = fopen(cfgfile, "r")) == NULL) {
 		ha_log(LOG_ERR, "Cannot open config file [%s]", cfgfile);
@@ -421,7 +422,7 @@ parse_config(const char * cfgfile, char *nodename)
 		}
 	}
 
-	cticks = times(NULL);
+	cticks = times(&proforma_tms);
 
 	for (i=0; i < config->nodecount; ++i) {
 		if (config->nodes[i].nodetype == PINGNODE) {
@@ -670,6 +671,7 @@ int
 add_node(const char * value, int nodetype)
 {
 	struct node_info *	hip;
+	struct tms		proforma_tms;
 	if (config->nodecount >= MAXNODE) {
 		return(HA_FAIL);
 	}
@@ -680,7 +682,7 @@ add_node(const char * value, int nodetype)
 	strcpy(hip->nodename, value);
 	hip->rmt_lastupdate = 0L;
 	hip->anypacketsyet  = 0;
-	hip->local_lastupdate = times(NULL);
+	hip->local_lastupdate = times(&proforma_tms);
 	hip->track.nmissing = 0;
 	hip->track.last_seq = NOSEQUENCE;
 	hip->nodetype = nodetype;
