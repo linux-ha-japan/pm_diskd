@@ -99,7 +99,7 @@ lcase() {
   then
     dd conv=lcase 2>/dev/null
   else
-    tr 'A-Z' 'a-z'
+    tr ['A-Z'] ['a-z']
   fi
 }
 
