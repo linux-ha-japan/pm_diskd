@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.8 1999/11/11 04:58:04 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.9 1999/11/14 08:23:44 alan Exp $";
 
 /*
  *	Linux-HA serial heartbeat code
@@ -48,6 +48,7 @@ STATIC int		ttysetup(int fd);
 STATIC int		opentty(char * serial_device);
 STATIC int		serial_close(struct hb_media* mp);
 STATIC int		serial_init(void);
+STATIC void		serial_localdie(void);
 
 
 /* Exported to the world */
@@ -67,6 +68,7 @@ int		baudrate;	/* Also exported... */
 
 #define		IsTTYOBJECT(mp)	((mp) && ((mp)->vf == (void*)&serial_media_fns))
 #define		TTYASSERT(mp)	ASSERT(IsTTYOBJECT(mp))
+#define		RTS_WARNTIME	3600
 
 /* Initialize global serial data structures */
 STATIC int
@@ -322,19 +324,39 @@ opentty(char * serial_device)
 	return(fd);
 }
 
+static struct hb_media* ourmedia = NULL;
+
+STATIC void
+serial_localdie(void)
+{
+	int	ourtty;
+	if (!ourmedia || !ourmedia->pd) {
+		return;
+	}
+	ourtty = ((struct serial_private*)(ourmedia->pd))->ttyfd;
+	if (ourtty >= 0) {
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG, "serial_localdie: Flushing tty");
+		}
+		tcflush(ourtty, TCIOFLUSH);
+	}
+}
 
 /* This process does all the writing to our tty ports */
 STATIC int
 serial_write(struct hb_media*mp, struct ha_msg*m)
 {
-	char *	str;
+	char *		str;
 
-	int	ourtty;
-	int	wrc;
-	int	size;
+	int		wrc;
+	int		size;
+	int		ourtty;
+	static time_t	last_norts;
 
 	TTYASSERT(mp);
 
+	ourmedia = mp;
+	localdie = serial_localdie;
 	ourtty = ((struct serial_private*)(mp->pd))->ttyfd;
 	if ((str=msg2string(m)) == NULL) {
 		ha_error("Cannot convert message to tty string");
@@ -348,16 +370,26 @@ serial_write(struct hb_media*mp, struct ha_msg*m)
 	if (DEBUGPKTCONT) {
 		ha_log(LOG_DEBUG, str);
 	}
+	alarm(2);
 	wrc = write(ourtty, str, size);
+	alarm(0);
 	if (DEBUGPKTCONT) {
 		ha_log(LOG_DEBUG, "write returned %d", wrc);
 	}
 
-	if (wrc != size) {
-		char msg[MAXLINE];
-		sprintf(msg, "write failure on tty %s: %d vs %d"
-		,	mp->name, wrc, size);
-		ha_perror(msg);
+	if (wrc < 0) {
+		if (errno == EINTR) {
+			time_t	now = time(NULL);
+			tcflush(ourtty, TCIOFLUSH);
+			if ((now - last_norts) > RTS_WARNTIME) {
+				last_norts = now;
+				ha_log(LOG_ERR
+				,	"TTY write timeout on [%s]"
+				" (no connection?)", mp->name);
+			}
+		}else{
+			ha_perror("TTY write failure on [%s]", mp->name);
+		}
 	}
 	ha_free(str);
 	return(HA_OK);
@@ -488,6 +520,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.9  1999/11/14 08:23:44  alan
+ * Fixed bug in serial code where turning on flow control caused
+ * heartbeat to hang.  Also now detect hangs and shutdown automatically.
+ *
  * Revision 1.8  1999/11/11 04:58:04  alan
  * Fixed a problem in the Makefile which caused resources to not be
  * taken over when we start up.

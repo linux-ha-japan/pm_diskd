@@ -1,11 +1,7 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.29 1999/11/11 04:58:04 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.30 1999/11/14 08:23:44 alan Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
- *	- restart message forces heartbeat daemon to restart
- *		(should this be a "cluster-wide" message?
- *		 -- needs "graceful shutdown" mechanism.  Maybe this can just
- *		    be "/etc/rc.d/init.d/ha restart" ?)
  */
 
 /*
@@ -227,6 +223,7 @@ void	init_procinfo(void);
 int	initialize_heartbeat(void);
 void	init_status_alarm(void);
 void	ding(int sig);
+void	AlarmUhOh(int sig);
 void	dump_proc_stats(volatile struct process_info * proc);
 void	dump_all_proc_stats(void);
 void	check_node_timeouts(void);
@@ -619,6 +616,8 @@ write_child(struct hb_media* mp)
 {
 	int	ourpipe =	mp->wpipe[P_READFD];
 	FILE *	ourfp		= fdopen(ourpipe, "r");
+
+	siginterrupt(SIGALRM, 1);
 	for (;;) {
 		struct ha_msg *	msgp = msgfromstream(ourfp);
 		if (msgp == NULL) {
@@ -645,6 +644,7 @@ control_process(FILE * fp)
 	/* Catch and propagate debugging level signals... */
 	signal(SIGUSR1, parent_debug_sig);
 	signal(SIGUSR2, parent_debug_sig);
+	siginterrupt(SIGALRM, 1);
 
 	for(;;) {
 		struct ha_msg *	msg = controlfifo2msg(fp);
@@ -689,7 +689,20 @@ control_process(FILE * fp)
 
 		/* And send it to all our heartbeat interfaces */
 		for (j=0; j < nummedia; ++j) {
-			write(sysmedia[j]->wpipe[P_WRITEFD], smsg, len);
+			int	wrc;
+			alarm(2);
+			wrc=write(sysmedia[j]->wpipe[P_WRITEFD], smsg, len);
+			if (wrc < 0) {
+				ha_perror("Cannot write to media pipe %d"
+				,	j);
+				ha_log(LOG_ERR, "Shutting down.");
+				signal_all(SIGTERM);
+			}else if (wrc != len) {
+				ha_log(LOG_ERR
+				,	"Short write on media %d [%d vs %d]"
+				,	j, wrc, len);
+			}
+			alarm(0);
 		}
 		ha_free(smsg);
 		/* We don't throw away "msg" here if it's saved above */
@@ -1086,6 +1099,7 @@ restart_heartbeat(void)
 		}
 	}
 
+
 	for (j=3; j < oflimits.rlim_cur; ++j) {
 		close(j);
 	}
@@ -1157,6 +1171,15 @@ ding(int sig)
 		next_statsdump = now + ONEDAY;
 	}
 	alarm(1);
+}
+
+void
+AlarmUhOh(int sig)
+{
+	signal(SIGALRM, AlarmUhOh);
+	if (ANYDEBUG) {
+		ha_log(LOG_ERR, "Unexpected alarm in process %d", getpid());
+	}
 }
 
 /* See if any nodes have timed out */
@@ -1286,6 +1309,11 @@ mark_node_dead(struct node_info *hip)
 	heartbeat_monitor(hmsg);
 	notify_world(hmsg, hip->status);
 	strcpy(hip->status, "dead");
+	if (hip == curnode) {
+		/* Uh, oh... we're dead! */
+		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
+		kill(procinfo->info[0].pid, SIGTERM);
+	}
 	ha_msg_del(hmsg);
 }
 
@@ -1778,6 +1806,8 @@ make_daemon(void)
 	FILE *		lockfd;
 	sigset_t	sighup;
 
+	extern pid_t getsid(pid_t);
+
 
 	/* See if heartbeat is already running... */
 
@@ -1808,15 +1838,18 @@ make_daemon(void)
 		fprintf(lockfd, "%d\n", pid);
 		fclose(lockfd);
 	}
-	if (setsid() < 0) {
-		fprintf(stderr, "%s: could not start daemon\n", cmdname);
-		perror("setsid");
+	if (getsid(0) != pid) {
+		if (setsid() < 0) {
+			fprintf(stderr, "%s: setsid() failure.", cmdname);
+			perror("setsid");
+		}
 	}
 
 	sigemptyset(&sighup);
 	sigaddset(&sighup, SIGHUP);
 	if (sigprocmask(SIG_UNBLOCK, &sighup, NULL) < 0) {
-		fprintf(stderr, "%s: could unblock SIGHUP signal\n", cmdname);
+		fprintf(stderr, "%s: could not unblock SIGHUP signal\n"
+		,	cmdname);
 	}
 
 #ifdef	SIGTTOU
@@ -1840,6 +1873,7 @@ make_daemon(void)
 	(void)signal(SIGUSR1, debug_sig);
 	(void)signal(SIGUSR2, debug_sig);
 	(void)signal(SIGHUP, reread_config_sig);
+	(void)signal(SIGALRM, AlarmUhOh);
 
 	(void)signal(SIGTERM, signal_all);
 	umask(022);
@@ -2164,6 +2198,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.30  1999/11/14 08:23:44  alan
+ * Fixed bug in serial code where turning on flow control caused
+ * heartbeat to hang.  Also now detect hangs and shutdown automatically.
+ *
  * Revision 1.29  1999/11/11 04:58:04  alan
  * Fixed a problem in the Makefile which caused resources to not be
  * taken over when we start up.

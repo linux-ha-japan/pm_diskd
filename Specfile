@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.21 1999/11/11 05:48:52 alan Exp $
+#	$Id: Specfile,v 1.22 1999/11/14 08:23:44 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -8,7 +8,7 @@ URL: http://linux-ha.org/
 Group: Utilities
 Packager: Alan Robertson <alanr@henge.com>
 Source: http://linux-ha.org/download/%PKG%-%VERS%.tar.gz
-Buildroot: /var/tmp/heartbeat-root
+Buildroot: /var/tmp/%PKG%-root
 %description
 %PKG% is a basic heartbeat subsystem for Linux-HA.
 It will run scripts at initialization, and when machines go up or down.
