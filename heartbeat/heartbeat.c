@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.192 2002/07/16 11:47:53 lars Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.193 2002/07/26 22:58:12 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -402,6 +402,7 @@ int   	parse_authfile(void);
 int 	encode_resources(const char *p);
 void	init_watchdog(void);
 void	tickle_watchdog(void);
+void	close_watchdog(void);
 void	usage(void);
 int	init_config(const char * cfgfile);
 void	init_procinfo(void);
@@ -3404,6 +3405,7 @@ restart_heartbeat(void)
 	int			quickrestart;
 
 	shutdown_in_progress = 1;
+	close_watchdog();
 	send_local_status(NULL);
 	/*
 	 * We need to do these things:
@@ -3453,7 +3455,8 @@ restart_heartbeat(void)
 	if (quickrestart) {
 		if (nice_failback) {
 			execl(HALIB "/heartbeat", "heartbeat", "-R"
-			,	"-C", rsc_msg[procinfo->i_hold_resources], NULL);
+			,	"-C", rsc_msg[procinfo->i_hold_resources]
+			,	NULL);
 		}else{
 			execl(HALIB "/heartbeat", "heartbeat", "-R", NULL);
 		}
@@ -4525,6 +4528,7 @@ giveup_resources(void)
 		,	curnode->status);
 	}
 	shutdown_in_progress =1;
+	close_watchdog();
 	DisableProcLogging();	/* We're shutting down */
 	/* Kill all our managed children... */
 	ForEachProc(&ManagedChildTrackOps, KillTrackedProcess
@@ -4918,6 +4922,7 @@ void
 cleanexit(rc)
 	int	rc;
 {
+	close_watchdog();
 	if (localdie) {
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "Calling localdie() function");
@@ -5205,6 +5210,20 @@ tickle_watchdog(void)
 			ha_perror("Watchdog write failure: closing %s!\n"
 			,	watchdogdev);
 		}
+	}
+}
+
+void
+close_watchdog(void)
+{
+	if (watchdogfd >= 0) {
+		if (write(watchdogfd, "V", 1) != 1) {
+			ha_perror(
+			"Watchdog write magic character failure: closing %s!\n"
+			,	watchdogdev);
+		}
+		close(watchdogfd);
+		watchdogfd=-1;
 	}
 }
 
@@ -6045,6 +6064,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.193  2002/07/26 22:58:12  alan
+ * Changed the code to write a 'v' to /dev/watchdog before
+ * shutting down, so it will know we mean to shut down.
+ *
+ * This patch due to Holger Kiehl <Holger.Kiehl@dwd.de>
+ *
  * Revision 1.192  2002/07/16 11:47:53  lars
  * Type and alignment fixes for IA64, x86_64, sparc, s390 and PPC(64).
  *
