@@ -79,6 +79,7 @@ heartbeat_LDFLAGS	= @LIBADD_DL@ @LIBLTDL@ -export-dynamic	\
 send_arp_SOURCES	= send_arp.c
 
 findif_SOURCES		= findif.c
+findif_LDADD		= $(top_builddir)/replace/libreplace.la
 
 api_test_SOURCES	= api_test.c
 api_test_LDADD		= libhbclient.la
