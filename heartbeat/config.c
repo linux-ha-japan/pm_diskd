@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.85 2003/05/30 14:26:56 kevin Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.86 2003/06/04 15:39:23 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -654,6 +654,9 @@ dump_config(void)
  *	All we check for now is the set of node names.
  *
  *	It would be good to check the resource names, too...
+ *
+ *	And for that matter, to compute an md5 checksum of the haresources
+ *	file so we can complain if they're different.
  */
 int
 parse_ha_resources(const char * cfgfile)
@@ -1552,6 +1555,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.86  2003/06/04 15:39:23  alan
+ * Added some comments about some possible future work...
+ *
  * Revision 1.85  2003/05/30 14:26:56  kevin
  * LOG_WARNING, not LOG_WARN.
  *
