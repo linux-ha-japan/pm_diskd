@@ -30,7 +30,7 @@
 #include <ipc.h>
 
 #ifdef __CCM_LIBRARY__
-#include <oc_event.h>
+#include <ocf/oc_event.h>
 #endif
 
 #define NODEIDSIZE 255 /* if this value is changed change it 

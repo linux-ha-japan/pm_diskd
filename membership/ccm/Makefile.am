@@ -50,7 +50,7 @@ CFLAGS			= @CFLAGS@	\
 
 noinst_HEADERS		= ccm.h ccmlib.h
 
-include_HEADERS		= ccm.h oc_event.h ccmlib.h
+include_HEADERS		= ccm.h ccmlib.h
 
 ## libraries
 
