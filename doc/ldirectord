@@ -1,18 +1,23 @@
-The ldirectord (Linux Director Daemon) is a stand-alone daemon to monitor services of
-real servers, currently http and https service. It is simple to install and can be started
-on its own or be started from the heartbeat daemon. It is very useful to manage real servers
-through ipvsadm. ipvsadm is part of the Linux Virtual Server (http://www.linuxvirtualserver.org/)
-Project and is used to redirect TCP- and UDP/IP traffic from a virtual server to many
-real servers. Thus LVS, heartbeat and ldirectord can be used to build up a redundant, fault-
-tolerant server farm of http- and https-servers. Other types of services may be added
-in future.
+The ldirectord (Linux Director Daemon) is a stand-alone daemon to monitor
+services of real servers, currently http and https service. It is simple
+to install and can be started on its own or be started from the heartbeat
+daemon. It is very useful to manage real servers through ipvsadm. ipvsadm
+is part of the Linux Virtual Server (http://www.linuxvirtualserver.org/)
+Project and is used to redirect TCP- and UDP/IP traffic from a virtual
+server to many real servers. Thus LVS, heartbeat and ldirectord can be used
+to build up a redundant, fault-tolerant server farm of http- and https-servers.
+Other types of services may be added in future.
 
 Installation  and configuration guide:
-ldirectord is written in Perl, thus no compilation is neccessary. Two Perl-modules
-and one library must be installed so that ldirectord can monitor http- and https-servers.
+ldirectord is written in Perl, thus no compilation is neccessary. Two Perl-
+modules and one library must be installed so that ldirectord can monitor http-
+and https-servers.
+
 These are:
 libwww-perl from www.CPAN.org
-Net_SSLeay from www.CPAN.org
+
+and if You need https
+Crypt-SSLeay from www.CPAN.org
 openssl from www.openssl.org
 
 ldirectord is located in /etc/ha.d/resource.d/ldirectord
@@ -145,7 +150,7 @@ of the main loadbalancing host.
 There is more documentation about ldirectord. Just type ldirectord -h to read
 the online manual.
 
-For questions and suggestions refer to Jacob Rief <jacob.rief@tis.at>
+For questions and suggestions refer to Jacob Rief <jacob.rief@tiscover.com>
 PGP-fingerprint: 2F 8E 63 FC 6C 35 64 4F  20 CA 68 F7 28 0A 18 2F
 
 
