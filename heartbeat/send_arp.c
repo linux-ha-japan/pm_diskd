@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.21 2003/04/15 18:56:33 msoffen Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.22 2003/07/12 16:19:54 alan Exp $";
 /* 
  * send_arp
  * 
@@ -36,6 +36,7 @@ const static char * _send_arp_c = "$Id: send_arp.c,v 1.21 2003/04/15 18:56:33 ms
 
 #include <libnet.h>
 #include <syslog.h>
+#include <clplumbing/timers.h>
 
 #ifdef HAVE_LIBNET_1_0_API
 #	define	LTYPE	struct libnet_link_int
@@ -46,8 +47,9 @@ const static char * _send_arp_c = "$Id: send_arp.c,v 1.21 2003/04/15 18:56:33 ms
 
 int send_arp(LTYPE* l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype);
 
-char print_usage[]={"send_arp: sends out custom ARP packet. packetfactory.net\n\
-\tusage: send_arp device src_ip_addr src_hw_addr broadcast_ip_addr netmask\n\n"};
+char print_usage[]={"send_arp: sends out custom ARP packet. packetfactory.net\n"
+"\tusage: send_arp [-i repeatinterval-ms] [-r repeatcount]"
+" device src_ip_addr src_hw_addr broadcast_ip_addr netmask"};
 
 void convert_macaddr (u_char *macaddr, u_char enet_src[6]);
 
@@ -58,56 +60,79 @@ void convert_macaddr (u_char *macaddr, u_char enet_src[6]);
 int
 main(int argc, char *argv[])
 {
-    int		c;
-    char	errbuf[LIBNET_ERRBUF_SIZE];
-    char*	device;
-    char*	macaddr;
-    char*	broadcast;
-    char*	netmask;
-    u_long	ip;
-    LTYPE*	l;
+	int	c;
+	char	errbuf[LIBNET_ERRBUF_SIZE];
+	char*	device;
+	char*	ipaddr;
+	char*	macaddr;
+	char*	broadcast;
+	char*	netmask;
+	u_long	ip;
+	LTYPE*	l;
+	int	repeatcount = 1;
+	int	j;
+	long	msinterval = 1000;
+	int	flag;
 
-    (void)_send_arp_c;
-    if (argc != 6) {
-        fprintf(stderr, "%s", print_usage);
-	exit (-1);
-    }
+	(void)_send_arp_c;
 
-    /*
-    argv[1] DEVICE	dc0,eth0:0,hme0:0,
-    argv[2] IP		192.168.195.186
-    argv[3] MAC ADDR	00a0cc34a878
-    argv[4] BROADCAST	192.168.195.186
-    argv[5] NETMASK	ffffffffffff
-    */
 
-    device = argv[1];
-    macaddr = argv[3];
-    broadcast = argv[4];
-    netmask = argv[5];
-    
+
+	while ((flag = getopt(argc, argv, "i:r:")) != EOF) {
+		switch(flag) {
+
+		case 'i':	msinterval= atol(optarg);
+				break;
+
+		case 'r':	repeatcount= atoi(optarg);
+				break;
+
+		default:	fprintf(stderr, "usage: %s\n\n", print_usage);
+				exit(1);
+				break;
+		}
+	}
+	if (argc-optind != 5) {
+		fprintf(stderr, "usage: %s\n\n", print_usage);
+		exit(1);;
+	}
+
+	/*
+	 *	argv[optind+1] DEVICE		dc0,eth0:0,hme0:0,
+	 *	argv[optind+2] IP		192.168.195.186
+	 *	argv[optind+3] MAC ADDR		00a0cc34a878
+	 *	argv[optind+4] BROADCAST	192.168.195.186
+	 *	argv[optind+5] NETMASK		ffffffffffff
+	 */
+
+	device    = argv[optind+1];
+	ipaddr    = argv[optind+2];
+	macaddr   = argv[optind+3];
+	broadcast = argv[optind+4];
+	netmask   = argv[optind+5];
+
 #if defined(HAVE_LIBNET_1_0_API)
-    if ((ip = libnet_name_resolve(argv[2], 1)) == -1UL) {
-        syslog(LOG_ERR, "Cannot resolve IP address\n");
-        exit(EXIT_FAILURE);
-    }
+	if ((ip = libnet_name_resolve(ipaddr, 1)) == -1UL) {
+		syslog(LOG_ERR, "Cannot resolve IP address");
+		exit(EXIT_FAILURE);
+	}
 
-    l = libnet_open_link_interface(device, errbuf);
-    if (!l) {
-        syslog(LOG_ERR, "libnet_open_link_interface: %s\n", errbuf);
-        exit(EXIT_FAILURE);
-    }
+	l = libnet_open_link_interface(device, errbuf);
+	if (!l) {
+		syslog(LOG_ERR, "libnet_open_link_interface: %s", errbuf);
+		exit(EXIT_FAILURE);
+	}
 #elif defined(HAVE_LIBNET_1_1_API)
-    if ((l=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
+	if ((l=libnet_init(LIBNET_LINK, device, errbuf)) == NULL) {
 	syslog(LOG_ERR, "libnet_init failure:");
-        exit(EXIT_FAILURE);
-    }
-    if ((signed)(ip = libnet_name2addr4(l, argv[2], 1)) == -1) {
-        syslog(LOG_ERR, "Cannot resolve IP address\n");
-        exit(EXIT_FAILURE);
-    }
+		exit(EXIT_FAILURE);
+	}
+	if ((signed)(ip = libnet_name2addr4(l, ipaddr, 1)) == -1) {
+		syslog(LOG_ERR, "Cannot resolve IP address");
+		exit(EXIT_FAILURE);
+	}
 #else
-#	error "Must have LIBNET version defined."
+#	error "Must have LIBNET API version defined."
 #endif
 
 /*
@@ -115,24 +140,30 @@ main(int argc, char *argv[])
  * were already sending.  All the interesting research work for this fix was
  * done by Masaki Hasegawa <masaki-h@pp.iij4u.or.jp> and his colleagues.
  */
-    c = send_arp(l, ip, device, macaddr, broadcast, netmask, ARPOP_REQUEST);
-    c = send_arp(l, ip, device, macaddr, broadcast, netmask, ARPOP_REPLY);
-    return (c == -1 ? EXIT_FAILURE : EXIT_SUCCESS);
+	for (j=0; j < repeatcount; ++j) {
+		c = send_arp(l, ip, device, macaddr, broadcast, netmask, ARPOP_REQUEST);
+		c = send_arp(l, ip, device, macaddr, broadcast, netmask, ARPOP_REPLY);
+		if (j != repeatcount-1) {
+			mssleep(msinterval);
+		}
+	}
+	return (c == -1 ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
 
-void convert_macaddr (u_char *macaddr, u_char enet_src[6])
+void
+convert_macaddr (u_char *macaddr, u_char enet_src[6])
 {
 	int i, pos;
 	u_char bits[3];
 
 	pos = 0;
 	for (i = 0; i < 6; i++) {
-	    bits[0] = macaddr[pos++];
-	    bits[1] = macaddr[pos++];
-	    bits[2] = '\0';
+		bits[0] = macaddr[pos++];
+		bits[1] = macaddr[pos++];
+		bits[2] = '\0';
 
-	    enet_src[i] = strtol(bits, (char **)NULL, 16);
+		enet_src[i] = strtol(bits, (char **)NULL, 16);
 	}
 
 }
@@ -141,43 +172,43 @@ void convert_macaddr (u_char *macaddr, u_char enet_src[6])
 int
 send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype)
 {
-    int n;
-    u_char *buf;
-    u_char enet_src[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    u_char enet_dst[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	int n;
+	u_char *buf;
+	u_char enet_src[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	u_char enet_dst[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 
-    if (libnet_init_packet(LIBNET_ARP_H + LIBNET_ETH_H, &buf) == -1) {
+	if (libnet_init_packet(LIBNET_ARP_H + LIBNET_ETH_H, &buf) == -1) {
 	syslog(LOG_ERR, "libnet_init_packet memory:");
-        exit(EXIT_FAILURE);
-    }
+		exit(EXIT_FAILURE);
+	}
 
-    /* Convert ASCII Mac Address to 6 Hex Digits. */
-    convert_macaddr (macaddr, enet_src);
+	/* Convert ASCII Mac Address to 6 Hex Digits. */
+	convert_macaddr (macaddr, enet_src);
 
-    /* Ethernet header */
-    libnet_build_ethernet(enet_dst, enet_src, ETHERTYPE_ARP, NULL, 0, buf);
+	/* Ethernet header */
+	libnet_build_ethernet(enet_dst, enet_src, ETHERTYPE_ARP, NULL, 0, buf);
 
-    /*
-     *  ARP header
-     */
-    libnet_build_arp(ARPHRD_ETHER,	/* Hardware address type */
-        ETHERTYPE_IP,			/* Protocol address type */
-        6,				/* Hardware address length */
-        4,				/* Protocol address length */
-        arptype,			/* ARP operation */
-        enet_src,			/* Source hardware addr */
-        (u_char *)&ip,			/* Target hardware addr */
-        enet_dst,			/* Destination hw addr */
-        (u_char *)&ip,			/* Target protocol address */
-        NULL,				/* Payload */
-        0,				/* Payload length */
-        buf + LIBNET_ETH_H);
+	/*
+	 *  ARP header
+	 */
+	libnet_build_arp(ARPHRD_ETHER,	/* Hardware address type */
+		ETHERTYPE_IP,			/* Protocol address type */
+		6,				/* Hardware address length */
+		4,				/* Protocol address length */
+		arptype,			/* ARP operation */
+		enet_src,			/* Source hardware addr */
+		(u_char *)&ip,			/* Target hardware addr */
+		enet_dst,			/* Destination hw addr */
+		(u_char *)&ip,			/* Target protocol address */
+		NULL,				/* Payload */
+		0,				/* Payload length */
+		buf + LIBNET_ETH_H);
 
-    n = libnet_write_link_layer(l, device, buf, LIBNET_ARP_H + LIBNET_ETH_H);
+	n = libnet_write_link_layer(l, device, buf, LIBNET_ARP_H + LIBNET_ETH_H);
 
-    libnet_destroy_packet(&buf);
-    return (n);
+	libnet_destroy_packet(&buf);
+	return (n);
 }
 #endif /* HAVE_LIBNET_1_0_API */
 
@@ -188,45 +219,48 @@ send_arp(struct libnet_link_int *l, u_long ip, u_char *device, u_char *macaddr, 
 int
 send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *broadcast, u_char *netmask, u_short arptype)
 {
-    int n;
-    u_char enet_src[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    u_char enet_dst[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	int n;
+	u_char enet_src[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	u_char enet_dst[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 
-    /* Convert ASCII Mac Address to 6 Hex Digits. */
-    convert_macaddr (macaddr, enet_src);
+	/* Convert ASCII Mac Address to 6 Hex Digits. */
+	convert_macaddr (macaddr, enet_src);
 
-    /*
-     *  ARP header
-     */
-    libnet_build_arp(ARPHRD_ETHER,	/* hardware address type */
-        ETHERTYPE_IP,	/* protocol address type */
-        6,		/* Hardware address length */
-        4,		/* protocol address length */
-        arptype,	/* ARP operation type */
-        enet_src,	/* sender Hardware address */
-        (u_char *)&ip,	/* sender protocol address */
-        enet_dst,	/* target hardware address */
-        (u_char *)&ip,	/* target protocol address */
-        NULL,		/* Payload */
-        0,		/* Length of payload */
+	/*
+	 *  ARP header
+	 */
+	libnet_build_arp(ARPHRD_ETHER,	/* hardware address type */
+		ETHERTYPE_IP,	/* protocol address type */
+		6,		/* Hardware address length */
+		4,		/* protocol address length */
+		arptype,	/* ARP operation type */
+		enet_src,	/* sender Hardware address */
+		(u_char *)&ip,	/* sender protocol address */
+		enet_dst,	/* target hardware address */
+		(u_char *)&ip,	/* target protocol address */
+		NULL,		/* Payload */
+		0,		/* Length of payload */
 	lntag,		/* libnet context pointer */
 	0		/* packet id */
 	);
 
-    /* Ethernet header */
-    libnet_build_ethernet(enet_dst, enet_src, ETHERTYPE_ARP, NULL, 0
-    ,	lntag, 0);
+	/* Ethernet header */
+	libnet_build_ethernet(enet_dst, enet_src, ETHERTYPE_ARP, NULL, 0
+	,	lntag, 0);
 
-    n = libnet_write(lntag);
-    libnet_clear_packet(lntag);
+	n = libnet_write(lntag);
+	libnet_clear_packet(lntag);
 
-    return (n);
+	return (n);
 }
 #endif /* HAVE_LIBNET_1_1_API */
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.22  2003/07/12 16:19:54  alan
+ * Fixed a bug in the new send_arp options and their invocation...
+ *
  * Revision 1.21  2003/04/15 18:56:33  msoffen
  * Removed printf("\n") that served no purpose anymore (used to print .\n).
  *

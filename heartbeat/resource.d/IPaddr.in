@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.42 2003/07/12 14:27:21 alan Exp $
+#	$Id: IPaddr.in,v 1.43 2003/07/12 16:19:54 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -604,11 +604,11 @@ ip_start() {
   : ${ARP_NETMASK=ffffffffffff}	# netmask for ARP
   
 
-  ARGS ="-i $ARP_INTERVAL_MS -r $ARP_REPEAT $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ${ARP_NETMASK}"
+  ARGS="-i $ARP_INTERVAL_MS -r $ARP_REPEAT $TARGET_INTERFACE ${BASEIP} ${MACADDR} ${BASEIP} ${ARP_NETMASK}"
   ha_log "$SENDARP $ARGS"
   case $ARP_BACKGROUND in
-    yes)	($SENDARP $ARGS ||  ha_log "ERROR: Could not send gratuitous arps") &;;
-    *)		 $SENDARP $ARGS ||  ha_log "ERROR: Could not send gratuitous arps");;
+    yes) ($SENDARP $ARGS || ha_log "ERROR: Could not send gratuitous arps")&;;
+    *)	  $SENDARP $ARGS || ha_log "ERROR: Could not send gratuitous arps";;
   esac
 }
 
@@ -674,7 +674,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.42 2003/07/12 14:27:21 alan Exp $"
+  echo "$Id: IPaddr.in,v 1.43 2003/07/12 16:19:54 alan Exp $"
 }
 
 #
@@ -721,6 +721,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.43  2003/07/12 16:19:54  alan
+# Fixed a bug in the new send_arp options and their invocation...
+#
 # Revision 1.42  2003/07/12 14:27:21  alan
 # Changed IPaddr to not go into background for ARPs, and greatly shortened
 # the inter-ARP-interval by using a new send_arp option.
