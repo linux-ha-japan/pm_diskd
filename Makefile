@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.2 1999/09/23 15:50:55 alanr Exp $
+#	$Id: Makefile,v 1.3 1999/09/23 16:19:56 alanr Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -96,13 +96,15 @@ handy: rpm
 	cd doc; $(MAKE) ChangeLog
 	su alanr -c "cp doc/ChangeLog $(TARFILE) $(RPMSRC) $(RPM386) $(WEBDIR)"
 
-clean:	rpmclean
-	rm -f *.o *.swp .*.swp core
-	rm -f $(LIBCMDS)
+clean:	local_clean rpmclean
 	@for j in $(BUILDDIRS);				\
 	do ( cd $$j; $(MAKE_CMD) clean; ); done
 
-pristene:
+local_clean:
+	rm -f *.o *.swp .*.swp core
+	rm -f $(LIBCMDS)
+
+pristene: local_clean
 	@for j in $(BUILDDIRS);				\
 	do ( cd $$j; $(MAKE_CMD) pristene; ); done
 
