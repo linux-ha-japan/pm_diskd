@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.2 1999/09/30 18:34:27 alanr Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.3 2000/01/26 15:16:48 alan Exp $";
 /*
  *  This code written by
  *	Alan Robertson <alanr@henge.com> (c) 1999
@@ -56,7 +56,7 @@ main(int argc, char ** argv) {
 	char *	address = NULL;
 	char *	bcast_arg = NULL;
 	char *	netmaskbits = NULL;
-	FILE *	routefd = fopen(PROCROUTE, "r");
+	FILE *	routefd = NULL;
 	char	buf[1024];
 	char	interface[MAXSTR];
 	struct in_addr	in;
@@ -154,6 +154,11 @@ main(int argc, char ** argv) {
 	if (if_specified != NULL) {
 		strcpy(best_if, if_specified);
 	}else{
+		if ((routefd = fopen(PROCROUTE, "r")) == NULL) {
+			fprintf(stderr, "Cannot open %s for reading"
+			,	PROCROUTE);
+			return(1);
+		}
 		/* Skip first line */
 		fgets(buf, sizeof(buf), routefd);
 		while (fgets(buf, sizeof(buf), routefd) != NULL) {
@@ -244,6 +249,10 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
+ * Revision 1.3  2000/01/26 15:16:48  alan
+ * Added code from Michael Moerz <mike@cubit.at> to keep findif from
+ * core dumping if /proc/route can't be read.
+ *
  * Revision 1.2  1999/09/30 18:34:27  alanr
  * Matt Soffen's FreeBSD changes
  *
