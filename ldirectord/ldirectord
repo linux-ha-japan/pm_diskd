@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.58 2002/09/12 01:52:27 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.59 2002/10/17 00:53:29 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -1629,9 +1629,11 @@ sub check_https
 		local $SIG{'__DIE__'} = "DEFAULT";
 		local $SIG{'ALRM'} = sub { die "Timeout Alarm" };
 		alarm $$v{negotiatetimeout};
-		($page, $result, %headers)  = &Net::SSLeay::get_https($$r{server}, $$r{port}, $uri);
+		&ld_debug(2, "Testing: $$r{server}, $$r{port}, $uri");
+		($page, $result, %headers)  = &Net::SSLeay::get_https(
+				$$r{server}, $$r{port}, $uri);
+		&ld_debug(2, "Result: $result");
 		my $recstr = $$r{receive};
-		warn("Testing: $$r{server}, $$r{port}, $uri");
 		if($result =~ /error/i ||
 				($recstr =~ /.+/ && !($page =~ /$recstr/))) {
 			die("$result");
