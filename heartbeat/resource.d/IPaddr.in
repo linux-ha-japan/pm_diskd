@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.40 2003/05/21 08:42:57 horms Exp $
+#	$Id: IPaddr.in,v 1.41 2003/05/21 09:02:32 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -245,7 +245,6 @@ delete_interface () {
 		;;
   esac
 
-  rm -f "${VLDIR}/${ifname}"       #  REMOVE ME?
   ha_log "info: $CMD"
   $CMD
 
@@ -653,7 +652,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.40 2003/05/21 08:42:57 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.41 2003/05/21 09:02:32 horms Exp $"
 }
 
 #
@@ -700,6 +699,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.41  2003/05/21 09:02:32  horms
+# Free alias search optimisation by Sean Reifschneider
+#
 # Revision 1.40  2003/05/21 08:42:57  horms
 # Free alias search optimisation by Sean Reifschneider
 #
