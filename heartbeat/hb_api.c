@@ -104,6 +104,8 @@ client_proc_t*	client_list = NULL;	/* List of all our API clients */
 
 void api_process_request(client_proc_t* client, struct ha_msg *msg);
 static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
+static void api_flush_msgQ(client_proc_t* client);
+static void api_clean_clientQ(client_proc_t* client);
 static void api_remove_client(client_proc_t* client);
 static void api_add_client(struct ha_msg* msg);
 static client_proc_t*	find_client(const char * fromid, const char * pid);
@@ -730,19 +732,33 @@ api_process_registration(struct ha_msg * msg)
 static void
 api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 {
-	const char	* fifoname;
-	FILE*	f;
-	int	fd;
+	char *		msgstring;
 
 
-	/* See if this client is (still) properly secured */
+	if ((msgstring = msg2string(msg)) == NULL) {
+		ha_log(LOG_ERR, "api_send_client_message (msg2string failed) client %d"
+		,	client->pid);
+		return;
+	}
+	client->msgQ = g_list_append(client->msgQ, msgstring);
+	++client->msgcount;
+	api_flush_msgQ(client);
+}
+
+static void
+api_flush_msgQ(client_proc_t* client)
+{
+	const char*	fifoname;
+	int		fd;
+	int		rc;
+	int		nsig;
+	int		writeok=0;
 
 	if (!ClientSecurityIsOK(client)) {
 		api_remove_client(client);
 		client=NULL;
 		return;
 	}
-
 	fifoname = client_fifo_name(client, 0);
 
 	if ((fd=open(fifoname, O_WRONLY|O_NDELAY)) < 0) {
@@ -750,26 +766,47 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 		api_remove_client(client);
 		return;
 	}
-	if ((f = fdopen(fd, "w")) == NULL) {
-		ha_perror("api_send_client: can't fdopen %s", fifoname);
-		api_remove_client(client);
-		return;
-	}
 
-	if (msg2stream(msg, f) != HA_OK) {
-		ha_log(LOG_ERR, "Cannot send message to client %d"
-		,	client->pid);
-	}
+	/* Write out each message in the queue */
+	while (client->msgQ != NULL) {
+		char *		msgstring;
+		int		msglen;
 
-	if (fclose(f) == EOF) {
-		ha_perror("Cannot send message to client %d (close)"
-		,	client->pid);
+		msgstring = (char*)(client->msgQ->data);
+		msglen = strlen(msgstring);
+		if ((rc=write(fd, msgstring, msglen)) != msglen) {
+			if (rc >= 0 || errno != EAGAIN) {
+				ha_perror("Cannot write message to client"
+				" %d (write failure %d)"
+				,	client->pid, rc);
+			}
+			break;
+		}
+
+		/* If the write succeeded, remove msg from queue */
+		++writeok;
+		--client->msgcount;
+		client->msgQ = g_list_remove(client->msgQ, msgstring);
 	}
-	if (kill(client->pid, client->signal) < 0 && errno == ESRCH) {
+	nsig = (writeok ? client->signal : 0);
+
+	if (kill(client->pid, nsig) < 0 && errno == ESRCH) {
 		ha_log(LOG_ERR, "api_send_client: client %d died", client->pid);
 		api_remove_client(client);
 		client=NULL;
-		return;
+	}
+	if (close(fd) <=0) {
+		ha_perror("Client %d close failure in api_flush_msgQ"
+		,	client->pid);
+	}
+}
+
+void
+api_clean_clientQ(client_proc_t* client)
+{
+	while (client->msgQ != NULL) {
+		--client->msgcount;
+		client->msgQ = g_list_remove(client->msgQ, client->msgQ);
 	}
 }
 
@@ -820,6 +857,10 @@ api_remove_client(client_proc_t* req)
 			}else{
 				prev->next = client->next;
 			}
+
+			/* Throw away any Queued messages */
+			api_clean_clientQ(client);
+
 			/* Zap! */
 			memset(client, 0, sizeof(*client));
 			ha_free(client);
@@ -884,6 +925,7 @@ api_add_client(struct ha_msg* msg)
 	/* Zap! */
 	memset(client, 0, sizeof(*client));
 	client->input_fifo = NULL;
+	client->msgQ = NULL;
 	client->pid = pid;
 	client->desired_types = DEFAULTREATMENT;
 	client->signal = 0;

@@ -28,13 +28,15 @@
  */
 
 typedef struct client_process {
-	char        client_id[32];  /* Client identification */
-	pid_t       pid;        /* PID of client process */
-	uid_t       uid;        /* UID of client  process */
-	int     iscasual;   /* 1 if this is a "casual" client */
-	FILE*       input_fifo; /* Input FIFO file pointer */
-	int     signal;     /* What signal to indicate new msgs with */
-	int     desired_types;  /* A bit mask of desired message types*/
+	char	client_id[32];  /* Client identification */
+	pid_t	pid;		/* PID of client process */
+	uid_t	uid;		/* UID of client  process */
+	int	iscasual;	/* 1 if this is a "casual" client */
+	FILE*	input_fifo;	/* Input FIFO file pointer */
+	GList*	msgQ;		/* Queue of msgs for client */
+	int	msgcount;	/* length of client message queue */
+	int     signal;		/* What signal to indicate new msgs with */
+	int     desired_types;	/* A bit mask of desired message types*/
 	struct client_process*  next;
 }client_proc_t;
 
