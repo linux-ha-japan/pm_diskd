@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.244 2003/03/27 07:04:26 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.245 2003/03/28 16:09:03 lars Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -933,8 +933,13 @@ fifo_child(IPC_Channel* chan)
 	drop_privs(0, 0);	/* Become nobody */
 	curproc->pstat = RUNNING;
 
-	for (;;msg != NULL && (ha_msg_del(msg), msg=NULL)) {
-	
+	for (;;) {
+
+		if (msg) {
+			ha_msg_del(msg);
+			msg = NULL;
+		}
+		
 		msg = controlfifo2msg(fifo);
 
 		if (msg) {
@@ -4002,6 +4007,9 @@ GetTimeBasedGeneration(seqno_t * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.245  2003/03/28 16:09:03  lars
+ * Restructured loop a bit to stop my head from spinning.
+ *
  * Revision 1.244  2003/03/27 07:04:26  alan
  * 1st step in heartbeat process restructuring.
  * Create fifo_child() processes to read the FIFO written by the shell scripts.
