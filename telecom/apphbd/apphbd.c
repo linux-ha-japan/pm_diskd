@@ -75,18 +75,12 @@
 #include <clplumbing/ipc.h>
 #include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/apphb_cs.h>
+
+#define __USE_UNIX98
 #include <signal.h>
 
 #ifndef PIDFILE
 #	define	PIDFILE "/var/run/apphbd.pid"
-#endif
-
-#if HAVE_SIGIGNORE 
-#	if !defined(linux)
-#		define IGNORESIG(s) sigignore(s)
-#	endif
-#else
-#	define IGNORESIG(s) (signal((s), SIG_IGN))
 #endif
 
 const char *	cmdname = "apphbd";
@@ -137,7 +131,6 @@ static int apphb_client_register(apphb_client_t* client, void* Msg, int len);
 static void apphb_read_msg(apphb_client_t* client);
 static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
 void apphb_process_msg(apphb_client_t* client, void* msg,  int length);
-void stop_main(int sig);
 
 /* gmainloop "event source" functions for client communication */
 static gboolean apphb_prepare(gpointer src, GTimeVal*now, gint*timeout
@@ -644,12 +637,6 @@ init_start(void)
 	return 0;
 }
 
-void
-stop_main(int sig)
-{
-	syslog(LOG_INFO, "Shutting down due to signal %d", sig);
-	g_main_quit(mainloop);
-}
 
 static void
 make_daemon(void)
@@ -694,16 +681,9 @@ make_daemon(void)
 		close(j);
 	}
 
-	  if (IGNORESIG(SIGINT) != 0)
-	      signal(SIGINT, stop_main);
-#ifdef SIGHUP
-          if (IGNORESIG(SIGHUP) != 0)
-              signal(SIGHUP, stop_main);
-#endif
-          if (IGNORESIG(SIGQUIT) != 0)
-              signal(SIGQUIT, stop_main);
-
-	signal(SIGTERM, stop_main);
+	IGNORESIG(SIGINT);
+	IGNORESIG(SIGHUP);
+	IGNORESIG(SIGTERM);
 }
 
 static long

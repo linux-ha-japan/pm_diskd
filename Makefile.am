@@ -50,6 +50,7 @@ WEBDIR=/home/alanr/ha-web/download
 RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PACKAGE)-$(VERSION)-$(RPMREL).src.rpm
 RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-$(VERSION)-$(RPMREL).i386.rpm
 RPMstonith=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-stonith-$(VERSION)-$(RPMREL).i386.rpm
+RPMpils=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-pils-$(VERSION)-$(RPMREL).i386.rpm
 RPMldir=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-ldirectord-$(VERSION)-$(RPMREL).i386.rpm
 
 AUTOMAKE_OPTIONS	= foreign
@@ -74,7 +75,7 @@ am_config_clean:
 handy: rpm
 	cd doc; $(MAKE) ChangeLog
 	rm -f $(WEBDIR)/ChangeLog
-	cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(RPMstonith) $(RPMldir) $(WEBDIR)
+	cp doc/ChangeLog doc/GettingStarted.html $(TARFILE) $(RPMSRC) $(RPM386) $(RPMstonith) $(RPMldir) $(RPMpils) $(WEBDIR)
 
 
 

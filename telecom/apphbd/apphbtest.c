@@ -72,7 +72,7 @@ doatest(void)
 	int	rc;
 
 	sleep(5);
-	fprintf(stderr, "Client starting - pid: %d\n", (int) getpid());
+	fprintf(stderr, "Client starting - pid: %ld\n", (long) getpid());
 	rc = apphb_register("test program");
 	if (rc < 0) {
 		perror("registration failure");
