@@ -772,7 +772,6 @@ random for the selected number of iterations.
         for audit in self.Audits:
             if not audit():
                 self.CM.log("Audit " + audit.name() + " Failed.")
-                test.incr("auditfail")
                 self.incr("auditfail")
         while testcount <= max:
             test = self.Env.RandomGen.choice(self.Tests)
