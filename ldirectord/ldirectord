@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # Linux Director Daemon
-# $Id: ldirectord,v 1.5 2000/04/15 22:41:25 horms Exp $
+# $Id: ldirectord,v 1.6 2000/04/23 21:04:51 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # with help from: Horms <horms@vergenet.net>
 # This is GPL software. You should own a few hundred copies
@@ -697,7 +697,7 @@ sub check_server
 			service_set($v, $r, "down");
 		}
 	} elsif ($$v{service} eq "none") {
-	          service_up($v, $r);
+	          service_set($v, $r, "up");
 	}
 }
 
