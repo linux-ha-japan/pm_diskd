@@ -22,6 +22,22 @@
 #	define _HB_API_CORE_H 1
 #include <sys/types.h>
 #include <ha_msg.h>
+
+/*
+ *   Per-client API data structure.
+ */
+
+typedef struct client_process {
+	char        client_id[32];  /* Client identification */
+	pid_t       pid;        /* PID of client process */
+	uid_t       uid;        /* UID of client  process */
+	int     iscasual;   /* 1 if this is a "casual" client */
+	FILE*       input_fifo; /* Input FIFO file pointer */
+	int     signal;     /* What signal to indicate new msgs with */
+	int     desired_types;  /* A bit mask of desired message types*/
+	struct client_process*  next;
+}client_proc_t;
+
 /*
  * Types of messages. 
  * DROPIT and/or DUPLICATE are only used when a debugging callback
@@ -88,5 +104,44 @@ void api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface);
 void api_process_registration(struct ha_msg *msg);
 void process_api_msgs(fd_set* inputs, fd_set* exceptions);
 int  compute_msp_fdset(fd_set* set, int fd1, int fd2);
+
+/* Return code for API query handlers */
+
+#define I_API_RET 0 /* acknowledge client of successful API query */
+#define I_API_IGN 1 /* do nothing */
+#define I_API_BADREQ 2 /* send error msg to client with "failreason" as error reason */
+
+/* Handler of API query */
+typedef int (*api_query_handler_t) (const struct ha_msg* msg
+			, struct ha_msg *resp, client_proc_t* client
+			, const char **failreason);
+
+struct api_query_handler {
+		const char *queryname;
+		api_query_handler_t handler;
+};
+
+/* Definitions of API query handlers */
+
+int api_signoff (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char **failreason);
+
+int api_setfilter (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char **failreason);
+
+int api_setsignal (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+int api_nodelist (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+int api_nodestatus (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+int api_ifstatus (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
+
+int api_iflist (const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason);
 
 #endif /* _HB_API_CORE_H */

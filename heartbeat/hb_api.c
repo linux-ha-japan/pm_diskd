@@ -72,19 +72,15 @@
 #include <hb_api_core.h>
 #include <sys/stat.h>
 
-/*
- *	Per-client API data structure.
- */
-typedef struct client_process {
-	char		client_id[32];	/* Client identification */
-	pid_t		pid;		/* PID of client process */
-	uid_t		uid;		/* UID of client  process */
-	int		iscasual;	/* 1 if this is a "casual" client */
-	FILE*		input_fifo;	/* Input FIFO file pointer */
-	int		signal;		/* What signal to indicate new msgs with */
-	int		desired_types;	/* A bit mask of desired message types*/
-	struct client_process*	next;
-}client_proc_t;
+struct api_query_handler query_handler_list [] = {
+	{ API_SIGNOFF, api_signoff },
+	{ API_SETFILTER, api_setfilter },
+	{ API_SETSIGNAL, api_setsignal },
+	{ API_NODELIST, api_nodelist },
+	{ API_NODESTATUS, api_nodestatus },
+	{ API_IFSTATUS, api_ifstatus },
+	{ API_IFLIST, api_iflist },
+};
 
 int		debug_client_count = 0;
 int		total_client_count = 0;
@@ -180,6 +176,210 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 	}
 }
 
+
+/**********************************************************************
+ * API_SETFILTER: Set the types of messages we want to see
+ **********************************************************************/
+int api_setfilter(const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char **failreason)
+{                                                            
+	const char *	cfmask;
+	unsigned	mask;
+/*
+ *	Record the types of messages desired by this client
+ *		(desired_types)
+ */
+	if ((cfmask = ha_msg_value(msg, F_FILTERMASK)) == NULL
+	||	(sscanf(cfmask, "%x", &mask) != 1)
+	||	(mask&ALLTREATMENTS) == 0) {
+		*failreason = "EINVAL";
+		return I_API_BADREQ;
+	}
+
+	if ((client->desired_types  & DEBUGTREATMENTS)== 0
+	&&	(mask&DEBUGTREATMENTS) != 0) {
+		/* Only allowed to root and to our uid */
+		if (client->uid != 0 && client->uid != getuid()) {
+			*failreason = "EPERM";
+			return I_API_BADREQ;
+		}
+		++debug_client_count;
+	}else if ((client->desired_types & DEBUGTREATMENTS) != 0
+	&&	(mask & DEBUGTREATMENTS) == 0) {
+		--debug_client_count;
+	}
+	client->desired_types = mask;
+	return I_API_RET;
+}
+
+/**********************************************************************
+ * API_SIGNOFF: Sign off as a client
+ **********************************************************************/
+
+int api_signoff(const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char **failreason) 
+{ 
+		/* We send them no reply */
+		ha_log(LOG_INFO, "Signing client %d off", client->pid);
+		api_remove_client(client);
+		return I_API_IGN;
+}
+
+/**********************************************************************
+ * API_SETSIGNAL: Record the type of signal they want us to send.
+ **********************************************************************/
+
+int api_setsignal(const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+		const char *	csignal;
+		unsigned	oursig;
+
+		if ((csignal = ha_msg_value(msg, F_SIGNAL)) == NULL
+		||	(sscanf(csignal, "%u", &oursig) != 1)) {
+			return I_API_BADREQ;
+		}
+		/* Validate the signal number in the message ... */
+		if (oursig < 0 || oursig == SIGKILL || oursig == SIGSTOP
+		||	oursig >= 32) {
+			/* These can't be caught (or is a bad signal). */
+			*failreason = "EINVAL";
+			return I_API_BADREQ;
+		}
+
+		client->signal = oursig;
+		return I_API_RET;
+}
+
+/***********************************************************************
+ * API_NODELIST: List the nodes in the cluster
+ **********************************************************************/
+
+int api_nodelist(const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+		int	j;
+		int	last = config->nodecount-1;
+
+		for (j=0; j <= last; ++j) {
+			if (ha_msg_mod(resp, F_NODENAME
+			,	config->nodes[j].nodename) != HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_nodelist: "
+				"cannot mod field/5");
+				return I_API_IGN;
+			}
+			if (ha_msg_mod(resp, F_APIRESULT
+			,	(j == last ? API_OK : API_MORE))
+			!=	HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_nodelist: "
+				"cannot mod field/6");
+				return I_API_IGN;
+			}
+			api_send_client_msg(client, resp);
+		}
+		return I_API_IGN;
+}
+
+/**********************************************************************
+ * API_NODESTATUS: Return the status of the given node
+ *********************************************************************/
+
+int api_nodestatus(const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+		const char *		cnode;
+		struct node_info *	node;
+
+		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
+		|| (node = lookup_node(cnode)) == NULL) {
+			*failreason = "EINVAL";
+			return I_API_BADREQ;
+		}
+		if (ha_msg_add(resp, F_STATUS, node->status) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_nodestatus: cannot add field");
+			return I_API_IGN;
+		}
+		return I_API_RET;
+}
+
+/**********************************************************************
+ * API_IFLIST: List the interfaces for the given machine
+ *********************************************************************/
+
+int api_iflist(const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+		struct link * lnk;
+		int	j;
+		int	last = config->nodecount-1;
+		const char *		cnode;
+		struct node_info *	node;
+
+		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
+		|| (node = lookup_node(cnode)) == NULL) {
+			*failreason = "EINVAL";
+			return I_API_BADREQ;
+		}
+
+		/* Find last link... */
+ 		for(j=0; (lnk = &node->links[j]) && lnk->name; ++j) {
+			last = j;
+                }            
+
+		for (j=0; j <= last; ++j) {
+			if (ha_msg_mod(resp, F_IFNAME
+			,	node->links[j].name) != HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_iflist: "
+				"cannot mod field/1");
+				return I_API_IGN;
+			}
+			if (ha_msg_mod(resp, F_APIRESULT
+			,	(j == last ? API_OK : API_MORE))
+			!=	HA_OK) {
+				ha_log(LOG_ERR
+				,	"api_iflist: "
+				"cannot mod field/2");
+				return I_API_IGN;
+			}
+			api_send_client_msg(client, resp);
+		}
+	return I_API_IGN;
+}
+
+/**********************************************************************
+ * API_IFSTATUS: Return the status of the given interface...
+ *********************************************************************/
+
+int api_ifstatus(const struct ha_msg* msg, struct ha_msg* resp
+,	client_proc_t* client, const char** failreason)
+{
+		const char *		cnode;
+		struct node_info *	node;
+		const char *		ciface;
+		struct link *		iface;
+
+		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
+		||	(node = lookup_node(cnode)) == NULL
+		||	(ciface = ha_msg_value(msg, F_IFNAME)) == NULL
+		||	(iface = lookup_iface(node, ciface)) == NULL) {
+			*failreason = "EINVAL";
+			return I_API_BADREQ;
+		}
+		if (ha_msg_mod(resp, F_STATUS,	iface->status) != HA_OK) {
+			ha_log(LOG_ERR
+			,	"api_ifstatus: cannot add field/1");
+			ha_log(LOG_ERR
+			,	"name: %s, value: %s (if=%s)"
+			,	F_STATUS, iface->status, ciface);
+			return I_API_IGN;
+		}
+		return I_API_RET;
+}
+
 /*
  * Process an API request message from one of our clients
  */
@@ -193,6 +393,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 	client_proc_t*	client;
 	struct ha_msg *	resp = NULL;
 	const char *	failreason = NULL;
+	int x;
 
 	if (msg == NULL || (msgtype = ha_msg_value(msg, F_TYPE)) == NULL) {
 		ha_log(LOG_ERR, "api_process_request: bad message type");
@@ -274,7 +475,7 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		return;
 	}
 
-	/* Look and see if they correctly stated their client id information... */
+	/* See if they correctly stated their client id information... */
 	if (client != fromclient) {
 		ha_log(LOG_ERR, "Client mismatch! (impersonation?)");
 		return;
@@ -287,244 +488,44 @@ api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 		ha_msg_del(resp); resp=NULL;
 		return;
 	}
+	
+	for(x = 0 ; x < DIMOF(query_handler_list); x++) { 
 
-	/*
-	 * We really ought to make all these cases separate functions 
-	 * and put them into a table
-	 */
-	/**********************************************************************
-	 * API_SIGNOFF: Sign off as a client
-	 **********************************************************************/
-	if (strcmp(reqtype, API_SIGNOFF) == 0) {
-		/* We send them no reply */
-		ha_log(LOG_INFO, "Signing client %d off", client->pid);
-		api_remove_client(client);
-		ha_msg_del(resp); resp=NULL;
-		return;
-	}
+		int ret;
 
-	/**********************************************************************
-	 * API_SETFILTER: Set the types of messages we want to see
-	 **********************************************************************/
-	if (strcmp(reqtype, API_SETFILTER) == 0) {
-	/*
-	 *	Record the types of messages desired by this client
-	 *		(desired_types)
-	 */
-		const char *	cfmask;
-		unsigned	mask;
-		if ((cfmask = ha_msg_value(msg, F_FILTERMASK)) == NULL
-		||	(sscanf(cfmask, "%x", &mask) != 1)
-		||	(mask&ALLTREATMENTS) == 0) {
-			failreason = "EINVAL";
-			goto bad_req;
-		}
+		if(strcmp(reqtype, query_handler_list[x].queryname) == 0) {
+			ret = query_handler_list[x].handler(msg, resp, client
+						, &failreason);
+			switch(ret) {
+			case I_API_IGN:
+				ha_msg_del(resp); resp = NULL;
+				return;
+			case I_API_RET:
+				if (ha_msg_add(resp, F_APIRESULT, API_OK)
+				!=	HA_OK) {
+					ha_log(LOG_ERR
+					,	"api_process_request:"
+					" cannot add field/8.1");
+					ha_msg_del(resp); resp=NULL;
+					return;
+				}
+				api_send_client_msg(client, resp);
+				ha_msg_del(resp); resp=NULL;
+				return;
 
-		if ((client->desired_types  & DEBUGTREATMENTS)== 0
-		&&	(mask&DEBUGTREATMENTS) != 0) {
-			/* Only allowed to root and to our uid */
-			if (client->uid != 0 && client->uid != getuid()) {
-				failreason = "EPERM";
+			case I_API_BADREQ:
 				goto bad_req;
 			}
-			++debug_client_count;
-		}else if ((client->desired_types & DEBUGTREATMENTS) != 0
-		&&	(mask & DEBUGTREATMENTS) == 0) {
-			--debug_client_count;
 		}
-		client->desired_types = mask;
-		if (ha_msg_add(resp, F_APIRESULT, API_OK) != HA_OK) {
-			ha_log(LOG_ERR
-			,	"api_process_request: cannot add field/8.1");
-			ha_msg_del(resp); resp=NULL;
-			return;
-		}
-		api_send_client_msg(client, resp);
-		ha_msg_del(resp); resp=NULL;
-		return;
 	}
 
-	/**********************************************************************
-	 * API_SETSIGNAL: Record the type of signal they want us to send.
-	 **********************************************************************/
-	if (strcmp(reqtype, API_SETSIGNAL) == 0) {
-	/*
-	 *	Set a signal to send whenever a message arrives
-	 */
-		const char *	csignal;
-		unsigned	oursig;
 
-		if ((csignal = ha_msg_value(msg, F_SIGNAL)) == NULL
-		||	(sscanf(csignal, "%u", &oursig) != 1)) {
-			goto bad_req;
-		}
-		/* Validate the signal number in the message ... */
-		if (oursig < 0 || oursig == SIGKILL || oursig == SIGSTOP
-		||	oursig >= 32) {
-			/* These can't be caught (or is a bad signal). */
-			failreason = "EINVAL";
-			goto bad_req;
-		}
-
-		client->signal = oursig;
-		if (ha_msg_add(resp, F_APIRESULT, API_OK) != HA_OK) {
-			ha_log(LOG_ERR
-			,	"api_process_request: cannot add field/8.1");
-			ha_msg_del(resp); resp=NULL;
-			return;
-		}
-		api_send_client_msg(client, resp);
-		ha_msg_del(resp); resp=NULL;
-		return;
-	}
-	/***********************************************************************
-	 * API_NODELIST: List the nodes in the cluster
-	 **********************************************************************/
-	if (strcmp(reqtype, API_NODELIST) == 0) {
-		int	j;
-		int	last = config->nodecount-1;
-
-		for (j=0; j <= last; ++j) {
-			if (ha_msg_mod(resp, F_NODENAME
-			,	config->nodes[j].nodename) != HA_OK) {
-				ha_log(LOG_ERR
-				,	"api_process_request: "
-				"cannot mod field/5");
-				ha_msg_del(resp); resp=NULL;
-				return;
-			}
-			if (ha_msg_mod(resp, F_APIRESULT
-			,	(j == last ? API_OK : API_MORE))
-			!=	HA_OK) {
-				ha_log(LOG_ERR
-				,	"api_process_request: "
-				"cannot mod field/6");
-				ha_msg_del(resp); resp=NULL;
-				return;
-			}
-			api_send_client_msg(client, resp);
-		}
-		ha_msg_del(resp); resp=NULL;
-		return;
-	}
-
-	/**********************************************************************
-	 * API_NODESTATUS: Return the status of the given node
-	 *********************************************************************/
-	if (strcmp(reqtype, API_NODESTATUS) == 0) {
-	/*
-	 *	Return the status of the given node
-	 */
-		const char *		cnode;
-		struct node_info *	node;
-
-		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
-		|| (node = lookup_node(cnode)) == NULL) {
-			failreason = "EINVAL";
-			goto bad_req;
-		}
-		if (ha_msg_add(resp, F_STATUS, node->status) != HA_OK) {
-			ha_log(LOG_ERR
-			,	"api_process_request: cannot add field/7");
-			ha_msg_del(resp); resp=NULL;
-			return;
-		}
-		if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
-			ha_log(LOG_ERR
-			,	"api_process_request: cannot add field/8");
-			ha_msg_del(resp); resp=NULL;
-			return;
-		}
-		api_send_client_msg(client, resp);
-		ha_msg_del(resp); resp=NULL;
-		return;
-	}
-	/**********************************************************************
-	 * API_IFLIST: List the interfaces for the given machine
-	 *********************************************************************/
-	if (strcmp(reqtype, API_IFLIST) == 0) {
-		struct link * lnk;
-		int	j;
-		int	last = config->nodecount-1;
-		const char *		cnode;
-		struct node_info *	node;
-
-		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
-		|| (node = lookup_node(cnode)) == NULL) {
-			failreason = "EINVAL";
-			goto bad_req;
-		}
-
-		/* Find last link... */
- 		for(j=0; (lnk = &node->links[j]) && lnk->name; ++j) {
-			last = j;
-                }            
-
-		for (j=0; j <= last; ++j) {
-			if (ha_msg_mod(resp, F_IFNAME
-			,	node->links[j].name) != HA_OK) {
-				ha_log(LOG_ERR
-				,	"api_process_request: "
-				"cannot mod field/5");
-				ha_msg_del(resp); resp=NULL;
-				return;
-			}
-			if (ha_msg_mod(resp, F_APIRESULT
-			,	(j == last ? API_OK : API_MORE))
-			!=	HA_OK) {
-				ha_log(LOG_ERR
-				,	"api_process_request: "
-				"cannot mod field/6");
-				ha_msg_del(resp); resp=NULL;
-				return;
-			}
-			api_send_client_msg(client, resp);
-		}
-		ha_msg_del(resp); resp=NULL;
-		return;
-	}
-	/**********************************************************************
-	 * API_IFSTATUS: Return the status of the given interface...
-	 *********************************************************************/
-	if (strcmp(reqtype, API_IFSTATUS) == 0) {
-		const char *		cnode;
-		struct node_info *	node;
-		const char *		ciface;
-		struct link *		iface;
-
-		if ((cnode = ha_msg_value(msg, F_NODENAME)) == NULL
-		||	(node = lookup_node(cnode)) == NULL
-		||	(ciface = ha_msg_value(msg, F_IFNAME)) == NULL
-		||	(iface = lookup_iface(node, ciface)) == NULL) {
-			failreason = "EINVAL";
-			goto bad_req;
-		}
-		if (ha_msg_mod(resp, F_STATUS,	iface->status) != HA_OK) {
-			ha_log(LOG_ERR
-			,	"api_process_request: cannot add field/9");
-			ha_log(LOG_ERR
-			,	"name: %s, value: %s (if=%s)"
-			,	F_STATUS, iface->status, ciface);
-			ha_msg_del(resp); resp=NULL;
-			return;
-		}
-		if (ha_msg_mod(resp, F_APIRESULT, API_OK) != HA_OK) {
-			ha_log(LOG_ERR
-			,	"api_process_request: cannot add field/10");
-			ha_msg_del(resp); resp=NULL;
-			return;
-		}
-		api_send_client_msg(client, resp);
-		ha_msg_del(resp); resp=NULL;
-		return;
-	}
 	/**********************************************************************
 	 * Unknown request type...
 	 *********************************************************************/
 	ha_log(LOG_ERR, "Unknown API request");
 
 	/* Common error return handling */
-	/* It would be nice to separate this out into a function too! */
 bad_req:
 	ha_log(LOG_ERR, "api_process_request: bad request [%s]"
 	,	reqtype);
