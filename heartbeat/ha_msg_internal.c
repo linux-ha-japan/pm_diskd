@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.19 2002/07/08 04:14:12 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.20 2002/08/02 22:44:00 alan Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -23,6 +23,8 @@ static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.19 2002/07/08 04:
 #include <portability.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <string.h>
 #include <time.h>
 #include <errno.h>
@@ -96,8 +98,9 @@ if_msgfromstream(FILE * f, char *iface)
 
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
-			ha_error("NV failure (if_msgfromsteam):");
-			ha_log(LOG_INFO, "%s", buf);
+			ha_log(LOG_INFO
+			,	"NV failure (if_msgfromsteam)(%s): [%s]"
+			,	iface, buf);
 			ha_msg_del(ret);
 			return(NULL);
 		}
@@ -450,16 +453,32 @@ STATIC	const char *
 ha_msg_loadavg(void)
 {
 	static char	loadavg[64];
-	FILE *		fp;
-	if ((fp=fopen(LOADAVG, "r")) == NULL) {
+	static int 		fd = -1;
+
+	/*
+	 * NOTE:  We never close 'fd'
+	 * We keep it open to avoid touching the real filesystem once we
+	 * are running, and avoid realtime problems.  I don't know that
+	 * this was a significant problem, but if updates were being made
+	 * to the / or /proc directories, then we could get blocked,
+	 * and this was a very simple fix.
+	 *
+	 * We should probably get this information once every few seconds
+	 * and use that, but this is OK for now...
+	 * get blocked.
+	 */
+
+	if (fd < 0 && (fd=open(LOADAVG, O_RDONLY)) < 0 ) {
 		strcpy(loadavg, "n/a");
 	}else{
-		fgets(loadavg, sizeof(loadavg), fp);
-		fclose(fp);
+		lseek(fd, 0, SEEK_SET);
+		read(fd, loadavg, sizeof(loadavg));
+		loadavg[sizeof(loadavg)-1] = EOS;
 	}
 	loadavg[strlen(loadavg)-1] = EOS;
 	return(loadavg);
 }
+
 STATIC	const char *
 ha_msg_ttl(void)
 {
@@ -499,6 +518,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.20  2002/08/02 22:44:00  alan
+ * Enhanced an error message when we get a name/value (NV) failure.
+ *
  * Revision 1.19  2002/07/08 04:14:12  alan
  * Updated comments in the front of various files.
  * Removed Matt's Solaris fix (which seems to be illegal on Linux).
