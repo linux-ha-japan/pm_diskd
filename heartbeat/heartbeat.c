@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.147 2001/10/13 00:23:05 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.148 2001/10/13 09:23:19 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -297,7 +297,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.147 2001/10/13 00:23
 
 enum standby { NOT, ME, OTHER, DONE };
 enum standby going_standby = NOT;
-int  standby_running = 0;
+TIME_T  standby_running = 0L;
 
 const char *		rsc_msg[] =	{NO_RESOURCES, LOCAL_RESOURCES,
         				 FOREIGN_RESOURCES, ALL_RESOURCES};
@@ -1291,6 +1291,7 @@ master_status_process(void)
 			init_status_alarm();
 			send_status_now = 1;
 			ClockJustJumped = 1;
+			standby_running = 0L;
 		}else{
 			ClockJustJumped = 0;
 		}
@@ -1418,7 +1419,8 @@ process_clustermsg(FILE * f)
 		/* if there's a standby timer running, verify if it's
 		   time to enable the standby messages again... */
 		if (now >= standby_running) {
-			standby_running = 0;
+			standby_running = 0L;
+			going_standby = NOT;
 		}
 	}
 
@@ -1559,14 +1561,8 @@ process_clustermsg(FILE * f)
 
 	/* If someone asked us to turn "standby" mode on... */
 	if (strcasecmp(type, T_ASKRESOURCES) == 0) {
-		/* if the last standby conversation finished... */
-		if (!standby_running) {
-			/* someone wants to go standby!!! */
-			ask_for_resources(msg);
-		}else{
-			ha_log(LOG_INFO,
-			"Standby delay is running. MSG from %s ignored", from);
-		}
+		/* someone wants to go standby!!! */
+		ask_for_resources(msg);
 		goto psm_done;
 	}
 		
@@ -1870,10 +1866,12 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 
 			if (rstate != R_STABLE && other_is_stable) {
 				ha_log(LOG_INFO
-				,	"local resource transition completed.");
+				,	"local resource transition completed."
+				);
 				req_our_resources(0);
 				newrstate = R_STABLE;
-				send_resources_held(rsc_msg[i_hold_resources],1);
+				send_resources_held(rsc_msg[i_hold_resources]
+				,	1);
 			}
 		}else{
 			const char *	comment = ha_msg_value(msg, F_COMMENT);
@@ -2714,6 +2712,9 @@ send_resources_held(const char *str, int stable)
         int             rc;
         char            timestamp[16];
 
+	if (!nice_failback) {
+		return HA_OK;
+	}
         sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
 	if (ANYDEBUG) {
@@ -2723,11 +2724,9 @@ send_resources_held(const char *str, int stable)
                 ha_log(LOG_ERR, "Cannot send local starting msg");
                 return(HA_FAIL);
         }
-        if ((ha_msg_add(m, F_TYPE, T_RESOURCES) == HA_FAIL)
-        ||  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
-        ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)
-        ||  (ha_msg_add(m, F_RESOURCES, str) == HA_FAIL)
-        ||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) == HA_FAIL)) {
+        if ((ha_msg_add(m, F_TYPE, T_RESOURCES) != HA_OK)
+        ||  (ha_msg_add(m, F_RESOURCES, str) != HA_OK)
+        ||  (ha_msg_add(m, F_ISSTABLE, (stable ? "1" : "0")) != HA_OK)) {
                 ha_log(LOG_ERR, "send_resources_held: Cannot create local msg");
                 rc = HA_FAIL;
         }else{
@@ -2759,10 +2758,8 @@ send_standby_msg(enum standby state)
 		,			standby_msg[state]);
                 return(HA_FAIL);
         }
-        if ((ha_msg_add(m, F_TYPE, T_ASKRESOURCES) == HA_FAIL)
-        ||  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
-        ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)
-        ||  (ha_msg_add(m, F_COMMENT, standby_msg[state]) == HA_FAIL)) {
+        if ((ha_msg_add(m, F_TYPE, T_ASKRESOURCES) != HA_OK)
+        ||  (ha_msg_add(m, F_COMMENT, standby_msg[state]) != HA_OK)) {
                 ha_log(LOG_ERR, "send_standby_msg: "
                 "Cannot create standby reply msg");
                 rc = HA_FAIL;
@@ -2792,9 +2789,7 @@ send_local_starting(void)
                 ha_log(LOG_ERR, "Cannot send local starting msg");
                 return(HA_FAIL);
         }
-        if ((ha_msg_add(m, F_TYPE, T_STARTING) == HA_FAIL)
-        ||  (ha_msg_add(m, F_ORIG, curnode->nodename) == HA_FAIL)
-        ||  (ha_msg_add(m, F_TIME, timestamp) == HA_FAIL)) {
+        if ((ha_msg_add(m, F_TYPE, T_STARTING) != HA_OK)) {
                 ha_log(LOG_ERR, "send_local_starting: "
                 "Cannot create local starting msg");
                 rc = HA_FAIL;
@@ -2822,8 +2817,8 @@ send_local_status(void)
 		ha_log(LOG_ERR, "Cannot send local status.");
 		return(HA_FAIL);
 	}
-	if (ha_msg_add(m, F_TYPE, T_STATUS) == HA_FAIL
-	||	ha_msg_add(m, F_STATUS, curnode->status) == HA_FAIL) {
+	if (ha_msg_add(m, F_TYPE, T_STATUS) != HA_OK
+	||	ha_msg_add(m, F_STATUS, curnode->status) != HA_OK) {
 		ha_log(LOG_ERR, "send_local_status: "
 		"Cannot create local status msg");
 		rc = HA_FAIL;
@@ -2853,10 +2848,10 @@ change_link_status(struct node_info *hip, struct link *lnk, const char * newstat
 
 	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
-	if (	ha_msg_add(lmsg, F_TYPE, T_IFSTATUS) == HA_FAIL
-	||	ha_msg_add(lmsg, F_NODE, hip->nodename) == HA_FAIL
-	||	ha_msg_add(lmsg, F_IFNAME, lnk->name) == HA_FAIL
-	||	ha_msg_add(lmsg, F_STATUS, lnk->status) == HA_FAIL) {
+	if (	ha_msg_add(lmsg, F_TYPE, T_IFSTATUS) != HA_OK
+	||	ha_msg_add(lmsg, F_NODE, hip->nodename) != HA_OK
+	||	ha_msg_add(lmsg, F_IFNAME, lnk->name) != HA_OK
+	||	ha_msg_add(lmsg, F_STATUS, lnk->status) != HA_OK) {
 		ha_log(LOG_ERR, "no memory to mark link dead");
 		ha_msg_del(lmsg);
 		return;
@@ -2880,11 +2875,11 @@ mark_node_dead(struct node_info *hip, enum deadreason reason)
 
 	sprintf(timestamp, TIME_X, (TIME_T) time(NULL));
 
-	if (	ha_msg_add(hmsg, F_TYPE, T_STATUS) == HA_FAIL
-	||	ha_msg_add(hmsg, F_SEQ, "1") == HA_FAIL
-	||	ha_msg_add(hmsg, F_TIME, timestamp) == HA_FAIL
-	||	ha_msg_add(hmsg, F_ORIG, hip->nodename) == HA_FAIL
-	||	ha_msg_add(hmsg, F_STATUS, "dead") == HA_FAIL
+	if (	ha_msg_add(hmsg, F_TYPE, T_STATUS) != HA_OK
+	||	ha_msg_add(hmsg, F_SEQ, "1") != HA_OK
+	||	ha_msg_add(hmsg, F_TIME, timestamp) != HA_OK
+	||	ha_msg_add(hmsg, F_ORIG, hip->nodename) != HA_OK
+	||	ha_msg_add(hmsg, F_STATUS, "dead") != HA_OK
 	||	ha_msg_add(hmsg, F_COMMENT
 	,		reason == HBTIMEOUT ? "timeout" : "shutdown")
 	==	HA_FAIL) {
@@ -2914,6 +2909,8 @@ mark_node_dead(struct node_info *hip, enum deadreason reason)
 				,	DEADSTATUS);
 			}
         	}else{
+			/* We shouldn't do these if it's a 'ping' node */
+			standby_running = 0L;
     			/* We have to Zap them before we take the resources */
 	    		/* This often takes a few seconds. */
     			if (config->stonith) {
@@ -3004,7 +3001,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 	&&	ha_msg_add(hmsg, F_NODE, nodename) == HA_OK
 	&&	ha_msg_add(hmsg, F_APIRESULT, result) == HA_OK) {
 		/* Send a Stonith request */
-		if (send_cluster_msg(hmsg) == HA_FAIL) {
+		if (send_cluster_msg(hmsg) != HA_OK) {
 			ha_log(LOG_ERR, "cannot send " T_STONITH
 			" request for %s", nodename);
 		}
@@ -3154,9 +3151,7 @@ req_our_resources(int getthemanyway)
 			,	rsc_count, cmd);
 		}
 	}
-	if (nice_failback) {
-		send_resources_held(LOCAL_RESOURCES, 0);
-	}
+	send_resources_held(LOCAL_RESOURCES, 0);
 	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
 }
@@ -3191,6 +3186,18 @@ go_standby(enum standby who)
 
 	make_normaltime();
 	signal(SIGCHLD, SIG_DFL);
+
+	if (who == ME) {
+		i_hold_resources = NO_RSC;
+		/* Make sure they know what we're doing and that we're
+		 * not done yet (not stable)
+		 * Since heartbeat doesn't guarantee message ordering
+		 * this could theoretically have problems, but all that
+		 * happens if it gets out of order is that we get
+		 * a funky warning message (or maybe two).
+		 */
+		send_resources_held(rsc_msg[i_hold_resources], 0);
+	}
 	/*
 	 *	We could do this ourselves fairly easily...
 	 */
@@ -3201,6 +3208,9 @@ go_standby(enum standby who)
 		ha_log(LOG_ERR, "Cannot run command %s", cmd);
 		return;
 	}
+	ha_log(LOG_INFO
+	,	"%s all HA resources (standby)."
+	,	who == ME ? "Giving up" : "Acquiring");
 
 	while (fgets(buf, MAXLINE, rkeys) != NULL) {
 		if (buf[strlen(buf)-1] == '\n') {
@@ -3220,24 +3230,16 @@ go_standby(enum standby who)
 		}
 	}
 	pclose(rkeys);
-	ha_log(LOG_INFO, "who: %d", who);
+	if (ANYDEBUG) {
+		ha_log(LOG_INFO, "go_standby: who: %d", who);
+	}
 	if (who == ME) {
-		i_hold_resources = NO_RSC;
-		ha_log(LOG_INFO, "Giving up all HA resources (standby).");
-		ha_log(LOG_INFO, "All HA resources relinquished.");
-	}else{
-		if (who == OTHER) {
-			i_hold_resources |= FOREIGN_RSC;
-			ha_log(LOG_INFO,
-				"Taking over foreign HA resources (primary).");
-			ha_log(LOG_INFO, "Foreign resources acquired.");
-		}
+		ha_log(LOG_INFO, "All HA resources relinquished (standby).");
+	}else if (who == OTHER) {
+		i_hold_resources |= FOREIGN_RSC;
+		ha_log(LOG_INFO, "All resources acquired (standby).");
 	}
-
-	if (nice_failback) {
-		send_resources_held(rsc_msg[i_hold_resources],1);
-	}
-
+	send_standby_msg(DONE);
 	exit(rc);
 	
 }
@@ -3302,8 +3304,8 @@ giveup_resources(int dummy)
                 ha_log(LOG_ERR, "Cannot send final shutdown msg");
                 exit(1);
         }
-        if ((ha_msg_add(m, F_TYPE, T_SHUTDONE) == HA_FAIL
-        ||	ha_msg_add(m, F_STATUS, DEADSTATUS) == HA_FAIL)) {
+        if ((ha_msg_add(m, F_TYPE, T_SHUTDONE) != HA_OK
+        ||	ha_msg_add(m, F_STATUS, DEADSTATUS) != HA_OK)) {
                 ha_log(LOG_ERR, "giveup_resources: Cannot create local msg");
         }else{
 		if (ANYDEBUG) {
@@ -3443,7 +3445,7 @@ main(int argc, char * argv[], char * envp[])
 
 	init_procinfo();
 
-	if (module_init() == HA_FAIL) { 
+	if (module_init() != HA_OK) { 
 		ha_log(LOG_ERR, "Heartbeat not started: error reading modules.");
 		return(HA_FAIL);
 	}
@@ -4117,7 +4119,7 @@ request_msg_rexmit(struct node_info *node, unsigned long lowseq, unsigned long h
 	&&	ha_msg_add(hmsg, F_FIRSTSEQ, low) == HA_OK
 	&&	ha_msg_add(hmsg, F_LASTSEQ, high) == HA_OK) {
 		/* Send a re-transmit request */
-		if (send_cluster_msg(hmsg) == HA_FAIL) {
+		if (send_cluster_msg(hmsg) != HA_OK) {
 			ha_log(LOG_ERR, "cannot send " T_REXMIT
 			" request to %s", node->nodename);
 		}
@@ -4449,13 +4451,19 @@ IncrGeneration(unsigned long * generation)
 	return HA_OK;
 }
 
+#define	STANDBY_INIT_TO	10L	/* timeout for initial reply */
+#define	STANDBY_RSC_TO	600L	/* timeout waiting for resource handling */
 
 void
 ask_for_resources(struct ha_msg *msg)
 {
 
-	const char * info, * from;
-	int 	msgfromme;
+	const char *	info;
+	const char *	from;
+	int 		msgfromme;
+	TIME_T 		now = time(NULL);
+	int		message_ignored = 0;
+	const enum standby	orig_standby = going_standby;
 								
 	if (!nice_failback) {
 		ha_log(LOG_INFO
@@ -4471,86 +4479,130 @@ ask_for_resources(struct ha_msg *msg)
 	}
 	msgfromme = strcmp(from, curnode->nodename) == 0;
 
+	if (ANYDEBUG){
+		ha_log(LOG_DEBUG
+		,	"Received standby message %s from %s in state %d "
+		,	info, from, going_standby);
+	}
+
+	if (standby_running && now < standby_running
+	&&	strcasecmp(info, "me") == 0) {
+		ha_log(LOG_INFO
+		,	"Standby in progress"
+		"- new request from %s ignored [%ld secs left]"
+		,	from, standby_running - now);
+		return;
+	}
+
 	/* Starting the STANDBY 3-phased protocol */
 
 	switch(going_standby) {
 	case NOT:	
-		if (strncasecmp(info, "me", 2) != 0) {
+		if (strcasecmp(info, "me") == 0) {
+			standby_running = now + STANDBY_INIT_TO;
+			other_is_stable = 0;
 			ha_log(LOG_INFO, "%s wants to go standby", from);
 			if (msgfromme) {
-				ha_log(LOG_INFO, "i_hold_resources: %d"
-				,		i_hold_resources);
-				if (i_hold_resources!=NO_RSC) {
-					/* I want to go standby */
-					going_standby = ME;
+				/* We want to go standby */
+				if (ANYDEBUG) {
+					ha_log(LOG_INFO, "i_hold_resources: %d"
+					,	i_hold_resources);
 				}
+				going_standby = ME;
 			}else{
-				ha_log(LOG_INFO, "other_holds_resources: %d"
-				,		other_holds_resources);
-				if (other_holds_resources!=NO_RSC) {
-					/* the other node wants to go standby */
-					going_standby = OTHER;
-					send_standby_msg(going_standby);
+				if (ANYDEBUG) {
+					ha_log(LOG_INFO
+					,	"other_holds_resources: %d"
+					,	other_holds_resources);
 				}
+				/* Other node wants to go standby */
+				going_standby = OTHER;
+				send_standby_msg(going_standby);
 			}
+		}else{
+			message_ignored = 1;
 		}
 		break;
-	case ME:
-		/* other node is alive, so it's time to give up my resources */	
-		if ((!msgfromme) && (!strncasecmp(info,"other",5))) {
-			TIME_T 	now = time(NULL);
 
-			ha_log(LOG_INFO, "%s can hold my resources", from);
-			go_standby(ME);
+	case ME:
+		/* Other node is alive, so give up our resources */	
+		if (!msgfromme) {
+			standby_running = now + STANDBY_RSC_TO;
+			if (strcasecmp(info,"other") == 0) {
+				ha_log(LOG_INFO
+				,	"standby: %s can take our resources"
+				,	from);
+				go_standby(ME);
+				/* Our child proc sends a "done" message */
+				/* after all the resources are released	*/
+			}else{
+				message_ignored = 1;
+			}
+		}else if (strcasecmp(info, "done") == 0) {
+			/*
+			 * The "done" message came from our child process
+			 * indicating resources are completely released now.
+			 */
+			ha_log(LOG_INFO
+			,	"Standby process finished. /Me secondary");
 			going_standby = DONE;
-			ha_log(LOG_INFO, "Resources released...");
-			send_standby_msg(going_standby);
-			ha_log(LOG_INFO,
-				"Standby process finished. /Me secondary");
-			standby_running = now + 15;
-			going_standby = NOT;
+			i_hold_resources = NO_RSC;
+			standby_running = now + STANDBY_RSC_TO;
+		}else{
+			message_ignored = 1;
 		}
 		break;
 	case OTHER:
-		/* It's time to give up my resources */	
-		if ((!msgfromme) && (!strncasecmp(info,"done",4))) {
-			TIME_T 	now = time(NULL);
+		if (strcasecmp(info, "done") == 0) {
+			standby_running = now + STANDBY_RSC_TO;
+			if (!msgfromme) {
+				/* It's time to acquire resources */	
 
-			ha_log(LOG_INFO, "time to hold [%s] resources", from);
-			req_our_resources(1);
-			go_standby(OTHER);
-			going_standby = DONE;
-			ha_log(LOG_INFO, "takeover complete...");
-			/*
-			 * THIS IS BROKEN!
-			 * It can cause resources to be held by both
-			 * sides simultaneously. This is DEADLY for disks.
-			 * This message should be sent from the child process
-			 * we forked in go_standby() **after** it has performed
-			 * the resource transition, and NOT here.
-			 * We should do that remaining work (state change, etc.)
-			 * *after* we receive the "done" message it sends out.
-			 *
-			 * This would eliminate the need for the timer, and
-			 * make the code MUCH safer.
-			 */
-			send_standby_msg(going_standby);
-			ha_log(LOG_INFO,
-				"Standby process finished. /Me primary");
-			standby_running= now + 15;
-			going_standby = NOT;
+				ha_log(LOG_INFO
+				,	"standby: Acquire [%s] resources"
+				,	from);
+				/* go_standby gets *all* resources */
+				/* req_our_resources(1); */
+				go_standby(OTHER);
+				going_standby = DONE;
+			}else{
+				message_ignored = 1;
+			}
+		}else if (!msgfromme || strcasecmp(info, "other") != 0) {
+			/* We expect an "other" message from us */
+			/* But, that's not what this one is ;-) */
+			message_ignored = 1;
 		}
 		break;
+
 	case DONE:
-		/* if ((!msgfromme)&&(!strncasecmp(info,"done",4))) {
-			ha_log(LOG_INFO,
-				"Standby process finished. /Me secondary");
+		if (strcmp(info, "done")== 0) {
+			standby_running = 0L;
 			going_standby = NOT;
+			if (msgfromme) {
+				ha_log(LOG_INFO
+				,	"Standby process done. /Me primary");
+				i_hold_resources = ALL_RSC;
+			}else{
+				ha_log(LOG_INFO
+				,	"Other node completed standby"
+				" takeover.");
+			}
+			send_resources_held(rsc_msg[i_hold_resources], 1);
+			going_standby = NOT;
+		}else{
+			message_ignored = 1;
 		}
-		*/
 		break;
 	}
-			
+	if (message_ignored){
+		ha_log(LOG_ERR
+		,	"Ignored standby message %s from %s in state %d"
+		,	info, from, orig_standby);
+	}
+	if (ANYDEBUG) {
+		ha_log(LOG_INFO, "New standby state: %d", going_standby);
+	}
 }
 
 
@@ -4565,6 +4617,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.148  2001/10/13 09:23:19  alan
+ * Fixed a bug in the new standby code.
+ * It now waits until resources are fully given up before taking them over.
+ * It now also manages the nice_failback state consistency audits correctly.
+ * Still need to make it work for the not nice_failback case...
+ *
  * Revision 1.147  2001/10/13 00:23:05  alan
  * Put in comments about a serious problem with respect to resource takeover...
  *
