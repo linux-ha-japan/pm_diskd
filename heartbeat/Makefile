@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.15 2000/04/24 07:08:13 horms Exp $
+#	$Id: Makefile,v 1.16 2000/04/26 07:06:12 horms Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -29,7 +29,6 @@ HAPPP=$(VARRUN)/ppp.d
 INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
 LOGROTATESCRIPT=$(BUILD_ROOT)/$(LOGROTATED)/$(PKG)
 RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
-CONFDIR=$(BUILD_ROOT)/etc/ha.d/conf
 
 # Can't include the Build Root as a part of the compilation process
 B_HA=$(DESTDIR)/etc/ha.d
