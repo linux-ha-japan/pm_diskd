@@ -66,6 +66,12 @@
  *		no worse than sniffing the ethernet, which you already
  *		assume might happen...
  *
+ *
+ *	Obviously, we need to change heartbeat to match.  It means using
+ *	select(2), and checking carefully which pipe a given message came
+ *	in from.  I'm not sure if there's any advantage to adding another
+ *	process to read these requests and validate them.  Probably not...
+ *
  */
 
 #include <stdio.h>
