@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.43 2003/05/09 15:15:37 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.44 2003/06/24 06:36:51 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -621,7 +621,7 @@ string2msg(const char * s, size_t length)
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, sp, smax) != HA_OK) {
 			ha_log(LOG_ERR, "NV failure (string2msg):");
-			ha_log(LOG_ERR, s);
+			ha_log(LOG_ERR, "Input string: [%s]", s);
 			ha_msg_del(ret);
 			return(NULL);
 		}
@@ -704,6 +704,10 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.44  2003/06/24 06:36:51  alan
+ * Fixed an unsafe sprintf which occurred only when high levels of debug
+ * were turned on.
+ *
  * Revision 1.43  2003/05/09 15:15:37  alan
  * Turned off the most expensive and onerous debugging code.
  *
