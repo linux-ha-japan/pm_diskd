@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.166 2002/03/15 14:26:36 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.167 2002/03/27 01:59:58 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1466,6 +1466,7 @@ process_clustermsg(FILE * f)
 
 
 
+	strncpy(iface, "?", 2);
 	if ((msg = if_msgfromstream(f, iface)) == NULL) {
 		return;
 	}
@@ -1504,16 +1505,29 @@ process_clustermsg(FILE * f)
 		,	from ? from :"?");
 	}
 
-	if (from == NULL || ts == NULL || type == NULL || cseq == NULL) {
+	if (from == NULL || ts == NULL || type == NULL) {
 		ha_log(LOG_ERR
 		,	"process_status_message: %s: iface %s, from %s"
-		,	"missing from/ts/type/seqno"
+		,	"missing from/ts/type"
 		,	iface
 		,	(from? from : "<?>"));
 		ha_log_message(msg);
 		goto psm_done;
 	}
-	sscanf(cseq, "%lx", &seqno);
+	if (cseq != NULL) {
+		sscanf(cseq, "%lx", &seqno);
+	}else{
+		seqno = 0L;
+		if (strcmp(type, NOSEQ_PREFIX) != 0) {
+			ha_log(LOG_ERR
+			,	"process_status_message: %s: iface %s, from %s"
+			,	"missing seqno"
+			,	iface
+			,	(from? from : "<?>"));
+			ha_log_message(msg);
+			goto psm_done;
+		}
+	}
 	sscanf(ts, TIME_X, &msgtime);
 
 	if (ts == 0 || msgtime == 0) {
@@ -5052,6 +5066,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.167  2002/03/27 01:59:58  alan
+ * Hopefully, fixed a bug where requests to retransmit packets
+ * (and other unsequenced protocol packets) get dropped because they don't
+ * have sequence numbers.
+ *
  * Revision 1.166  2002/03/15 14:26:36  alan
  * Added code to help debug the current missing to/from/ts/,etc. problem...
  *
