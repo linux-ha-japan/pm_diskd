@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.7 2000/12/13 17:46:02 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.8 2001/05/26 17:38:01 mmoerz Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -33,7 +33,7 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.7 2000/12/13 17:46:02 ala
 #include <sys/param.h>
 #include <unistd.h>
 #include <dirent.h>
-#include <dlfcn.h>
+#include <ltdl.h>
 #include "heartbeat.h"
 #include <ha_msg.h>
 #include <hb_module.h>
@@ -55,47 +55,43 @@ extern struct auth_type** ValidAuths;
 extern int num_auth_types;
 
 
-static int so_select (const struct dirent *dire);
+static const char *module_error (void);
 static int generic_symbol_load(struct symbol_str symbols[]
-				, int len, void **handle);
+				, int len, lt_dlhandle handle);
 static int comm_module_init(void);
 
-static int
-so_select (const struct dirent *dire)
-{ 
 
-	const char *end = &dire->d_name[strlen(dire->d_name) - 3];
+static char multi_init_error[] = "module loader initialised more than once";
+//static char module_not_unloaded_error[] = "module not unloaded";
 
-	const char *obj_end = ".so";
+static const char *_module_error = NULL;
 
-	if (strcmp(end, obj_end) == 0) {
-		return 1;
-	}
-	
-	return 0;
+const char *
+module_error (void)
+{
+  return _module_error;
 }
 
 /* 
  * Generic function to load symbols from a module.
  */
 static int
-generic_symbol_load(struct symbol_str symbols[], int len, void **handle)
+generic_symbol_load(struct symbol_str symbols[], int len, lt_dlhandle handle)
 { 
 	int  a;
 
 	for (a = 0; a < len; a++) {
 		struct symbol_str *sym = &symbols[a];
 
-		if ((*sym->function = dlsym(*handle, sym->name)) == NULL) {
-			if (sym->mandatory) { 
+		if ((sym->function = lt_dlsym(handle, sym->name)) == NULL) {
+			if (sym->mandatory) {
 				ha_log(LOG_ERR
 				,	"%s: Plugin does not have [%s] symbol."
 				,	__FUNCTION__, sym->name);
-				dlclose(*handle); *handle = NULL;
+				lt_dlclose(handle); handle = NULL;
 				return(HA_FAIL);
 			}
 		}
-
 	}
 
 	return(HA_OK);
@@ -104,10 +100,10 @@ generic_symbol_load(struct symbol_str symbols[], int len, void **handle)
 static int
 comm_module_init(void)
 { 
-
 	struct symbol_str comm_symbols[NR_HB_MEDIA_FNS]; 
-	int a, n;
-	struct dirent **namelist;
+	DIR               *moduledir;
+	struct dirent     *module;
+	char              *help;
 
 	strcpy(comm_symbols[0].name, "hb_dev_init");
 	comm_symbols[0].mandatory = 1;
@@ -139,86 +135,92 @@ comm_module_init(void)
 	strcpy(comm_symbols[9].name, "hb_dev_isping");
 	comm_symbols[9].mandatory = 1;
 
-	n = scandir(COMM_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
+	moduledir = opendir( COMM_MODULE_DIR );
 
-	if (n < 0) { 
-		ha_log(LOG_ERR, "%s: scandir failed.", __FUNCTION__);
-		return (HA_FAIL);
+	if (!moduledir) {
+	  /* this is not very descriptive -> use strerror? */
+	  ha_log(LOG_ERR, "%s: opendir failed.", __FUNCTION__);
+	  return (HA_FAIL);
 	}
 
-	for (a = 0; a < n; a++) {
-		char* obj_path; 
-		struct hb_media_fns* fns;
-		int ret;
+	while ( (module = readdir( moduledir )) ) {
+	  char *mod_path           = NULL;
+	  struct hb_media_fns* fns;
+	  int ret;
 
-		obj_path = ha_malloc((strlen(COMM_MODULE_DIR) 
-		+	strlen(namelist[a]->d_name) + 2) * sizeof(char));
-		if (!obj_path) { 
-			ha_log(LOG_ERR, "%s: Failed to alloc object path."
+	  /* should use d_type one day when libc6 implements it */
+	  while ( !strcmp( module->d_name, "." ) || 
+		  !strcmp( module->d_name, ".." ) ) 
+	    module = readdir( moduledir );
+	  
+	  help = strchr(module->d_name, '.');
+	  if ( !help )
+	    continue;
+	  if ( strcmp( help, ".la" ) ) 
+	    continue;
+	  
+	  mod_path = ha_malloc((strlen(COMM_MODULE_DIR) +
+				strlen(module->d_name) + 2) * sizeof(char));
+		if (!mod_path) { 
+		        ha_log(LOG_ERR, "%s: Failed to alloc module path."
 			,	__FUNCTION__);
 			return(HA_FAIL);
 		}
 
-		sprintf(obj_path,"%s/%s", COMM_MODULE_DIR, namelist[a]->d_name);
+		sprintf(mod_path,"%s/%s", COMM_MODULE_DIR, module->d_name);
 
 		fns = MALLOCT(struct hb_media_fns);
 		
 		if (fns == NULL) { 
 			ha_log(LOG_ERR, "%s: fns alloc failed.", __FUNCTION__);
-			ha_free(obj_path); 
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
+			ha_free(mod_path); 
+			free(module);
+			closedir(moduledir);
 			return(HA_FAIL);
 		}
 
-		if ((fns->dlhandler = dlopen(obj_path, RTLD_NOW)) == NULL) {
-			ha_log(LOG_ERR, "%s: %s", __FUNCTION__, dlerror());
-			ha_free(obj_path); obj_path = NULL;
+		if (!(fns->dlhandler = lt_dlopen(mod_path))) {
+			ha_log(LOG_ERR, "%s: %s", __FUNCTION__, lt_dlerror());
+			ha_free(mod_path); mod_path = NULL;
 			ha_free(fns); fns = NULL;
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
+			free(module);
+			closedir(moduledir);
 			return(HA_FAIL);
 		}
-
-		comm_symbols[0].function = (void **)&fns->init;
-		comm_symbols[1].function = (void **)&fns->new;
-		comm_symbols[2].function = (void **)&fns->parse;
-		comm_symbols[3].function = (void **)&fns->open;
-		comm_symbols[4].function = (void **)&fns->close;
-		comm_symbols[5].function = (void **)&fns->read;
-		comm_symbols[6].function = (void **)&fns->write;
-		comm_symbols[7].function = (void **)&fns->mtype;
-		comm_symbols[8].function = (void **)&fns->descr;
-		comm_symbols[9].function = (void **)&fns->isping;
 
 		ret = generic_symbol_load(comm_symbols, NR_HB_MEDIA_FNS, 
-		 &fns->dlhandler);
+		 fns->dlhandler);
+
+		fns->init = comm_symbols[0].function;
+		fns->new  = comm_symbols[1].function;
+		fns->parse = comm_symbols[2].function;
+		fns->open = comm_symbols[3].function;
+		fns->close = comm_symbols[4].function;
+		fns->read = comm_symbols[5].function;
+		fns->write = comm_symbols[6].function;
+		fns->mtype = comm_symbols[7].function;
+		fns->descr = comm_symbols[8].function;
+		fns->isping = comm_symbols[9].function;
 
 		if (ret == HA_FAIL) {
-			ha_free(obj_path);
+			ha_free(mod_path);
 			ha_free(fns);
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
+			free(module);
+			closedir(moduledir);
 			return ret;
 		}
-
 		hbmedia_types[num_hb_media_types] = fns;
 		num_hb_media_types++;
 
 		fns->type_len = fns->mtype(&fns->type);
 		fns->desc_len = fns->descr(&fns->description);
 		fns->ref = 0;
-
-		ha_free(obj_path); 
-		obj_path = NULL;
+		ha_free(mod_path); 
+		mod_path = NULL;
 	}
 
-	for (a=0; a < n; a++) {
-		free(namelist[a]);
-	} 
+	free(module);
+	closedir(moduledir);
 
 	return (HA_OK);
 }
@@ -228,8 +230,9 @@ int
 auth_module_init() 
 { 
 	struct symbol_str auth_symbols[NR_AUTH_FNS]; 
-	int a, n;
-	struct dirent **namelist;
+	DIR               *moduledir;
+	struct dirent     *module;
+	char              *help;
 
 	strcpy(auth_symbols[0].name, "hb_auth_calc");
 	auth_symbols[0].mandatory = 1;
@@ -240,66 +243,72 @@ auth_module_init()
 	strcpy(auth_symbols[2].name, "hb_auth_nkey");
 	auth_symbols[2].mandatory = 1;
 
-	n = scandir(AUTH_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
+	moduledir = opendir( AUTH_MODULE_DIR );
 
-	if (n < 0) { 
-		ha_log(LOG_ERR, "%s: scandir failed", __FUNCTION__);
-		return (HA_FAIL);
+	if (!moduledir) {
+	  /* this is not very descriptive -> use strerror? */
+	  ha_log(LOG_ERR, "%s: opendir failed.", __FUNCTION__);
+	  return (HA_FAIL);
 	}
 
-	for (a = 0; a < n; a++) {
-		char* obj_path; 
+	while ( (module = readdir( moduledir )) ) {
+	        char *mod_path; 
 		struct auth_type* auth;
 		int ret;
+		
+		/* should use d_type one day when libc6 implements it */
+		while ( !strcmp( module->d_name, "." ) || 
+			!strcmp( module->d_name, ".." ) ) 
+		  module = readdir( moduledir );
+	  
+		help = strchr(module->d_name, '.');
+		if ( !help )
+		  continue;
+		if ( strcmp( help, ".la" ) ) 
+		  continue;
+		
+		mod_path = ha_malloc((strlen(AUTH_MODULE_DIR) +
+		      strlen(module->d_name) + 2) * sizeof(char));
 
-		obj_path = ha_malloc((strlen(AUTH_MODULE_DIR) 
-		+	strlen(namelist[a]->d_name) + 2) * sizeof(char));
-		if (!obj_path) { 
-			ha_log(LOG_ERR, "%s: Failed to alloc object path"
+		if (!mod_path) { 
+			ha_log(LOG_ERR, "%s: Failed to alloc module path"
 			,	__FUNCTION__);
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
+			free(module);
+			closedir(moduledir);			
 			return(HA_FAIL);
 		}
 
-		sprintf(obj_path,"%s/%s", AUTH_MODULE_DIR, namelist[a]->d_name);
+		sprintf(mod_path,"%s/%s", AUTH_MODULE_DIR, module->d_name);
 
 		auth = MALLOCT(struct auth_type);
 
 		if (auth == NULL) { 
 			ha_log(LOG_ERR, "%s: auth_type alloc failed"
 			,	__FUNCTION__);
-			ha_free(obj_path); 
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
+			free(module);
+			closedir(moduledir);
 			return(HA_FAIL);
 		}
 
-		auth_symbols[0].function = (void **)&auth->auth;
-		auth_symbols[1].function = (void **)&auth->atype;
-		auth_symbols[2].function = (void **)&auth->needskey;
-
-		if ((auth->dlhandler = dlopen(obj_path, RTLD_NOW)) == NULL) {
+		if ((auth->dlhandler = lt_dlopen(mod_path)) == NULL) {
 			ha_log(LOG_ERR, "%s: dlopen failed", __FUNCTION__);
-			ha_free(obj_path); 
 			ha_free(auth);
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
+			free(module);
+			closedir(moduledir);
 			return(HA_FAIL);
 		}
 		
 		ret = generic_symbol_load(auth_symbols, NR_AUTH_FNS, 
-		 &auth->dlhandler);
+		 auth->dlhandler);
+
+		auth->auth = auth_symbols[0].function;
+		auth->atype = auth_symbols[1].function;
+		auth->needskey = auth_symbols[2].function;
 
 		if (ret == HA_FAIL) {
-			ha_free(obj_path);
 			ha_free(auth);
-			for (a=0; a < n; a++) {
-				free(namelist[a]);
-			} 
+			free(module);
+			closedir(moduledir);
 			return ret;
 		}
 
@@ -310,28 +319,53 @@ auth_module_init()
 		auth->ref = 0;
 	}
 
-	for (a=0; a < n; a++) {
-		free(namelist[a]);
-	} 
+	free(module);
+	closedir(moduledir);
 
 	return(HA_OK);
 
 }
 
-int module_init(void)
+int 
+module_init(void)
 { 
+    static int initialised = 0;
+    int errors = 0;
 	
     (void)_module_c_Id;
     (void)_heartbeat_h_Id;
-    (void)_ha_msg_h_Id; 
+    (void)_ha_msg_h_Id;
+    (void)module_error();
+
+    /* perform the init only once */
+    if (!initialised) {
+	/* initialize libltdl's list of preloaded modules */
+	LTDL_SET_PRELOADED_SYMBOLS();
+
+	/* initialise global module loader error string */
+	_module_error = NULL;
+
+	/* init ltdl */
+	errors = lt_dlinit();
 
 	if (comm_module_init() == HA_FAIL) {
-		return(HA_FAIL);
+	    return(HA_FAIL);
 	}
 
 	if (auth_module_init() == HA_FAIL) {
-		return(HA_FAIL);
+	    return(HA_FAIL);
 	}
 
-	return (HA_OK);
+	/* init completed */
+	++initialised;
+
+	return errors ? HA_FAIL : HA_OK;
+    }
+    
+    _module_error = multi_init_error;
+    return HA_FAIL;
 }
+
+
+
+

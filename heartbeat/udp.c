@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.18 2001/05/11 06:20:26 alan Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.19 2001/05/26 17:38:01 mmoerz Exp $";
 /*
  * udp.c: UDP-based heartbeat code for heartbeat.
  *
@@ -45,6 +45,9 @@ static const char _udp_Id [] = "$Id: udp.c,v 1.18 2001/05/11 06:20:26 alan Exp $
 
 #define	EOS	'\0'
 
+#define MODULE udp
+#include <hb_module.h>
+
 struct ip_private {
         char *  interface;      /* Interface name */
 	struct in_addr bcast;   /* Broadcast address */
@@ -55,19 +58,19 @@ struct ip_private {
 };
 
 
-int	hb_dev_init(void);
-struct hb_media* hb_dev_new(const char* interface);
-int	hb_dev_open(struct hb_media* mp);
-int	hb_dev_close(struct hb_media* mp);
-struct ha_msg* hb_dev_read(struct hb_media* mp);
-int	hb_dev_write(struct hb_media* mp, struct ha_msg* msg);
+int	EXPORT(hb_dev_init) (void);
+struct hb_media* EXPORT(hb_dev_new) (const char* interface);
+int	EXPORT(hb_dev_open) (struct hb_media* mp);
+int	EXPORT(hb_dev_close) (struct hb_media* mp);
+struct ha_msg* EXPORT(hb_dev_read) (struct hb_media* mp);
+int	EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg* msg);
 static int	HB_make_receive_sock(struct hb_media* ei);
 static int	HB_make_send_sock(struct hb_media * mp);
 static struct ip_private *
 		new_ip_interface(const char * ifn, int port);
-int hb_dev_descr (char** buffer);
-int hb_dev_mtype (char** buffer);
-int hb_dev_isping (void);
+int EXPORT(hb_dev_descr) (char** buffer);
+int EXPORT(hb_dev_mtype) (char** buffer);
+int EXPORT(hb_dev_isping) (void);
 
 extern int	udpport;
 
@@ -75,7 +78,8 @@ extern int	udpport;
 //#define		UDPASSERT(mp)	ASSERT(ISUDPOBJECT(mp))
 #define		UDPASSERT(mp)
 
-int hb_dev_mtype (char** buffer) { 
+int 
+EXPORT(hb_dev_mtype) (char** buffer) { 
 	
 	*buffer = ha_malloc((strlen("udp") * sizeof(char)) + 1);
 
@@ -84,7 +88,8 @@ int hb_dev_mtype (char** buffer) {
 	return strlen("udp");
 }
 
-int hb_dev_descr (char **buffer) { 
+int
+EXPORT(hb_dev_descr) (char **buffer) { 
 
 	const char* str = "UDP/IP broadcast";	
 
@@ -95,12 +100,13 @@ int hb_dev_descr (char **buffer) {
 	return strlen(str);
 }
 
-int hb_dev_isping (void) {
+int
+EXPORT(hb_dev_isping) (void) {
     return 0;
 }
 
 int
-hb_dev_init(void)
+EXPORT(hb_dev_init) (void)
 {
 	struct servent*	service;
 
@@ -123,7 +129,7 @@ hb_dev_init(void)
  *	Name of interface is passed as a parameter
  */
 struct hb_media *
-hb_dev_new(const char * intf)
+EXPORT(hb_dev_new) (const char * intf)
 {
 	char	msg[MAXLINE];
 	struct ip_private*	ipi;
@@ -155,7 +161,7 @@ hb_dev_new(const char * intf)
  *	Open UDP/IP broadcast heartbeat interface
  */
 int
-hb_dev_open(struct hb_media* mp)
+EXPORT(hb_dev_open) (struct hb_media* mp)
 {
 	struct ip_private * ei;
 
@@ -166,7 +172,7 @@ hb_dev_open(struct hb_media* mp)
 		return(HA_FAIL);
 	}
 	if ((ei->rsocket = HB_make_receive_sock(mp)) < 0) {
-		hb_dev_close(mp);
+		EXPORT(hb_dev_close)(mp);
 		return(HA_FAIL);
 	}
 	ha_log(LOG_NOTICE, "UDP heartbeat started on port %d interface %s"
@@ -178,7 +184,7 @@ hb_dev_open(struct hb_media* mp)
  *	Close UDP/IP broadcast heartbeat interface
  */
 int
-hb_dev_close(struct hb_media* mp)
+EXPORT(hb_dev_close) (struct hb_media* mp)
 {
 	struct ip_private * ei;
 	int	rc = HA_OK;
@@ -203,7 +209,7 @@ hb_dev_close(struct hb_media* mp)
  */
 
 struct ha_msg *
-hb_dev_read(struct hb_media* mp)
+EXPORT(hb_dev_read) (struct hb_media* mp)
 {
 	struct ip_private *	ei;
 	char			buf[MAXLINE];
@@ -235,7 +241,7 @@ hb_dev_read(struct hb_media* mp)
  */
 
 int
-hb_dev_write(struct hb_media* mp, struct ha_msg * msgptr)
+EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msgptr)
 {
 	struct ip_private *	ei;
 	int			rc;
@@ -518,6 +524,28 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.19  2001/05/26 17:38:01  mmoerz
+ * *.cvsignore: added automake generated files that were formerly located in
+ * 	     config/
+ * * Makefile.am: removed ac_aux_dir stuff (for libtool) and added libltdl
+ * * configure.in: removed ac_aux_dir stuff (for libtool) and added libltdl as
+ * 		a convenience library
+ * * bootstrap: added libtools libltdl support
+ * * heartbeat/Makefile.am: added some headerfile to noinst_HEADERS
+ * * heartbeat/heartbeat.c: changed dlopen, dlclose to lt_dlopen, lt_dlclose
+ * * heartbeat/crc.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/mcast.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/md5.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/ping.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/serial.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/sha1.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/udp.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/hb_module.h: added EXPORT() Macro, changed to libtools function
+ * 			pointer
+ * * heartbeat/module.c: converted to libtool (dlopen/dlclose -> lt_dlopen/...)
+ * 		      exchanged scandir with opendir, readdir. enhanced
+ * 		      autoloading code so that only .la modules get loaded.
+ *
  * Revision 1.18  2001/05/11 06:20:26  alan
  * Fixed CFLAGS so we load modules from the right diurectory.
  * Fixed minor static symbol problems.

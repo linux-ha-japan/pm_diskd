@@ -24,6 +24,9 @@
 #include <heartbeat.h>
 #include <hb_md5.h>
 
+#define MODULE md5
+#include <hb_module.h>
+
 #define md5byte unsigned char
 #define UWORD32 unsigned long
 
@@ -41,11 +44,13 @@ void MD5Final(unsigned char digest[16], MD5Context *context);
 void MD5Transform(UWORD32 buf[4], UWORD32 const in[16]);
 
 
-const unsigned char* hb_auth_calc(const struct auth_info *t, const char * text);
-int hb_auth_atype (char **);
-int hb_auth_nkey(void);
+const unsigned char* EXPORT(hb_auth_calc) (const struct auth_info *t, 
+					   const char * text);
+int EXPORT(hb_auth_atype) (char **);
+int EXPORT(hb_auth_nkey) (void);
 
-int hb_auth_atype (char **buffer) 
+int
+EXPORT(hb_auth_atype) (char **buffer) 
 {
 	*buffer = ha_malloc((strlen("md5") * sizeof(char)) + 1);
 
@@ -56,7 +61,8 @@ int hb_auth_atype (char **buffer)
 
 /* Pretty dumb */
 
-int hb_auth_nkey(void) 
+int
+EXPORT(hb_auth_nkey) (void) 
 { 
 	return 1;
 }
@@ -257,7 +263,8 @@ MD5Transform(UWORD32 buf[4], UWORD32 const in[16])
 	buf[3] += d;
 }
 
-const unsigned char * hb_auth_calc(const struct auth_info *t, const char * text)
+const unsigned char *
+EXPORT(hb_auth_calc) (const struct auth_info *t, const char * text)
 {
 
 	MD5Context context;

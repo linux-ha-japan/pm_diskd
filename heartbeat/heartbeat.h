@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.50 2001/05/21 15:29:50 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.51 2001/05/26 17:38:01 mmoerz Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -48,6 +48,8 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.50 2001/05/21 15:29:
 #include <ha_msg.h>
 #include <stonith.h>
 
+#include <ltdl.h>
+
 /*
  * <syslog.h> might not contain LOG_PRI...
  * So, we define it ourselves, or error out if we can't...
@@ -61,7 +63,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.50 2001/05/21 15:29:
 #	error	"Syslog.h does not define either LOG_PRI or LOG_PRIMASK."
 #  endif 
 #endif
-
 
 #define	MAXLINE		1024
 #define	MAXFIELDS	30		/* Max # of fields in a msg */
@@ -243,7 +244,7 @@ struct auth_type {
 	,	const char *data);
 	int		(*needskey) (void); 
 	int		(*atype)(char **buffer);
-	void *	dlhandler;
+	lt_dlhandle	dlhandler;
 };
 
 #define NR_AUTH_FNS 3 /* number of functions in auth_type struct */
@@ -304,7 +305,7 @@ struct hb_media_fns {
 	int		(*mtype)(char **buffer);
 	int		(*descr)(char **buffer);
 	int		(*isping)(void);
-	void *	dlhandler;
+	lt_dlhandle	dlhandler;
 };
 
 #define NR_HB_MEDIA_FNS 10 /* number of functions in hb_media_fns struct */

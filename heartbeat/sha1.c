@@ -23,6 +23,9 @@ A million repetitions of "a"
 #include <heartbeat.h>
 #include <hb_sha1.h>
 
+#define MODULE sha1
+#include <hb_module.h>
+
 extern unsigned char result[MAXLINE];
 
 void SHA1Transform(unsigned long state[5], const unsigned char buffer[64]);
@@ -30,17 +33,19 @@ void SHA1Init(SHA1_CTX* context);
 void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len);
 void SHA1Final(unsigned char digest[20], SHA1_CTX* context);
 
-const unsigned char *
-hb_auth_calc (const struct auth_info *info, const char * text);
-int hb_auth_atype(char **buffer);
-int hb_auth_nkey(void);
+const unsigned char * EXPORT(hb_auth_calc) (const struct auth_info *info, 
+					    const char * text);
+int EXPORT(hb_auth_atype) (char **buffer);
+int EXPORT(hb_auth_nkey) (void);
 
-int hb_auth_nkey(void) 
+int
+EXPORT(hb_auth_nkey) (void) 
 { 
 	return 1;
 }
 
-int hb_auth_atype(char **buffer) 
+int
+EXPORT(hb_auth_atype) (char **buffer) 
 {
 	*buffer = ha_malloc((strlen("sha1") * sizeof(char)) + 1);
 
@@ -195,7 +200,7 @@ void SHA1Final(unsigned char digest[20], SHA1_CTX* context)
 
 
 const unsigned char *
-hb_auth_calc (const struct auth_info *info, const char * text)
+EXPORT(hb_auth_calc) (const struct auth_info *info, const char * text)
 {
 	SHA1_CTX ictx, octx ;
 	unsigned char   isha[SHA_DIGESTSIZE]; 

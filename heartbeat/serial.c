@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.24 2001/05/12 06:05:23 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.25 2001/05/26 17:38:01 mmoerz Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -45,6 +45,9 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.24 2001/05/12 06:05:23 ala
 #include <heartbeat.h>
 #include <lock.h>
 
+#define MODULE serial
+#include <hb_module.h>
+
 struct serial_private {
         char *  ttyname;
         int     ttyfd;                  /* For direct TTY i/o */ 
@@ -57,21 +60,22 @@ extern int baudrate;
 /* Used to maintain a list of our serial ports in the ring */
 static struct hb_media*		lastserialport;
 
-
-struct hb_media*	hb_dev_new(const char * value);
-struct ha_msg*	hb_dev_read(struct hb_media*mp);
+struct hb_media*	EXPORT(hb_dev_new)(const char * value);
+struct ha_msg*	EXPORT(hb_dev_read)(struct hb_media *mp);
 static char *		ttygets(char * inbuf, int length
 ,				struct serial_private *tty);
-int		hb_dev_write(struct hb_media*mp, struct ha_msg *msg);
-int		hb_dev_open(struct hb_media* mp);
+int		EXPORT(hb_dev_write)(struct hb_media*mp, struct ha_msg *msg);
+int		EXPORT(hb_dev_open)(struct hb_media* mp);
 static int		ttysetup(int fd);
 static int		opentty(char * serial_device);
-int		hb_dev_close(struct hb_media* mp);
-int		hb_dev_init(void);
+int		EXPORT(hb_dev_close)(struct hb_media* mp);
+int		EXPORT(hb_dev_init)(void);
+
 static void		serial_localdie(void);
-int		hb_dev_mtype (char **buffer);
-int		hb_dev_descr (char **buffer);
-int		hb_dev_isping (void);
+
+int		EXPORT(hb_dev_mtype)(char **buffer);
+int		EXPORT(hb_dev_descr)(char **buffer);
+int		EXPORT(hb_dev_isping)(void);
 
 #define		IsTTYOBJECT(mp)	((mp) && ((mp)->vf == (void*)&serial_media_fns))
 //#define		TTYASSERT(mp)	ASSERT(IsTTYOBJECT(mp))
@@ -79,7 +83,7 @@ int		hb_dev_isping (void);
 #define		RTS_WARNTIME	3600
 
 int
-hb_dev_mtype (char **buffer) { 
+serial_LTX_hb_dev_mtype (char **buffer) { 
 	
 	*buffer = ha_malloc((strlen("serial") * sizeof(char)) + 1);
 
@@ -89,7 +93,7 @@ hb_dev_mtype (char **buffer) {
 }
 
 int
-hb_dev_descr (char **buffer) { 
+serial_LTX_hb_dev_descr (char **buffer) { 
 
 	const char *str = "serial ring";	
 
@@ -101,13 +105,13 @@ hb_dev_descr (char **buffer) {
 }
 
 int
-hb_dev_isping (void) {
+serial_LTX_hb_dev_isping (void) {
 	return 0;
 }
 
 /* Initialize global serial data structures */
 int
-hb_dev_init(void)
+serial_LTX_hb_dev_init (void)
 {
 	(void)_serial_c_Id;
 	(void)_heartbeat_h_Id;
@@ -121,7 +125,7 @@ hb_dev_init(void)
 
 /* Process a serial port declaration */
 struct hb_media *
-hb_dev_new(const char * port)
+serial_LTX_hb_dev_new (const char * port)
 {
 	char	msg[MAXLINE];
 	struct	stat	sbuf;
@@ -172,7 +176,7 @@ hb_dev_new(const char * port)
 }
 
 int
-hb_dev_open(struct hb_media* mp)
+serial_LTX_hb_dev_open (struct hb_media* mp)
 {
 	struct serial_private*	sp;
 	char			msg[MAXLINE];
@@ -192,7 +196,7 @@ hb_dev_open(struct hb_media* mp)
 }
 
 int
-hb_dev_close(struct hb_media* mp)
+serial_LTX_hb_dev_close (struct hb_media* mp)
 {
 	struct serial_private*	sp;
 	int rc;
@@ -298,7 +302,7 @@ serial_localdie(void)
 
 /* This process does all the writing to our tty ports */
 int
-hb_dev_write(struct hb_media*mp, struct ha_msg*m)
+serial_LTX_hb_dev_write (struct hb_media*mp, struct ha_msg*m)
 {
 	char *		str;
 
@@ -351,7 +355,7 @@ hb_dev_write(struct hb_media*mp, struct ha_msg*m)
 
 /* This process does all the reading from our tty ports */
 struct ha_msg *
-hb_dev_read(struct hb_media*mp)
+serial_LTX_hb_dev_read (struct hb_media*mp)
 {
 	char buf[MAXLINE];
 	struct hb_media*	sp;
@@ -474,6 +478,28 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.25  2001/05/26 17:38:01  mmoerz
+ * *.cvsignore: added automake generated files that were formerly located in
+ * 	     config/
+ * * Makefile.am: removed ac_aux_dir stuff (for libtool) and added libltdl
+ * * configure.in: removed ac_aux_dir stuff (for libtool) and added libltdl as
+ * 		a convenience library
+ * * bootstrap: added libtools libltdl support
+ * * heartbeat/Makefile.am: added some headerfile to noinst_HEADERS
+ * * heartbeat/heartbeat.c: changed dlopen, dlclose to lt_dlopen, lt_dlclose
+ * * heartbeat/crc.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/mcast.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/md5.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/ping.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/serial.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/sha1.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/udp.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/hb_module.h: added EXPORT() Macro, changed to libtools function
+ * 			pointer
+ * * heartbeat/module.c: converted to libtool (dlopen/dlclose -> lt_dlopen/...)
+ * 		      exchanged scandir with opendir, readdir. enhanced
+ * 		      autoloading code so that only .la modules get loaded.
+ *
  * Revision 1.24  2001/05/12 06:05:23  alan
  * Put in the latest portability fixes (aka autoconf fixes)
  *

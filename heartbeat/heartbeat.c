@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.109 2001/05/22 13:25:02 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.110 2001/05/26 17:38:01 mmoerz Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -257,6 +257,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.109 2001/05/22 13:25
 #include <sys/stat.h>
 #include <sys/resource.h>
 #include <netdb.h>
+#include <ltdl.h>
 #ifdef _POSIX_MEMLOCK
 #	include <sys/mman.h>
 #endif
@@ -1797,7 +1798,7 @@ check_auth_change(struct sys_config *conf)
 
 		for (j=0; j < num_auth_types; ++j) {
 			if(ValidAuths[j]) {
-				dlclose(ValidAuths[j]->dlhandler);
+			        lt_dlclose(ValidAuths[j]->dlhandler);
 				ha_free(ValidAuths[j]->authname);
 				ha_free(ValidAuths[j]);
 				ValidAuths[j] = NULL;
@@ -1826,7 +1827,7 @@ check_auth_change(struct sys_config *conf)
 		for (j=0; j < num_auth_types; ++j) {
 			if(ValidAuths[j]) {
 				if (ValidAuths[j]->ref == 0)  {
-					dlclose(ValidAuths[j]->dlhandler); 
+					lt_dlclose(ValidAuths[j]->dlhandler); 
 					ha_free(ValidAuths[j]->authname);
 					ha_free(ValidAuths[j]);
 					ValidAuths[j] = NULL;
@@ -2148,7 +2149,7 @@ reread_config_sig(int sig)
 
 		for (j=0; j < num_auth_types; ++j) {
 			if(ValidAuths[j]) {
-				dlclose(ValidAuths[j]->dlhandler);
+				lt_dlclose(ValidAuths[j]->dlhandler);
 				ha_free(ValidAuths[j]->authname);
 				ha_free(ValidAuths[j]);
 				ValidAuths[j] = NULL;
@@ -2179,7 +2180,7 @@ reread_config_sig(int sig)
 		for (j=0; j < num_auth_types; ++j) {
 			if(ValidAuths[j]) { 
 				if (ValidAuths[j]->ref == 0)  {
-					dlclose(ValidAuths[j]->dlhandler); 
+					lt_dlclose(ValidAuths[j]->dlhandler); 
 					ha_free(ValidAuths[j]->authname);
 					ha_free(ValidAuths[j]);
 					ValidAuths[j] = NULL;
@@ -3987,6 +3988,28 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.110  2001/05/26 17:38:01  mmoerz
+ * *.cvsignore: added automake generated files that were formerly located in
+ * 	     config/
+ * * Makefile.am: removed ac_aux_dir stuff (for libtool) and added libltdl
+ * * configure.in: removed ac_aux_dir stuff (for libtool) and added libltdl as
+ * 		a convenience library
+ * * bootstrap: added libtools libltdl support
+ * * heartbeat/Makefile.am: added some headerfile to noinst_HEADERS
+ * * heartbeat/heartbeat.c: changed dlopen, dlclose to lt_dlopen, lt_dlclose
+ * * heartbeat/crc.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/mcast.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/md5.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/ping.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/serial.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/sha1.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/udp.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/hb_module.h: added EXPORT() Macro, changed to libtools function
+ * 			pointer
+ * * heartbeat/module.c: converted to libtool (dlopen/dlclose -> lt_dlopen/...)
+ * 		      exchanged scandir with opendir, readdir. enhanced
+ * 		      autoloading code so that only .la modules get loaded.
+ *
  * Revision 1.109  2001/05/22 13:25:02  alan
  * Put in David Lee's portability fix for attaching shared memory segs
  * without getting alignment warnings...

@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.8 2001/05/22 13:15:40 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.9 2001/05/26 17:38:01 mmoerz Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -42,6 +42,8 @@ static const char _mcast_Id [] = "$Id: mcast.c,v 1.8 2001/05/22 13:15:40 alan Ex
 #endif
 
 #include "heartbeat.h"
+#define MODULE mcast
+#include <hb_module.h>
 
 struct mcast_private {
 	char *  interface;      /* Interface name */
@@ -56,20 +58,22 @@ struct mcast_private {
 
 
 /* external interface */
-int hb_dev_parse(const char *line);
-int hb_dev_init(void);
+int EXPORT(hb_dev_parse) (const char *line);
+int EXPORT(hb_dev_init) (void);
 /* not used right now 
  * struct hb_media* hb_dev_new(const char* interface);
  */
-struct hb_media* hb_dev_new(const char* interface, const char *addr, 
-							u_short port, u_char ttl, u_char loop);
-int hb_dev_open(struct hb_media* hbm);
-int hb_dev_close(struct hb_media* hbm);
-struct ha_msg* hb_dev_read(struct hb_media* hbm);
-int hb_dev_write(struct hb_media* hbm, struct ha_msg* msg);
-int hb_dev_descr (char** buffer);
-int hb_dev_mtype (char** buffer);
-int hb_dev_isping (void);
+struct hb_media* EXPORT (hb_dev_new)(const char* interface, 
+				     const char *addr,
+				     u_short port, u_char ttl, 
+				     u_char loop);
+int EXPORT(hb_dev_open) (struct hb_media* hbm);
+int EXPORT(hb_dev_close) (struct hb_media* hbm);
+struct ha_msg* EXPORT(hb_dev_read) (struct hb_media* hbm);
+int EXPORT(hb_dev_write) (struct hb_media* hbm, struct ha_msg* msg);
+int EXPORT(hb_dev_descr) (char** buffer);
+int EXPORT(hb_dev_mtype) (char** buffer);
+int EXPORT(hb_dev_isping) (void);
 
 /* helper functions */
 static int HB_make_receive_sock(struct hb_media* hbm);
@@ -102,7 +106,7 @@ extern int	udpport;
 #define		UDPASSERT(hbm)
 
 int
-hb_dev_mtype (char** buffer)
+EXPORT(hb_dev_mtype) (char** buffer)
 { 
 	
 	*buffer = ha_malloc((strlen("mcast") * sizeof(char)) + 1);
@@ -112,7 +116,8 @@ hb_dev_mtype (char** buffer)
 	return strlen("mcast");
 }
 
-int hb_dev_descr (char **buffer)
+int
+EXPORT(hb_dev_descr) (char **buffer)
 { 
 
 	const char* str = "UDP/IP multicast";	
@@ -124,7 +129,8 @@ int hb_dev_descr (char **buffer)
 	return strlen(str);
 }
 
-int hb_dev_isping (void)
+int
+EXPORT(hb_dev_isping) (void)
 {
 	/* nope, this is not a ping device */
 	return 0;
@@ -146,7 +152,7 @@ extern struct hb_media* sysmedia[];
 extern int		nummedia;
 
 int
-hb_dev_parse(const char *line)
+EXPORT(hb_dev_parse) (const char *line)
 {
 	const char *	bp = line;
 	char		dev[MAXLINE];
@@ -235,7 +241,8 @@ hb_dev_parse(const char *line)
 			return HA_FAIL;
 		}
 
-		if ((mp = hb_dev_new(dev, mcast, port, ttl, loop)) == NULL)  {
+		if ((mp = EXPORT(hb_dev_new)(dev, mcast, port, ttl, loop)) ==
+		    NULL)  {
 			return(HA_FAIL);
 		}
 		sysmedia[nummedia] = mp;
@@ -248,7 +255,8 @@ hb_dev_parse(const char *line)
 /* Initialize global stuff, this should only be called once at,
  * module load time
  */
-int hb_dev_init(void)
+int 
+EXPORT(hb_dev_init) (void)
 {
 	struct servent*	service;
 
@@ -280,8 +288,8 @@ int hb_dev_init(void)
  * This should get called from hb_dev_parse().
  */
 struct hb_media *
-hb_dev_new(const char * intf, const char *mcast, u_short port,
-			u_char ttl, u_char loop)
+EXPORT(hb_dev_new) (const char * intf, const char *mcast, u_short port,
+		    u_char ttl, u_char loop)
 {
 	struct mcast_private*	mcp;
 	struct hb_media *	ret;
@@ -311,7 +319,8 @@ hb_dev_new(const char * intf, const char *mcast, u_short port,
 /*
  *	Open UDP/IP multicast heartbeat interface
  */
-int hb_dev_open(struct hb_media* hbm)
+int
+EXPORT(hb_dev_open) (struct hb_media* hbm)
 {
 	struct mcast_private * mcp;
 
@@ -322,7 +331,7 @@ int hb_dev_open(struct hb_media* hbm)
 		return(HA_FAIL);
 	}
 	if ((mcp->rsocket = HB_make_receive_sock(hbm)) < 0) {
-		hb_dev_close(hbm);
+		EXPORT(hb_dev_close)(hbm);
 		return(HA_FAIL);
 	}
 
@@ -337,7 +346,7 @@ int hb_dev_open(struct hb_media* hbm)
  *	Close UDP/IP multicast heartbeat interface
  */
 int
-hb_dev_close(struct hb_media* hbm)
+EXPORT(hb_dev_close) (struct hb_media* hbm)
 {
 	struct mcast_private * mcp;
 	int	rc = HA_OK;
@@ -362,7 +371,7 @@ hb_dev_close(struct hb_media* hbm)
  */
 
 struct ha_msg *
-hb_dev_read(struct hb_media* hbm)
+EXPORT(hb_dev_read) (struct hb_media* hbm)
 {
 	struct mcast_private *	mcp;
 	char			buf[MAXLINE];
@@ -394,7 +403,7 @@ hb_dev_read(struct hb_media* hbm)
  */
 
 int
-hb_dev_write(struct hb_media* hbm, struct ha_msg * msgptr)
+EXPORT(hb_dev_write) (struct hb_media* hbm, struct ha_msg * msgptr)
 {
 	struct mcast_private *	mcp;
 	int			rc;
@@ -785,6 +794,28 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.9  2001/05/26 17:38:01  mmoerz
+ * *.cvsignore: added automake generated files that were formerly located in
+ * 	     config/
+ * * Makefile.am: removed ac_aux_dir stuff (for libtool) and added libltdl
+ * * configure.in: removed ac_aux_dir stuff (for libtool) and added libltdl as
+ * 		a convenience library
+ * * bootstrap: added libtools libltdl support
+ * * heartbeat/Makefile.am: added some headerfile to noinst_HEADERS
+ * * heartbeat/heartbeat.c: changed dlopen, dlclose to lt_dlopen, lt_dlclose
+ * * heartbeat/crc.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/mcast.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/md5.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/ping.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/serial.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/sha1.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/udp.c: changed to libltdl, exports functions via EXPORT()
+ * * heartbeat/hb_module.h: added EXPORT() Macro, changed to libtools function
+ * 			pointer
+ * * heartbeat/module.c: converted to libtool (dlopen/dlclose -> lt_dlopen/...)
+ * 		      exchanged scandir with opendir, readdir. enhanced
+ * 		      autoloading code so that only .la modules get loaded.
+ *
  * Revision 1.8  2001/05/22 13:15:40  alan
  * Put in a fix to make a false-alarm alignment complaint go away on
  * Solaris.  This is in mcast.c

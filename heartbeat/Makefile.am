@@ -21,6 +21,7 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 			-I$(top_builddir)/stonith -I$(top_srcdir)/stonith
+			-I$(top_builddir)/libltdl -I$(top_srcdir)/libltdl
 
 hadir			= $(sysconfdir)/ha.d
 halibdir		= $(libdir)/@HEARTBEATPKG@
@@ -43,6 +44,8 @@ CFLAGS			= @CFLAGS@	\
 ## script subdirs
 SUBDIRS			= init.d lib logrotate.d rc.d resource.d
 
+noinst_HEADERS		= hb_module.h
+
 ## libraries
 
 lib_LTLIBRARIES		= libhbclient.la 
@@ -59,7 +62,8 @@ heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c ha_if.c \
 			module.c
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
 			$(top_builddir)/replace/libreplace.la
-heartbeat_LDFLAGS	= -export-dynamic -dlpreopen force -dlopen self \
+heartbeat_LDFLAGS	= @LIBLTDL@ -export-dynamic -dlpreopen force \
+			-dlopen self \
 			-dlopen ping.la \
 			-dlopen serial.la \
 			-dlopen udp.la \

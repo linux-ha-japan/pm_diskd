@@ -2,13 +2,15 @@
 #include <string.h> 
 #include <heartbeat.h>
 
+#define MODULE crc
+#include <hb_module.h>
 
 extern unsigned char result[MAXLINE];
 
-const unsigned char *
-hb_auth_calc (const struct auth_info *, const char *);
-int hb_auth_atype (char **);
-int hb_auth_nkey(void);
+const unsigned char *EXPORT(hb_auth_calc) (const struct auth_info *, 
+					   const char *);
+int EXPORT(hb_auth_atype) (char **);
+int EXPORT(hb_auth_nkey) (void);
 
 static unsigned long const crctab[256] =
 {
@@ -66,7 +68,8 @@ static unsigned long const crctab[256] =
 	0xA2F33668ul, 0xBCB4666Dul, 0xB8757BDAul, 0xB5365D03ul, 0xB1F740B4ul
 };
 
-int hb_auth_atype (char **buffer)
+int
+EXPORT(hb_auth_atype) (char **buffer)
 {
 	*buffer = ha_malloc((strlen("crc") * sizeof(char)) + 1);
 
@@ -75,13 +78,14 @@ int hb_auth_atype (char **buffer)
 	return strlen("crc");
 }
 
-int hb_auth_nkey(void)
+int
+EXPORT(hb_auth_nkey) (void)
 {
 	return 0;
 }
                         
 const unsigned char *
-hb_auth_calc (const struct auth_info *info, const char * value)
+EXPORT(hb_auth_calc) (const struct auth_info *info, const char * value)
 {
 	unsigned long crc = 0;
 	int length=strlen(value);

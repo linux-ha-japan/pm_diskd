@@ -1,6 +1,4 @@
-#
-# For the odds and ends we need to #define
-#
+/* For the odds and ends we need to #define */ 
 
 /* termios.h : c_line */
 #undef HAVE_TERMIOS_C_LINE

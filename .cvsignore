@@ -1,10 +1,16 @@
 *.spec
 heartbeat*.tar.gz
-build-stamp
 configure
 aclocal.m4
 libtool
+ltmain.sh
+mkinstalldirs
+install-sh
+missing
 config.*
 Makefile.in
 Makefile
+copyright-stamp
+install-stamp
+build-stamp
 .*.swp
