@@ -104,7 +104,7 @@ AC_minnum=`echo  "$AC_minvers" | sed 's%[^0-9].*%%'`
 
 
 if
-  [ $AC_majvers -gt 2 -o $AC_majvers == 2 -a $AC_minnum -ge 53 ]
+  [ $AC_majvers -gt 2 -o $AC_majvers -eq 2 -a $AC_minnum -ge 53 ]
 then
   needspatch=yes
 else
