@@ -462,8 +462,10 @@ hb_api_signoff(struct ll_cluster* cinfo)
 	OurClientID = NULL;
 	(void)fclose(pi->RequestFIFO);	pi->RequestFIFO = NULL;
 	(void)fclose(pi->ReplyFIFO);	pi->ReplyFIFO = NULL;
-	(void)unlink(pi->ReplyFIFOName);
-	(void)unlink(pi->ReqFIFOName);
+	if (pi->iscasual) {
+		(void)unlink(pi->ReplyFIFOName);
+		(void)unlink(pi->ReqFIFOName);
+	}
 	pi->ReplyFIFOName[0] = EOS;
 	pi->ReqFIFOName[0] = EOS;
 	pi->SignedOn = 0;
