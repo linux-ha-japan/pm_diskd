@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.50 2002/07/27 05:47:56 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.51 2002/07/29 10:24:15 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -198,7 +198,7 @@ answers and in much longer intervalls a negotiating check is done.  Off
 means no checking will take place and no real or fallback servers will be
 activated. Default is I<negotiate>.
 
-B<service = http>|B<https>|B<ftp>|B<smtp>|B<pop3>|B<imap>|B<ldap>|B<none>
+B<service = http>|B<https>|B<ftp>|B<smtp>|B<pop>|B<imap>|B<ldap>|B<none>
 
 The type of service to monitor. None denotes a service that will not be
 monitored. If the port specfied for the virtual server is 21, 25, 80, 
@@ -608,7 +608,7 @@ sub read_config
 			while(<CFGFILE>) {
 				$line++;
 				$_ =~ s/\t/    /g;
-				unless ($_ =~ /^ {4,}(.*)/) {
+				unless ($_ =~ /^ {4,}(.+)/) {
 					last;
 				}
 				my $rcmd = $1;
@@ -690,8 +690,8 @@ sub read_config
 				} elsif ($rcmd =~ /^service\s*=\s*(.*)/) {
 					lc($1);
 					$1 =~ /(\w+)/ && ($1 eq "http" || $1 eq "https" || $1 eq "ldap"
-					    || $1 eq "ftp" || $1 eq "none" || $1 eq "smtp" || $1 eq "pop3" || $1 eq "imap")
-					    or &config_error($line, "service must be http, https, ftp, smtp, pop3, imap, ldap or none");
+					    || $1 eq "ftp" || $1 eq "none" || $1 eq "smtp" || $1 eq "pop" || $1 eq "imap")
+					    or &config_error($line, "service must be http, https, ftp, smtp, pop, imap, ldap or none");
 					$vsrv{service} = $1;
 				} elsif ($rcmd =~ /^sitename\s*=\s*(.*)/) {
 					$1 =~ /(\w+)/ or &config_error($line, "invalid sitename");
@@ -903,6 +903,9 @@ sub _ld_read_config_real_resolve
 	my $ip1;
 	my $ip2;
 	my $port;
+	my $resolved_ip1;
+	my $resolved_ip2;
+	my $resolved_port;
 	my $flags;
 
 	for $i (@$rsrv_todo) {
@@ -920,31 +923,33 @@ sub _ld_read_config_real_resolve
                    $port="0";
                 }
 		$flags=$6;
-		$ip1=&ld_gethostbyname($ip1);
-                unless( defined($ip1) ) {
+		$resolved_ip1=&ld_gethostbyname($ip1);
+                unless( defined($resolved_ip1) ) {
 			&config_error($line, 
-                                "invalid address for real server" .
+                                "invalid address ($ip1) for real server" .
                                 " (could not resolve host)");
                 }
 		if( defined($port) ){
-			$port=&ld_getservbyname($port);
-                        unless( defined($port) ){
+			$resolved_port=&ld_getservbyname($port);
+                        unless( defined($resolved_port) ){
 				&config_error($line, 
-                                        "invalid port for real server" .
+                                        "invalid port ($port) for real server" .
                                         " (could not resolve port)");
                         }
 		}
 		if ( defined ($ip2) ) {
-			$ip2=&ld_gethostbyname($ip2);
-                        unless( defined ($ip2) ) {
+			$resolved_ip2=&ld_gethostbyname($ip2);
+                        unless( defined ($resolved_ip2) ) {
 				&config_error($line, 
-                                        "invalid address for real server" .
+                                        "invalid address ($ip2) for " .
+					"real server" .
                                         " (could not resolve end host)");
                         }
-			&add_real_server_range($line, $vsrv, $ip1, $ip2, 
-                                $port, $flags);
+			&add_real_server_range($line, $vsrv, $resolved_ip1, 
+				$resolved_ip2, $resolved_port, $flags);
 		} else {
-			&add_real_server($line, $vsrv, $ip1, $port, $flags);
+			&add_real_server($line, $vsrv, $resolved_ip1, 
+				$resolved_port, $flags);
 		}
 	}
 }
@@ -1402,8 +1407,8 @@ sub ld_main
 						# $ua->register($req, \&http_received);
 					} elsif ($$v{service} eq "https") {
 						$$r{num_connects} = 0 if (check_https($v, $r));
-					} elsif ($$v{service} eq "pop3") {
-						$$r{num_connects} = 0 if (check_pop3($v, $r));
+					} elsif ($$v{service} eq "pop") {
+						$$r{num_connects} = 0 if (check_pop($v, $r));
 					} elsif ($$v{service} eq "imap") {
 						$$r{num_connects} = 0 if (check_imap($v, $r));
 					} elsif ($$v{service} eq "smtp") {
@@ -1508,13 +1513,13 @@ sub check_smtp
 }
 
 
-sub check_pop3
+sub check_pop
 {
 	require Net::POP3;
 	my ($v, $r) = @_;
 	
-	my $pop3 = new Net::POP3($$r{server}, Timeout => $$v{negotiatetimeout});
-	if ($pop3) {
+	my $pop = new Net::POP3($$r{server}, Timeout => $$v{negotiatetimeout});
+	if ($pop) {
 		service_set($v, $r, "up");
 		return 1;
 	} else {
@@ -1546,7 +1551,8 @@ sub check_ldap
 	require Net::LDAP;
 
 	my $recstr = $$r{receive};
-	my $ldap = Net::LDAP->new("$$r{server}", port => $$r{checkport}) ;
+	my $ldap = Net::LDAP->new("$$r{server}", port => $$r{checkport},
+					timeout => $$v{negotiatetimeout});
 	if(!$ldap) {
 		service_set($v, $r, "down");
 		&ld_debug(4, "Connection failed");
@@ -1581,7 +1587,8 @@ sub check_ldap
 		return 1;
 	} else {
 		service_set($v, $r, "down");
-		&ld_debug(4,"Message differs : " . ", " . $$r{receive} . ", " . @arrayOfDNs[0] . ".");
+		&ld_debug(4,"Message differs : " . ", " . $$r{receive} 
+				. ", " . @arrayOfDNs[0] . ".");
 		return 0;
 	}
 }
