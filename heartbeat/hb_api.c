@@ -104,22 +104,19 @@ extern int	UseOurOwnPoll;
 int		debug_client_count = 0;
 int		total_client_count = 0;
 client_proc_t*	client_list = NULL;	/* List of all our API clients */
-static gboolean	client_output_pending = FALSE;  
-                                     /* TRUE when any client has message
-					to be delivered */
-
-
+static gboolean	client_output_pending = FALSE;
+			/* TRUE when any client output still pending */
 struct node_info *curnode;
 
-void api_process_request(client_proc_t* client, struct ha_msg *msg);
-static void api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
-static void api_send_client_status(client_proc_t* client, const char * status
-,	const char *	reason);
-static void api_flush_msgQ(client_proc_t* client);
-static void api_flush_pending_msgQ(void);
-static void api_clean_clientQ(client_proc_t* client);
-static void api_remove_client_int(client_proc_t* client, const char * reason);
-static int api_add_client(struct ha_msg* msg);
+static void	api_process_request(client_proc_t* client, struct ha_msg *msg);
+static void	api_send_client_msg(client_proc_t* client, struct ha_msg *msg);
+static void	api_send_client_status(client_proc_t* client
+,	const char * status, const char *	reason);
+static void	api_flush_msgQ(client_proc_t* client);
+static void	api_clean_clientQ(client_proc_t* client);
+static void		api_flush_pending_msgQ(void);
+static void	api_remove_client_int(client_proc_t* client, const char * rsn);
+static int	api_add_client(struct ha_msg* msg);
 static client_proc_t*	find_client(const char * fromid, const char * pid);
 static FILE*		open_reqfifo(client_proc_t* client);
 static const char *	client_fifo_name(client_proc_t* client, int isreq);
@@ -521,7 +518,7 @@ api_ifstatus(const struct ha_msg* msg, struct ha_msg* resp
 /*
  * Process an API request message from one of our clients
  */
-void
+static void
 api_process_request(client_proc_t* fromclient, struct ha_msg * msg)
 {
 	const char *	msgtype;
@@ -854,30 +851,6 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 }
 
 
-/* check for any messages to be flushed to any of the clients 	
- * Attempt should be made to  deliver messages that were not  	
- * deliverable to clients earlier   			
- */
-static void
-api_flush_pending_msgQ(void)
-{
-	client_proc_t* client;
-	if (client_output_pending) {
-		client_output_pending = FALSE;
-		for (client=client_list; client != NULL; client=client->next) {
-			if(client->msgcount) {
-				/* 
-				 * NOTE: api_flush_msgQ() may set 
-			 	 * client_output_pending if the client
-				 * messages temporarily fail to be
-				 * delivered.
-				 */
-				api_flush_msgQ(client);
-			}
-		}
-	}
-}
-
 static void
 api_flush_msgQ(client_proc_t* client)
 {
@@ -957,6 +930,29 @@ api_flush_msgQ(client_proc_t* client)
 		client->removereason = "security";
 	}
 
+}
+
+/*
+ * Try to  deliver messages that were not deliverable to clients earlier
+ */
+static void
+api_flush_pending_msgQ(void)
+{
+      client_proc_t* client;
+
+	if (!client_output_pending) {
+		return;
+	}
+	client_output_pending = FALSE;
+	for (client=client_list; client != NULL; client=client->next) {
+		/*
+		 * NOTE: api_flush_msgQ() sets client_output_pending
+		 * if any messages cannot be delivered.
+		 */
+       		if(client->msgcount) {
+			api_flush_msgQ(client);
+		}
+	}
 }
 
 static void
