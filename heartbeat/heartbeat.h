@@ -1,7 +1,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.8 1999/10/10 20:12:34 alanr Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.9 1999/10/10 22:23:05 alanr Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -230,6 +230,7 @@ struct process_info {
 	unsigned long		numfree;	/* # of ha_free calls */
 	unsigned long		nbytes_req;	/* # malloc bytes req'd */
 	unsigned long		nbytes_alloc;	/* # bytes allocated  */
+	unsigned long		mallocbytes;	/* # bytes malloc()ed  */
 	time_t			lastmsg;
 };
 

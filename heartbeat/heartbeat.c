@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.17 1999/10/10 20:12:08 alanr Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.18 1999/10/10 22:22:47 alanr Exp $";
 /*
  *	Near term needs:
  *	- Logging of up/down status changes to a file... (or somewhere)
@@ -772,7 +772,7 @@ parse_authfile(void)
 		return(HA_FAIL);
 	}
 
-	if (stat(KEYFILE, &keyfilestat) < 0
+	if (fstat(fileno(f), &keyfilestat) < 0
 	||	keyfilestat.st_mode & (S_IROTH | S_IRGRP)) {
 		ha_log(LOG_ERR, "Bad permissions on keyfile"
 		" [%s], 600 recommended.", KEYFILE);
@@ -1422,6 +1422,7 @@ master_status_process(void)
 
 	init_status_alarm();
 	init_watchdog();
+	send_local_status();	/* Send initial local status */
 
 	clearerr(f);
 
@@ -1685,6 +1686,8 @@ debug_sig(int sig)
 		,	curproc->numalloc, curproc->numfree
 		,	curproc->nbytes_alloc, curproc->nbytes_req
 		,	curproc->pid, ct);
+		ha_log(LOG_DEBUG, "MALLOC info: %lu total malloc bytes."
+		" pid %d/%s]", curproc->mallocbytes, curproc->pid, ct);
 	}
 }
 
@@ -2758,6 +2761,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.18  1999/10/10 22:22:47  alanr
+ * New malloc scheme + send initial status immediately
+ *
  * Revision 1.17  1999/10/10 20:12:08  alanr
  * New malloc/free (untested)
  *
