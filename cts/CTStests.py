@@ -28,6 +28,7 @@ Licensed under the GNU GPL.
 
 import CTS
 import time
+import os
 
 
 #	List of all class objects for tests which we ought to
@@ -431,8 +432,12 @@ class StandbyTest(CTSTest):
             return self.failure("did not find pattern " + pat)
 
     def is_applicable(self):
-        '''StandbyTest is applicable when the CM has a Standby attribute'''
-	return self.CM.has_key("Standby")
+        '''StandbyTest is applicable when the CM has a Standby command'''
+
+	if not self.CM.has_key("Standby"):
+	   return None
+	else:
+            return os.access(self.CM["Standby"], os.X_OK)
 
 #	Register StandbyTest as a good test to run
 AllTestClasses.append(StandbyTest)
