@@ -28,6 +28,7 @@ hard_SCRIPTS	=			\
 			Filesystem	\
 			ICP		\
 			IPaddr		\
+			IPsrcaddr	\
 			LinuxSCSI	\
 			LVM		\
 			MailTo		\
