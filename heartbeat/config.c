@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.42 2001/07/18 03:14:37 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.43 2001/07/18 21:13:43 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -108,6 +108,11 @@ init_config(const char * cfgfile)
  *	Then we could share this information with others
  */
 	config = (struct sys_config *)ha_calloc(1, sizeof(struct sys_config));
+	if (config == NULL) {
+		ha_log(LOG_ERR, "Heartbeat not started: "
+			"Out of memory during configuration");
+		return(HA_FAIL);
+	}
 	config->format_vers = 100;
 	config->heartbeat_interval = 2;
 	config->deadtime_interval = 5;
@@ -1138,3 +1143,9 @@ set_stonith_host_info(const char * value)
 	}
 	return(HA_FAIL);
 }
+/*
+ * $Log: config.c,v $
+ * Revision 1.43  2001/07/18 21:13:43  alan
+ * Put in Emily Ratliff's patch for checking for out of memory in config.c
+ *
+ */
