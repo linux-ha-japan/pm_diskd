@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.7 2000/09/04 17:10:43 marcelo Exp $
+#	$Id: Makefile,v 1.8 2000/10/02 20:56:37 eric Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -56,7 +56,6 @@ ARFILE = libstonith.a
 SHLIB  = libstonith.so
 
 S_OBJLIST =	stonith.o
-	
 
 MODULES = null.o
 
@@ -74,7 +73,7 @@ BINCMDS = $(STONITH)
 
 LIBFILES = $(ARFILE) $(SHLIB)
 
-PRODUCTS = $(BINCMDS) $(LIBS) baytech.so
+PRODUCTS = $(BINCMDS) $(LIBS) baytech.so rps10.so nw_rpc100s.so
 
 SPECSRC = Specfile
 
@@ -82,7 +81,13 @@ all: $(PRODUCTS)
 
 baytech.so:	baytech.o expect.o
 	$(CC) -shared -o $@ $^
-	
+
+rps10.so:	rps10.o expect.o
+	$(CC) -shared -o $@ $^
+
+nw_rpc100s.so:	nw_rpc100s.o expect.o
+	$(CC) -shared -o $@ $^
+
 $(MODULES:.o=.so): $(MODULES)
 	$(CC) -shared -o $@ $(@:.so=.o)
 
@@ -104,10 +109,10 @@ install_bin: all
 	$(INSTALL) -cm 755 $(BINCMDS) $(BINDIR)
 	ls -l $(BINDIR)/$(BINCMDS)
 
-install_lib: $(LIBFILES) $(MODULES) baytech.so
+install_lib: $(LIBFILES) $(MODULES) baytech.so rps10.so nw_rpc100s.so
 	$(INSTALL) -cm 755 $(LIBFILES) $(LIBDIR)
 	mkdir -p $(MODDIR)
-	$(INSTALL) -cm 755 $(MODULES:.o=.so) baytech.so $(MODDIR)
+	$(INSTALL) -cm 755 $(MODULES:.o=.so) baytech.so rps10.so nw_rpc100s.so $(MODDIR)
 
 clean:	
 	rm -f *.o *.swp .*.swp *.a *.so core make.out
