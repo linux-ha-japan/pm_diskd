@@ -61,7 +61,8 @@ heartbeat_SOURCES	= heartbeat.c auth.c config.c hb_api.c ha_if.c \
 			ha_malloc.c ha_msg.c ha_msg_internal.c lock.c \
 			module.c
 heartbeat_LDADD		= $(top_builddir)/stonith/libstonith.la \
-			$(top_builddir)/replace/libreplace.la
+			$(top_builddir)/replace/libreplace.la	\
+			$(top_builddir)/libltdl/libltdlc.la
 heartbeat_LDFLAGS	= @LIBLTDL@ -export-dynamic -dlpreopen force \
 			-dlopen self \
 			-dlopen ping.la \

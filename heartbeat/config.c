@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.31 2001/05/18 05:50:27 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.32 2001/05/31 01:02:27 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -588,16 +588,32 @@ islegaldirective(const char *directive)
 	int	j;
 
 	for (j=0; j < DIMOF(Directives); ++j) {
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			,	"Comparing directive [%s] against [%s]"
+			,	 directive, Directives[j].name);
+		}
+
 		if (strcmp(directive, Directives[j].name) == 0) {
 			return(HA_OK);
 		}
 	}
 	for (j=0; j < num_hb_media_types; ++j) {
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			,	"Comparing directive [%s] against media [%s]"
+			,	 directive, hbmedia_types[j]->type);
+		}
 		if (strcmp(directive, hbmedia_types[j]->type) == 0) {
 			return(HA_OK);
 		}
 	}
 	for (j=0; j < DIMOF(WLdirectives); ++j) {
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			, "Comparing directive [%s] against WLdirective[%s]"
+			,	 directive, WLdirectives[j].type);
+		}
 		if (strcmp(directive, WLdirectives[j].type) == 0) {
 			return(HA_OK);
 		}
