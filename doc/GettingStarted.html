@@ -233,7 +233,7 @@ and the broadcast address would default to 192.168.85.31 (which is the
 highest address on the subnet).&nbsp; The last parameter you can set is
 the broadcast address.&nbsp; To override the default&nbsp; and set it to
 192.168.85.16, your entry would read:
-<pre><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; linuxha1 192.168.85.3/5/192.168.85.16 httpd smb</b></pre>
+<pre><b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; linuxha1 192.168.85.3/27/192.168.85.16 httpd smb</b></pre>
 You may be wondering whether any of the above is necessary for you.&nbsp;
 It depends.&nbsp; If you've properly established a net route (independent
 of heartbeat) for the service's IP address, with the correct netmask and
