@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.50 2003/02/13 17:57:34 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.51 2003/02/13 18:18:52 alan Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -67,7 +67,7 @@ PILS is designed to support any number of plugins
 implementing any number of interfaces.
 
 %changelog
-* Thu Feb 13 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
+* Thu Feb 13 2003  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
 + Version 1.0.1 beta series
 
   0.4.9g:
