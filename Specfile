@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.83 2001/02/05 04:54:52 alan Exp $
+#	$Id: Specfile,v 1.84 2001/02/05 14:06:31 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -63,6 +63,11 @@ machine. It's simple and reliable, albeit admittedly brutal.
      Juan Pedro Paredes Caballero <juampe@retemail.es>
 
 + Version 0.4.9 Beta series
+  + Fixed a bug relating to not properly handshaking when starting
+	the various heartbeat xmit/receive modules so that I could mark
+	another node which was up or myself dead especially when the machine
+	is under load <alanr@unix.sh>
+  + Incorporated Joshua Uziel's <uzi@uzix.org> Sparc Endian fix
   + Incorporated Andreas Piesk's <a.piesk@gmx.net> APCsmart Stonith module
   + Incorporated Chris Wright's <chris@wirex.com> multicast HB comm module
   + Incorporated off-by-1 stonith fix from Andreas Piesk <apiesk@virbus.de>
@@ -84,6 +89,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 	(not yet compatible with nice_failback(?))
   + Fixed byte-ordering problem related to output in findif.c.
 	There are probably more, related to input ;-)
+	(See fix from 'uzi' above)
   + More SuSE-compatibility changes thanks to Marius Tomaschewski <mt@suse.de>
   + Removed the 8-alias limitation from the IPaddr resource script.
   + IP address takeovers now occur faster (ARPs now occur asynchronously)
