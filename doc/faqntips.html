@@ -44,7 +44,8 @@ connections it seems to work fine.</a></li>
 <a href="#firewall">How to use heartbeat with ipchains firewall ?</a></li>
 
 <li>
-<a href="#heavy_load">How to tune heartbeat on heavily loaded system ?</a></li>
+<a href="#heavy_load">How to tune heartbeat on heavily loaded system to avoid
+                      split-brain?</a></li>
 
 <li>
 <a href="#authkeys">When I try to start heartbeat i receive message:</a></li>
@@ -188,7 +189,14 @@ most linux systems under heavy load</a> (sorry!), here is suggestion:
 a heartbeat.
 <br>Set your deadtime to 1.5-2 times that amount.&nbsp; Set warntime to
 that amount.
-<br>Continue to monitor logs for warnings about long heartbeat times.</li>
+<br>Continue to monitor logs for warnings about long heartbeat times.
+If you don't do this, you may get "Cluster node ... returning after partition"
+which will cause heartbeat to restart on all machines in the cluster.
+Adding memory to the machine generally helps.
+Limiting workload on the machine generally helps.
+Some newer versions of heartbeat are a bit better about this
+than previous versions.
+</li>
 
 <li>
 <a NAME="authkeys">It's probably a permissions problem on authkeys.</a>&nbsp;
@@ -202,6 +210,8 @@ places.
 <li>wherever you specified in your setup</li>
 <li>/var/log/messages</li>
 </ol>
+Newer releases are better about also putting out startup messages
+to stderr in addition to whereever you have configured them to go.
 </li>
 
 <li>
