@@ -26,7 +26,7 @@
 TESTIP=10.253.252.251
 MCASTIP=225.0.0.2
 #
-IFCONFIG=@IFCONFIG@
+IFCONFIG="@IFCONFIG@ @IFCONFIG_A_OPT@"
 HADIR=@sysconfdir@/ha.d
 INITDIR=@INITDIR@
 STONITH=@sbindir@/stonith
@@ -159,7 +159,7 @@ SaveConfigFiles() {
 }
 
 RestoreConfigFiles() {
-  mv /etc/ha.d/.cfsave/* /etc/ha.d
+  mv $HADIR.cfsave/* $HADIR
 }
 
 HBStart() {
@@ -348,7 +348,7 @@ StonithCheck() {
 #	Remove Config Files.
 #
 
-ID=`id -nu`
+ID=`@WHOAMI@`
 case $ID in
   root)	: OK;;
   *)	echo "Must be root to run this.  Sorry."
