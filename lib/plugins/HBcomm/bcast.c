@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.13 2002/04/13 22:35:08 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.14 2002/05/01 23:50:35 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -338,7 +338,8 @@ bcast_read(struct hb_media* mp)
 	ei = (struct ip_private *) mp->pd;
 
 	if (DEBUGPKT) {
-		ha_log(LOG_DEBUG, "bcast_read : reading from socket %d (writing to socket %d)"
+		ha_log(LOG_DEBUG
+		,	"bcast_read : reading from socket %d (writing to socket %d)"
 		,	ei->rsocket, ei->wsocket);
 	}
 
@@ -346,10 +347,12 @@ bcast_read(struct hb_media* mp)
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
 		if (errno != EINTR) {
 			LOG(PIL_CRIT
-			,	"Error receiving from socket: %s", strerror(errno));
+			,	"Error receiving from socket: %s"
+			,	strerror(errno));
 		}
 		return NULL;
 	}
+	/* Avoid possible buffer overruns */
 	buf[numbytes] = EOS;
 
 	if (DEBUGPKT) {
@@ -761,6 +764,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.14  2002/05/01 23:50:35  alan
+ * Put in some comments about how the code avoids potential buffer overruns.
+ *
  * Revision 1.13  2002/04/13 22:35:08  alan
  * Changed ha_msg_add_nv to take an end pointer to make it safer.
  * Added a length parameter to string2msg so it would be safer.

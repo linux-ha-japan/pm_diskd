@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.5 2002/04/13 22:35:08 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.6 2002/05/01 23:50:35 alan Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -420,6 +420,7 @@ mcast_read(struct hb_media* hbm)
 			return NULL;
 		}
 	}
+	/* Avoid possible buffer overruns */
 	buf[numbytes] = EOS;
 
 	if (Debug >= PKTTRACE) {
@@ -813,6 +814,9 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.6  2002/05/01 23:50:35  alan
+ * Put in some comments about how the code avoids potential buffer overruns.
+ *
  * Revision 1.5  2002/04/13 22:35:08  alan
  * Changed ha_msg_add_nv to take an end pointer to make it safer.
  * Added a length parameter to string2msg so it would be safer.

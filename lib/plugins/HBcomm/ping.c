@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.4 2002/04/26 21:24:51 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.5 2002/05/01 23:50:35 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -324,6 +324,7 @@ ping_read(struct hb_media* mp)
 		LOG(PIL_CRIT, "Error receiving from socket: %s", strerror(errno));
 		return NULL;
 	}
+	/* Avoid potential buffer overruns */
 	buf.cbuf[numbytes] = EOS;
 
 	/* Check the IP header */
