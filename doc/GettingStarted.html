@@ -366,8 +366,30 @@ called "test".&nbsp; See Samba docs to get that going.&nbsp; As an aside,
 however, you'll want to use the "netbios name" parameter to have your Samba
 share listed under the cluster name and not the hostname of your cluster
 member!
-<p>If this all works, you've got availability.&nbsp; Now let's see if we
-have High Availability :-)
+<p><b><font color="#FF0000">NOTE</font>: </b>If you can't bring up the
+service IP address and you get ha-log entries similar to this:
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote><i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; SIOCSIFADDR:
+No such device</i>
+<br><i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; SIOCSIFFLAGS: No such
+device</i>
+<br><i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; SIOCSIFNETMASK: No such
+device</i>
+<br><i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; SIOCSIFBRDADDR: No such
+device</i>
+<br><i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; SIOCSIFFLAGS: No such
+device</i>
+<br><i>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; SIOCADDRT: No such device</i></blockquote>
+</blockquote>
+</blockquote>
+It <i>may</i> mean that you need to enable IP aliasing in your kernel build.&nbsp;
+Check /usr/src/linux/.config for "CONFIG_IP_ALIAS=y" if you don't have
+it, you'll have the line "CONFIG_IP_ALIAS is not set".&nbsp; Rebuild your
+kernel with IP aliasing enabled.</blockquote>
+If this all works, you've got availability.&nbsp; Now let's see if we have
+High Availability :-)
 <p>Take down linuxha1.&nbsp; Kill power, kill heartbeat, whatever you have
 the stomach for, but <b>don't just yank</b> both the serial and eth1 heartbeat
 cables.&nbsp; If you do that, you'll have services running on both nodes
@@ -461,7 +483,7 @@ and /var/log/ha-debug for more clues.
 </tr>
 </table>
 
-<p>Rev 1.0.1
+<p>Rev 1.0.2
 <br>(c) 2000 Rudy Pawul
 <br><a href="mailto:rpawul@iso-ne.com">rpawul@iso-ne.com</a>
 </body>
