@@ -3,3 +3,4 @@ Makefile
 .*.swp
 *.pyc
 *.py
+nohup.out
