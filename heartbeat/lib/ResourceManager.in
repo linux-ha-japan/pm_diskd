@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager.in,v 1.8 2002/04/07 21:08:56 alan Exp $
+#	$Id: ResourceManager.in,v 1.9 2003/05/17 05:28:46 alan Exp $
 #
 #	New haresources format:
 #
@@ -72,21 +72,23 @@ reverseargs() {
 #	a blank, making parsing it easier for dumb shell scripts.
 #
 ipres() {
-  if
-    [ $# -lt 1 ]
-  then
-    arg='.'
-  else
-    arg=$1
-  fi
+  grepflags=""
+  case $# in
+    0)	pat='.'			;;
+    1)  pat=$1			;;
+    2)  grepflags=$1; pat=$2	;;
+  esac
   cat $HA_DIR/haresources |
 	#
 	#	Explanation of Sed -e expressions below:
 	#
 	#	1) Strip out comments
-	#	2) Append a blank to the end of the line
-	#	3) Compress multiple blanks/tabs into a single blank
-	#	4) Strip off a leading space (if any)
+	#	2) Repeatedly join lines together when they're ended by '\'
+        #		(":a" is a label.  "ta" is a conditional
+	#		branch to "a:")
+	#	3) Append a blank to the end of the line
+	#	4) Compress multiple blanks/tabs into a single blank
+	#	5) Strip off a leading space (if any)
 	#
 	sed						\
 		-e  's%#.*%%'				\
@@ -94,7 +96,7 @@ ipres() {
 		-e  's%$% %'				\
 		-e  's%[	 ][	 ]*% %g' 	\
 		-e  's%^ %%' 				|
-  	egrep "$arg"
+  	egrep $grepflags "$pat"
 }
 
 ipresline() {
@@ -104,6 +106,15 @@ ipresline() {
 KeyResources() {
 	ipres "^$1 "  | cut -d' ' -f2
 }
+
+OurGroupKeys() {
+	ipres "^${HA_CURHOST} "  | cut -d' ' -f2-
+}
+
+OtherGroupKeys() {
+	ipres -v "^${HA_CURHOST} "  | cut -d' ' -f2-
+}
+
 
 canonname() {
   if
@@ -340,6 +351,12 @@ case $1 in
 
   listkeys)	KeyResources "$2";;
 
+  allkeys)	KeyResources '.*';;
+
+  ourkeys)	OurGroupKeys;;
+
+  otherkeys)	OtherGroupKeys;;
+
   status)	we_own_resource $2;;
 
   givegroup)	GiveUpGroup $2 >>$HA_DEBUGLOG 2>&1 ;;
@@ -357,9 +374,13 @@ esac
 
 #
 #	$Log: ResourceManager.in,v $
+#	Revision 1.9  2003/05/17 05:28:46  alan
+#	Implemented a modified version of nice_failback allowing it to
+#	move subsets of resources around - not just all of them...
+#
 #	Revision 1.8  2002/04/07 21:08:56  alan
 #	Put in more stern warnings about resources not being idle when we start up...
-#
+#	
 #	Revision 1.7  2002/02/15 06:53:16  horms
 #	Small changes to allow heartbeat to work on Solaris 8
 #	* use unset LC_ALL and unset LANGUAGE instead of LC_ALL=en and LANGUAGE=en

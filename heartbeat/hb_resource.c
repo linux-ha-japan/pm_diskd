@@ -1026,6 +1026,7 @@ req_our_resources(int getthemanyway)
 	ha_log(LOG_INFO, "Resource acquisition completed.");
 	exit(0);
 }
+static int	standby_rsctype = HB_ALL_RSC;
 
 /* Send "standby" related msgs out to the cluster */
 static int
@@ -1047,8 +1048,10 @@ send_standby_msg(enum standby state)
 		,			standby_msg[state]);
 		return(HA_FAIL);
 	}
-	if ((ha_msg_add(m, F_TYPE, T_ASKRESOURCES) != HA_OK)
-	||  (ha_msg_add(m, F_COMMENT, standby_msg[state]) != HA_OK)) {
+	if (ha_msg_add(m, F_TYPE, T_ASKRESOURCES) != HA_OK
+	||  ha_msg_add(m, F_RESOURCES, decode_resources(standby_rsctype))
+	!= HA_OK
+	||  ha_msg_add(m, F_COMMENT, standby_msg[state]) != HA_OK) {
 		ha_log(LOG_ERR, "send_standby_msg: "
 		"Cannot create standby reply msg");
 		rc = HA_FAIL;
@@ -1105,6 +1108,8 @@ ask_for_resources(struct ha_msg *msg)
 	const longclock_t	standby_rsc_to
 	=			msto_longclock(HB_STANDBY_RSC_TO_MS);
 	const longclock_t	init_to =  msto_longclock(STANDBY_INIT_TO_MS);
+	const char *	rsctype;
+	int		rtype;
 
 	if (!nice_failback) {
 		ha_log(LOG_INFO
@@ -1113,6 +1118,13 @@ ask_for_resources(struct ha_msg *msg)
 	}
 	info = ha_msg_value(msg, F_COMMENT);
 	from = ha_msg_value(msg, F_ORIG);
+	rsctype=ha_msg_value(msg, F_RESOURCES);
+	if (rsctype == NULL) {
+		rtype = HB_ALL_RSC;
+	}else{
+		rtype = encode_resources(rsctype);
+	}
+
 
 	if (info == NULL || from == NULL) {
 		ha_log(LOG_ERR, "Received standby message without info/from");
@@ -1142,6 +1154,7 @@ ask_for_resources(struct ha_msg *msg)
 		return;
 	}
 
+
 	/* Starting the STANDBY 3-phased protocol */
 
 	switch(going_standby) {
@@ -1156,6 +1169,7 @@ ask_for_resources(struct ha_msg *msg)
 			" ignored.  local resources in flux.", info, from);
 			return;
 		}
+		standby_rsctype = rtype;
 		if (strcasecmp(info, "me") == 0) {
 
 			if (ANYDEBUG) {
@@ -1163,7 +1177,8 @@ ask_for_resources(struct ha_msg *msg)
 				, "ask_for_resources: other now unstable");
 			}
 			other_is_stable = 0;
-			ha_log(LOG_INFO, "%s wants to go standby", from);
+			ha_log(LOG_INFO, "%s wants to go standby [%s]"
+			,	from, decode_resources(rtype));
 			if (msgfromme) {
 				/* We want to go standby */
 				if (ANYDEBUG) {
@@ -1193,12 +1208,13 @@ ask_for_resources(struct ha_msg *msg)
 	case ME:
 		/* Other node is alive, so give up our resources */
 		if (!msgfromme) {
+			standby_rsctype = rtype;
 			standby_running = add_longclock(now, standby_rsc_to);
 			if (strcasecmp(info,"other") == 0) {
 				ha_log(LOG_INFO
-				,	"standby: %s can take our resources"
-				,	from);
-				go_standby(ME, HB_ALL_RSC);
+				,	"standby: %s can take our %s resources"
+				,	from, decode_resources(rtype));
+				go_standby(ME, rtype);
 				/* Our child proc sends a "done" message */
 				/* after all the resources are released	*/
 			}else{
@@ -1210,26 +1226,28 @@ ask_for_resources(struct ha_msg *msg)
 			 * indicating resources are completely released now.
 			 */
 			ha_log(LOG_INFO
-			,	"Standby process finished. /Me secondary");
+			,	"Local standby process completed [%s]."
+			,	decode_resources(rtype));
 			going_standby = DONE;
-			procinfo->i_hold_resources = HB_NO_RSC;
+			procinfo->i_hold_resources &= ~standby_rsctype;
 			standby_running = add_longclock(now, standby_rsc_to);
 		}else{
 			message_ignored = 1;
 		}
 		break;
+
 	case OTHER:
+		standby_rsctype = rtype;
 		if (strcasecmp(info, "done") == 0) {
 			standby_running = add_longclock(now, standby_rsc_to);
 			if (!msgfromme) {
 				/* It's time to acquire resources */
 
 				ha_log(LOG_INFO
-				,	"standby: Acquire [%s] resources"
-				,	from);
-				/* go_standby gets *all* resources */
-				/* req_our_resources(TRUE); */
-				go_standby(OTHER, HB_ALL_RSC);
+				,	"standby: acquire [%s] resources from %s"
+				,	decode_resources(rtype), from);
+				/* go_standby gets requested resources resources */
+				go_standby(OTHER, standby_rsctype);
 				going_standby = DONE;
 			}else{
 				message_ignored = 1;
@@ -1242,19 +1260,23 @@ ask_for_resources(struct ha_msg *msg)
 		break;
 
 	case DONE:
+		standby_rsctype = rtype;
 		if (strcmp(info, "done")== 0) {
 			standby_running = zero_longclock;
 			going_standby = NOT;
 			if (msgfromme) {
 				ha_log(LOG_INFO
-				,	"Standby process done. /Me primary");
-				procinfo->i_hold_resources = HB_ALL_RSC;
+				,	"Standby resource acquisition done [%s]."
+				,	decode_resources(rtype));
+				procinfo->i_hold_resources |= rtype;
 			}else{
 				ha_log(LOG_INFO
 				,	"Other node completed standby"
-				" takeover.");
+				" takeover of %s resources."
+				,	decode_resources(rtype));
 			}
-			hb_send_resources_held(rsc_msg[procinfo->i_hold_resources], 1, NULL);
+			hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
+			,	1, NULL);
 			going_standby = NOT;
 		}else{
 			message_ignored = 1;
@@ -1287,22 +1309,6 @@ countbystatus(const char * status, int matchornot)
 		}
 	}
 	return count;
-}
-
-static int
-rscset_complement(int resourceset)
-{
-	switch (resourceset) {
-		case HB_FOREIGN_RSC:	
-			return HB_LOCAL_RSC;
-		case HB_LOCAL_RSC:
-			return HB_FOREIGN_RSC;
-		case HB_NO_RSC:
-			return HB_ALL_RSC;
-		case HB_ALL_RSC:
-			return HB_NO_RSC;
-	}
-	return HB_ALL_RSC;
 }
 
 
@@ -1371,7 +1377,7 @@ go_standby(enum standby who, int resourceset) /* Which resources to give up */
 		 * a funky warning message (or maybe two).
 		 */
 		
-		procinfo->i_hold_resources = rscset_complement(resourceset);
+		procinfo->i_hold_resources &= ~resourceset;
 		hb_send_resources_held(rsc_msg[procinfo->i_hold_resources]
 		,	0, "standby");
 	}
@@ -1813,6 +1819,10 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.20  2003/05/17 05:28:46  alan
+ * Implemented a modified version of nice_failback allowing it to
+ * move subsets of resources around - not just all of them...
+ *
  * Revision 1.19  2003/05/17 01:43:25  alan
  * Changed the standby code to allow for the possibility of failing
  * back to a "balanced" mode...
