@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.176 2002/04/12 15:14:28 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.177 2002/04/12 19:36:14 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1865,7 +1865,7 @@ MSPFinalShutdown(gpointer p)
 void
 process_clustermsg(FILE * f)
 {
-	struct node_info *	thisnode;
+	struct node_info *	thisnode = NULL;
 	struct ha_msg *		msg = NULL;
 	char			iface[MAXIFACELEN];
 	struct	link *		lnk;
@@ -1958,8 +1958,8 @@ process_clustermsg(FILE * f)
 	}
 
 
-
 	thisnode = lookup_node(from);
+
 	if (thisnode == NULL) {
 #if defined(MITJA)
 		/* If a node isn't in the configfile, add it... */
@@ -2154,18 +2154,18 @@ process_clustermsg(FILE * f)
 		}
 		notify_world(msg, thisnode->status);
 	}
+psm_done:
 	/*
 	 * We want to bring up the resources only if the state has been
 	 * updated.
 	 */
-	if (heartbeat_comm_state == COMM_LINKSUP) {
+	if (thisnode && heartbeat_comm_state == COMM_LINKSUP) {
 		/*
 		 * process_resources() will deal with T_STARTING
 		 * and T_RESOURCES messages appropriately.
 		 */
 		process_resources(msg, thisnode);
 	}
-psm_done:
 	ha_msg_del(msg);  msg = NULL;
 }
 
@@ -2279,11 +2279,13 @@ process_resources(struct ha_msg* msg, struct node_info * thisnode)
 		return;
 	}
 
+	/* Otherwise, we're in the nice_failback case */
+
+	/* This first_time switch looks buggy -- FIXME */
+
 	if (first_time && WeAreRestarting) {
 		resourcestate = newrstate = R_STABLE;
 	}
-
-	/* Otherwise, we're in the nice_failback case */
 
 	if (resourcestate == R_INIT && heartbeat_comm_state == COMM_LINKSUP) {
 		send_local_starting();
@@ -3895,7 +3897,7 @@ send_local_starting(void)
 	struct ha_msg * m;
 	int		rc;
 
-	if (DEBUGDETAILS) {
+	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Sending local starting msg");
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
@@ -5968,6 +5970,13 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.177  2002/04/12 19:36:14  alan
+ * Previous changes broke nice_failback.
+ * There was some code which was sent out the STARTING messages
+ * which had been called because it was before some code which
+ * bypassed protocol processing.  This code is now at the
+ * end of the loop.
+ *
  * Revision 1.176  2002/04/12 15:14:28  alan
  * Changed the processing of resource requests so we eliminate some
  * timing holes.
