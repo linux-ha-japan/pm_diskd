@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.113 2001/05/31 16:51:18 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.114 2001/06/07 21:29:44 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -384,7 +384,7 @@ void	mark_node_dead(struct node_info* hip);
 void	change_link_status(struct node_info* hip, struct link *lnk
 ,		const char * new);
 void	notify_world(struct ha_msg * msg, const char * ostatus);
-pid_t	get_running_hb_pid(void);
+long	get_running_hb_pid(void);
 void	make_daemon(void);
 void	heartbeat_monitor(struct ha_msg * msg, int status, const char * iface);
 void	send_to_all_media(char * smsg, int len);
@@ -1896,8 +1896,8 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 	}
 
 	while (*fp) {
-		if (isupper(*fp)) {
-			*tp = tolower(*fp);
+		if (isupper((unsigned int)*fp)) {
+			*tp = tolower((unsigned int)*fp);
 		}else{
 			*tp = *fp;
 		}
@@ -2933,7 +2933,7 @@ main(int argc, char * argv[])
 	int		argerrs = 0;
 	int		j;
 	char *		CurrentStatus=NULL;
-	pid_t		running_hb_pid = get_running_hb_pid();
+	long		running_hb_pid = get_running_hb_pid();
 
 	num_hb_media_types = 0;
 	num_auth_types = 0;
@@ -3040,15 +3040,15 @@ main(int argc, char * argv[])
 			cleanexit(1);
 		}
 
-		if (kill(running_hb_pid, SIGTERM) >= 0) {
+		if (kill((pid_t)running_hb_pid, SIGTERM) >= 0) {
 			/* Wait for the running heartbeat to die */
 			alarm(0);
 			do {
 				sleep(1);
-			}while (kill(running_hb_pid, 0) >= 0);
+			}while (kill((pid_t)running_hb_pid, 0) >= 0);
 			cleanexit(0);
 		}
-		fprintf(stderr, "ERROR: Could not kill pid %d",running_hb_pid);
+		fprintf(stderr, "ERROR: Could not kill pid %ld", running_hb_pid);
 		perror(" ");
 		cleanexit(1);
 	}
@@ -3062,7 +3062,7 @@ main(int argc, char * argv[])
 		if (running_hb_pid < 0) {
 			printf("%s is stopped. No process\n", cmdname);
 		}else{
-			printf("%s OK [pid %d et al] is running...\n"
+			printf("%s OK [pid %ld et al] is running...\n"
 			,	cmdname, running_hb_pid);
 		}
 		cleanexit(0);
@@ -3080,7 +3080,7 @@ main(int argc, char * argv[])
 		}
 		if (running_hb_pid != getpid()) {
 			fprintf(stderr
-			,	"ERROR: Heartbeat already running [pid %d].\n"
+			,	"ERROR: Heartbeat already running [pid %ld].\n"
 			,	running_hb_pid);
 			cleanexit(1);
 		}
@@ -3244,14 +3244,14 @@ signal_all(int sig)
 }
 
 
-pid_t
+long
 get_running_hb_pid()
 {
-	pid_t	pid;
+	long	pid;
 	FILE *	lockfd;
 	if ((lockfd = fopen(PIDFILE, "r")) != NULL
-	&&	fscanf(lockfd, "%d", &pid) == 1 && pid > 0) {
-		if (kill(pid, 0) >= 0 || errno != ESRCH) {
+	&&	fscanf(lockfd, "%ld", &pid) == 1 && pid > 0) {
+		if (kill((pid_t)pid, 0) >= 0 || errno != ESRCH) {
 			fclose(lockfd);
 			return(pid);
 		}
@@ -3259,7 +3259,7 @@ get_running_hb_pid()
 	if (lockfd != NULL) {
 		fclose(lockfd);
 	}
-	return(-1);
+	return(-1L);
 }
 
 
@@ -3267,7 +3267,7 @@ extern pid_t getsid(pid_t);
 void
 make_daemon(void)
 {
-	pid_t		pid;
+	long		pid;
 	FILE *		lockfd;
 	sigset_t	sighup;
 
@@ -3276,9 +3276,9 @@ make_daemon(void)
 	/* See if heartbeat is already running... */
 
 	if ((pid=get_running_hb_pid()) > 0 && pid != getpid()) {
-		ha_log(LOG_ERR, "%s: already running [pid %d].\n"
+		ha_log(LOG_ERR, "%s: already running [pid %ld].\n"
 		,	cmdname, pid);
-		fprintf(stderr, "%s: already running [pid %d].\n"
+		fprintf(stderr, "%s: already running [pid %ld].\n"
 		,	cmdname, pid);
 		exit(HA_FAILEXIT);
 	}
@@ -3296,10 +3296,10 @@ make_daemon(void)
 			exit(HA_OKEXIT);
 		}
 	}
-	pid = getpid();
+	pid = (long) getpid();
 	lockfd = fopen(PIDFILE, "w");
 	if (lockfd != NULL) {
-		fprintf(lockfd, "%d\n", pid);
+		fprintf(lockfd, "%ld\n", pid);
 		fclose(lockfd);
 	}else{
 		fprintf(stderr, "%s: could not create pidfile [%s]\n"
@@ -3997,6 +3997,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.114  2001/06/07 21:29:44  alan
+ * Put in various portability changes to compile on Solaris w/o warnings.
+ * The symptoms came courtesy of David Lee.
+ *
  * Revision 1.113  2001/05/31 16:51:18  alan
  * Made not being able to create the PID file a fatal error...
  *

@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.9 2001/05/10 22:36:37 alan Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.10 2001/06/07 21:29:44 alan Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *	It's really simple to write in C, but hard to write in the shell...
@@ -117,7 +117,7 @@ main(int argc, char ** argv) {
 			*bcast_arg = EOS;
 			++bcast_arg;
 			/* Did they specify the interface to use? */
-			if (!isdigit(*bcast_arg)) {
+			if (!isdigit((unsigned int)*bcast_arg)) {
 				if_specified = bcast_arg;
 				if ((bcast_arg=strchr(bcast_arg,DELIM))!=NULL){
 					*bcast_arg = EOS;
@@ -267,6 +267,10 @@ eth0	00000000	FED60987	0003	0	0	0	00000000	0	0	0
 */
 /* 
  * $Log: findif.c,v $
+ * Revision 1.10  2001/06/07 21:29:44  alan
+ * Put in various portability changes to compile on Solaris w/o warnings.
+ * The symptoms came courtesy of David Lee.
+ *
  * Revision 1.9  2001/05/10 22:36:37  alan
  * Deleted Makefiles from CVS and made all the warnings go away.
  *

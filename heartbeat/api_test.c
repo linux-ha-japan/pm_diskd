@@ -81,7 +81,7 @@ main(int argc, char ** argv)
 	(void)_ha_msg_h_Id;
 
 	hb = ll_cluster_new("heartbeat");
-	fprintf(stderr, "PID=%d\n", getpid());
+	fprintf(stderr, "PID=%ld\n", (long)getpid());
 	fprintf(stderr, "Signing in with heartbeat\n");
 	if (hb->llc_ops->signon(hb, "ping")!= HA_OK) {
 		fprintf(stderr, "Cannot sign on with heartbeat\n");

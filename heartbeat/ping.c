@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.8 2001/05/26 17:38:01 mmoerz Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.9 2001/06/07 21:29:44 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -237,7 +237,10 @@ struct ha_msg *
 EXPORT(hb_dev_read) (struct hb_media* mp)
 {
 	struct ping_private *	ei;
-	char			buf[MAXLINE+ICMP_HDR_SZ];
+	union {
+		char		cbuf[MAXLINE+ICMP_HDR_SZ];
+		struct ip	ip;
+	}buf;
 	int			addr_len = sizeof(struct sockaddr);
    	struct sockaddr_in	their_addr; /* connector's addr information */
 	struct ip *		ip;
@@ -248,15 +251,15 @@ EXPORT(hb_dev_read) (struct hb_media* mp)
 	PINGASSERT(mp);
 	ei = (struct ping_private *) mp->pd;
 
-	if ((numbytes=recvfrom(ei->sock, buf, sizeof(buf)-1, 0
+	if ((numbytes=recvfrom(ei->sock, &buf.cbuf, sizeof(buf.cbuf)-1, 0
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
 		ha_perror("Error receiving from socket");
 		return NULL;
 	}
-	buf[numbytes] = EOS;
+	buf.cbuf[numbytes] = EOS;
 
 	/* Check the IP header */
-	ip = (struct ip *)buf;
+	ip = &buf.ip;
 	hlen = ip->ip_hl * 4;
 
 	if (numbytes < hlen + ICMP_MINLEN) {
@@ -267,8 +270,8 @@ EXPORT(hb_dev_read) (struct hb_media* mp)
 		return NULL;
 	}
 
-	/* Now the ICMP part */
-	icp = (struct icmp *)(buf + hlen);
+	/* Now the ICMP part */	/* (there may be a better way...) */
+	icp = (struct icmp *)(buf.cbuf + hlen);
 
 	if (icp->icmp_type != ICMP_ECHOREPLY || icp->icmp_id != ei->ident) {
 		return NULL;
@@ -304,7 +307,10 @@ EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msg)
 	struct ping_private *	ei;
 	int			rc;
 	char*			pkt;
-	char*			icmp_pkt;
+	union{
+		char*			buf;
+		struct icmp		ipkt;
+	}*icmp_pkt;
 	int			size;
 	struct icmp *		icp;
 	int			pktsize;
@@ -369,7 +375,7 @@ EXPORT(hb_dev_write) (struct hb_media* mp, struct ha_msg * msg)
 	memcpy(icmp_pkt + ICMP_HDR_SZ, pkt, size);
 	ha_free(pkt); pkt = NULL;
 
-	icp = (struct icmp *)icmp_pkt;
+	icp = &(icmp_pkt->ipkt);
 	icp->icmp_type = ICMP_ECHO;
 	icp->icmp_code = 0;
 	icp->icmp_cksum = 0;

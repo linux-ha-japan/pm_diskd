@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.4 2000/12/04 20:33:17 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.5 2001/06/07 21:29:44 alan Exp $";
 /* send_arp.c
 
 This program sends out one ARP packet with source/target IP and Ethernet
@@ -102,10 +102,10 @@ get_ip_addr(&targ_in_addr,argv[4]);
 memcpy(pkt.sndr_ip_addr,&src_in_addr,IP_ADDR_LEN);
 memcpy(pkt.rcpt_ip_addr,&targ_in_addr,IP_ADDR_LEN);
 
-bzero(pkt.padding,18);
+memset(pkt.padding,0, 18);
 
 strcpy(sa.sa_data,argv[1]);
-if(sendto(sock,&pkt,sizeof(pkt),0,&sa,sizeof(sa)) < 0){
+if(sendto(sock, (const void *)&pkt,sizeof(pkt),0,&sa,sizeof(sa)) < 0){
         perror("sendto");
         exit(1);
         }
@@ -117,19 +117,19 @@ fprintf(stderr,"%s\n",str);
 exit(1);
 }
 
-void get_ip_addr(struct in_addr* in_addr,char* str){
+void get_ip_addr(struct in_addr* in_addr,char* str)
+{
+	struct hostent *hostp;
 
-struct hostent *hostp;
-
-in_addr->s_addr=inet_addr(str);
-if(in_addr->s_addr == -1){
-        if( (hostp = gethostbyname(str)))
-                bcopy(hostp->h_addr,in_addr,hostp->h_length);
-        else {
-                fprintf(stderr,"send_arp: unknown host %s\n",str);
-                exit(1);
-                }
-        }
+	in_addr->s_addr=inet_addr(str);
+	if(in_addr->s_addr == -1){
+        	if( (hostp = gethostbyname(str))) {
+                	memcpy(in_addr, hostp->h_addr, hostp->h_length);
+		}else{
+                	fprintf(stderr,"send_arp: unknown host %s\n",str);
+                	exit(1);
+               	}
+	}
 }
 
 void get_hw_addr(u_char* buf,char* str){
@@ -138,14 +138,14 @@ int i;
 char c,val = 0;
 
 for(i=0;i<ETH_HW_ADDR_LEN;i++){
-        if( !(c = tolower(*str++))) die("Invalid hardware address");
-        if(isdigit(c)) val = c-'0';
+        if( !(c = tolower((unsigned int)(*str++)))) die("Invalid hardware address");
+        if(isdigit((unsigned int)c)) val = c-'0';
         else if(c >= 'a' && c <= 'f') val = c-'a'+10;
         else die("Invalid hardware address");
 
         *buf = val << 4;
         if( !(c = tolower(*str++))) die("Invalid hardware address");
-        if(isdigit(c)) val = c-'0';
+        if(isdigit((unsigned int)c)) val = c-'0';
         else if(c >= 'a' && c <= 'f') val = c-'a'+10;
         else die("Invalid hardware address");
 
@@ -157,6 +157,10 @@ for(i=0;i<ETH_HW_ADDR_LEN;i++){
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.5  2001/06/07 21:29:44  alan
+ * Put in various portability changes to compile on Solaris w/o warnings.
+ * The symptoms came courtesy of David Lee.
+ *
  * Revision 1.4  2000/12/04 20:33:17  alan
  * OpenBSD fixes from Frank DENIS aka Jedi/Sector One <j@c9x.org>
  *

@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.6 2001/05/11 14:55:06 alan Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.7 2001/06/07 21:29:44 alan Exp $";
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -159,8 +159,9 @@ ha_free(void *ptr)
 
 	cptr = ptr;
 	cptr -= ha_malloc_hdr_offset;
+	ptr = cptr;
 
-	bhdr = (struct ha_bucket*) cptr;
+	bhdr = (struct ha_bucket*) ptr;
 
 	if (bhdr->hdr.magic != HA_MALLOC_MAGIC) {
 		ha_log(LOG_ERR, "Bad magic number in ha_free()");
@@ -241,7 +242,7 @@ ha_calloc(size_t nmemb, size_t size)
 	void *	ret = ha_malloc(nmemb*size);
 
 	if (ret != NULL) {
-		bzero(ret, nmemb*size);
+		memset(ret, 0, nmemb*size);
 	}
 		
 	return(ret);

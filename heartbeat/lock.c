@@ -85,16 +85,16 @@ DoLock(const char * prefix, const char *lockname)
 {
 	char lf_name[256], tf_name[256], buf[LOCKSTRLEN+1];
 	int fd;
-	pid_t pid, mypid;
+	unsigned long pid, mypid;
 	int rc;
 	struct stat sbuf;
 
-	mypid = getpid();
+	mypid = (unsigned long) getpid();
 
 	snprintf(lf_name, sizeof(lf_name), "%s/%s%s"
 	,	TTY_LOCK_D, prefix, lockname);
 
-	snprintf(tf_name, sizeof(tf_name), "%s/tmp%d-%s"
+	snprintf(tf_name, sizeof(tf_name), "%s/tmp%lu-%s"
 	,	TTY_LOCK_D, mypid, lockname);
 
 	if ((fd = open(lf_name, O_RDONLY)) >= 0) {
@@ -110,10 +110,10 @@ DoLock(const char * prefix, const char *lockname)
 		if (read(fd, buf, sizeof(buf)) < 1) {
 			/* lockfile empty -> rm it and go on */;
 		} else {
-			if (sscanf(buf, "%d", &pid) < 1) {
+			if (sscanf(buf, "%lu", &pid) < 1) {
 				/* lockfile screwed up -> rm it and go on */
 			} else {
-				if (kill(pid, 0) < 0 && errno != ESRCH) {
+				if (kill((pid_t)pid, 0) < 0 && errno != ESRCH) {
 					/* tty is locked by existing (not
 					 * necessarily running) process
 					 * -> give up */
@@ -132,7 +132,7 @@ DoLock(const char * prefix, const char *lockname)
 	}
 
 	/* Slight overkill with the %*d format ;-) */
-	snprintf(buf, sizeof(buf), "%*d\n", LOCKSTRLEN-1, mypid);
+	snprintf(buf, sizeof(buf), "%*lu\n", LOCKSTRLEN-1, mypid);
 
 	if (write(fd, buf, LOCKSTRLEN) != LOCKSTRLEN) {
 		/* Again, nothing we can do about this */

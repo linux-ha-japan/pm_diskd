@@ -294,8 +294,8 @@ EXPORT(hb_auth_calc) (const struct auth_info *t, const char * text)
 		key_len = MD5_DIGESTSIZE;
 	}       
 	/* start out by storing key in pads */
-	bzero(k_ipad, sizeof k_ipad);
-	bzero(k_opad, sizeof k_opad);
+	memset(k_ipad, 0, sizeof k_ipad);
+	memset(k_opad, 0, sizeof k_opad);
 	bcopy(key, k_ipad, key_len);
 	bcopy(key, k_opad, key_len);
 

@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+int setenv(const char *name, const char * value, int why);
+
 /*
  *	Small replacement function for setenv()
  */
