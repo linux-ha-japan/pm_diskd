@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.3 2002/04/13 22:35:08 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.4 2002/04/26 21:24:51 alan Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -441,16 +441,16 @@ ping_write(struct hb_media* mp, struct ha_msg * msg)
 		return HA_FAIL;
 	}
 
-	memcpy(icmp_pkt + ICMP_HDR_SZ, pkt, size);
-	ha_free(pkt); pkt = NULL;
-
 	icp = &(icmp_pkt->ipkt);
 	icp->icmp_type = ICMP_ECHO;
 	icp->icmp_code = 0;
 	icp->icmp_cksum = 0;
 	icp->icmp_seq = htons(ei->iseq);
-	icp->icmp_id = ei->ident;
+	icp->icmp_id = ei->ident;	/* Only used by us */
 	++ei->iseq;
+
+	memcpy(icp->icmp_data, pkt, size);
+	ha_free(pkt); pkt = NULL;
 
 	/* Compute the ICMP checksum */
 	icp->icmp_cksum = in_cksum((u_short *)icp, pktsize);
