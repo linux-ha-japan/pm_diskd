@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.2 1999/09/29 03:33:51 alanr Exp $
+#	$Id: Specfile,v 1.3 1999/10/02 06:37:05 alanr Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -21,9 +21,10 @@ It implements the following kinds of heartbeats:
 	- Bidirectional Serial PPP/UDP Rings (using PPP for error correction)
 
 %changelog
-* Mon Sep 27 1999  Alan Robertson <alanr@henge.com>,
+* Mon Oct 04 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
-     and Mitja Sarp <mitja@lysator.liu.se>
+     Mitja Sarp <mitja@lysator.liu.se>,
+     and Guenther Thomsen <thomsen@cs.tu-berlin.de>
 
      0.4.5 (this version) IS NOT RELEASED YET!!!
 
@@ -38,6 +39,7 @@ It implements the following kinds of heartbeats:
   + Incorporated patch from Guenther Thomsen to clean up logging a lot!
   + You can send a SIGHUP to heartbeat control process to change authentication
 	parameters without restarting
+  + Improved FreeBSD compatibility.
 
 * Thu Sep 16 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, and Rudy Pawul <rpawul@iso-ne.com>
