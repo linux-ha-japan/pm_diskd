@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.139 2001/10/02 20:15:40 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.140 2001/10/03 18:09:51 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -995,7 +995,7 @@ read_child(struct hb_media* mp)
         FILE *  statusfp = fdopen(statusfd, "w");
 
 	curproc->pstat = RUNNING;
-        set_proc_title("%s: read child: %s", cmdname, mp->name);
+        set_proc_title("%s: read: %s %s", cmdname, mp->type, mp->name);
 
 	for (;;) {
 		struct	ha_msg*	m = mp->vf->read(mp);
@@ -1047,7 +1047,7 @@ write_child(struct hb_media* mp)
 
 	siginterrupt(SIGALRM, 1);
 	curproc->pstat = RUNNING;
-        set_proc_title("%s: write child: %s", cmdname, mp->name);
+        set_proc_title("%s: write: %s %s", cmdname, mp->type, mp->name);
 
 	for (;;) {
 		struct ha_msg * msgp = if_msgfromstream(ourfp, NULL);
@@ -4271,6 +4271,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.140  2001/10/03 18:09:51  alan
+ * Changed the process titles a little so that the medium type is displayed.
+ *
  * Revision 1.139  2001/10/02 20:15:40  alan
  * Debug code, etc. from Matt Soffen...
  *
