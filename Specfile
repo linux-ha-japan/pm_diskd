@@ -1,13 +1,13 @@
-#	$Id: Specfile,v 1.18 1999/10/25 15:37:23 alan Exp $
+#	$Id: Specfile,v 1.19 1999/11/07 04:06:57 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
 Release:	%RPMREL%
 Copyright: GPL
-URL: http://www.henge.com/~alanr/ha/
+URL: http://linux-ha.org/
 Group: Utilities
 Packager: Alan Robertson <alanr@henge.com>
-Source: http://www.henge.com/~alanr/ha/download/%PKG%-%VERS%.tar.gz
+Source: http://linux-ha.org/download/%PKG%-%VERS%.tar.gz
 Buildroot: /var/tmp/heartbeat-root
 %description
 %PKG% is a basic heartbeat subsystem for Linux-HA.
@@ -33,6 +33,8 @@ It implements the following kinds of heartbeats:
   + Made resource status detection compatible with SuSE start/stop expectations
   + Fixed a bug relating to serial and ppp-udp authentication (it never worked)
   + added a little more substance to the error recovery for the HB protocol.
+  + Fixed a bug for logging from shell scripts
+  + Added a little logging for initial resource acquisition
 
 * Wed Oct 13 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
