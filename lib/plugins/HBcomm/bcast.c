@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.7 2001/10/02 15:52:20 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.8 2001/10/02 20:15:41 alan Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -224,6 +224,10 @@ bcast_new(const char * intf)
 
 	bcast_init();
 	ipi = new_ip_interface(intf, udpport);
+	if (DEBUGPKT) {
+		ha_log(LOG_DEBUG, "bcast_new: attempting to open %s:%d", intf, udpport);
+	}
+
 	if (ipi == NULL) {
 		LOG(PIL_CRIT, "IP interface [%s] does not exist"
 		,	intf);
@@ -236,9 +240,17 @@ bcast_new(const char * intf)
 		name = ha_malloc(strlen(intf)+1);
 		strcpy(name, intf);
 		ret->name = name;
+		ret->wpipe[0] = 0;
+		ret->wpipe[1] = 0;
+		if (DEBUGPKT) {
+			ha_log(LOG_DEBUG, "bcast_new: returning ret (%s)", ret->name);
+		}
 	}else{
 		ha_free(ipi->interface);
 		ha_free(ipi);
+		if (DEBUGPKT) {
+			ha_log(LOG_DEBUG, "bcast_new: ret was NULL");
+		}
 	}
 	return(ret);
 }
@@ -261,8 +273,17 @@ bcast_open(struct hb_media* mp)
 		bcast_close(mp);
 		return(HA_FAIL);
 	}
-	LOG(PIL_INFO, "UDP Broadcast heartbeat started on port %d interface %s"
-	,	udpport, mp->name);
+	ha_log(LOG_INFO
+	,	"UDP Broadcast heartbeat started on port %d (%d) interface %s"
+	,	udpport, ei->port, mp->name);
+
+	if (DEBUGPKT) {
+		ha_log(LOG_DEBUG
+		,	"bcast_open : Socket %d opened for reading"
+		", socket %d opened for writing."
+		,	ei->rsocket, ei->wsocket);
+	}
+
 	return(HA_OK);
 }
 
@@ -288,6 +309,9 @@ bcast_close(struct hb_media* mp)
 			rc = HA_FAIL;
 		}
 	}
+	ha_log(LOG_NOTICE, "UDP Broadcast heartbeat closed on port %d interface %s - Status: %d"
+	,	udpport, mp->name, rc);
+
 	return(rc);
 }
 /*
@@ -306,9 +330,15 @@ bcast_read(struct hb_media* mp)
 	BCASTASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
 
-	if ((numbytes=recvfrom(ei->rsocket, buf, MAXLINE-1, 0
+	if (DEBUGPKT) {
+		ha_log(LOG_DEBUG, "bcast_read : reading from socket %d (writing to socket %d)"
+		,	ei->rsocket, ei->wsocket);
+	}
+
+	if ((numbytes=recvfrom(ei->rsocket, buf, MAXLINE-1, MSG_WAITALL
 	,	(struct sockaddr *)&their_addr, &addr_len)) == -1) {
-		LOG(PIL_CRIT, "Error receiving from socket: %s", strerror(errno));
+		LOG(PIL_CRIT
+		,	"Error receiving from socket: %s", strerror(errno));
 	}
 	buf[numbytes] = EOS;
 
@@ -352,9 +382,11 @@ bcast_write(struct hb_media* mp, struct ha_msg * msgptr)
 	}
 
 	if (DEBUGPKT) {
-		LOG(PIL_DEBUG, "sent %d bytes to %s"
-		,	rc, inet_ntoa(ei->addr.sin_addr));
+		LOG(PIL_DEBUG
+		,	"bcast_write : writing %d bytes to %s (socket %d)"
+		,	rc, inet_ntoa(ei->addr.sin_addr), ei->wsocket);
    	}
+
 	if (DEBUGPKTCONT) {
 		LOG(PIL_DEBUG, pkt);
    	}
@@ -379,12 +411,24 @@ bcast_make_send_sock(struct hb_media * mp)
 		return(sockfd);
    	}
 
+	if (DEBUGPKT) {
+		ha_log (LOG_DEBUG
+		,	"bcast_make_send_sock: Opened socket %d", sockfd);
+	}
+
 	/* Warn that we're going to broadcast */
 	if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &one,sizeof(one))==-1){
 		LOG(PIL_CRIT, "Error setting socket option SO_BROADCAST: %s"
 		,	strerror(errno));
 		close(sockfd);
 		return(-1);
+	}
+
+	if (DEBUGPKT) {
+		ha_log (LOG_DEBUG
+		,	"bcast_make_send_sock: Modified %d"
+		" Added option SO_BROADCAST."
+			, sockfd);
 	}
 
 #if defined(SO_DONTROUTE) && !defined(USE_ROUTING)
@@ -395,6 +439,13 @@ bcast_make_send_sock(struct hb_media * mp)
 		close(sockfd);
 		return(-1);
 	}
+
+	if (DEBUGPKT) {
+		ha_log (LOG_DEBUG, "bcast_make_send_sock:"
+		" Modified %d Added option SO_DONTROUTE."
+			, sockfd);
+	}
+
 #endif
 #if defined(SO_BINDTODEVICE)
 	{
@@ -408,11 +459,21 @@ bcast_make_send_sock(struct hb_media * mp)
 
 		if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE
 		,	&i, sizeof(i)) == -1) {
-			LOG(PIL_CRIT, "Error setting socket option SO_BINDTODEVICE: %s"
+			LOG(PIL_CRIT
+			,	"Error setting socket option SO_BINDTODEVICE"
+			": %s"
 			,	strerror(errno));
 			close(sockfd);
 			return(-1);
 		}
+
+		if (DEBUGPKT) {
+			ha_log (LOG_DEBUG
+			, "bcast_make_send_sock: Modified %d"
+			" Added option SO_BINDTODEVICE."
+			,	sockfd);
+		}
+
 	}
 #endif
 	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
@@ -463,6 +524,12 @@ bcast_make_receive_sock(struct hb_media * mp) {
 		LOG(PIL_CRIT, "Error setting socket option SO_REUSEADDR: %s"
 		,	strerror(errno));
 	}        
+
+        if (DEBUGPKT) {
+		ha_log (LOG_DEBUG, "bcast_make_receive_sock: Modified %d Added option SO_REUSEADDR."
+		, sockfd);
+	}
+
 #if defined(SO_BINDTODEVICE)
 	{
 		/*
@@ -474,7 +541,8 @@ bcast_make_receive_sock(struct hb_media * mp) {
 		if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE
 		,	&i, sizeof(i)) == -1) {
 			LOG(PIL_CRIT
-			,	"Error setting socket option SO_BINDTODEVICE(r) on %s: %s"
+			,	"Error setting socket option"
+			" SO_BINDTODEVICE(r) on %s: %s"
 			,	i.ifr_name, strerror(errno));
 			close(sockfd);
 			return(-1);
@@ -522,6 +590,10 @@ bcast_make_receive_sock(struct hb_media * mp) {
 	if (fcntl(sockfd,F_SETFD, FD_CLOEXEC)) {
 		LOG(PIL_CRIT, "Error setting the close-on-exec flag: %s"
 		,	strerror(errno));
+	}
+	if (DEBUGPKT) {
+		ha_log (LOG_DEBUG
+		,	"bcast_make_receive_sock: Returning %d", sockfd);
 	}
 	return(sockfd);
 }
@@ -624,11 +696,9 @@ new_ip_interface(const char * ifn, int port)
 int
 if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 {
-	int
-		return_val,
-		fd = -1;
-	struct ifreq
-		ifr; /* points to one interface returned from ioctl */
+	int		return_val;
+	int		fd = -1;
+	struct ifreq ifr; /* points to one interface returned from ioctl */
 
 	/* get rid of compiler warnings about unreferenced variables */
 	(void)_heartbeat_h_Id;
@@ -661,7 +731,8 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 			
 			/* leave return_val set to 0 to return success! */
 		}else{
-			LOG(PIL_CRIT, "Wrong family for broadcast interface %s: %s"
+			LOG(PIL_CRIT
+			,	"Wrong family for broadcast interface %s: %s"
 			,	ifn, strerror(errno));
 			return_val = -1;
 		}
@@ -680,6 +751,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.8  2001/10/02 20:15:41  alan
+ * Debug code, etc. from Matt Soffen...
+ *
  * Revision 1.7  2001/10/02 15:52:20  alan
  * Replaced bzero with memset...  This is a minor portability issue...
  *

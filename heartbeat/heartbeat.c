@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.138 2001/10/02 05:12:19 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.139 2001/10/02 20:15:40 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -762,6 +762,14 @@ initialize_heartbeat()
 		}
 	}
 
+	if (stat(FIFONAME, &buf) < 0) {
+		ha_log(LOG_ERR, "FIFO %s does not exist", FIFONAME);
+		return(HA_FAIL);
+	}else if (!S_ISFIFO(buf.st_mode)) {
+		ha_log(LOG_ERR, "%s is not a FIFO", FIFONAME);
+		return(HA_FAIL);
+	}
+
 	if (stat(API_REGFIFO, &buf) < 0 || !S_ISFIFO(buf.st_mode)) {
 		ha_log(LOG_INFO, "Creating FIFO %s.", API_REGFIFO);
 		unlink(API_REGFIFO);
@@ -771,11 +779,11 @@ initialize_heartbeat()
 		}
 	}
 
-	if (stat(FIFONAME, &buf) < 0) {
-		ha_log(LOG_ERR, "FIFO %s does not exist", FIFONAME);
+	if (stat(API_REGFIFO, &buf) < 0) {
+		ha_log(LOG_ERR, "FIFO %s does not exist", API_REGFIFO);
 		return(HA_FAIL);
 	}else if (!S_ISFIFO(buf.st_mode)) {
-		ha_log(LOG_ERR, "%s is not a FIFO", FIFONAME);
+		ha_log(LOG_ERR, "%s is not a FIFO", API_REGFIFO);
 		return(HA_FAIL);
 	}
 
@@ -794,8 +802,8 @@ initialize_heartbeat()
 			return(HA_FAIL);
 		}
 		if (ANYDEBUG) {
-			ha_log(LOG_DEBUG, "opening %s %s", smj->type
-			,	smj->name);
+			ha_log(LOG_DEBUG, "opening %s %s (%s)", smj->type
+			,	smj->name, smj->description);
 		}
 		if (smj->vf->open(smj) != HA_OK) {
 			ha_log(LOG_ERR, "cannot open %s %s"
@@ -1088,6 +1096,7 @@ control_process(FILE * fp)
                 process_pending_handlers();
 
 		if (msg == NULL) {
+			ha_log(LOG_DEBUG, "got NULL msg in control_process");
 			continue;
 		}
 		if (DEBUGPKTCONT) {
@@ -1172,7 +1181,7 @@ send_to_all_media(char * smsg, int len)
 			signal_all(SIGTERM);
 		}else if (wrc != len) {
 			ha_log(LOG_ERR
-			,	"Short write on media %d [%d vs %d]"
+			,	"Short write on media pipe %d [%d vs %d]"
 			,	j, wrc, len);
 		}
 		alarm(0);
@@ -1184,7 +1193,7 @@ send_to_all_media(char * smsg, int len)
 void
 master_status_process(void)
 {
-	FILE *			f = fdopen(status_pipe[P_READFD], "r");
+	FILE *			f;
 	FILE *			regfifo;
 	struct ha_msg *		msg = NULL;
 	TIME_T			lastnow = 0L;
@@ -1200,11 +1209,21 @@ master_status_process(void)
         set_proc_title("%s: master status process", cmdname);
 
 	/* We open it this way to keep the open from hanging... */
+	if ((f = fdopen(status_pipe[P_READFD], "r")) == NULL) {
+		ha_perror ("master_status_process: unable to open"
+		" status_pipe(READ)");
+		cleanexit(1);
+	}
 
 	if ((fd = open(API_REGFIFO, O_RDWR)) < 0) {
 		ha_log(LOG_ERR
 		,	"master_status_process: Can't open " API_REGFIFO);
 		cleanexit(1);
+	}
+	if (DEBUGPKT) {
+		ha_log(LOG_DEBUG
+		, "master_status_process: opened socket %d for REGISTER :%s"
+		,	fd, API_REGFIFO);
 	}
 
 	if ((regfifo = fdopen(fd, "r")) == NULL) {
@@ -1250,7 +1269,7 @@ master_status_process(void)
 
 	for (;; (msg != NULL) && (ha_msg_del(msg),msg=NULL, 1)) {
 		TIME_T		now = time(NULL);
-		fd_set		inpset;
+		fd_set		inpset; 
 		fd_set		exset;
 		int		ndesc;
 		int		selret;
@@ -1302,12 +1321,21 @@ master_status_process(void)
 		 * whine about it ;-)
 		 */
 		ndesc = compute_msp_fdset(&inpset, fd, regfd);
+		if (DEBUGPKTCONT) {
+			ha_log(LOG_DEBUG
+			,	"Just ran compute_msp_fdset on"
+			" (fd : %d and regfd: %d) got ndesc: %d"
+			,	fd, regfd, ndesc);
+		}
 		exset = inpset;
 
 		/* It might be nice to look for exceptions on the API FIFOs */
 		selret = select(ndesc, &inpset, NULL, &exset, NULL);
 		if (DEBUGPKTCONT) {
-			ha_log(LOG_DEBUG, "select returned %d", selret);
+			ha_log(LOG_DEBUG
+			,	"select from socket %d"
+			" (readfds: %d, expectionfds: %d) returned %d"
+			,	ndesc, inpset, exset, selret);
 		}
 		if (selret <= 0) {
 			continue;	/* Timeout */
@@ -1316,7 +1344,8 @@ master_status_process(void)
 		/* Do we have input on our status message FIFO? */
 		if (FD_ISSET(fd, &inpset)) {
 			if (DEBUGPKTCONT) {
-				ha_log(LOG_DEBUG, "got clustermsg");
+				ha_log(LOG_DEBUG
+			,	"got clustermsg on fd %d", fd);
 			}
 			process_clustermsg(f);
 			FD_CLR(fd, &inpset);
@@ -1325,7 +1354,9 @@ master_status_process(void)
 
 		/* Do we have input on the API registration FIFO? */
 		if (selret > 0 && FD_ISSET(regfd, &inpset)) {
-			ha_log(LOG_DEBUG, "Processing registration message.\n");
+			ha_log(LOG_DEBUG
+			,	"Processing register message from regfd %d.\n"
+			,	regfd);
 			process_registermsg(regfifo);
 			FD_CLR(regfd, &inpset);
 			--selret;
@@ -1335,7 +1366,7 @@ master_status_process(void)
 		if (selret > 0) {
 			ha_log(LOG_DEBUG, "Processing %d API messages", selret);
 			process_api_msgs(&inpset, &exset);
-		}
+		}		
 	}
 }
 
@@ -2531,8 +2562,14 @@ set_local_status(const char * newstatus)
 		strncpy(curnode->status, newstatus, sizeof(curnode->status));
 		send_local_status();
 		ha_log(LOG_INFO, "Local status now set to: '%s'", newstatus);
+		if (DEBUGPKT) {
+			ha_log(LOG_DEBUG
+			,	"Local status now set to: %s", newstatus);
+		}
 		return(HA_OK);
 	}
+
+	ha_log(LOG_INFO, "Unable to set local status to: %s", newstatus);
 	return(HA_FAIL);
 }
 
@@ -2579,7 +2616,9 @@ send_cluster_msg(struct ha_msg* msg)
 			ha_log(LOG_DEBUG, "Packet content: %s", smsg);
 		}
 #ifdef OPEN_FIFO_FOR_EACH_MESSAGE
-		close(ffd);
+		if (close(ffd) < 0) {
+			ha_perror ("unable to close ffd %d", ffd);
+		}
 		ffd = -1;
 #endif
 
@@ -2591,7 +2630,7 @@ send_cluster_msg(struct ha_msg* msg)
 
 
 /* Translates the resources_held string into an integer */
-int
+int 
 encode_resources(const char *p)
 {
 	int i;
@@ -2684,7 +2723,7 @@ send_local_status(void)
 		ha_log(LOG_DEBUG, "Sending local status");
 	}
 	if ((m=ha_msg_new(0)) == NULL) {
-		ha_log(LOG_ERR, "Cannot send local status");
+		ha_log(LOG_ERR, "Cannot send local status.");
 		return(HA_FAIL);
 	}
 	if (ha_msg_add(m, F_TYPE, T_STATUS) == HA_FAIL
@@ -4232,6 +4271,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.139  2001/10/02 20:15:40  alan
+ * Debug code, etc. from Matt Soffen...
+ *
  * Revision 1.138  2001/10/02 05:12:19  alan
  * Various portability fixes (make warnings go away) for Solaris.
  *

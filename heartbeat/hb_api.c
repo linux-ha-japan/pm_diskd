@@ -64,6 +64,7 @@
  */
 
 #include <portability.h>
+#include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -1355,6 +1356,10 @@ compute_msp_fdset(fd_set* set, int fd1, int fd2)
 	int	newmin = MAXFD + 1;
 	int	pmax = (fd1 > fd2 ? fd1 : fd2);
 
+	g_assert(fd1 < FD_SETSIZE);
+	g_assert(fd2 < FD_SETSIZE);
+	g_assert(maxfd < MAXFD);
+
 	FD_ZERO(set);
 	FD_SET(fd1, set);
 	FD_SET(fd2, set);
@@ -1371,7 +1376,9 @@ compute_msp_fdset(fd_set* set, int fd1, int fd2)
 	}
 	maxfd = newmax;
 	minfd = newmin;
-	return (pmax > newmax ? pmax : newmax)+1;
+	ha_log (LOG_DEBUG, "fd1: %d, fd2: %d maxfd: %d, minfd: %d, pmax: %d"
+		,fd1, fd2, maxfd, minfd, pmax);
+	return ((pmax > newmax ? pmax : newmax)+1);
 }
 
 /* Process select(2)ed API FIFOs for messages */

@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.6 2001/10/02 05:12:19 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.7 2001/10/02 20:15:41 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -530,6 +530,13 @@ serial_read (struct hb_media*mp)
 			 * I suppose it just becomes an IPC abstraction
 			 * and we issue a "msgput" or some such on it...
 			 */
+			if (DEBUGPKT) {
+				ha_log(LOG_DEBUG
+				,	"serial_read: writing %s"
+				" (len: %d) to %d"
+				,	newmsg, newmsglen
+				,	sp->wpipe[P_WRITEFD]);
+			}
 			write(sp->wpipe[P_WRITEFD], newmsg, newmsglen);
 		}
 	}
@@ -568,6 +575,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.7  2001/10/02 20:15:41  alan
+ * Debug code, etc. from Matt Soffen...
+ *
  * Revision 1.6  2001/10/02 05:12:19  alan
  * Various portability fixes (make warnings go away) for Solaris.
  *
