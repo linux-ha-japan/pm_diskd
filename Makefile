@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.72 2001/02/26 05:38:41 alan Exp $
+#	$Id: Makefile,v 1.73 2001/03/06 21:11:46 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -235,6 +235,9 @@ rpm:            tar $(SPECFILE)
 		echo "##########################################";	\
 		echo "# $(PKG) $(VERS) RPM for $$DISTRO is ready";	\
 		echo "##########################################";
+
+labs: rpm
+		synclabs
 #
 #       Things for making the tar.gz file
 
