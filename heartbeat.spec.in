@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.48 2003/02/11 22:00:07 yixiong Exp $
+#	$Id: heartbeat.spec.in,v 1.49 2003/02/13 17:37:43 alan Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -67,8 +67,32 @@ PILS is designed to support any number of plugins
 implementing any number of interfaces.
 
 %changelog
-* Sat Nov 30 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
-+ Version 0.5.0 beta series
+* Thu Feb 13 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
++ Version 1.0.0 beta series
+
+  0.4.9g:
+  + Changed default deadtime, warntime, and heartbeat interval
+  + Auto* tool updates
+  + VIP loopback fixes for IP address takeover
+  + Various Solaris and FreeBSD fixes
+  + added SNMP agent
+  + Several CCM bug fixes
+  + two new heartbeat API calls
+  + various documentation fixes, including documentation for ipfail
+  + Numerous minor cleanups.
+  + Fixed a few bugs in the IPC code.
+  + Fixed the (IPC) bug which caused apphbd to hang the whole machine.
+  + Added a new IPC call (waitout)
+  + Wrote a simple IPC test program.
+  + Clarified several log messages.
+  + Cleaned up the ucast communications plugin
+  + Cleaned up for new C compilers
+  + Fixed permissions bug in IPC which caused apphbd to not be usable by all
+  + Added a new rtprio option to the heartbeat config file
+  + updated apphbtest program
+  + Changed ipfail to log things at same level heartbeat does
+
+
 
   0.4.9f:
   + Added pre-start, pre-stop, post-stop and pre-stop constructs in init script
