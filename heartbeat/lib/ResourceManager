@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager,v 1.6 2000/10/25 19:49:33 eric Exp $
+#	$Id: ResourceManager,v 1.7 2000/12/06 09:11:31 jacob Exp $
 #
 #	New haresources format:
 #
@@ -85,6 +85,7 @@ ipres() {
 	#
 	sed						\
 		-e  's%#.*%%'				\
+		-e :a -e '/\\$/N; s/\\\n//; ta'		\
 		-e  's%$% %'				\
 		-e  's%[	 ][	 ]*% %g' 	\
 		-e  's%^ %%' 				|
@@ -248,9 +249,13 @@ esac
 
 #
 #	$Log: ResourceManager,v $
+#	Revision 1.7  2000/12/06 09:11:31  jacob
+#	Resources in ha.d/haresources can be split over more lines by concatenating
+#	the lines with \ .
+#
 #	Revision 1.6  2000/10/25 19:49:33  eric
 #	Added the ability to specify multiple arguments to a resource script.
-#
+#	
 #	Revision 1.5  2000/07/26 04:14:10  alan
 #	Fixed a bug in a sed expression in ResourceManager
 #	There was a missing 'g'.

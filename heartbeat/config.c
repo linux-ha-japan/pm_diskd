@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.22 2000/11/12 04:29:22 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.23 2000/12/06 09:11:31 jacob Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -529,12 +529,13 @@ parse_ha_resources(const char * cfgfile)
 		char *	endp;
 		char	token[MAXLINE];
 
+		/* Skip over white space */
+		bp += strspn(bp, WHITESPACE);
+
 		if (*bp == COMMENTCHAR) {
 			continue;
 		}
-
-		/* Skip over white space */
-		bp += strspn(bp, WHITESPACE);
+		
 		if (*bp == EOS) {
 			continue;
 		}
@@ -545,6 +546,12 @@ parse_ha_resources(const char * cfgfile)
 			ha_log(LOG_ERR, "Bad nodename in %s [%s]", cfgfile
 			,	token);
 			rc = HA_FAIL;
+			break;
+		}
+
+		while (buf[strlen(buf)-2]=='\\') {
+			if (fgets(buf, MAXLINE-1, f)==NULL)
+				break;
 		}
 	}
 	fclose(f);
