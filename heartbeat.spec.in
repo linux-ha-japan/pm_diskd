@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.57 2003/03/24 09:00:51 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.58 2003/03/24 09:05:21 horms Exp $
 
 # Workaround for a change in RPM 4.1.x; needs proper fixing soon!
 %define _unpackaged_files_terminate_build 0
@@ -590,7 +590,6 @@ install -m 644 rc.config.heartbeat $TEMPL
 %attr (600, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api/ipfail.rsp
 %doc @mandir@/man8/heartbeat.8*
 %doc @mandir@/man8/apphbd.8*
-%doc @mandir@/man8/stonith.8*
 %doc doc/AUTHORS
 %doc doc/COPYING
 %doc doc/ChangeLog
@@ -644,6 +643,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 @libdir@/stonith
 @sbindir@/stonith
 @sbindir@/meatclient
+%doc @mandir@/man8/stonith.8*
 
 ###########################################################
 # Files for the PILS library
