@@ -1,4 +1,4 @@
-static const char _findif_c [] = "$Id: findif.c,v 1.23 2003/02/27 06:46:35 horms Exp $";
+static const char _findif_c [] = "$Id: findif.c,v 1.24 2003/04/14 09:53:17 horms Exp $";
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -105,8 +105,9 @@ void ConvertBitsToMask (char *mask);
  *		>0:	mechanism worked: bad answer
  *	On non-zero, errmsg may have been filled with an error message
  */
-typedef int SearchRoute (char *address, struct in_addr *in, struct in_addr *addr_out
-,	 char *best_if, unsigned long *best_netmask, char *errmsg);
+typedef int SearchRoute (char *address, struct in_addr *in
+,        struct in_addr *addr_out, char *best_if
+,        unsigned long *best_netmask, char *errmsg);
 
 SearchRoute SearchUsingProcRoute;
 SearchRoute SearchUsingRouteCmd;
@@ -152,10 +153,12 @@ ConvertQuadToInt (char *dest)
 	while (strstr (dest, ".")) {
 		*strstr(dest, ".") = ' ';
 	}
-	sscanf (dest, "%u%u%u%u", &ipquad[3], &ipquad[2], &ipquad[1], &ipquad[0]);
+	sscanf (dest, "%u%u%u%u", &ipquad[3], &ipquad[2], &ipquad[1]
+	,	&ipquad[0]);
 	
 #if useMULT
-	intdest = (ipquad[0] * 0x1000000) + (ipquad[1] * 0x10000) + (ipquad[2] * 0x100) + ipquad[3];
+	intdest = (ipquad[0] * 0x1000000) + (ipquad[1] * 0x10000) 
+	+ 		(ipquad[2] * 0x100) + ipquad[3];
 #else
 	intdest = (	((ipquad[0]&0xff) <<24)
 	|		((ipquad[1]&0xff) <<16)
@@ -189,7 +192,8 @@ ConvertBitsToMask (char *mask)
 			p=strtok(NULL, ".");
 			if (p != NULL) {
 				i = strlen(p);
-				strncat(maskwithoutdots, p, (i <= 3 && p != NULL ? i : 3));
+				strncat(maskwithoutdots, p
+				,	(i <= 3 && p != NULL ? i : 3));
 			}
 			else {
 				count = 3;
@@ -215,8 +219,9 @@ ConvertBitsToMask (char *mask)
 }
 
 int
-SearchUsingProcRoute (char *address, struct in_addr *in, struct in_addr *addr_out
-,	 char *best_if, unsigned long *best_netmask, char *errmsg)
+SearchUsingProcRoute (char *address, struct in_addr *in
+, 	 struct in_addr *addr_out, char *best_if
+,	 unsigned long *best_netmask, char *errmsg)
 {
 	long    flags, refcnt, use, metric, dest, gw, mask;
 	long	best_metric = LONG_MAX;
@@ -260,8 +265,9 @@ SearchUsingProcRoute (char *address, struct in_addr *in, struct in_addr *addr_ou
 }
 
 int
-SearchUsingRouteCmd (char *address, struct in_addr *in, struct in_addr *addr_out
-,	 char *best_if, unsigned long *best_netmask, char *errmsg)
+SearchUsingRouteCmd (char *address, struct in_addr *in
+,	 struct in_addr *addr_out, char *best_if
+,	 unsigned long *best_netmask, char *errmsg)
 {
 	char	dest[20], mask[20];
 	char	routecmd[MAXSTR];
@@ -444,7 +450,8 @@ main(int argc, char ** argv) {
 		return(1);
 	}
 
-	GetAddress (argv[1], &address, &netmaskbits, &bcast_arg, &if_specified);
+	GetAddress (argv[1], &address, &netmaskbits, &bcast_arg
+	,	 &if_specified);
 
 	/* Is the IP address we're supposed to find valid? */
 	 
@@ -473,7 +480,7 @@ main(int argc, char ** argv) {
 			}
 			sr++;
 		}
-		if (rc != 0) {		/* No route, or all mechanisms failed */
+		if (rc != 0) {	/* No route, or all mechanisms failed */
 			if (*errmsg) {
 				fprintf(stderr, "%s", errmsg);
 			}
@@ -618,6 +625,9 @@ ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 
 /* 
  * $Log: findif.c,v $
+ * Revision 1.24  2003/04/14 09:53:17  horms
+ * minor reformating
+ *
  * Revision 1.23  2003/02/27 06:46:35  horms
  * Slightly better documentation of the options to findif and thus IPaddr.
  * In particular, how to explicitly define the base interface for a VIP.
