@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.23 2000/08/04 03:45:56 alan Exp $
+#	$Id: Makefile,v 1.24 2000/08/04 05:30:47 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -66,6 +66,8 @@ CFLAGS=-g 				\
 	-DPPP_D='"$(B_HAPPP)"'
 
 #	-Wtraditional
+
+LDFLAGS = -fident
 
 HEARTBEAT = heartbeat
 H_OBJLIST = 	heartbeat.o		\

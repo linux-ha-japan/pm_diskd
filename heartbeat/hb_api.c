@@ -71,6 +71,7 @@
 #include <hb_api.h>
 #include <hb_api_core.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 
 struct api_query_handler query_handler_list [] = {
 	{ API_SIGNOFF, api_signoff },
@@ -175,6 +176,41 @@ api_heartbeat_monitor(struct ha_msg *msg, int msgtype, const char *iface)
 		}
 	}
 }
+/*
+ *	Periodically clean up after dead clients...
+ */
+void
+api_audit_clients(void)
+{
+	static clock_t	audittime = 0L;
+	static clock_t	lastnow = 0L;
+	clock_t		now;
+	client_proc_t*	client;
+	client_proc_t*	nextclient;
+
+
+	/* Allow for clock wraparound */
+	now = times(NULL);
+	if (now > lastnow && now < audittime) {
+		lastnow = now;
+		return;
+	}
+
+	lastnow = now;
+	audittime = now + (CLK_TCK * 10); /* Every 10 seconds */
+
+	for (client=client_list; client != NULL; client=nextclient) {
+		nextclient=client->next;
+
+
+		if (kill(client->pid, 0) < 0 && errno == ESRCH) {
+			ha_log(LOG_ERR, "api_audit_clients: client %d died"
+			,	client->pid);
+			api_remove_client(client);
+			client=NULL;
+		}
+	}
+}
 
 
 /**********************************************************************
@@ -198,6 +234,7 @@ int api_setfilter(const struct ha_msg* msg, struct ha_msg* resp
 
 	if ((client->desired_types  & DEBUGTREATMENTS)== 0
 	&&	(mask&DEBUGTREATMENTS) != 0) {
+
 		/* Only allowed to root and to our uid */
 		if (client->uid != 0 && client->uid != getuid()) {
 			*failreason = "EPERM";
