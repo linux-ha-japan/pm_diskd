@@ -632,7 +632,7 @@ pipi_new_plugintype(MLPluginUniv* pluginuniv)
 	ret->plugins = g_hash_table_new(g_str_hash, g_str_equal);
 
 	if (!ret->plugins) {
-		DELETE(ret);
+		g_free(ret);
 		ret = NULL;
 	}
 	return(ret);
@@ -1068,10 +1068,6 @@ MLModTypeListModules(MLModuleType* mtype
 	int		j;
 
 
-	/* Base module directory must be a full path name */
-	if (!g_path_is_absolute(basedir)) {
-		return(NULL);
-	}
 
 	path = g_string_new(basedir);
 	if (modclass) {
