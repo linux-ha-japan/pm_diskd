@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.118 2001/06/27 23:33:46 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.119 2001/06/28 12:16:44 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2683,8 +2683,8 @@ healed_cluster_partition(struct node_info *t)
 	/* Give up our resources, and restart ourselves */
 	/* This is cleaner than lots of other options. */
 	/* And, it really should work every time... :-) */
-	giveup_resources(0);
 	restart_after_shutdown = 1;
+	giveup_resources(0);
 }
 
 struct fieldname_map {
@@ -4007,6 +4007,10 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.119  2001/06/28 12:16:44  alan
+ * Committed the *rest* of Juri Haberland's script patch that I thought I
+ * had already applied :-(.
+ *
  * Revision 1.118  2001/06/27 23:33:46  alan
  * Put in the changes to use times(&proforma_tms) instead of times(NULL)
  *

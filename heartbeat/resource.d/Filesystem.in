@@ -1,0 +1,240 @@
+#!/bin/sh
+#
+# $Id: Filesystem.in,v 1.1 2001/06/28 12:16:44 alan Exp $
+# 
+# Filesystem
+#      Description: Manages a Filesystem on a shared storage medium.
+#  Original Author: Eric Z. Ayers (eric.ayers@compgen.com)
+# Original Release: 25 Oct 2000
+#          Support: linux-ha-dev@lists.tummy.com
+#
+# usage: ./Filesystem <device> <directory> <fstype> {start|stop|status}
+#
+#<device>    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
+#<directory> : the mount point for the filesystem
+#<fstype>    : name of the filesystem type. e.g. ext2
+#
+#
+# An example usage in /etc/ha.d/haresources: 
+#       node1  10.0.0.170 Filesystem::/dev/sda1::/data1::ext2
+#
+# This assumes you want to manage a filesystem on a shared scsi bus.
+# Do not put this filesystem in /etc/fstab.  This script manages all of
+# that for you.
+#
+# If you are interested in High Availability, you will probably also want
+# some sort of external hardware RAID controller in front of the actual 
+# disks.  I don't mean a RAID controller embedded in the host controller -
+# it has to be a external controller.
+#
+# There is a script for software RAID-1 included in this directory.  Right 
+# now, I wouldn't recommend using software RAID (see notes in the Raid1 script)
+#
+# NOTE: There is no locking (such as a SCSI reservation) being done here.
+#       I would if the SCSI driver could properly maintain the reservation,
+#       which it cannot, even with the 'scsi reservation' patch submitted
+#       earlier this year by James Bottomley.  The patch minimizes the
+#       bus resets caused by a RESERVATION_CONFLICT return, and helps the 
+#       reservation stay when 2 nodes contend for a reservation, 
+#       but it does not attempt to recover the reservation in the 
+#       case of a bus reset.  
+#
+#       What all this means is that if 2 nodes mount the same file system
+#       read-write, the filesystem is going to become corrupted.
+#
+#	As a result, you should use this together with the stonith option
+#	and redundant, independent communications paths.
+#
+#	If you don't do this, don't blame us when you scramble your disk.
+# 
+LC_ALL=en; export LC_ALL 
+
+. HB_SYSCONFDIR/ha.d/shellfuncs
+
+# Utilities used by this script
+MODPROBE=/sbin/modprobe
+FSCK=/sbin/fsck
+FUSER=/sbin/fuser
+MOUNT=/bin/mount
+UMOUNT=/bin/umount
+
+check_util () {
+    if [ ! -x "$1" ] ; then
+	ha_log "ERROR: setup problem: Couldn't find utility $1"
+	exit 1
+    fi
+}
+
+usage() {
+
+cat <<-EOT;
+	usage: $0 <device> <directory> <fstype> {start|stop|status}
+
+	<device>    : name of block device for the filesystem. e.g. /dev/sda1, /dev/md0
+	<directory> : the mount point for the filesystem
+	<fstype>    : name of the filesystem type. e.g. ext2
+
+	EOT
+}
+
+# Check the arguments passed to this script
+DEVICE=$1
+MOUNTPOINT=$2
+FSTYPE=$3
+
+if [ ! -b "$DEVICE" ] ; then
+	ha_log "ERROR: Couldn't find device $DEVICE. Expected /dev/??? to exist"
+	usage
+	exit 1
+fi
+
+if [ ! -d "$MOUNTPOINT" ] ; then
+	ha_log "ERROR: Couldn't find directory  $MOUNTPOINT to use as a mount point"
+	usage
+	exit 1	
+fi
+	
+grep -e "$FSTYPE"'$' /proc/filesystems >/dev/null
+if [ $? != 0  ] ; then
+	ha_log "ERROR: Couldn't find filesystem $FSTYPE in /proc/filesystems"
+	usage
+	exit 1
+fi
+
+# Check to make sure the utilites are found
+check_util $MODPROBE
+check_util $FSCK
+check_util $FUSER
+check_util $MOUNT
+check_util $UMOUNT
+
+# Look for the 'start', 'stop' or status argument
+case "$4" in
+
+#
+# START: Start up the filesystem
+#
+start)
+
+	# See if the device is already mounted.
+	# NOTE: this will not work right if you have more than 10 partitions
+	#       on a single device.
+	$MOUNT | grep -e "^$DEVICE" >/dev/null
+	if [ $? -ne 1 ] ; then
+	    ha_log "ERROR: Device $DEVICE is already mounted!"
+	    exit 1;
+	fi
+
+	# Insert SCSI module
+	if
+	  $MODPROBE scsi_hostadapter
+	then
+	  : $MODPROBE scsi_hostadapter worked
+	else
+	    # This warning is sometimes bogus - the driver is often compiled
+	    # into the kernel.
+	    ha_log "WARNING: Couldn't insert SCSI module."
+	fi
+
+	# Insert Filesystem module
+	$MODPROBE $FSTYPE
+	if [ $? -ne 0 ] ; then
+	    # This warning is usually bogus - the filesystem is often compiled
+	    # into the kernel.
+	    ha_log "WARNING: Couldn't insert $FSTYPE module. (usually safe to ingore)"
+	fi
+
+
+	# Check the filesystem & auto repair.  
+	# NOTE: Some filesystem types don't need this step...  Please modify
+	#       accordingly
+
+	if
+	  case $FSTYPE in
+	    ext3|reiserfs)	false;;
+	    *)			true;;
+	  esac
+        then
+	  ha_log "info: Starting filesystem check on $DEVICE"
+	  $FSCK -t $FSTYPE -a $DEVICE
+	
+	  # NOTE: if any errors at all are detected, it returns non-zero
+	  # if the error is >4 then there is a big problem
+	  if
+	    [ $? -ge 4 ]
+	  then
+	    ha_log "ERROR: Couldn't sucessfully fsck filesystem for $DEVICE"
+	    exit 1	
+	  fi	
+	fi
+
+	# Mount the filesystem.
+	if
+	  $MOUNT -t $FSTYPE $DEVICE $MOUNTPOINT
+        then
+	  : Mount worked!
+        else
+	  ha_log "ERROR: Couldn't mount filesystem $DEVICE on $MOUNTPOINT"
+	  exit 1
+	fi
+
+# end of start)
+;;
+
+#
+# STOP: Unmount the filesystem
+#
+stop)
+
+	# See if the device is currently mounted
+	# NOTE: this will not work right if you have more than 10 devices!
+	$MOUNT | grep -e "^$DEVICE" >/dev/null
+	if [ $? -ne 1 ] ; then
+
+		# Kill all processes open on filesystem
+		$FUSER -mk $MOUNTPOINT
+
+		# the return from fuser doesn't tell us much
+		#if [ $? -ne 0 ] ; then
+		#	echo "ERROR: Couldn't kill processes on $MOUNTPOINT"
+		#	exit 1;
+		#fi
+	
+		# Unmount the filesystem
+		$UMOUNT $DEVICE
+		if [ $? -ne 0 ] ; then
+			ha_log "ERROR: Couldn't unmount filesystem for $MDDEV"
+			exit 1
+		fi
+	else
+		ha_log "WARNING: Filesystem $MOUNTPOINT not mounted?"
+	fi
+
+# end of stop)
+;;
+
+#
+# STATUS: is the filesystem mounted or not?
+#
+status)
+
+	$MOUNT | grep -e "^$DEVICE" >/dev/null
+	if [ $? = 0 ] ; then
+		echo "running"
+	else
+		echo "stopped"
+	fi
+# end of status)
+;;
+
+
+*)
+    echo "This script should be run with a fourth argument of 'start', 'stop', or 'status'"
+    usage
+    exit 1
+;;
+
+esac
+
+# If you got to this point, chances are everything is O.K.
+exit 0;

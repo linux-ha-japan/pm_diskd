@@ -21,4 +21,21 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 harddir			= $(sysconfdir)/ha.d/resource.d
 
-hard_SCRIPTS		= IPaddr AudibleAlarm Raid1 Filesystem
+hard_PROGRAMS		= IPaddr AudibleAlarm Raid1 Filesystem
+
+IPaddr: IPaddr.in
+	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' < $< > $@
+	chmod +x $@
+
+AudibleAlarm: AudibleAlarm.in
+	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' \
+	-e 's%HB_LOCALSTATEDIR%$(localstatedir)%' < $< > $@
+	chmod +x $@
+
+Raid1: Raid1.in
+	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' < $< > $@
+	chmod +x $@
+
+Filesystem: Filesystem.in
+	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' < $< > $@
+	chmod +x $@

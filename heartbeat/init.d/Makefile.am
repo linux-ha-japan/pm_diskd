@@ -21,4 +21,9 @@ MAINTAINERCLEANFILES    = Makefile.in
 
 initddir		= $(sysconfdir)/init.d
 
-initd_SCRIPTS		= heartbeat
+initd_PROGRAMS		= heartbeat
+
+heartbeat: heartbeat.in
+	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' \
+	-e 's%HB_LOCALSTATEDIR%$(localstatedir)%' < $< > $@
+	chmod +x $@
