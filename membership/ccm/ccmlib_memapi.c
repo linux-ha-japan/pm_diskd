@@ -618,7 +618,7 @@ oc_ev_memb_class(oc_ev_callback_t  *fn)
 	class_t *memclass;
 	struct IPC_CHANNEL *ch;
 	GHashTable * attrs;
-	static char 	path[] = PATH_ATTR;
+	static char 	path[] = IPC_PATH_ATTR;
 	static char 	ccmfifo[] = CCMFIFO;
 
 	memclass = g_malloc(sizeof(class_t));

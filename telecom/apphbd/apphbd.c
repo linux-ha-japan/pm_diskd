@@ -721,7 +721,7 @@ shutdown(int nsig)
 static int
 init_start(const char * watchdogdev)
 {
-	char		path[] = PATH_ATTR;
+	char		path[] = IPC_PATH_ATTR;
 	char		commpath[] = APPHBSOCKPATH;
 
 	struct IPC_WAIT_CONNECTION*	wconn;

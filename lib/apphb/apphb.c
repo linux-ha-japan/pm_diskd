@@ -74,7 +74,7 @@ apphb_register(const char * appname, const char * appinstance)
 	int	err;
 	struct IPC_MESSAGE Msg;
 	struct apphb_signupmsg msg;
-	static char path []	= PATH_ATTR;
+	static char path [] = IPC_PATH_ATTR;
 	static char sockpath []	= APPHBSOCKPATH;
 
 	if (hbcomm != NULL) {

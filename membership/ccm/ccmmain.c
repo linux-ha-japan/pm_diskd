@@ -129,7 +129,7 @@ wait_channel_init(void)
 {
 	IPC_WaitConnection *wait_ch;
 	mode_t mask;
-	char path[] = PATH_ATTR;
+	char path[] = IPC_PATH_ATTR;
 	char ccmfifo[] = CCMFIFO;
 	char domainsocket[] = IPC_DOMAIN_SOCKET;
 
