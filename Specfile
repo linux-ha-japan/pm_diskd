@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.23 1999/11/14 08:27:11 alan Exp $
+#	$Id: Specfile,v 1.24 1999/11/22 14:58:54 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -22,12 +22,12 @@ It implements the following kinds of heartbeats:
 	- Bidirectional Serial PPP/UDP Rings (using PPP for error correction)
 
 %changelog
-* Tue Oct 19 1999  Alan Robertson <alanr@henge.com>,
+* Tue Nov 22 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
      Mitja Sarp <mitja@lysator.liu.se>,
      and Guenther Thomsen <thomsen@cs.tu-berlin.de>
 
-+ Version 0.4.6 BETA SERIES -- NOT YET RELEASED
++ Version 0.4.6
   + Fixed timing problem in "heartbeat restart" so it's reliable now
   + Made start/stop status compatible with SuSE expectations
   + Made resource status detection compatible with SuSE start/stop expectations
@@ -38,6 +38,7 @@ It implements the following kinds of heartbeats:
   + Added #!/bin/sh to the front of shell scripts
   + Fixed Makefile, so that the build root wasn't compiled into pathnames
   + Turned on CTSRTS, enabling for flow control for serial ports.
+  + Fixed a bug which kept it from working in non-English environments
 
 * Wed Oct 13 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
