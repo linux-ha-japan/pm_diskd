@@ -125,7 +125,7 @@ inet_pton(int af, const char *src, void *dst);
 #ifdef HAVE_SIGIGNORE
 #	define	IGNORESIG(s)	sigignore(s)
 #else
-#	define	IGNORESIG(s)	signal((s), SIG_IGN))
+#	define	IGNORESIG(s)	signal((s), SIG_IGN)
 #endif
 
 
