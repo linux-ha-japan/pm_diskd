@@ -57,8 +57,6 @@
  *
  * Here are my favorite cleanup tasks:
  *
- * Enahance the standby code to work correctly for the "normal" failback case.
- *
  * Get rid of the "standby_running" timer, and replace it with a gmainloop
  *	timer.
  *
@@ -80,7 +78,9 @@ extern struct node_info *	curnode;
 int				DoManageResources = TRUE;
 int 				nice_failback = FALSE;
 int 				auto_failback = FALSE;
-static int			needs_failback = FALSE;
+int 				failback_in_progress = FALSE;
+static gboolean			rsc_needs_failback = FALSE;
+static gboolean			rsc_needs_shutdown = FALSE;
 int				other_holds_resources = HB_NO_RSC;
 int				other_is_stable = FALSE; /* F_ISSTABLE */
 int				takeover_in_progress = FALSE;
@@ -88,6 +88,9 @@ enum hb_rsc_state		resourcestate = HB_R_INIT;
 enum standby			going_standby = NOT;
 longclock_t			standby_running = 0L;
 static int			standby_rsctype = HB_ALL_RSC;
+static gboolean			init_takeover_announced = FALSE;
+
+#define	INITMSG			"Initial resource acquisition complete"
 
 /*
  * A helper to allow us to pass things into the anonproc
@@ -134,6 +137,8 @@ static	const char * StonithProcessName(ProcTrack* p);
 void	Initiate_Reset(Stonith* s, const char * nodename);
 static int FilterNotifications(const char * msgtype);
 static int countbystatus(const char * status, int matchornot);
+static gboolean hb_rsc_isstable(void);
+static void shutdown_if_needed(void);
 
 ProcTrack_ops hb_rsc_RscMgmtProcessTrackOps = {
 	RscMgmtProcessDied,
@@ -211,21 +216,27 @@ PerformAutoFailback(void)
 		ha_log(LOG_DEBUG, "Calling PerformAutoFailback()");
 	}
 	if ((procinfo->i_hold_resources & HB_FOREIGN_RSC) == 0
-	||	!needs_failback || !auto_failback) {
-			return;
+	||	!rsc_needs_failback || !auto_failback) {
+		ha_log(LOG_INFO, INITMSG " (none)");
+		init_takeover_announced = TRUE;
+		rsc_needs_failback = FALSE;
+		shutdown_if_needed();
+		return;
 	}
 
 	if (going_standby != NOT) {
 		ha_log(LOG_ERR, "Auto failback ignored.");
+		rsc_needs_failback = FALSE;
 		return;
 	}
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "Auto failback triggered.");
 	}
 
+	failback_in_progress = TRUE;
 	standby_rsctype = HB_FOREIGN_RSC;
 	send_standby_msg(ME);
-	needs_failback = FALSE;
+	rsc_needs_failback = FALSE;
 }
 
 /* Notify the (external) world of an HA event */
@@ -333,13 +344,6 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 
 
 		default:	/* Parent */
-				/*
-				 * If "hook" is non-NULL, we want to queue
-				 * it to run later (possibly now)
-				 * So, we need a different discipline
-				 * for managing such a process...
-				 */
-				/* We no longer need the "hook" parameter */
 				HB_RSCMGMTPROC(pid, "notify world");
 	}
 
@@ -368,7 +372,7 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 		takeover_from_node(hip->nodename);
 		return;
 	}
-	needs_failback = TRUE;
+	rsc_needs_failback = TRUE;
 
 	/*
 	 * If we haven't heard anything from them - they might be holding
@@ -404,16 +408,24 @@ hb_rsc_recover_dead_resources(struct node_info* hip)
 	takeover_from_node(hip->nodename);
 }
 
+static gboolean
+hb_rsc_isstable(void)
+{
+	return	other_is_stable
+	&&	!takeover_in_progress
+	&&	going_standby == NOT
+	&&	standby_running == 0L
+	&&	ResourceMgmt_child_count == 0
+	&&	(resourcestate == HB_R_STABLE||resourcestate==HB_R_SHUTDOWN);
+}
+
+
 const char *
 hb_rsc_resource_state(void)
 {
-	if (	other_is_stable && !takeover_in_progress && going_standby == NOT
-	&&	standby_running == 0L
-	&&	resourcestate == HB_R_STABLE) {
-		return decode_resources(procinfo->i_hold_resources);
-	}else{
-		return "transition";
-	}
+	return (hb_rsc_isstable()
+	?	decode_resources(procinfo->i_hold_resources)
+	:	"transition");
 }
 
 /*
@@ -509,6 +521,7 @@ process_resources(const char * type, struct ha_msg* msg
 	enum hb_rsc_state	newrstate = resourcestate;
 	static int			first_time = 1;
 
+	shutdown_if_needed();
 	if (!DoManageResources) {
 		return;
 	}
@@ -692,6 +705,11 @@ process_resources(const char * type, struct ha_msg* msg
 						, "process_resources(3): %s"
 						, " other now stable");
 					}
+					if (!init_takeover_announced) {
+						ha_log(LOG_INFO
+						,	INITMSG " (mach_down)");
+						init_takeover_announced = TRUE;
+					}
 				}else if (strcmp(comment, "shutdown") == 0) {
 					resourcestate = newrstate = HB_R_SHUTDOWN;
 				}
@@ -727,8 +745,8 @@ process_resources(const char * type, struct ha_msg* msg
 		,	secsto_longclock(RQSTDELAY));
 	}
 
-
 	AuditResources();
+	shutdown_if_needed();
 }
 
 void
@@ -895,6 +913,7 @@ takeover_from_node(const char * nodename)
 	if (shutdown_in_progress) {
 		ha_log(LOG_INFO
 		,	"Resource takeover cancelled - shutdown in progress.");
+		shutdown_if_needed();
 		return;
 	}else if (hip->nodetype != PINGNODE_I) {
 		ha_log(LOG_INFO
@@ -1330,6 +1349,12 @@ ask_for_resources(struct ha_msg *msg)
 				,	"Standby resource"
 				" acquisition done [%s]."
 				,	decode_resources(rtype));
+				if (failback_in_progress) {
+					failback_in_progress = FALSE;
+					ha_log(LOG_INFO
+					,	INITMSG " (auto_failback)");
+					init_takeover_announced = TRUE;
+				}
 				switch(rtype) {
 				case HB_LOCAL_RSC:	rup=HB_FOREIGN_RSC;
 							break;
@@ -1361,6 +1386,7 @@ ask_for_resources(struct ha_msg *msg)
 	if (ANYDEBUG) {
 		ha_log(LOG_INFO, "New standby state: %d", going_standby);
 	}
+	shutdown_if_needed();
 }
 
 static int
@@ -1526,6 +1552,27 @@ go_standby(enum standby who, int resourceset) /* Which resources to give up */
 
 }
 
+static void
+shutdown_if_needed(void)
+{
+	if (rsc_needs_shutdown) {
+		hb_giveup_resources();
+	}
+}
+
+/*
+ * This is the first part of the graceful shutdown process
+ *
+ * We cannot shut down right now if resource actions are pending...
+ *
+ * Examples:
+ *   - initial resource acquisition
+ *   - hb_standby in progress
+ *   - req_our_resources() in progress
+ *   - notify_world() in progress
+ *
+ *   All these ideas are encapsulated by hb_rsc_isstable()
+ */
 void
 hb_giveup_resources(void)
 {
@@ -1537,6 +1584,14 @@ hb_giveup_resources(void)
 	pid_t		pid;
 	struct ha_msg *	m;
 	static int	resource_shutdown_in_progress = FALSE;
+
+	if (!hb_rsc_isstable()) {
+		/* Try again later... */
+		/* (through shutdown_if_needed()) */
+		rsc_needs_shutdown = TRUE;
+		return;
+	}
+	rsc_needs_shutdown = FALSE;
 
 
 	if (resource_shutdown_in_progress) {
@@ -1569,7 +1624,7 @@ hb_giveup_resources(void)
 
 		default:
 				HB_RSCMGMTPROC(pid
-				,	"hb_signal_giveup_resources");
+				,	"hb_giveup_resources");
 				return;
 
 		case 0:		/* Child */
@@ -1722,8 +1777,16 @@ RscMgmtProcessDied(ProcTrack* p, int status, int signo, int exitcode
 ,	int waslogged)
 {
 	ResourceMgmt_child_count --;
+
+	if (!init_takeover_announced
+	&&	strcmp(RscMgmtProcessName(p), "req_our_resources") == 0) {
+		ha_log(LOG_INFO, INITMSG " (req_our_resources)");
+		init_takeover_announced = TRUE;
+			
+	}
 	p->privatedata = NULL;
 	StartNextRemoteRscReq();
+	shutdown_if_needed();
 }
 
 static const char *
@@ -1816,6 +1879,7 @@ StartNextRemoteRscReq(void)
 	hook = g_hook_first_valid(&RemoteRscReqQueue, FALSE);
 	if (hook == NULL) {
 		ResourceMgmt_child_count = 0;
+		shutdown_if_needed();
 		return;
 	}
 
@@ -1886,6 +1950,17 @@ StonithProcessName(ProcTrack* p)
 
 /*
  * $Log: hb_resource.c,v $
+ * Revision 1.30  2003/07/13 12:45:53  alan
+ * Put in two changes:
+ *     Determine when we are done with initial takeover after we first
+ * 	start and print unique messages for those cases to help the tests
+ * 	know when our resource takeover is really complete.
+ *
+ *     Changed heartbeat so that it will not shut down immediately when
+ * 	requested.  Instead, it will wait until existing resource actions
+ * 	have been completed before beginning the shutdown.  This will
+ * 	keep it from leaving resources in a bad state.
+ *
  * Revision 1.29  2003/07/03 23:09:42  alan
  * Added a new API call to return the current state of cluster
  * resources: all, local, foreign, or transition.
