@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.26 2001/03/01 20:26:33 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.27 2001/03/06 21:11:05 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -110,6 +110,7 @@ init_config(const char * cfgfile)
 	config->format_vers = 100;
 	config->heartbeat_interval = 2;
 	config->deadtime_interval = 5;
+	config->initial_deadtime = 30;
 	config->hopfudge = 1;
 	config->log_facility = -1;
 
@@ -167,6 +168,13 @@ init_config(const char * cfgfile)
 		ha_log(LOG_ERR
 		,	"Dead time [%d] is too small compared to keeplive [%d]"
 		,	config->deadtime_interval, config->heartbeat_interval);
+		++errcount;
+	}
+	if (config->initial_deadtime < 2 * config->deadtime_interval) {
+		ha_log(LOG_ERR
+		,	"Initial dead time [%d] is too small compared to"
+	        " deadtime [%d]"
+		,	config->initial_deadtime, config->deadtime_interval);
 		++errcount;
 	}
 
@@ -245,6 +253,7 @@ init_config(const char * cfgfile)
 #define KEY_KEEPALIVE	"keepalive"
 #define KEY_DEADTIME	"deadtime"
 #define KEY_WARNTIME	"warntime"
+#define KEY_INITDEAD	"initdead"
 #define KEY_WATCHDOG	"watchdog"
 #define	KEY_BAUDRATE	"baud"
 #define	KEY_UDPPORT	"udpport"
@@ -259,6 +268,7 @@ int add_normal_node(const char *);
 int set_hopfudge(const char *);
 int set_keepalive(const char *);
 int set_deadtime_interval(const char *);
+int set_initial_deadtime(const char *);
 int set_watchdogdev(const char *);
 int set_baudrate(const char *);
 int set_udpport(const char *);
@@ -278,6 +288,7 @@ struct directive {
 ,	{KEY_HOPS,	set_hopfudge}
 ,	{KEY_KEEPALIVE,	set_keepalive}
 ,	{KEY_DEADTIME,	set_deadtime_interval}
+,	{KEY_INITDEAD,	set_initial_deadtime}
 ,	{KEY_WARNTIME,	set_warntime_interval}
 ,	{KEY_WATCHDOG,	set_watchdogdev}
 ,	{KEY_BAUDRATE,	set_baudrate}
@@ -834,6 +845,17 @@ set_deadtime_interval(const char * value)
 {
 	config->deadtime_interval = atoi(value);
 	if (config->deadtime_interval >= 0) {
+		return(HA_OK);
+	}
+	return(HA_FAIL);
+}
+
+/* Set the initial dead timeout */
+int
+set_initial_deadtime(const char * value)
+{
+	config->initial_deadtime = atoi(value);
+	if (config->initial_deadtime >= 0) {
 		return(HA_OK);
 	}
 	return(HA_FAIL);

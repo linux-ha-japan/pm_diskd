@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.95 2001/02/01 11:52:04 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.96 2001/03/06 21:11:05 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -2223,8 +2223,21 @@ check_for_timeouts(void)
 	clock_t	now = times(NULL);
 	struct node_info *	hip;
 	clock_t dead_ticks = (CLK_TCK * config->deadtime_interval);
-	clock_t	TooOld = now - dead_ticks;
+	clock_t	TooOld;
 	int	j;
+
+	if (heartbeat_comm_state != COMM_LINKSUP) {
+		/*
+		 * Compute alternative dead_ticks value for very first dead interval
+		 * We do this because for some unknown reason sometimes
+		 * the network is slow start working.  Experience indicates that
+		 * 30 seconds is generally enough.  It would be nice to have a
+		 * better way to * detect that the network isn't really working,
+		 * but I don't know any easy way.  Patches are being accepted ;-)
+		 */
+		dead_ticks = (CLK_TCK * config->initial_deadtime);
+	}
+	TooOld = now - dead_ticks;
 
 	/* We need to be careful to handle clock_t wrapround carefully */
 	if (now < dead_ticks) {
@@ -3958,6 +3971,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.96  2001/03/06 21:11:05  alan
+ * Added initdead (initial message) dead time to heartbeat.
+ *
  * Revision 1.95  2001/02/01 11:52:04  alan
  * Change things to that things occur in the right order.
  * We need to not start timing message reception until we're completely started.
