@@ -37,6 +37,13 @@
 #define MALLOCT(t)	(t*)(malloc(sizeof(t)))
 #define FREE(p)		{free(p); (p) = NULL;}
 
+#ifndef RTLD_GLOBAL
+#	define RTLD_GLOBAL	0
+#endif
+#ifndef RTLD_LAZY
+#	define RTLD_LAZY	0
+#endif
+
 struct symbol_str {
     char name[MAX_FUNC_NAME];
     void** function;

@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.6 2000/12/05 15:12:52 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.7 2000/12/13 17:46:02 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -43,6 +43,9 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.6 2000/12/05 15:12:52 ala
 #	define SCANSEL_C	(void *)
 #else
 #	define SCANSEL_C	/* Nothing */
+#endif
+#ifndef RTLD_NOW
+#	define RTLD_NOW 0
 #endif
 
 extern struct hb_media_fns** hbmedia_types;

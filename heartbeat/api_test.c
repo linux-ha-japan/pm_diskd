@@ -33,7 +33,6 @@
 #include <heartbeat.h>
 #include <hb_api_core.h>
 #include <hb_api.h>
-#include <lock.h>
 
 /*
  * A heartbeat API test program...
