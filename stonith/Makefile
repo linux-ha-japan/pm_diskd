@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.4 2000/08/01 13:45:16 alan Exp $
+#	$Id: Makefile,v 1.5 2000/08/30 20:31:13 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -26,6 +26,8 @@ HTML2TXT = lynx -dump
 INSTALL = install
 MAKE  	= make
 
+# ld -shared --whole-archive
+
 
 #
 #	(We like warnings!  Unfortunately, several Linux header files have errors that prohibit
@@ -49,18 +51,24 @@ CFLAGS=-g 				\
 
 STONITH = stonith
 
-E_OBJLIST =	expect.o	\
-		baytech.o	\
-		null.o	\
-		stonith.o	
+ARFILE = libstonith.a
+SHLIB  = libstonith.so
 
-E_HDRS    =	expect.h stonith.h
+S_OBJLIST =	expect.o	\
+		baytech.o	\
+		null.o		\
+		stonith.o
+
+S_HDRS    =	expect.h stonith.h
 
 LIBS=
 
 BINDIR = $(BUILD_ROOT)/usr/sbin
+LIBDIR = $(BUILD_ROOT)/usr/lib
 
 BINCMDS = $(STONITH)
+
+LIBFILES = $(ARFILE) $(SHLIB)
 
 PRODUCTS = $(BINCMDS)
 
@@ -68,23 +76,28 @@ SPECSRC = Specfile
 
 all: $(PRODUCTS)
 
-libstonith.o: $(E_OBJLIST) $(E_HDRS)
-	$(LD) -r $(LDFLAGS) $(E_OBJLIST) $(LIBS) -o libstonith.o
+$(ARFILE): $(S_OBJLIST)
+	ar rc $(ARFILE) $(S_OBJLIST)
 
-$(STONITH): libstonith.o main.o
-	$(CC) main.o libstonith.o -o stonith
+$(SHLIB): $(ARFILE)
+	ld -shared -o $(SHLIB) --whole-archive $(ARFILE)
 
-$(E_OBJLIST) : $(E_HDRS)
+$(STONITH): $(ARFILE) main.o
+	$(CC) main.o $(ARFILE) -o stonith
 
-install: install_bin
+$(S_OBJLIST) : $(S_HDRS)
+
+install: install_bin install_lib
 
 install_bin: all
 	$(INSTALL) -cm 755 $(BINCMDS) $(BINDIR)
 
+install_lib: $(LIBFILES)
+	$(INSTALL) -cm 755 $(LIBFILES) $(LIBDIR)
+
 clean:	
-	rm -f *.o *.swp .*.swp core make.out
-	rm -f $(BINCMDS)
+	rm -f *.o *.swp .*.swp *.a *.so core make.out
+	rm -f $(BINCMDS) $(LIBFILES)
 
 pristene: clean
-
 
