@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.168 2002/04/02 19:40:36 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.169 2002/04/04 17:55:27 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -266,6 +266,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.168 2002/04/02 19:40
 #	include <sched.h>
 #endif
 
+#include <clplumbing/proctrack.h>
 #include <heartbeat.h>
 #include <ha_msg.h>
 #include <hb_api_core.h>
@@ -313,8 +314,6 @@ int		i_hold_resources = NO_RSC;
 int		other_holds_resources = NO_RSC;
 int		other_is_stable = 0; /* F_ISSTABLE */
 int		takeover_in_progress = 0;
-int		RestartRequested = 0;
-int		WeAreRestarting = 0;
 int		killrunninghb = 0;
 int		rpt_hb_status = 0;
 int		RunAtLowPrio = 0;
@@ -404,6 +403,17 @@ int	initialize_heartbeat(void);
 void	init_status_alarm(void);
 void	ha_versioninfo(void);
 static	const char * core_proc_name(enum process_type t);
+
+static	void CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
+static	const char * CoreProcessName(ProcTrack* p);
+static	void AnonProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
+static	const char * AnonProcessName(ProcTrack* p);
+static	void StonithProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
+static	const char * StonithProcessName(ProcTrack* p);
+static	void ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged);
+static	const char * ManagedChildName(ProcTrack* p);
+void	KillTrackedProcess(ProcTrack* p, void * data);
+
 void	dump_proc_stats(volatile struct process_info * proc);
 void	dump_all_proc_stats(void);
 void	check_for_timeouts(void);
@@ -418,6 +428,7 @@ void	request_msg_rexmit(struct node_info *, unsigned long lowseq
 ,		unsigned long hiseq);
 void	check_rexmit_reqs(void);
 void	mark_node_dead(struct node_info* hip, enum deadreason reason);
+void	takeover_from_node(const char * nodename, enum deadreason reason);
 void	change_link_status(struct node_info* hip, struct link *lnk
 ,		const char * new);
 static	void CreateInitialFilter(void);
@@ -430,7 +441,7 @@ void	send_to_all_media(char * smsg, int len);
 int	should_drop_message(struct node_info* node, const struct ha_msg* msg,
 				const char *iface);
 int	is_lost_packet(struct node_info * thisnode, unsigned long seq);
-void	Initiate_Reset(Stonith* s, const char * nodename);
+void	Initiate_Reset(Stonith* s, const char * nodename, enum deadreason);
 void	healed_cluster_partition(struct node_info* node);
 void	add2_xmit_hist (struct msg_xmit_hist * hist, struct ha_msg* msg
 ,		unsigned long seq);
@@ -449,8 +460,6 @@ void	ask_for_resources(struct ha_msg *msg);
 void	process_control_packet(struct msg_xmit_hist* msghist
 ,	struct ha_msg * msg);
 static void	start_a_child_client(gpointer childentry, gpointer pidtable);
-static void	kill_a_child_client(gpointer ppid
-,			gpointer childentry, gpointer unused);
 
 /* The biggies */
 void control_process(FILE * f);
@@ -467,7 +476,9 @@ pid_t		master_status_pid;
 int		send_status_now = 1;	/* Send initial status immediately */
 int		dump_stats_now = 0;
 int		parse_only = 0;
+int		RestartRequested = 0;
 static int	shutdown_in_progress = 0;
+static int	WeAreRestarting = 0;
 
 enum comm_state {
 	COMM_STARTING,
@@ -486,13 +497,43 @@ enum rsc_state {
 };
 static enum rsc_state	resourcestate = R_INIT;
 
-#define	ADDPROC(p)					\
-	{if ((p) > 0 && (p) != -1){			\
+static ProcTrack_ops CoreProcessTrackOps = {
+	CoreProcessDied,
+	CoreProcessName
+};
+
+static ProcTrack_ops AnonProcessTrackOps = {
+	AnonProcessDied,
+	AnonProcessName
+};
+
+static ProcTrack_ops StonithProcessTrackOps = {
+	StonithProcessDied,
+	StonithProcessName
+};
+
+static ProcTrack_ops ManagedChildTrackOps = {
+	ManagedChildDied,
+	ManagedChildName
+};
+
+struct const_string {
+	const char * str;
+};
+
+#define	ADDPROC(p)						\
+	{if ((p) > 0 && (p) != -1){				\
 	processes[procinfo->nprocs] = (p); 			\
 	procinfo->info[procinfo->nprocs].pstat = FORKED;	\
 	procinfo->info[procinfo->nprocs].pid = (p);		\
 	procinfo->nprocs++;	};}
 
+#define	ANONPROC(p, s)						\
+	 {							\
+	 	static struct const_string cstr = {(s)};		\
+		NewTrackedProc((p), 1, PT_LOGNORMAL		\
+		,	&cstr, &AnonProcessTrackOps);		\
+	}
 
 void
 init_procinfo()
@@ -860,6 +901,7 @@ initialize_heartbeat()
 	curproc = &procinfo->info[ourproc];
 	curproc->type = PROC_CONTROL;
 	curproc->pstat = RUNNING;
+	NewTrackedProc(getpid(), 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc), &CoreProcessTrackOps);
 
 
 	/* Now the fun begins... */
@@ -896,6 +938,8 @@ initialize_heartbeat()
 		}
 		ADDPROC(pid);
 		ourproc = procinfo->nprocs;
+		NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
+		,	&CoreProcessTrackOps);
 
 		if (ANYDEBUG) {
 			ha_log(LOG_DEBUG, "write process pid: %d\n", pid);
@@ -921,9 +965,11 @@ initialize_heartbeat()
 			ha_log(LOG_DEBUG, "read child process pid: %d\n", pid);
 		}
 		ADDPROC(pid);
+		ourproc = procinfo->nprocs;
+		NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc)
+		,	&CoreProcessTrackOps);
 	}
 
-	ourproc = procinfo->nprocs;
 
 	switch ((pid=fork())) {
 		case -1:	ha_perror("Can't fork master status process!");
@@ -943,6 +989,9 @@ initialize_heartbeat()
 	}
 	master_status_pid = pid;
 	ADDPROC(master_status_pid);
+	ourproc = procinfo->nprocs;
+	NewTrackedProc(pid, 0, PT_LOGVERBOSE, GINT_TO_POINTER(ourproc), &CoreProcessTrackOps);
+
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG, "master status process pid: %d\n", pid);
 	}
@@ -2238,6 +2287,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 				int	j;
 				make_normaltime();
 				set_proc_title("%s: notify_world()", cmdname);
+				setpgrp();
 				signal(SIGCHLD, SIG_DFL);
 				for (j=0; j < msg->nfields; ++j) {
 					char ename[64];
@@ -2265,6 +2315,7 @@ notify_world(struct ha_msg * msg, const char * ostatus)
 
 
 		default:	/* Parent */
+				ANONPROC(pid, "notify world");
 #if WAITFORCOMMANDS
 				waitpid(pid, &status, 0);
 #else
@@ -2296,7 +2347,7 @@ debug_sig(int sig)
 }
 
 /* Signal handler to use with SIGCHLD to free the
- * resources of any exited chilren using wait3(2).
+ * resources of any exited children using wait3(2).
  * This stops zombie processes from hanging around
  */
 
@@ -2318,154 +2369,164 @@ reaper_action(void)
 	pid_t	pid;
 
 	while((pid=wait3(&status, WNOHANG, NULL)) > 0) {
-		struct client_child*	managedchild = NULL;
-		int			deathbysig=0;
-		int			signo=0;
-		int			deathbyexit=0;
-		int			exitcode=0;
-#ifdef WCOREDUMP
-		int			didcoredump=0;
-#endif
-		volatile struct process_info*	coreproc = NULL;
-		const char *		pidname = "";
-		int			forcereport = 0;
-
-		if (WIFEXITED(status)) {
-			deathbyexit=1;
-			exitcode = WEXITSTATUS(status);
-		}else if (WIFSIGNALED(status)) {
-			deathbysig=1;
-			signo = WTERMSIG(status);
-			forcereport=1;
-		}
-#ifdef WCOREDUMP
-		if (WCOREDUMP(status)) {
-			didcoredump=1;
-			forcereport=1;
-		}
-#endif
-		managedchild = g_hash_table_lookup(config->client_children
-		,	GINT_TO_POINTER(pid));
-		if (managedchild) {
-			pidname = managedchild->command;
-			forcereport=1;
-
-		}else{	/* Hope it's not a core process... */
-			int	j;
-			for (j=0; j < procinfo->nprocs; ++j) {
-				if (pid == procinfo->info[j].pid) {
-					coreproc = procinfo->info+j;
-					pidname = core_proc_name
-					(	coreproc->type);
-					forcereport=1;
-					break;
-				}
-			}
-		}
-
-		/* Report Anything but a normal exit of unimportant child */
-
-		if (forcereport) {
-			if (deathbyexit) {
-				ha_log(LOG_WARNING
-				,	"Child %d %s exited with rc %d"
-				,	pid, pidname, exitcode);
-			}else if (deathbysig) {
-				ha_log(LOG_ERR
-				,	"Child %d %s killed by signal %d"
-				,	pid, pidname, signo);
-			}
-		}
-#ifdef WCOREDUMP
-		if (didcoredump) {
-			ha_log(LOG_ERR
-			,	"Exiting child %d dumped core", pid);
-		}
-#endif
 
 		/* If they're in the API client table, remove them... */
-
 		api_remove_client_pid(pid, "died");
 
-		/* Is it a core heartbeat process? */
-		if (coreproc) {
-			/* UhOh... */
-			ha_log(LOG_ERR
-			,	"Core heartbeat process died! Restarting.");
-			restart_heartbeat(1);
-			/*NOTREACHED*/
-		}
+		ReportProcHasDied(pid, status);
 
-		/* Are they one of our "managed" client processes? */
-
-		if (managedchild) {
-			ha_log(LOG_ERR
-			,	"%d is a managed client [%s %d]", pid
-			,	managedchild->command, managedchild->pid);
-
-			g_hash_table_remove(config->client_children
-			,	GINT_TO_POINTER(pid));
-			managedchild->pid = 0;
-
-			/* If they exit 100 we won't restart them */
-
-			if (managedchild->respawn && !shutdown_in_progress
-			&&	exitcode != 100) {
-				struct tms	proforma_tms;
-				clock_t		now = times(&proforma_tms);
-				clock_t		minticks = CLK_TCK * 30;
-				++managedchild->respawncount;
-
-				if ((now - managedchild->lastrespawn)
-				<		minticks) {
-					++managedchild->shortrcount;
-				}else{
-					managedchild->shortrcount = 0;
-				}
-				managedchild->lastrespawn = now;
-				if (managedchild->shortrcount > 10) {
-					ha_log(LOG_ERR
-					,	"Client %s %s"
-					,	managedchild->command
-					,	"respawning too fast");
-					managedchild->shortrcount = 0;
-				}else{
-					ha_log(LOG_INFO
-					,	"Respawning client %s:"
-					,	managedchild->command);
-					start_a_child_client(managedchild
-					,	config->client_children);
-				}
-			}
-		}/*managedchild*/
 	}/*endwhile*/
 }
 
+/* Handle the death of a core heartbeat process */
 static void
-kill_a_child_client(gpointer ppid, gpointer childentry, gpointer unused)
+CoreProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged)
 {
-	pid_t			pid = 	GPOINTER_TO_INT(ppid);
-	struct client_child*	centry = childentry; 
 
-	if (pid != centry->pid) {
-		ha_log(LOG_ERR, "kill_a_child_client: mismatching pids"
-		" %d versus %d for %s - not killed.", pid, centry->pid
-		,	centry->command);
+	if (shutdown_in_progress) {
+		p->privatedata = NULL;
 		return;
 	}
-	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "sending SIGTERM to client %d (%s)"
-		,	pid, centry->command);
+	/* UhOh... */
+	ha_log(LOG_ERR
+	,	"Core heartbeat process died! Restarting.");
+	restart_heartbeat(1);
+	/*NOTREACHED*/
+	p->privatedata = NULL;
+	return;
+}
+
+static const char *
+CoreProcessName(ProcTrack* p)
+{
+	int	procindex = GPOINTER_TO_INT(p->privatedata);
+	volatile struct process_info *	pi = procinfo->info+procindex;
+
+	return (pi ? core_proc_name(pi->type) : "Core heartbeat process");
+	
+}
+
+/* Handle the death of one of our managed child processes */
+static void
+ManagedChildDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged)
+{
+	struct client_child*	managedchild = p->privatedata;
+
+	managedchild->pid = 0;
+
+	/* If they exit 100 we won't restart them */
+
+	if (managedchild->respawn && !shutdown_in_progress
+	&&	exitcode != 100) {
+		struct tms	proforma_tms;
+		clock_t		now = times(&proforma_tms);
+		clock_t		minticks = CLK_TCK * 30;
+		++managedchild->respawncount;
+
+		if ((now - p->startticks) < minticks) {
+			++managedchild->shortrcount;
+		}else{
+			managedchild->shortrcount = 0;
+		}
+		if (managedchild->shortrcount > 10) {
+			ha_log(LOG_ERR
+			,	"Client %s %s"
+			,	managedchild->command
+			,	"respawning too fast");
+			managedchild->shortrcount = 0;
+		}else{
+			ha_log(LOG_INFO
+			,	"Respawning client %s:"
+			,	managedchild->command);
+			start_a_child_client(managedchild
+			,	config->client_children);
+		}
 	}
-	centry->respawn=0;
-	kill(pid, SIGTERM);
+	p->privatedata = NULL;
+}
+
+static const char *
+ManagedChildName(ProcTrack* p)
+{
+		struct client_child*	managedchild = p->privatedata;
+		return managedchild->command;
+}
+
+/* Handle the death of a garden-variety anonymous process */
+static void
+AnonProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged)
+{
+	p->privatedata = NULL;
+}
+
+static const char *
+AnonProcessName(ProcTrack* p)
+{
+	struct const_string * s = p->privatedata;
+
+	return (s && s->str ? s->str : "heartbeat child");
+}
+
+void
+KillTrackedProcess(ProcTrack* p, void * data)
+{
+	int	nsig = GPOINTER_TO_INT(data);
+	int	pid = p->pid;
+	const char *	porg;
+	const char * pname;
+
+	pname = p->ops->proctype(p);
+
+	if (p->isapgrp) {
+		pid = -p->pid;
+		porg = "process group";
+	}else{
+		pid =  p->pid;
+		porg = "process";
+	}
+	ha_log(LOG_INFO, "killing %s %s %d with signal %d", pname, porg
+	,	p->pid, nsig);
+	/* Suppress logging this process' death */
+	p->loglevel = PT_LOGNONE;
+	kill(pid, nsig);
+}
+
+struct StonithProcHelper {
+	char *		nodename;
+	enum deadreason	r;
+};
+	
+
+/* Handle the death of a STONITH process */
+static void
+StonithProcessDied(ProcTrack* p, int status, int signo, int exitcode, int waslogged)
+{
+	struct StonithProcHelper*	h = p->privatedata;
+
+	if (signo != 0 || exitcode != 0) {
+		ha_log(LOG_ERR, "STONITH of %s failed.  Retrying..."
+		,	(const char*) p->privatedata);
+		Initiate_Reset(config->stonith, h->nodename, h->r);
+	}else{
+		/* We need to finish taking over the other side's resources */
+		takeover_from_node(h->nodename, h->r);
+	}
+	g_free(h->nodename);	h->nodename=NULL;
+	g_free(p->privatedata);	p->privatedata = NULL;
+}
+
+static const char *
+StonithProcessName(ProcTrack* p)
+{
+	static char buf[100];
+	snprintf(buf, sizeof(buf), "STONITH %s", (const char*)p->privatedata);
+	return buf;
 }
 
 static void
 start_a_child_client(gpointer childentry, gpointer pidtable)
 {
 	struct client_child*	centry = childentry;
-	GHashTable*		ptable = pidtable;
 	pid_t			pid;
 
 	ha_log(LOG_INFO, "Starting child client %s (%d,%d)"
@@ -2496,16 +2557,17 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 				return;
 
 		default:	/* Parent */
-				g_hash_table_insert(ptable
-				,	GINT_TO_POINTER(pid), centry);
+				NewTrackedProc(pid, 1, PT_LOGVERBOSE
+				,	centry, &ManagedChildTrackOps);
 				return;
 
 		case 0:		/* Child */
 				break;
 	}
 
-	/* Child process:  run the requested command */
+	/* Child process:  start the managed child */
 	make_normaltime();
+	setpgrp();
 
 	/* Limit peak resource usage, maximize success chances */
 	if (centry->shortrcount > 0) {
@@ -2570,7 +2632,7 @@ core_proc_name(enum process_type t)
 		case PROC_HBREAD:	ct = "HBREAD";		break;
 		case PROC_HBWRITE:	ct = "HBWRITE";		break;
 		case PROC_PPP:		ct = "PPP";		break;
-		default:		ct = "huh?";		break;
+		default:		ct = "core process huh?";		break;
 	}
 	return ct;
 }
@@ -2665,6 +2727,7 @@ restart_heartbeat(int quickrestart)
 	struct rlimit		oflimits;
 	int			killsig = SIGTERM;
 
+	shutdown_in_progress = 1;
 	send_local_status();
 	/*
 	 * We need to do these things:
@@ -3277,9 +3340,50 @@ change_link_status(struct node_info *hip, struct link *lnk, const char * newstat
 void
 mark_node_dead(struct node_info *hip, enum deadreason reason)
 {
+	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
+
+	hip->anypacketsyet = 1;
+	if (hip == curnode) {
+		/* We may die too soon for this to actually be received */
+		/* But, we tried ;-) */
+		send_resources_held(NO_RESOURCES, 1, NULL);
+		/* Uh, oh... we're dead! */
+		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
+		kill(procinfo->info[0].pid, SIGTERM);
+		return;
+	}
+	standby_running = 0L;
+
+	if (reason == HBSHUTDOWN) {
+		int	i;
+		/* Mark all links of 'hip' as DEAD */
+		for( i = 0; i < hip->nlinks; i++) {
+			change_link_status(hip, &hip->links[i]
+			,	DEADSTATUS);
+		}
+	}else{
+		/* We shouldn't do these if it's a 'ping' node */
+		standby_running = 0L;
+		/* We have to Zap them before we take the resources */
+		/* This often takes a few seconds. */
+		if (config->stonith) {
+			Initiate_Reset(config->stonith, hip->nodename, reason);
+			return;
+		}
+	}
+	takeover_from_node(hip->nodename, reason);
+}
+
+void
+takeover_from_node(const char * nodename, enum deadreason reason)
+{
+	struct node_info *	hip = lookup_node(nodename);
 	struct ha_msg *	hmsg;
 	char		timestamp[16];
 
+	if (hip == 0) {
+		return;
+	}
 	if ((hmsg = ha_msg_new(6)) == NULL) {
 		ha_log(LOG_ERR, "no memory to mark node dead");
 		return;
@@ -3299,81 +3403,69 @@ mark_node_dead(struct node_info *hip, enum deadreason reason)
 		ha_msg_del(hmsg);
 		return;
 	}
-	ha_log(LOG_WARNING, "node %s: is dead", hip->nodename);
 
 	heartbeat_monitor(hmsg, KEEPIT, "<internal>");
 	notify_world(hmsg, hip->status);
 	strncpy(hip->status, DEADSTATUS, sizeof(hip->status));
 
-	if (hip == curnode) {
-		/* We may die too soon for this to actually be received */
-		/* But, we tried ;-) */
-		send_resources_held(NO_RESOURCES, 1, NULL);
-		/* Uh, oh... we're dead! */
-		ha_log(LOG_ERR, "No local heartbeat. Forcing shutdown.");
-		kill(procinfo->info[0].pid, SIGTERM);
-	}else{
-		if (reason == HBSHUTDOWN) {
-			int	i;
-			/* Mark all links of 'hip' as DEAD */
-			for( i = 0; i < hip->nlinks; i++) {
-				change_link_status(hip, &hip->links[i]
-				,	DEADSTATUS);
-			}
-		}else{
-			/* We shouldn't do these if it's a 'ping' node */
-			standby_running = 0L;
-			/* We have to Zap them before we take the resources */
-			/* This often takes a few seconds. */
-			if (config->stonith) {
-				Initiate_Reset(config->stonith, hip->nodename);
-				/* Child sends message when reset completes*/
-			}
+	if (reason == HBSHUTDOWN) {
+		int	i;
+		/* Mark all links of 'hip' as DEAD now */
+		for( i = 0; i < hip->nlinks; i++) {
+			change_link_status(hip, &hip->links[i]
+			,	DEADSTATUS);
 		}
+	}
 
-		/*
-		 * We ought to delay until we get
-		 * the Stonith completion message...
-		 * (assuming config->stonith!= NULL  and reason != HBSHUTDOWN)
-		 */
-		if (nice_failback) {
-			other_holds_resources = NO_RSC;
-			other_is_stable = 1;	/* Not going anywhere */
-			takeover_in_progress = 1;
-			if (ANYDEBUG) {
-				ha_log(LOG_DEBUG
-				,	"mark_node_dead: other now stable");
-			}
-			/*
-			 * We MUST do this now, or the other side might come
-			 * back up and think they can own their own resources
-			 * when they do due to receiving an interim
-			 * T_RESOURCE message from us.
-			 */
-			i_hold_resources |= FOREIGN_RSC;
-			/* case 1 - part 1 */
-			/* part 2 is done by the mach_down script... */
-			req_our_resources(0);
+	/*
+	 * We delay until the STONITH completes successfully.
+	 */
+	if (nice_failback) {
+		other_holds_resources = NO_RSC;
+		other_is_stable = 1;	/* Not going anywhere */
+		takeover_in_progress = 1;
+		if (ANYDEBUG) {
+			ha_log(LOG_DEBUG
+			,	"mark_node_dead: other now stable");
 		}
+		/*
+		 * We MUST do this now, or the other side might come
+		 * back up and think they can own their own resources
+		 * when they do due to receiving an interim
+		 * T_RESOURCE message from us.
+		 */
+		i_hold_resources |= FOREIGN_RSC;
+		/* case 1 - part 1 */
+		/* part 2 is done by the mach_down script... */
+		req_our_resources(0);
 	}
 	hip->anypacketsyet = 1;
 	ha_msg_del(hmsg);
 }
 
 void
-Initiate_Reset(Stonith* s, const char * nodename)
+Initiate_Reset(Stonith* s, const char * nodename, enum deadreason reason)
 {
 	const char*	result = "bad";
 	struct ha_msg*	hmsg;
+	int		pid;
+	int		success = 0;
+	struct StonithProcHelper *	h;
 	/*
 	 * We need to fork because the stonith operations block for a long
 	 * time (10 seconds in common cases)
 	 */
-	switch(fork()) {
+	switch((pid=fork())) {
 
 		case -1:	ha_log(LOG_ERR, "Cannot fork.");
-				/*FALL THROUGH*/
-		default:	return;
+				return;
+		default:
+				h = g_new(struct StonithProcHelper, 1);
+				h->r = reason;
+				h->nodename = g_strdup(nodename);
+				NewTrackedProc(pid, 1, PT_LOGVERBOSE, h
+				,	&StonithProcessTrackOps);
+				return;
 
 		case 0:		/* Child */
 				break;
@@ -3381,6 +3473,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 	}
 	/* Guard against possibly hanging Stonith code... */
 	make_normaltime();
+	setpgrp();
 	set_proc_title("%s: Initiate_Reset()", cmdname);
 	signal(SIGCHLD, SIG_DFL);
 
@@ -3396,6 +3489,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 		result="OK";
 		ha_log(LOG_INFO
 		,	"node %s now reset.", nodename);
+		success = 1;
 			break;
 
 	case S_BADHOST:
@@ -3427,7 +3521,7 @@ Initiate_Reset(Stonith* s, const char * nodename)
 		,	"Cannot send reset reply message [%s] for %s", result
 		,	nodename);
 	}
-	exit(0);
+	exit(success ? 0 : 1);
 }
 
 void
@@ -3485,6 +3579,7 @@ req_our_resources(int getthemanyway)
 	int	finalrc = HA_OK;
 	int	rc;
 	int	rsc_count = 0;
+	int	pid;
 
 	if (nice_failback) {
 
@@ -3508,11 +3603,13 @@ req_our_resources(int getthemanyway)
 	}
 
 	/* We need to fork so we can make child procs not real time */
-	switch(fork()) {
+	switch(pid=fork()) {
 
 		case -1:	ha_log(LOG_ERR, "Cannot fork.");
-				/*FALL THROUGH*/
-		default:	return;
+				return;
+		default:
+				ANONPROC(pid, "req_our_resources");
+				return;
 
 		case 0:		/* Child */
 				break;
@@ -3520,6 +3617,7 @@ req_our_resources(int getthemanyway)
 
 	make_normaltime();
 	set_proc_title("%s: req_our_resources()", cmdname);
+	setpgrp();
 	signal(SIGCHLD, SIG_DFL);
 	alarm(0);
 	IGNORESIG(SIGALRM);
@@ -3606,7 +3704,13 @@ go_standby(enum standby who)
 				 * We shouldn't block here, because then we
 				 * aren't sending heartbeats out...
 				 */
-		default:	/* waitpid(pid, NULL, 0); */
+		default:	
+				if (who == ME) {
+					ANONPROC(pid, "go_standby");
+				}else{
+					ANONPROC(pid, "go_standby");
+				}
+				/* waitpid(pid, NULL, 0); */
 				return;
 
 		case 0:		/* Child */
@@ -3614,6 +3718,7 @@ go_standby(enum standby who)
 	}
 
 	make_normaltime();
+	setpgrp();
 	signal(SIGCHLD, SIG_DFL);
 
 	if (who == ME) {
@@ -3684,7 +3789,12 @@ giveup_resources(int dummy)
 	pid_t		pid;
 	struct ha_msg *	m;
 
-	i_hold_resources = NO_RSC;
+
+	DisableProcLogging();	/* We're shutting down */
+	ForEachProc(&AnonProcessTrackOps, KillTrackedProcess, GINT_TO_POINTER(SIGKILL));
+	i_hold_resources = NO_RSC ;
+	resourcestate = R_SHUTDOWN; /* or we'll get a whiny little comment
+				out of the resource management code */
 	if (nice_failback) {
 		send_resources_held(rsc_msg[i_hold_resources], 0, "shutdown");
 	}
@@ -3706,7 +3816,10 @@ giveup_resources(int dummy)
 				 * We shouldn't block here, because then we
 				 * aren't sending heartbeats out...
 				 */
-		default:	waitpid(pid, NULL, 0);
+		default:
+				/* FIXME!  We can now do better! */
+				ANONPROC(pid, "giveup_resources");
+				waitpid(pid, NULL, 0);
 				return;
 
 		case 0:		/* Child */
@@ -3714,6 +3827,7 @@ giveup_resources(int dummy)
 	}
 
 	make_normaltime();
+	setpgrp();
 	set_proc_title("%s: giveup_resources()", cmdname);
 
 	/* We don't want to be interrupted while shutting down */
@@ -4109,8 +4223,9 @@ signal_all(int sig)
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG, "killing client procs");
 			}
-			g_hash_table_foreach(config->client_children
-			,	kill_a_child_client, NULL);
+			/* Kill all our managed children... */
+			ForEachProc(&ManagedChildTrackOps, KillTrackedProcess
+			,	GINT_TO_POINTER(SIGTERM));
 			if (ANYDEBUG) {
 				ha_log(LOG_DEBUG, "sending SIGTERM to MSP: %d"
 				,	master_status_pid);
@@ -5139,6 +5254,11 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.169  2002/04/04 17:55:27  alan
+ * Put in a whole bunch of new code to manage processes much more generally, and powerfully.
+ * It fixes two important bugs:  STONITH wasn't waited on before we took over resources.
+ * And, we didn't stop our takeover processes before we started to shut down.
+ *
  * Revision 1.168  2002/04/02 19:40:36  alan
  * Failover was completely broken because of a typo in the configure.in file
  * Changed the run level priorities so that heartbeat starts after

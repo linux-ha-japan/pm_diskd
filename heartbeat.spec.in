@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.21 2002/04/03 20:02:21 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.22 2002/04/04 17:55:27 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -435,6 +435,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 @libdir@/heartbeat
 @libdir@/libhbclient.*
 @libdir@/libpils.*
+@libdir@/libplumb.*
 @sysconfdir@/ha.d/resource.d/
 @INITDIR@/heartbeat
 @sysconfdir@/logrotate.d/heartbeat
@@ -533,8 +534,9 @@ then
   stop=@INITSTOPPRI@
   for d in etc/init.d/rc[235].d
   do
-    rm -f $d/S${start}heartbeat; ln -s ../heartbeat $d/S${start}heartbeat 
-    rm -f $d/K${stop}heartbeat ln -s ../heartbeat $d/K${stop}heartbeat
+    rm -f $d/[SK]*[0-9]heartbeat
+    ln -s ../heartbeat $d/S${start}heartbeat 
+    ln -s ../heartbeat $d/K${stop}heartbeat
   done
   FILLUP=/bin/fillup
   if 
@@ -581,6 +583,6 @@ fi
 if
    [ -r etc/SuSE-release ]
 then
-  rm -f sbin/init.d/rc[23]/*heartbeat
+  rm -f etc/init.d/rc[235].d/[SK]*[0-9]heartbeat
 fi
 true

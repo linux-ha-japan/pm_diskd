@@ -1,8 +1,7 @@
 #
-# linux-ha: Linux-HA heartbeat code
+# plumbing: OCF general plumbing libraries
 #
-# Copyright (C) 2001 Michael Moerz
-#                    This instance created by Horms
+# Copyright (C) 2002 Alan Robertson, International Business Machines
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -20,6 +19,16 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
-SOURCES		        = HBauth.h HBcomm.h ha_msg.h heartbeat.h
+INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
+			-I$(top_builddir)/linux-ha -I$(top_srcdir)/linux-ha  \
+			-I$(top_builddir)/libltdl -I$(top_srcdir)/libltdl
 
-SUBDIRS                 = clplumbing pils stonith
+
+CFLAGS			= @CFLAGS@
+
+## libraries
+
+lib_LTLIBRARIES		= libplumb.la
+
+libplumb_la_SOURCES	= proctrack.c
+libplumb_la_LDFLAGS	= -version-info 0:0:0
