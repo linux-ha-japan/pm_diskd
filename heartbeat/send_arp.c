@@ -1,4 +1,4 @@
-const static char * _send_arp_c = "$Id: send_arp.c,v 1.19 2003/03/21 17:38:31 alan Exp $";
+const static char * _send_arp_c = "$Id: send_arp.c,v 1.20 2003/04/15 11:07:05 horms Exp $";
 /* 
  * send_arp
  * 
@@ -69,7 +69,7 @@ main(int argc, char *argv[])
 
     (void)_send_arp_c;
     if (argc != 6) {
-        printf("%s", print_usage);
+        fprintf(stderr, "%s", print_usage);
 	exit (-1);
     }
 
@@ -228,6 +228,9 @@ send_arp(libnet_t* lntag, u_long ip, u_char *device, u_char *macaddr, u_char *br
 
 /*
  * $Log: send_arp.c,v $
+ * Revision 1.20  2003/04/15 11:07:05  horms
+ * errors go to stderr, not stdout
+ *
  * Revision 1.19  2003/03/21 17:38:31  alan
  * Put in a patch by Thiago Rondon <thiago@nl.linux.org> to fix a minor
  * compile error in send_arp.c, which only affects the 1.1 libnet API code.
