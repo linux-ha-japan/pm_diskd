@@ -26,7 +26,7 @@ The beginnings of a Getting Started Guide can also be found under
 
 For more info on Linux-HA, I recommend you read the Linux-HA web page.
 It can be found at:
-	http://www.henge.com/~alanr/ha/
+	http://linux-ha.org/
 
 The pages found there also document this software and current thinking
 about plans for the future, etc.
@@ -35,7 +35,7 @@ Get involved!
 
 	- Install this software			(make install)
 
-	- Report bugs in it			(mailto:alanr@bell-labs.com)
+	- Report bugs in it			(mailto:alanr@suse.com)
 
 	- Enhance it,
 
