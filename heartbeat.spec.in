@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.42 2002/10/21 10:17:17 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.43 2002/11/30 15:45:54 alan Exp $
 Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HB_PKG@
 Version:	@VERSION@
@@ -67,9 +67,34 @@ PILS is designed to support any number of plugins
 implementing any number of interfaces.
 
 %changelog
-* Wed Oct 9 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
+* Sat Nov 30 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
 + Version 0.5.0 beta series
 
+  0.4.9f:
+  + Added pre-start, pre-stop, post-stop and pre-stop constructs in init script
+  + various IPC fixes
+  + Fix to STONITH behavior: STONITH unresponsive node right after we reboot
+  + Fixed extreme latency in IPC code
+  + various configure.in cleanups
+  + Fixed memory leak in IPC socket code
+  + Added streamlined mainloop/IPC integration code
+  + Moved more heartbeat internal communication to IPC library
+  + Added further support for ipfail
+  + Added supplementary groups to the respawn-ed clients
+  + Added standby to init script actions
+  + Lots of minor CCM fixes
+  + Split (most) resource management code into a separate file.
+  + Fixes to accommodate different versions of libraries
+  + Heartbeat API client headers fixup
+  + Added new API calls
+  + Simplified (and fixed) handling of local status.  This would sometimes cause
+	obscure failures on startup.
+  + Added new IPsrcaddr resource script
+
+  KNOWN BUGS:
+  + apphbd goes into an infinite loop on some platforms
+
+* Wed Oct 9 2002  Alan Robertson <alanr@unix.sh> (see doc/AUTHORS file)
   0.4.9e:
   + Changed client code to keep write file descriptor open at all times
         (realtime improvement)
