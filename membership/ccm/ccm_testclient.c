@@ -40,7 +40,7 @@ my_ms_events(oc_ed_t event, void *cookie,
 	int i;
 	int i_am_in;
 
- 	cl_log(LOG_DEBUG,"event=%s", 
+ 	cl_log(LOG_INFO,"event=%s", 
 			event==OC_EV_MS_NEW_MEMBERSHIP?"NEW MEMBERSHIP":
 		        event==OC_EV_MS_NOT_PRIMARY?"NOT PRIMARY":
 			event==OC_EV_MS_PRIMARY_RESTORED?"PRIMARY RESTORED":
@@ -51,7 +51,7 @@ my_ms_events(oc_ed_t event, void *cookie,
 		return;
 	}
 
-	cl_log(LOG_DEBUG,"trans=%d, nodes=%d, new=%d, lost=%d n_idx=%d, "
+	cl_log(LOG_INFO,"trans=%d, nodes=%d, new=%d, lost=%d n_idx=%d, "
 				"new_idx=%d, old_idx=%d",
 			oc->m_instance,
 			oc->m_n_member,
@@ -62,9 +62,9 @@ my_ms_events(oc_ed_t event, void *cookie,
 			oc->m_out_idx);
 
 	i_am_in=0;
-	cl_log(LOG_DEBUG, "NODES IN THE PRIMARY MEMBERSHIP");
+	cl_log(LOG_INFO, "NODES IN THE PRIMARY MEMBERSHIP");
 	for(i=0; i<oc->m_n_member; i++) {
-		cl_log(LOG_DEBUG,"\tnodeid=%d, born=%d",
+		cl_log(LOG_INFO,"\tnodeid=%d, born=%d",
 			oc->m_array[oc->m_memb_idx+i].node_id,
 			oc->m_array[oc->m_memb_idx+i].node_born_on);
 		if(oc_ev_is_my_nodeid(ev_token, &(oc->m_array[i]))){
@@ -72,26 +72,26 @@ my_ms_events(oc_ed_t event, void *cookie,
 		}
 	}
 	if(i_am_in) {
-		cl_log(LOG_DEBUG,"MY NODE IS A MEMBER OF THE MEMBERSHIP LIST");
+		cl_log(LOG_INFO,"MY NODE IS A MEMBER OF THE MEMBERSHIP LIST");
 	}
 
-	cl_log(LOG_DEBUG, "NEW MEMBERS");
+	cl_log(LOG_INFO, "NEW MEMBERS");
 	if(oc->m_n_in==0) 
-		cl_log(LOG_DEBUG, "\tNONE");
+		cl_log(LOG_INFO, "\tNONE");
 	for(i=0; i<oc->m_n_in; i++) {
-		cl_log(LOG_DEBUG,"\tnodeid=%d, born=%d",
+		cl_log(LOG_INFO,"\tnodeid=%d, born=%d",
 			oc->m_array[oc->m_in_idx+i].node_id,
 			oc->m_array[oc->m_in_idx+i].node_born_on);
 	}
-	cl_log(LOG_DEBUG, "MEMBERS LOST");
+	cl_log(LOG_INFO, "MEMBERS LOST");
 	if(oc->m_n_out==0) 
-		cl_log(LOG_DEBUG, "\tNONE");
+		cl_log(LOG_INFO, "\tNONE");
 	for(i=0; i<oc->m_n_out; i++) {
-		cl_log(LOG_DEBUG,"\tnodeid=%d, born=%d",
+		cl_log(LOG_INFO,"\tnodeid=%d, born=%d",
 			oc->m_array[oc->m_out_idx+i].node_id,
 			oc->m_array[oc->m_out_idx+i].node_born_on);
 	}
-	cl_log(LOG_DEBUG, "-----------------------");
+	cl_log(LOG_INFO, "-----------------------");
 	oc_ev_callback_done(cookie);
 }
 
