@@ -38,7 +38,7 @@ Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}
 Description: Interface for remotely powering down a node in the cluster
- Library to andle stonith modules and to register objects with stonith.
+ Library to handle stonith modules and to register objects with stonith.
 
 Package: libstonith-dev
 Section: devel
