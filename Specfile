@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.53 2000/08/13 05:35:59 alan Exp $
+#	$Id: Specfile,v 1.54 2000/08/30 22:10:19 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -42,6 +42,8 @@ It implements the following kinds of heartbeats:
   + Added detection of and recovery from cluster partitions
   + Added ping node/membership/link type for tiebreaking.  This will
 	be useful when implementing quorum.
+  + Fixed byte-ordering problem related to output in findif.c.
+	There are probably more, related to input ;-)
 
 * Fri Jun 30 2000 Alan Robertson <alanr@suse.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
@@ -273,27 +275,53 @@ make
 %install
 rm -rf $RPM_BUILD_ROOT
 RPM_BUILD=yes BUILD_ROOT=$RPM_BUILD_ROOT make install
-pushd $RPM_BUILD_ROOT/etc/ha.d/resource.d
-ln -s ../../../sbin/ldirectord .
-popd
+(
+  cd $RPM_BUILD_ROOT/etc/ha.d/resource.d
+  ln -s ../../../sbin/ldirectord .
+)
+
+TEMPL=$RPM_BUILD_ROOT/var/adm/fillup-templates
+if
+  [ ! -d $TEMPL ]
+then
+  mkdir -p $TEMPL
+fi
+install -m 644 rc.config.heartbeat $TEMPL
+
+#
+# This stuff is disabled because it uses the undocumented
+# "Check" command, which mangles lots of things on your system unrelated
+# to the package I'm building, and is generally broken unless you happen
+# to be building in the one-of-a-kind SuSE chrooted build environment in
+# Germany.
+#
+if
+  [ -r /etc/SuSE-release ] && false
+then
+  %{?suse_check}
+  # use this with SuSE <= 6.2 instead:
+  #test "$UID" = 0 -a -x /usr/sbin/Check && /usr/sbin/Check
+fi
+
 %files
 %defattr(-,root,root)
-%dir %HADIR%
-%HADIR%/harc
-%HADIR%/shellfuncs
-%HADIR%/rc.d
-%HADIR%/README.config
-%HADIR%/conf
-%HALIB%
-%HADIR%/resource.d
-/etc/rc.d/init.d/%PKG%
-/etc/logrotate.d/%PKG%
+%dir /etc/ha.d
+/etc/ha.d/harc
+/etc/ha.d/shellfuncs
+/etc/ha.d/rc.d
+/etc/ha.d/README.config
+/etc/ha.d/conf
+/usr/lib/heartbeat
+/etc/ha.d/resource.d
+/etc/rc.d/init.d/heartbeat
+/etc/logrotate.d/heartbeat
+/var/adm/fillup-templates/rc.config.heartbeat
 /var/run/heartbeat-fifo
 %dir /var/run/ppp.d
 /sbin/ldirectord
 /etc/logrotate.d/ldirectord
 /etc/rc.d/init.d/ldirectord
-/usr/man/man8/ldirectord.8
+/usr/man/man8/ldirectord.8*
 %doc doc/*
 %doc ldirectord/ldirectord.cf
 %clean
@@ -347,9 +375,21 @@ fi
 if
   [ -f /etc/SuSE-release ]
 then
-  RC2=/sbin/init.d/rc2.d
-  rm -f $RC2/S24heartbeat; ln -s ../heartbeat $RC2/S24heartbeat 
-  rm -f $RC2/K40heartbeat; ln -s  ../heartbeat $RC2/K40heartbeat
+  for d in /etc/rc.d/init.d/rc[23].d
+  do
+    rm -f $d/S10heartbeat; ln -s ../heartbeat $d/S10heartbeat 
+    rm -f $d/K35heartbeat; ln -s ../heartbeat $d/K35heartbeat
+  done
+  FILLUP=/bin/fillup
+  if 
+    $FILLUP -q -d = /etc/rc.config /var/adm/fillup-templates/rc.config.heartbeat
+  then
+    : fillup returned OK
+  else
+    echo "ERROR: $FILLUP failed. This should not happen. Please compare"
+    echo "/etc/rc.config and /var/adm/fillup-templates/rc.config.heartbeat"
+    echo "and update by hand."
+  fi
 elif
   [ -x /sbin/chkconfig ]
 then
@@ -379,5 +419,10 @@ then
   then
     Uninstall_PPP_hack
   fi
+fi
+if
+   [ -r /etc/SuSE-release ]
+then
+  rm -f /sbin/init.d/rc[23]/*heartbeat
 fi
 true

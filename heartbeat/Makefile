@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.25 2000/08/13 04:36:16 alan Exp $
+#	$Id: Makefile,v 1.26 2000/08/30 22:10:20 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -85,7 +85,7 @@ H_OBJLIST = 	heartbeat.o		\
 		sha1.o			\
 		udp.o
 H_HDRS    = heartbeat.h ha_msg.h hb_api.h hb_api_core.h
-HBLIBS=	../stonith/libstonith.o
+HBLIBS=	../stonith/libstonith.a
 LIBS=
 
 SENDARP =	send_arp
