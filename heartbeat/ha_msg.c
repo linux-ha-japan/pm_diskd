@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.41 2003/04/18 06:09:46 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.42 2003/04/18 06:33:54 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -180,6 +180,10 @@ ha_msg_audit(const struct ha_msg* msg)
 {
 	int	doabort = FALSE;
 	int	j;
+
+	if (!msg) {
+		return;
+	}
 	if (!ha_is_allocated(msg)) {
 		cl_log(LOG_CRIT, "Message @ 0x%x is not allocated"
 		,	(unsigned) msg);
@@ -700,6 +704,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.42  2003/04/18 06:33:54  alan
+ * Changed the audit code for messages to tolerate NULL message pointers.
+ *
  * Revision 1.41  2003/04/18 06:09:46  alan
  * Fixed an off-by-one error in writing messages to the FIFO.
  * Also got rid of some now-unused functions, and fixed a minor glitch in BasicSanitCheck.
