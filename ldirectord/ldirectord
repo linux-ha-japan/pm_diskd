@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.55 2002/08/07 02:41:50 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.56 2002/08/07 07:39:42 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -128,7 +128,7 @@ case it will overide the global fallback server, if set.
 B<logfile = ">I</path/to/logfile>B<">|syslog_facility
 
 An alternative logfile might be specified with this directive. If the logfile
-does have a leading '/', it is assumed to be a syslog(3) facility name.
+does not have a leading '/', it is assumed to be a syslog(3) facility name.
 
 The default is to log directly to the file I</var/log/ldirectord.log>.
 
