@@ -1,7 +1,7 @@
 #
 #	There are lots of options in this file.  All you have to have is a set
 #	of nodes listed {"node ...}
-#	and one of {serial, udp, or mcast}
+#	and one of {serial, bcast, or mcast}
 #
 #
 #       Note on logging:
@@ -65,8 +65,8 @@ logfacility	local0
 #
 #	What interfaces to heartbeat over?
 #
-#udp	eth0	# Linux
-#udp	le0	# Solaris
+#bcast	eth0	# Linux
+#bcast	le0	# Solaris
 #
 #	Set up a multicast heartbeat medium
 #	mcast [dev] [mcast group] [port] [ttl] [loop]
