@@ -612,7 +612,10 @@ as they might have been rebooted or crashed for some reason beforehand.
     def SetUp(self, CM):
         '''Basic Cluster Manager startup.  Start everything'''
 
+        if not self._WaitForAllNodesToComeUp(CM.Env["nodes"]):
+            return None
         CM.prepare()
+
         #	Clear out the cobwebs ;-)
 
         self.TearDown(CM)
