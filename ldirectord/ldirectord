@@ -1,10 +1,11 @@
 #!/usr/bin/perl
 # Linux Director Daemon
-# $Id: ldirectord,v 1.1 2000/04/15 22:05:27 horms Exp $
+# $Id: ldirectord,v 1.2 2000/04/15 22:40:24 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # with help from: Horms <horms@vergenet.net>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
+
 
 =head1 NAME
 
