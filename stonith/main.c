@@ -24,14 +24,14 @@
 #include <syslog.h>
 #include "stonith.h"
 
-#define	OPTIONS	"F:p:t:sSlv"
+#define	OPTIONS	"F:p:t:sSlLv"
 
 void usage(const char * cmd);
 
 void
 usage(const char * cmd)
 {
-	fprintf(stderr, "usage: %s [-sSlv] "
+	fprintf(stderr, "usage: %s [-sSlLv] "
 	"[-t devicetype] "
 	"[-F options-file] "
 	"[-p stonith-parameters] "
@@ -52,6 +52,7 @@ main(int argc, char** argv)
 	int		status = 0;
 	int		silent = 0;
 	int		listhosts = 0;
+	int		listtypes = 0;
 
 	extern char *	optarg;
 	extern int	optind, opterr, optopt;
@@ -72,6 +73,9 @@ main(int argc, char** argv)
 				break;
 
 		case 'l':	++listhosts;
+				break;
+
+		case 'L':	++listtypes;
 				break;
 
 		case 'p':	parameters = optarg;
@@ -98,7 +102,7 @@ main(int argc, char** argv)
 	}
 	argcount = argc - optind;
 	if (!(argcount == 1 || (argcount < 1
-	&& (status||listhosts)))) {
+	&& (status||listhosts||listtypes)))) {
 		++errors;
 	}
 
@@ -174,6 +178,20 @@ main(int argc, char** argv)
 				printf("%s\n", *this);
 			}
 			s->s_ops->free_hostlist(hostlist);
+		}
+	}
+	if (listtypes) {
+		const char **	typelist;
+
+		typelist = stonith_types();
+		if (s == NULL) {
+			syslog(LOG_ERR, "Could not list Stonith types.");
+		}else{
+			const char **	this;
+
+			for(this=typelist; *this; ++this) {
+				printf("%s\n", *this);
+			}
 		}
 	}
 
