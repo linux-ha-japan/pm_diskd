@@ -82,8 +82,9 @@ send_arp_SOURCES	= send_arp.c
 send_arp_CFLAGS	 	= @LIBNETDEFINES@
 send_arp_LDADD	 	= @LIBNETLIBS@
 
-send_arp.o: send_arp.c
-	$(CC) -c $(send_arp_SOURCES) -o $(send_arp_OBJECTS) $(CPPFLAGS) $(send_arp_CFLAGS)
+send_arp.o: $(send_arp_SOURCES)
+	( old_pwd="$(PWD)" ; cd $(srcdir) && $(CC) -c $(send_arp_SOURCES) \
+		-o $$old_pwd/$@ $(CPPFLAGS) $(send_arp_CFLAGS) )
 
 
 findif_SOURCES		= findif.c
