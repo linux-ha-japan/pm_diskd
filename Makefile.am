@@ -31,21 +31,6 @@ RPMREL			= @RPMREL@
 RPM			= @RPM@
 RPMFLAGS		= -ta --nodeps
 TARFILE			= $(distdir).tar.gz
-#
-#       Debian wants things to start with DESTDIR,
-#       but Red Hat starts them with RPM_BUILD_ROOT     (sigh...)
-#
-#       When make is called it should be run as
-#       BUILD_ROOT=$VAR make ...
-#
-#       e.g.
-#       BUILD_ROOT=$RPM_BUILD_ROOT make install
-#
-#	(The above comments carried over from the previous version of
-#	the make system -- not sure this is all carried out like it
-#	should be to make everyone happy -- at least at this time...)
-#
-DESTDIR=
 RPMDIR=$(HOME)/rpms
 WEBDIR=/home/alanr/ha-web/download
 RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PACKAGE)-$(VERSION)-$(RPMREL).src.rpm
