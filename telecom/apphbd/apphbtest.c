@@ -57,7 +57,7 @@ main(int argc,char ** argv)
 {
 	int flag;
 	int hb_num = 10;
-	int child_proc_num = 0;
+	int child_proc_num = 1;
 	int hb_intvl_ms = 1000;
 	int dofailuretests = 1000;
 	
@@ -107,6 +107,9 @@ doafailtest(void)
 	if (rc < 0) {
 		cl_perror("registration failure");
 		exit(1);
+	}
+	if (debug) {
+		cl_log(LOG_INFO, "Failure Client registered");
 	}
 	
 	fprintf(stderr, "Client setting 2 second heartbeat period");
@@ -177,6 +180,9 @@ hb_normal(int hb_intvl_ms, int delaysecs, int hb_num, int dofailuretests)
 		cl_perror("registration failure");
 		exit(1);
 	}
+	if (debug) {
+		cl_log(LOG_INFO, "Client %s registered", app_name);
+	}
 	
 	cl_log(LOG_INFO, "Client %ld setting %d ms heartbeat interval"
 			, pid, hb_intvl_ms);
@@ -233,7 +239,7 @@ multi_hb_test(int child_proc_num, int hb_intvl_ms, int hb_num
 			break;
 		}
 	}	
-	/*wait for all the child process to exit*/
+	/* Wait for all our child processes to exit*/
 	while(wait(NULL) > 0);
 	errno = 0;
 }
