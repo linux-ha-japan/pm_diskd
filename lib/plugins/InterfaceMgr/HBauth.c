@@ -88,7 +88,6 @@ PIL_PLUGIN_INIT(PILPlugin*us, PILPluginImports* imports, void *user_ptr)
 		return PIL_INVAL;
 	}
 
-	AuthDebugFlag = 100;
 	AuthPIImports = imports;
 	AuthPlugin = us;
 
