@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.181 2002/04/14 00:39:30 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.182 2002/04/14 09:06:09 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1252,12 +1252,21 @@ control_process(FILE * fp, int fifoofd)
 	}
 
 	if (ANYDEBUG) {
-		ha_log(LOG_DEBUG, "Control Process: entering pause loop.");
+		ha_log(LOG_INFO, "Control Process: entering pause loop.");
 	}
+
+	/*
+	 * Sometimes kernels forget to deliver one or more of our
+	 * SIGCHLDs to us.  We set the alarm to tell us to just
+	 * give up and poll for the stupid things from time to time...
+	 */
+	init_status_alarm();
+
 	/* Wait for shutdown to complete */
 
 	while (CoreProcessCount > 1) {
-		process_pending_handlers();
+		/* Poll for SIGCHLDs */
+		reaper_action();
 		pause();
 	}
 
@@ -3611,10 +3620,6 @@ process_pending_handlers(void)
 			ha_log(LOG_ERR, "Could not unblock signals");
 		}
 
-		if (handlers&REAPER_SIG) {
-			reaper_action();
-		}
-
 		if (handlers&TERM_SIG) {
 			term_action();
 		}
@@ -3638,7 +3643,11 @@ process_pending_handlers(void)
 		if (handlers&FALSE_ALARM_SIG) {
 			false_alarm_action();
 		}
-}
+
+		if (handlers&REAPER_SIG) {
+			reaper_action();
+		}
+	}
 }
 
 /* See if any nodes or links have timed out */
@@ -6022,6 +6031,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.182  2002/04/14 09:06:09  alan
+ * Made yet another attempt to get all our SIGCHLDs.
+ *
  * Revision 1.181  2002/04/14 00:39:30  alan
  * Put in a comment about "strings" needing to run in a separate
  * process...
