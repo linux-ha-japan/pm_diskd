@@ -14,3 +14,6 @@ copyright-stamp
 install-stamp
 build-stamp
 .*.swp
+ltconfig
+configure.status
+libltdl
