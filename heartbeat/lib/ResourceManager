@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: ResourceManager,v 1.8 2001/02/01 11:52:05 alan Exp $
+#	$Id: ResourceManager,v 1.9 2001/02/07 07:01:02 alan Exp $
 #
 #	New haresources format:
 #
@@ -273,6 +273,29 @@ StatGroup() {
   esac
 }
 
+#
+#	Verify that all resources in the resource group are idle
+#
+
+VerifyAllIdle() {
+  rc=0
+  for rsc in `KeyResources ".*"`
+  do
+    if
+      we_own_resource $rsc
+    then
+      ha_log "ERROR: Resource $rsc is active, and should not be."
+      rc=`expr $rc + 1`
+    fi
+  done
+  if
+    [ $rc -ne 0 ]
+  then
+    ha_log "WARNING: Non-idle resources will affect resource takeback"
+  fi
+  exit $rc
+}
+
 case $1 in
 
   listkeys)	KeyResources "$2";;
@@ -285,17 +308,23 @@ case $1 in
 
   statgroup)	StatGroup $2 >>$HA_DEBUGLOG 2>&1 ;;
 
+  verifyallidle)VerifyAllIdle ;;
+
   *)		echo "$USAGE\n" >&2
 		exit 1;;
 esac
 
 #
 #	$Log: ResourceManager,v $
+#	Revision 1.9  2001/02/07 07:01:02  alan
+#	Added a verifyallidle action to the ResourceManger for use in
+#	startup scripts.
+#
 #	Revision 1.8  2001/02/01 11:52:05  alan
 #	Change things to that things occur in the right order.
 #	We need to not start timing message reception until we're completely started.
 #	We need to Stonith the other guy before we take over their resources.
-#
+#	
 #	Revision 1.7  2000/12/06 09:11:31  jacob
 #	Resources in ha.d/haresources can be split over more lines by concatenating
 #	the lines with \ .
