@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.43 2003/07/12 16:19:54 alan Exp $
+#	$Id: IPaddr.in,v 1.44 2003/07/16 13:43:30 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -479,7 +479,7 @@ find_free_interface() {
 		;;
 	*)
 		j=0
-                TRYADRCNT=`ls "${NICBASE}:"* | wc -l | tr -d ' '`
+                TRYADRCNT=`ls "${NICBASE}:"* | wc -l | tr -d ' ' 2>/dev/null`
 		if 
 		  [ -f "${NICBASE}:${TRYADRCNT}" ]
 		then
@@ -674,7 +674,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.43 2003/07/12 16:19:54 alan Exp $"
+  echo "$Id: IPaddr.in,v 1.44 2003/07/16 13:43:30 alan Exp $"
 }
 
 #
@@ -721,6 +721,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.44  2003/07/16 13:43:30  alan
+# Redirected some irrelevant error messages from ls to /dev/null
+#
 # Revision 1.43  2003/07/12 16:19:54  alan
 # Fixed a bug in the new send_arp options and their invocation...
 #
