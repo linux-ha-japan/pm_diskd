@@ -664,11 +664,13 @@ get_nodelist(llc_private_t* pi)
 
 		sl->next = pi->nodelist;
 		pi->nodelist = sl;
-		ZAPMSG(reply);
 		if (strcmp(result, API_OK) == 0) {
 			pi->nextnode = pi->nodelist;
+			ZAPMSG(reply);
 			return(HA_OK);
 		}
+
+		ZAPMSG(reply);
 	}
 	if (reply != NULL) {
 		zap_nodelist(pi);
