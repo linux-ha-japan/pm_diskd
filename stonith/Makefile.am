@@ -47,6 +47,7 @@ lib_LTLIBRARIES		= libstonith.la
 
 libstonith_la_SOURCES	= stonith.c main.c 
 libstonith_la_LDFLAGS	= -version-info 0:0:0
+libstonith_la_LIBADD	= @LIBADD_INTL@
 
 ## modules
 
