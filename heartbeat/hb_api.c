@@ -85,7 +85,6 @@
 #include <clplumbing/cl_poll.h>
 #include <clplumbing/cl_signal.h>
 
-
 static int api_ping_iflist(const struct ha_msg* msg, struct node_info * node
 ,	struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason);

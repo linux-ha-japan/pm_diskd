@@ -1,4 +1,4 @@
-static const char _mcast_Id [] = "$Id: mcast.c,v 1.10 2002/09/19 22:40:18 alan Exp $";
+static const char _mcast_Id [] = "$Id: mcast.c,v 1.11 2002/10/21 10:17:19 horms Exp $";
 /*
  * mcast.c: implements hearbeat API for UDP multicast communication
  *
@@ -52,7 +52,6 @@ static const char _mcast_Id [] = "$Id: mcast.c,v 1.10 2002/09/19 22:40:18 alan E
 #define PIL_PLUGINLICENSEURL	URL_LGPL
 #include <pils/plugin.h>
 #include <heartbeat.h>
-
 
 struct mcast_private {
 	char *  interface;      /* Interface name */
@@ -819,6 +818,9 @@ get_loop(const char *loop, u_char *l)
 
 /*
  * $Log: mcast.c,v $
+ * Revision 1.11  2002/10/21 10:17:19  horms
+ * hb api clients may now be built outside of the heartbeat tree
+ *
  * Revision 1.10  2002/09/19 22:40:18  alan
  * Changed a few error return checks to not print anything and return
  * if an error was encountered.

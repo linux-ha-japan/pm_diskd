@@ -25,16 +25,16 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
                         -I$(top_builddir) -I$(top_srcdir)
 
 hadir			= $(sysconfdir)/ha.d
-halibdir		= $(libdir)/@HEARTBEATPKG@
+halibdir		= $(libdir)/@HB_PKG@
 commmoddir		= $(halibdir)/modules/comm
-havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
+havarlibdir		= $(localstatedir)/lib/@HB_PKG@
 havarrundir		= $(localstatedir)/run/
 apidir		       	= $(havarlibdir)/api
 apicasualdir		= $(havarlibdir)/casual
 # fifos with path
 hafifo			= $(havarlibdir)/fifo
 apireg			= $(havarlibdir)/register
-apigid			= @APIGID@
+apigid			= @HA_APIGID@
 gliblib			= @GLIBLIB@
 
 LIBRT 			= @LIBRT@
@@ -48,8 +48,6 @@ CFLAGS			= @CFLAGS@ $(AM_CFLAGS)	\
 SUBDIRS			= init.d lib logrotate.d rc.d resource.d
 
 noinst_HEADERS		= hb_module.h
-
-include_HEADERS		= hb_api.h
 
 ## libraries
 
@@ -106,7 +104,7 @@ api_test_LDADD		= $(top_builddir)/lib/clplumbing/libplumb.la	\
 			libhbclient.la $(gliblib)
 
 ## SCRIPTS/DATA
-ha_DATA			= shellfuncs README.config
+ha_DATA			= shellfuncs README.config 
 ha_SCRIPTS		= harc
 
 

@@ -28,7 +28,7 @@ CFLAGS			= @CFLAGS@
 
 ## libraries
 
-halibdir		= $(libdir)/@HEARTBEATPKG@
+halibdir		= $(libdir)/@HB_PKG@
 plugindir		= $(halibdir)/plugins/HBauth
 plugin_LTLIBRARIES	= md5.la crc.la sha1.la
 

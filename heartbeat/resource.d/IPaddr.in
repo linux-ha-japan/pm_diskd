@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.29 2002/09/04 15:23:36 msoffen Exp $
+#	$Id: IPaddr.in,v 1.30 2002/10/21 10:17:18 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -23,7 +23,7 @@ exec_prefix=@exec_prefix@
 
 IFCONFIG=@IFCONFIG@
 IFCONFIG_A_OPT=@IFCONFIG_A_OPT@
-VARLIB=@localstatedir@/lib/@HEARTBEATPKG@
+VARLIB=@localstatedir@/lib/@HB_PKG@
 VLDIR=$VARLIB/rsctmp/IPaddr
 ROUTE=@ROUTE@
 SENDARP=$HA_BIN/send_arp
@@ -509,7 +509,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.29 2002/09/04 15:23:36 msoffen Exp $"
+  echo "$Id: IPaddr.in,v 1.30 2002/10/21 10:17:18 horms Exp $"
 }
 
 #
@@ -556,6 +556,9 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.30  2002/10/21 10:17:18  horms
+# hb api clients may now be built outside of the heartbeat tree
+#
 # Revision 1.29  2002/09/04 15:23:36  msoffen
 # Changed for Solaris.  Removed "Add Route" and moved to subroutine (Left commented out call to subroutine though).
 # Corrected comment (added monitor as allowd parameter).

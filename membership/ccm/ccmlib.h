@@ -34,6 +34,8 @@
 #include <ocf/oc_event.h>
 #endif
 
+#include <portability.h>
+
 #define NODEIDSIZE 255 /* if this value is changed change it 
 			  	also in ccm.h */
 #define CCMFIFO "/var/lib/heartbeat/ccm/ccm" /* if this value

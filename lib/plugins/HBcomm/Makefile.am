@@ -29,7 +29,7 @@ CFLAGS			= @CFLAGS@
 
 ## libraries
 
-halibdir		= $(libdir)/@HEARTBEATPKG@
+halibdir		= $(libdir)/@HB_PKG@
 plugindir		= $(halibdir)/plugins/HBcomm
 plugin_LTLIBRARIES	= bcast.la mcast.la ping.la serial.la ucast.la
 

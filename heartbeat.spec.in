@@ -1,14 +1,14 @@
-#	$Id: heartbeat.spec.in,v 1.41 2002/10/15 13:35:03 alan Exp $
-Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
-Name:	@HEARTBEATPKG@
+#	$Id: heartbeat.spec.in,v 1.42 2002/10/21 10:17:17 horms Exp $
+Summary: @HB_PKG@ - heartbeat subsystem for High-Availability Linux
+Name:	@HB_PKG@
 Version:	@VERSION@
 Release:	1
 Copyright: GPL
 URL: http://linux-ha.org/
 Group: Utilities
 Packager: Alan Robertson <alanr@unix.sh>
-Source: http://linux-ha.org/download/@HEARTBEATPKG@-@VERSION@.tar.gz
-Buildroot: /var/tmp/@HEARTBEATPKG@-root
+Source: http://linux-ha.org/download/@HB_PKG@-@VERSION@.tar.gz
+Buildroot: /var/tmp/@HB_PKG@-root
 BuildPrereq: glib-devel, lynx, @UCDSNMPDEVEL@, perl, iputils, /usr/bin/ssh, openssl-devel
 Requires: sysklogd
 
@@ -29,7 +29,7 @@ Summary: Provides a general plugin and interface loading library
 Group: Utilities
 
 %description
-@HEARTBEATPKG@ is a basic heartbeat subsystem for Linux-HA.
+@HB_PKG@ is a basic heartbeat subsystem for Linux-HA.
 It will run scripts at initialization, and when machines go up or down.
 This version will also perform IP address takeover using gratuitous ARPs.
 It works correctly for a 2-node configuration, and is extensible to larger
@@ -483,20 +483,23 @@ install -m 644 rc.config.heartbeat $TEMPL
 @libdir@/libccmclient.*
 @libdir@/libplumb.*
 @libdir@/libapphb.*
+@base_includedir@/heartbeat
+@base_includedir@/clplumbing
+@base_includedir@/ocf
 @sysconfdir@/ha.d/resource.d/
 @INITDIR@/heartbeat
 @sysconfdir@/logrotate.d/heartbeat
 @localstatedir@/adm/fillup-templates/rc.config.heartbeat
-%dir @localstatedir@/lib/@HEARTBEATPKG@
-%attr (600, root, root)       @localstatedir@/lib/@HEARTBEATPKG@/fifo
-%dir %attr (750, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api
-%attr (620, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/register
-%attr (755, @CCMUSER@, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/ccm
-%attr (1770, root, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/casual
-%attr (200, @CCMUSER@, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api/ccm.req
-%attr (600, @CCMUSER@, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api/ccm.rsp
-%attr (200, @CCMUSER@, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api/ipfail.req
-%attr (600, @CCMUSER@, @APIGROUP@) @localstatedir@/lib/@HEARTBEATPKG@/api/ipfail.rsp
+%dir @localstatedir@/lib/@HB_PKG@
+%attr (600, root, root)       @localstatedir@/lib/@HB_PKG@/fifo
+%dir %attr (750, root, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api
+%attr (620, root, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/register
+%attr (755, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/ccm
+%attr (1770, root, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/casual
+%attr (200, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api/ccm.req
+%attr (600, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api/ccm.rsp
+%attr (200, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api/ipfail.req
+%attr (600, @HA_CCMUSER@, @HA_APIGROUP@) @localstatedir@/lib/@HB_PKG@/api/ipfail.rsp
 %doc @mandir@/man8/heartbeat.8*
 %doc doc/AUTHORS 
 %doc doc/COPYING 
@@ -558,7 +561,7 @@ if
 then
   rm -rf $RPM_BUILD_ROOT
 fi
-rm -rf $RPM_BUILD_DIR/@HEARTBEATPKG@-@VERSION@
+rm -rf $RPM_BUILD_DIR/@HB_PKG@-@VERSION@
 
 ###########################################################
 %pre
@@ -568,32 +571,32 @@ rm -rf $RPM_BUILD_DIR/@HEARTBEATPKG@-@VERSION@
 #	to agree on group id's seems hard to me :-(
 #
 if
-  getent group @APIGROUP@ >/dev/null
+  getent group @HA_APIGROUP@ >/dev/null
 then
-  : OK group @APIGROUP@ already present
+  : OK group @HA_APIGROUP@ already present
 else
-  GROUPOPT="-g @APIGID@"
+  GROUPOPT="-g @HA_APIGID@"
   if
-    usr/sbin/groupadd $GROUPOPT @APIGROUP@ 2>/dev/null
+    usr/sbin/groupadd $GROUPOPT @HA_APIGROUP@ 2>/dev/null
   then
-    : OK we were able to add group @APIGROUP@
+    : OK we were able to add group @HA_APIGROUP@
   else
-    usr/sbin/groupadd @APIGROUP@
+    usr/sbin/groupadd @HA_APIGROUP@
   fi
 fi
 
 if
-  getent passwd @CCMUSER@ >/dev/null
+  getent passwd @HA_CCMUSER@ >/dev/null
 then
-  : OK user @CCMUSER@ already present
+  : OK user @HA_CCMUSER@ already present
 else
-  USEROPT="-g @APIGROUP@"
+  USEROPT="-g @HA_APIGROUP@"
   if
-    usr/sbin/useradd $USEROPT @CCMUSER@ 2>/dev/null
+    usr/sbin/useradd $USEROPT @HA_CCMUSER@ 2>/dev/null
   then
-    : OK we were able to add user @CCMUSER@
+    : OK we were able to add user @HA_CCMUSER@
   else
-    usr/sbin/useradd @CCMUSER@
+    usr/sbin/useradd @HA_CCMUSER@
   fi
 fi
 #
@@ -606,8 +609,8 @@ fi
 if
   [ -f etc/SuSE-release ]
 then
-  start=@INITSTARTPRI@
-  stop=@INITSTOPPRI@
+  start=@HB_INITSTARTPRI@
+  stop=@HB_INITSTOPPRI@
   for d in etc/init.d/rc[235].d
   do
     rm -f $d/[SK]*[0-9]heartbeat

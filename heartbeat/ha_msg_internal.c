@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.26 2002/09/24 17:24:46 msoffen Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg_internal.c,v 1.27 2002/10/21 10:17:18 horms Exp $";
 /*
  * ha_msg_internal: heartbeat internal messaging functions
  *
@@ -54,7 +54,7 @@ if_msgfromstream(FILE * f, char *iface)
 
 	if(!(getsret=fgets(buf, MAXLINE, f))) { 
 		if (!ferror(f) || errno != EINTR) 
-			ha_error("if_msgfromstream: cannot get message");
+			ha_log(LOG_ERR, "if_msgfromstream: cannot get message");
 		return(NULL);
 	}
 
@@ -64,7 +64,8 @@ if_msgfromstream(FILE * f, char *iface)
 		/* Found interface name header, get interface name. */
 		if(!(getsret=fgets(buf, MAXLINE, f))) { 
 			if (!ferror(f) || errno != EINTR)
-				ha_error("if_msgfromstream: cannot get message");
+				ha_log(LOG_ERR, "if_msgfromstream: "
+						"cannot get message");
 			return(NULL);
 		}
 		if (iface) { 
@@ -87,7 +88,8 @@ if_msgfromstream(FILE * f, char *iface)
 	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
 		/* Getting an error with EINTR is pretty normal */
 		if (!ferror(f) || errno != EINTR) {
-			ha_error("if_msgfromstream: cannot get message");
+			ha_log(LOG_ERR, "if_msgfromstream: "
+					"cannot get message");
 		}
 		return(NULL);
 	}
@@ -125,7 +127,7 @@ msg2if_string(const struct ha_msg *m, const char *iface)
 	int	mlen;
 
 	if (m->nfields <= 0) {
-		ha_error("msg2if_string: Message with zero fields");
+		ha_log(LOG_ERR, "msg2if_string: Message with zero fields");
 		return(NULL);
 	}
 
@@ -137,7 +139,7 @@ msg2if_string(const struct ha_msg *m, const char *iface)
 	buf = ha_malloc(mlen * sizeof(char ));
 
 	if (buf == NULL) {
-		ha_error("msg2if_string: no memory for string");
+		ha_log(LOG_ERR, "msg2if_string: no memory for string");
 	}else{
 		/* Prepend information indicating incoming "interface" */
 		strcpy(buf, IFACE);
@@ -233,7 +235,7 @@ controlfifo2msg(FILE * f)
 
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, buf, bufmax) != HA_OK) {
-			ha_error("NV failure (controlfifo2msg):");
+			ha_log(LOG_ERR, "NV failure (controlfifo2msg)");
 			ha_log(LOG_INFO, "[%s] %ld chars", buf
 			,	(long)strlen(buf));
 			ha_log(LOG_INFO, "First char: 0x%02x"
@@ -532,6 +534,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg_internal.c,v $
+ * Revision 1.27  2002/10/21 10:17:18  horms
+ * hb api clients may now be built outside of the heartbeat tree
+ *
  * Revision 1.26  2002/09/24 17:24:46  msoffen
  * Changed to log the bogus packet and accept blank packets / carriage returns
  * and just return.

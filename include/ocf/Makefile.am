@@ -22,6 +22,8 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
+includedir=$(base_includedir)/ocf
+
 include_HEADERS	= 		\
 	oc_event.h		\
 	oc_membership.h

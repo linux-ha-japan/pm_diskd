@@ -1,4 +1,4 @@
-static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.9 2002/07/08 04:14:12 alan Exp $";
+static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.10 2002/10/21 10:17:18 horms Exp $";
 #include <portability.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -6,6 +6,8 @@ static const char * _ha_malloc_c_id = "$Id: ha_malloc.c,v 1.9 2002/07/08 04:14:1
 #include <errno.h>
 #include <heartbeat.h>
 #include <hb_proc.h>
+
+#include <ltdl.h>
 
 /*
  *

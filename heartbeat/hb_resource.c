@@ -33,6 +33,7 @@
 #include <hb_resource.h>
 #include <heartbeat_private.h>
 #include <hb_api_core.h>
+#include <ha_config.h>
 #include <setproctitle.h>
 #include <clplumbing/cl_signal.h>
 #include <clplumbing/realtime.h>
@@ -166,8 +167,8 @@ CreateInitialFilter(void)
 	(void)_ha_msg_h_Id;
 	(void)_setproctitle_h_Id;
 
-	if ((dp = opendir(HEARTBEAT_RC_DIR)) == NULL) {
-		ha_perror("Cannot open directory " HEARTBEAT_RC_DIR);
+	if ((dp = opendir(HB_RC_DIR)) == NULL) {
+		ha_perror("Cannot open directory " HB_RC_DIR);
 		return;
 	}
 	while((dep = readdir(dp)) != NULL) {

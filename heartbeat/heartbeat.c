@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.225 2002/10/21 02:00:35 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.226 2002/10/21 10:17:18 horms Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -219,7 +219,6 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.225 2002/10/21 02:00
  */
 
 #include <portability.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -267,6 +266,7 @@ const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.225 2002/10/21 02:00
 #include <HBcomm.h>
 #include <heartbeat_private.h>
 #include <hb_signal.h>
+#include <ha_config.h>
 #include <hb_resource.h>
 
 #include "setproctitle.h"
@@ -569,12 +569,6 @@ ha_timestamp(void)
 	return(ts);
 }
 
-/* Very unsophisticated HA-error-logging function (deprecated) */
-void
-ha_error(const char *	msg)
-{
-	ha_log(LOG_ERR, "%s", msg);
-}
 
 /*
  *	This routine starts everything up and kicks off the heartbeat
@@ -1855,8 +1849,6 @@ check_auth_change(struct sys_config *conf)
 		return_to_dropped_privs();
 	}
 }
-
-
 
 
 /***********************************************************************
@@ -3818,6 +3810,9 @@ IncrGeneration(unsigned long * generation)
 
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.226  2002/10/21 10:17:18  horms
+ * hb api clients may now be built outside of the heartbeat tree
+ *
  * Revision 1.225  2002/10/21 02:00:35  horms
  * Use CL_KILL() instead of kill() throughout the code.
  * This makes the code nice and homogenous and removes

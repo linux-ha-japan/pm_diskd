@@ -18,8 +18,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
-MAINTAINERCLEANFILES    = Makefile.in
+MAINTAINERCLEANFILES    = Makefile.in ha_config.h
 
-include_HEADERS	        = apphb.h HBauth.h HBcomm.h ha_msg.h heartbeat.h
+EXTRADIST = ha_config.h.in
+
+includedir=$(base_includedir)/heartbeat
+
+include_HEADERS	        = apphb.h HBauth.h HBcomm.h ha_msg.h heartbeat.h \
+				ha_config.h hb_api.h hb_api_core.h
 
 SUBDIRS                 = clplumbing ocf pils stonith

@@ -33,7 +33,7 @@
 
 #include <pils/interface.h>
 #include <stdio.h>
- 
+
 PIL_PLUGIN_BOILERPLATE("1.0", AuthDebugFlag, ClosePlugin)
 
 

@@ -6,3 +6,4 @@ ResourceManager
 req_resource
 mach_down
 hb_standby
+ha_config

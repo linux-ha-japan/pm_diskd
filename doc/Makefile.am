@@ -19,7 +19,7 @@
 #
 MAINTAINERCLEANFILES    = Makefile.in
 
-docdir 			= $(datadir)/@HEARTBEATPKG@
+docdir 			= $(datadir)/@HB_PKG@
 
 htmlfiles		= HardwareGuide.html	\
 			GettingStarted.html	\

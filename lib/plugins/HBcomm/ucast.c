@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.6 2002/10/07 04:34:23 alan Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.7 2002/10/21 10:17:19 horms Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -280,7 +280,7 @@ ucast_new(const char * intf, const char *addr)
 	if (ipi == NULL) {
 		sprintf(msg, "IP interface [%s] does not exist"
 		,	intf);
-		ha_error(msg);
+		ha_log(LOG_ERR, msg);
 		return(NULL);
 	}
 	ret = (struct hb_media*)MALLOC(sizeof(struct hb_media));

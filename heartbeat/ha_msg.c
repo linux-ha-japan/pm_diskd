@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.32 2002/10/18 07:16:08 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.33 2002/10/21 10:17:18 horms Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -58,7 +58,8 @@ ha_msg_new(nfields)
 		ret->stringlen	= sizeof(MSG_START)+sizeof(MSG_END)-1;
 		if (ret->names == NULL || ret->values == NULL
 		||	ret->nlens == NULL || ret->vlens == NULL) {
-			ha_error("ha_msg_new: out of memory for ha_msg");
+			ha_log(LOG_ERR, "%s", "ha_msg_new: "
+					"out of memory for ha_msg");
 			ha_msg_del(ret);
 			ret = NULL;
 		}else if (curproc) {
@@ -135,34 +136,34 @@ ha_msg_nadd(struct ha_msg * msg, const char * name, int namelen
 
 	if (!msg || (msg->nfields >= msg->nalloc)
 	||	msg->names == NULL || msg->values == NULL) {
-		ha_error("ha_msg_nadd: cannot add field to ha_msg");
+		ha_log(LOG_ERR, "ha_msg_nadd: cannot add field to ha_msg");
 		return(HA_FAIL);
 	}
 	if (name == NULL || value == NULL
 	||	namelen <= 0 || vallen < 0 || newlen >= MAXMSG) {
-		ha_error("ha_msg_nadd: cannot add name/value to ha_msg");
+		ha_log(LOG_ERR, "ha_msg_nadd: "
+				"cannot add name/value to ha_msg");
 		return(HA_FAIL);
 	}
 
 	if (namelen >= startlen && strncmp(name, MSG_START, startlen) == 0) {
-		ha_error("ha_msg_nadd: illegal field");
+		ha_log(LOG_ERR, "ha_msg_nadd: illegal field");
 		return(HA_FAIL);
 	}
 		
 	if (memchr(value, '\n', vallen) != NULL) {
-		ha_log(LOG_ERR
-		,	"ha_msg_nadd: newline in value. name [%s]"
-		" value [%s]", name, value);
+		ha_log(LOG_ERR, "ha_msg_nadd: newline in value. name [%s] "
+				"value [%s]", name, value);
 		return(HA_FAIL);
 	}
 
 	if ((cpname = ha_malloc(namelen+1)) == NULL) {
-		ha_error("ha_msg_nadd: no memory for string (name)");
+		ha_log(LOG_ERR, "ha_msg_nadd: no memory for string (name)");
 		return(HA_FAIL);
 	}
 	if ((cpvalue = ha_malloc(vallen+1)) == NULL) {
 		ha_free(cpname);
-		ha_error("ha_msg_nadd: no memory for string (value)");
+		ha_log(LOG_ERR, "ha_msg_nadd: no memory for string (value)");
 		return(HA_FAIL);
 	}
 	/* Copy name, value, appending EOS to the end of the strings */
@@ -188,7 +189,7 @@ ha_msg_add_nv(struct ha_msg* msg, const char * nvline, const char * bufmax)
 	int		vallen;
 
 	if (!nvline) {
-		ha_error("ha_msg_add_nv: NULL nvline");
+		ha_log(LOG_ERR, "ha_msg_add_nv: NULL nvline");
 		return(HA_FAIL);
 	}
 	/* How many characters before the '='? */
@@ -214,7 +215,7 @@ ha_msg_value(const struct ha_msg * msg, const char * name)
 {
 	int	j;
 	if (!msg || !msg->names || !msg->values) {
-		ha_error("ha_msg_value: NULL msg");
+		ha_log(LOG_ERR, "ha_msg_value: NULL msg");
 		return(NULL);
 	}
 
@@ -234,7 +235,7 @@ ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 	int	j;
 
 	if (msg == NULL || name == NULL || value == NULL) {
-		ha_error("ha_msg_mod: NULL input.");
+		ha_log(LOG_ERR, "ha_msg_mod: NULL input.");
 		return HA_FAIL;
 	}
 	for (j=0; j < msg->nfields; ++j) {
@@ -243,7 +244,7 @@ ha_msg_mod(struct ha_msg * msg, const char * name, const char * value)
 			int	newlen;
 			int	sizediff = 0;
 			if (newv == NULL) {
-				ha_error("ha_msg_mod: out of memory");
+				ha_log(LOG_ERR, "ha_msg_mod: out of memory");
 				return(HA_FAIL);
 			}
 			ha_free(msg->values[j]);
@@ -284,7 +285,7 @@ msgfromstream(FILE * f)
 		/* Getting an error with EINTR is pretty normal */
 		/* (so is EOF) */
 		if ((!ferror(f) || errno != EINTR) && !feof(f)) {
-			ha_error("msgfromstream: cannot get message");
+			ha_log(LOG_ERR, "msgfromstream: cannot get message");
 		}
 		return(NULL);
 	}
@@ -382,8 +383,8 @@ string2msg(const char * s, size_t length)
 		}
 		/* Add the "name=value" string on this line to the message */
 		if (ha_msg_add_nv(ret, sp, smax) != HA_OK) {
-			ha_error("NV failure (string2msg):");
-			ha_error(s);
+			ha_log(LOG_ERR, "NV failure (string2msg):");
+			ha_log(LOG_ERR, s);
 			ha_msg_del(ret);
 			return(NULL);
 		}
@@ -403,14 +404,14 @@ msg2string(const struct ha_msg *m)
 	char *	bp;
 
 	if (m->nfields <= 0) {
-		ha_error("msg2string: Message with zero fields");
+		ha_log(LOG_ERR, "msg2string: Message with zero fields");
 		return(NULL);
 	}
 
 	buf = ha_malloc(m->stringlen);
 
 	if (buf == NULL) {
-		ha_error("msg2string: no memory for string");
+		ha_log(LOG_ERR, "msg2string: no memory for string");
 	}else{
 		bp = buf;
 		strcpy(buf, MSG_START);
@@ -464,6 +465,9 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.33  2002/10/21 10:17:18  horms
+ * hb api clients may now be built outside of the heartbeat tree
+ *
  * Revision 1.32  2002/10/18 07:16:08  alan
  * Put in Horms big patch plus a patch for the apcmastersnmp code where
  * a macro named MIN returned the MAX instead.  The code actually wanted

@@ -87,6 +87,8 @@
 
 #include <clplumbing/cl_signal.h>
 
+#include <portability.h>
+
 #ifndef PIDFILE
 #	define	PIDFILE "/var/run/apphbd.pid"
 #endif

@@ -21,7 +21,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.21 2002/09/26 06:11:51 horms Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.22 2002/10/21 10:17:18 horms Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -52,7 +52,6 @@ static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.21 2002/09/26 06:11:
 #include <stonith/stonith.h>
 #include <clplumbing/cl_log.h>
 #include <clplumbing/longclock.h>
-#include <ltdl.h>
 #define index FooIndex
 #define time FooTime
 #include <glib.h>
@@ -347,7 +346,6 @@ extern int			RestartRequested;
 #define ha_perror	cl_perror
 
 /* Generally useful exportable HA heartbeat routines... */
-extern void		ha_error(const char * msg);
 extern void		ha_assert(const char *s, int line, const char * file);
 
 extern int		send_cluster_msg(struct ha_msg*msg);

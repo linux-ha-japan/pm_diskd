@@ -25,12 +25,12 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 			-I$(top_builddir)/heartbeat -I$(top_srcdir)/heartbeat \
                         -I$(top_builddir) -I$(top_srcdir)
 
-halibdir		= $(libdir)/@HEARTBEATPKG@
+halibdir		= $(libdir)/@HB_PKG@
 
-havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
+havarlibdir		= $(localstatedir)/lib/@HB_PKG@
 # fifos with path
-apigid			= @APIGID@
-ipfailuid			= @CCMUID@
+apigid			= @HA_APIGID@
+ipfailuid		= @HA_CCMUID@
 ipfreqfifo		= $(havarlibdir)/api/ipfail.req
 ipfresfifo		= $(havarlibdir)/api/ipfail.rsp
 

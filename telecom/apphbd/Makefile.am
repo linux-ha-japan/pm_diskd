@@ -24,9 +24,9 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 			-I$(top_builddir)/linux-ha -I$(top_srcdir)/linux-ha
 
 hadir			= $(sysconfdir)/ha.d
-halibdir		= $(libdir)/@HEARTBEATPKG@
+halibdir		= $(libdir)/@HB_PKG@
 commmoddir		= $(halibdir)/modules/comm
-havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
+havarlibdir		= $(localstatedir)/lib/@HB_PKG@
 PIDFILE			= $(localstatedir)/run/apphbd/apphbd.pid
 
 COMMONLIBS		= $(top_builddir)/lib/clplumbing/libplumb.la	\

@@ -1,4 +1,4 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.6 2002/10/21 02:00:35 horms Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.7 2002/10/21 10:17:19 horms Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -117,8 +117,12 @@ static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.6 2002/10/21 02:00:35 hor
 #if defined(SO_BINDTODEVICE)
 #	include <net/if.h>
 #endif
+<<<<<<< ppp-udp.c
+#include <heartbeat.h>
+=======
 #include <heartbeat.h>
 #include <clplumbing/cl_signal.h>
+>>>>>>> 1.6
 
 #define	EOS	'\0'
 
@@ -221,7 +225,7 @@ hb_dev_new(const char* tty, const char* ipaddr)
 
 	ipi = MALLOCT(struct ip_private);
 	if (ipi == NULL) {
-		ha_error("Out of memory.");
+		ha_log(LOG_ERR, "Out of memory");
 		return(NULL);
 	}
 
@@ -249,7 +253,7 @@ hb_dev_new(const char* tty, const char* ipaddr)
 		ipi->next = ret;
 		ipi->rsocket = ipi->wsocket = -1;
 	}else{
-		ha_error("Out of memory.");
+		ha_log(LOG_ERR, "Out of memory");
 		ha_free(ipi);
 	}
 	return(ret);
@@ -301,7 +305,7 @@ hb_dev_parse(const char * line)
 		if (*ip == EOS)  {
 			sprintf(msg, "ppp-udp tty [%s]: missing IP address"
 			,	tty);
-			ha_error(msg);
+			ha_log(LOG_ERR, msg);
 			return(HA_FAIL);
 		}
 		if (!is_valid_serial(tty)) {
@@ -489,7 +493,8 @@ ppp_udp_open_write(struct hb_media * mp)
 				}
 				CL_KILL(ei->ppp_pid, SIGTERM);
 			}else{
-				ha_error("Cannot kill unknown PPPd process!");
+				ha_log(LOG_ERR, "Cannot kill unknown "
+						"PPPd process!");
 			}
 			unlink(ppp_udp_ppp_start_path(mp));
 		}
@@ -1153,7 +1158,7 @@ is_valid_local_addr(const char * addr)
 	if (inet_aton(addr, &in) == 0) {
 		sprintf(msg, "IP address [%s] not valid in config file"
 		,	addr);
-		ha_error(msg);
+		ha_log(LOG_ERR, msg);
 		return(HA_FAIL);
 	}
 	if ((in.s_addr&MASK10) == VAL10) {
@@ -1171,7 +1176,7 @@ is_valid_local_addr(const char * addr)
 	,	addr
 	,	"local (RFC 1918) address"
 	,	in.s_addr);
-	ha_error(msg);
+	ha_log(LOG_ERR, msg);
 	return(HA_FAIL);
 }
 
@@ -1185,7 +1190,7 @@ is_valid_serial(const char * port)
 	if (*port != '/') {
 		sprintf(msg, "Serial port not full pathname [%s] in config file"
 		,	port);
-		ha_error(msg);
+		ha_log(LOG_ERR, msg);
 		return(HA_FAIL);
 	}
 
@@ -1198,7 +1203,7 @@ is_valid_serial(const char * port)
 	if (!S_ISCHR(sbuf.st_mode)) {
 		sprintf(msg, "Serial port [%s] not a char device in config file"
 		,	port);
-		ha_error(msg);
+		ha_log(LOG_ERR, msg);
 		return(HA_FAIL);
 	}
 	return(HA_OK);
@@ -1213,6 +1218,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.7  2002/10/21 10:17:19  horms
+ * hb api clients may now be built outside of the heartbeat tree
+ *
  * Revision 1.6  2002/10/21 02:00:35  horms
  * Use CL_KILL() instead of kill() throughout the code.
  * This makes the code nice and homogenous and removes

@@ -36,7 +36,6 @@
 #include <hb_api_core.h>
 #include <hb_api.h>
 
-
 /*
  * A heartbeat API test program...
  */

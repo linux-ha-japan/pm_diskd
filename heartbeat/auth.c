@@ -31,7 +31,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <pils/plugin.h>
-#include "heartbeat.h"
+#include <heartbeat.h>
 
 struct HBAuthOps * findauth(const char * type, char ** tptr);
 
@@ -294,6 +294,9 @@ parse_authfile(void)
 }
 /*
  * $Log: auth.c,v $
+ * Revision 1.9  2002/10/21 10:17:17  horms
+ * hb api clients may now be built outside of the heartbeat tree
+ *
  * Revision 1.8  2002/04/20 05:36:22  alan
  * Added a little debug for debugging Matt Soffen's authentication
  * problems.

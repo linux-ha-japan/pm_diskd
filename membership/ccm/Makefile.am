@@ -28,15 +28,15 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
                         -I$(top_builddir)/include/clplumbing -I$(top_srcdir)/include/clplumbing
 
 hadir			= $(sysconfdir)/ha.d
-halibdir		= $(libdir)/@HEARTBEATPKG@
+halibdir		= $(libdir)/@HB_PKG@
 ccmlibdir		= $(halibdir)
 commmoddir		= $(halibdir)/modules/comm
-havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
+havarlibdir		= $(localstatedir)/lib/@HB_PKG@
 havarrundir		= $(localstatedir)/run/
 # fifos with path
 ccmdir			= $(havarlibdir)/ccm
-apigid			= @APIGID@
-ccmuid			= @CCMUID@
+apigid			= @HA_APIGID@
+ccmuid			= @HA_CCMUID@
 gliblib			= @GLIBLIB@
 ccmreqfifo		= $(havarlibdir)/api/ccm.req
 ccmresfifo		= $(havarlibdir)/api/ccm.rsp

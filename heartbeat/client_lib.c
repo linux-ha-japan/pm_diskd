@@ -172,6 +172,10 @@ static const char *	OurClientID = NULL;
 static char 		OurNode[SYS_NMLN];
 static ll_cluster_t*	hb_cluster_new(void);
 
+static void ha_api_perror(const char * fmt, ...);
+static void ha_api_log(int priority, const char * fmt, ...);
+
+
 #define	ZAPMSG(m)	{ha_msg_del(m); (m) = NULL;}
 
 /*
@@ -187,38 +191,38 @@ hb_api_boilerplate(const char * apitype)
 	(void)_ha_msg_h_Id;
 
 	if ((msg = ha_msg_new(4)) == NULL) {
-		ha_log(LOG_ERR, "boilerplate: out of memory");
+		ha_api_log(LOG_ERR, "boilerplate: out of memory");
 		return msg;
 	}
 
 	/* Message type: API request */
 	if (ha_msg_add(msg, F_TYPE, T_APIREQ) != HA_OK) {
-		ha_log(LOG_ERR, "boilerplate: cannot add F_TYPE field");
+		ha_api_log(LOG_ERR, "boilerplate: cannot add F_TYPE field");
 		ZAPMSG(msg);
 		return msg;
 	}
 	/* Add field for API request type */
 	if (ha_msg_add(msg, F_APIREQ, apitype) != HA_OK) {
-		ha_log(LOG_ERR, "boilerplate: cannot add F_APIREQ field");
+		ha_api_log(LOG_ERR, "boilerplate: cannot add F_APIREQ field");
 		ZAPMSG(msg);
 		return msg;
 	}
 	/* Add field for destination */
 	if (ha_msg_add(msg, F_TO, OurNode) != HA_OK) {
-		ha_log(LOG_ERR, "boilerplate: cannot add F_TO field");
+		ha_api_log(LOG_ERR, "boilerplate: cannot add F_TO field");
 		ZAPMSG(msg);
 		return msg;
 	}
 	/* Add our PID to the message */
 	if (ha_msg_add(msg, F_PID, OurPid) != HA_OK) {
-		ha_log(LOG_ERR, "boilerplate: cannot add F_PID field");
+		ha_api_log(LOG_ERR, "boilerplate: cannot add F_PID field");
 		ZAPMSG(msg);
 		return msg;
 	}
 	
 	/* Add our client ID to the message */
 	if (ha_msg_add(msg, F_FROMID, OurClientID) != HA_OK) {
-		ha_log(LOG_ERR, "boilerplate: cannot add F_FROMID field");
+		ha_api_log(LOG_ERR, "boilerplate: cannot add F_FROMID field");
 		ZAPMSG(msg);
 		return msg;
 	}
@@ -263,7 +267,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	 */
 
 	if (!ISOURS(cinfo)) {
-		ha_log(LOG_ERR, "hb_api_signon: bad cinfo");
+		ha_api_log(LOG_ERR, "hb_api_signon: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)cinfo->ll_cluster_private;
@@ -285,7 +289,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	}
 
 	if (!iscasual && DoLock(HBPREFIX, OurClientID) != 0) {
-		ha_log(LOG_ERR, "Cannot lock FIFO for %s", OurClientID);
+		ha_api_log(LOG_ERR, "Cannot lock FIFO for %s", OurClientID);
 	}
 	pi->iscasual = iscasual;
 	directory = (iscasual ? CASUALCLIENTDIR : NAMEDCLIENTDIR);
@@ -303,7 +307,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	 */
 
 	if (uname(&un) < 0) {
-		ha_perror("uname failure");
+		ha_api_perror("uname failure");
 		return HA_FAIL;
 	}
         memset(OurNode, 0, sizeof(OurNode));
@@ -316,7 +320,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 
 	/* Make sure the registration FIFO exists */
 	if (stat(API_REGFIFO, &sbuf) < 0 || !S_ISFIFO(sbuf.st_mode)) {
-		ha_log(LOG_ERR, "FIFO %s does not exist", API_REGFIFO);
+		ha_api_log(LOG_ERR, "FIFO %s does not exist", API_REGFIFO);
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
@@ -324,7 +328,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	if (iscasual) {
 		/* Make our reply FIFO */
 		if (mkfifo(pi->ReplyFIFOName, 0600) < 0) {
-			ha_perror("hb_api_signon: Can't create fifo %s"
+			ha_api_perror("hb_api_signon: Can't create fifo %s"
 			,	pi->ReplyFIFOName);
 			ZAPMSG(request);
 			return HA_FAIL;
@@ -332,7 +336,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 
 		/* Make our request FIFO */
 		if (mkfifo(pi->ReqFIFOName, 0600) < 0) {
-			ha_perror("hb_api_signon: Can't create fifo %s"
+			ha_api_perror("hb_api_signon: Can't create fifo %s"
 			,	pi->ReqFIFOName);
 			ZAPMSG(request);
 			return HA_FAIL;
@@ -346,7 +350,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	 * things to work right.
 	 */
 	if ((fd = open(pi->ReplyFIFOName, O_RDWR)) < 0) {
-		ha_log(LOG_ERR, "hb_api_signon: Can't open reply fifo %s"
+		ha_api_log(LOG_ERR, "hb_api_signon: Can't open reply fifo %s"
 		,	pi->ReplyFIFOName);
 		ZAPMSG(request);
 		return HA_FAIL;
@@ -357,7 +361,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	 * So, we do an open(2), then an fdopen of the fd gotten from open().
 	 */
 	if ((pi->ReplyFIFO = fdopen(fd, "r")) == NULL) {
-		ha_log(LOG_ERR, "hb_api_signon: Can't fdopen reply fifo %s"
+		ha_api_log(LOG_ERR, "hb_api_signon: Can't fdopen reply fifo %s"
 		,	pi->ReplyFIFOName);
 		ZAPMSG(request);
 		return HA_FAIL;
@@ -376,7 +380,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 
 	/* Open up the registration FIFO */
 	if ((RegFIFO = fopen(API_REGFIFO, "w")) == NULL) {
-		ha_perror("Can't fopen " API_REGFIFO);
+		ha_api_perror("Can't fopen " API_REGFIFO);
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
@@ -384,7 +388,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 	/* Send the registration request message */
 	if (msg2stream(request, RegFIFO) != HA_OK) {
 		fclose(RegFIFO); RegFIFO=NULL;
-		ha_perror("can't send message to %s", API_REGFIFO);
+		ha_api_perror("can't send message to %s", API_REGFIFO);
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
@@ -408,7 +412,7 @@ hb_api_signon(struct ll_cluster* cinfo, const char * clientid)
 		 * So it's now safe for us to open our end of it for writing.
 		 */
 		if ((pi->RequestFIFO = fopen(pi->ReqFIFOName, "w")) == NULL) {
-			ha_log(LOG_ERR, "hb_api_signon: Can't open req fifo %s"
+			ha_api_log(LOG_ERR, "hb_api_signon: Can't open req fifo %s"
 			,	pi->ReqFIFOName);
 			ZAPMSG(reply);
 			return HA_FAIL;
@@ -432,29 +436,29 @@ hb_api_signoff(struct ll_cluster* cinfo)
 	llc_private_t* pi;
 
 	if (!ISOURS(cinfo)) {
-		ha_log(LOG_ERR, "hb_api_signoff: bad cinfo");
+		ha_api_log(LOG_ERR, "hb_api_signoff: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)cinfo->ll_cluster_private;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_SIGNOFF)) == NULL) {
-		ha_log(LOG_ERR, "hb_api_signoff: can't create msg");
+		ha_api_log(LOG_ERR, "hb_api_signoff: can't create msg");
 		return HA_FAIL;
 	}
 	
 	/* Send the message */
 	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("can't send message to RequestFIFO");
+		ha_api_perror("can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
 	if (!pi->iscasual && DoUnlock(HBPREFIX, OurClientID) != 0) {
-		ha_log(LOG_ERR, "Cannot unlock FIFO for %s", OurClientID);
+		ha_api_log(LOG_ERR, "Cannot unlock FIFO for %s", OurClientID);
 	}
 	ZAPMSG(request);
 	OurClientID = NULL;
@@ -478,7 +482,7 @@ hb_api_delete(struct ll_cluster* ci)
 {
 	llc_private_t* pi;
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "hb_api_delete: bad cinfo");
+		ha_api_log(LOG_ERR, "hb_api_delete: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
@@ -516,25 +520,25 @@ hb_api_setfilter(struct ll_cluster* ci, unsigned fmask)
 	llc_private_t* pi;
 
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "hb_api_setfilter: bad cinfo");
+		ha_api_log(LOG_ERR, "hb_api_setfilter: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_SETFILTER)) == NULL) {
-		ha_log(LOG_ERR, "hb_api_setfilter: can't create msg");
+		ha_api_log(LOG_ERR, "hb_api_setfilter: can't create msg");
 		return HA_FAIL;
 	}
 
 	/* Format the filtermask information in hex */
 	snprintf(filtermask, sizeof(filtermask), "%x", fmask);
 	if (ha_msg_add(request, F_FILTERMASK, filtermask) != HA_OK) {
-		ha_log(LOG_ERR, "hb_api_setfilter: cannot add field/2");
+		ha_api_log(LOG_ERR, "hb_api_setfilter: cannot add field/2");
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
@@ -542,7 +546,7 @@ hb_api_setfilter(struct ll_cluster* ci, unsigned fmask)
 	/* Send the message */
 	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("can't send message to RequestFIFO");
+		ha_api_perror("can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
 	ZAPMSG(request);
@@ -580,31 +584,31 @@ hb_api_setsignal(ll_cluster_t* lcl, int nsig)
 
 	ClearLog();
 	if (!ISOURS(lcl)) {
-		ha_log(LOG_ERR, "hb_api_setsignal: bad cinfo");
+		ha_api_log(LOG_ERR, "hb_api_setsignal: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)lcl->ll_cluster_private;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_SETSIGNAL)) == NULL) {
-		ha_log(LOG_ERR, "hb_api_setsignal: can't create msg");
+		ha_api_log(LOG_ERR, "hb_api_setsignal: can't create msg");
 		return HA_FAIL;
 	}
 
 	snprintf(csignal, sizeof(csignal), "%d", nsig);
 	if (ha_msg_add(request, F_SIGNAL, csignal) != HA_OK) {
-		ha_log(LOG_ERR, "hb_api_setsignal: cannot add field/2");
+		ha_api_log(LOG_ERR, "hb_api_setsignal: cannot add field/2");
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
 	
 	/* Send message */
 	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
-		ha_perror("can't send message to RequestFIFO");
+		ha_api_perror("can't send message to RequestFIFO");
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
@@ -638,19 +642,19 @@ get_nodelist(llc_private_t* pi)
 	struct stringlist*	sl;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_NODELIST)) == NULL) {
-		ha_log(LOG_ERR, "get_nodelist: can't create msg");
+		ha_api_log(LOG_ERR, "get_nodelist: can't create msg");
 		return HA_FAIL;
 	}
 
 	/* Send message */
 	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("can't send message to RequestFIFO");
+		ha_api_perror("can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
 	ZAPMSG(request);
@@ -693,16 +697,16 @@ get_iflist(llc_private_t* pi, const char *host)
 	struct stringlist*	sl;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if ((request = hb_api_boilerplate(API_IFLIST)) == NULL) {
-		ha_log(LOG_ERR, "get_iflist: can't create msg");
+		ha_api_log(LOG_ERR, "get_iflist: can't create msg");
 		return HA_FAIL;
 	}
 	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
-		ha_log(LOG_ERR, "get_iflist: cannot add field");
+		ha_api_log(LOG_ERR, "get_iflist: cannot add field");
 		ZAPMSG(request);
 		return HA_FAIL;
 	}
@@ -710,7 +714,7 @@ get_iflist(llc_private_t* pi, const char *host)
 	/* Send message */
 	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("Can't send message to RequestFIFO");
+		ha_api_perror("Can't send message to RequestFIFO");
 		return HA_FAIL;
 	}
 	ZAPMSG(request);
@@ -756,13 +760,13 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 
 	ClearLog();
 	if (!ISOURS(lcl)) {
-		ha_log(LOG_ERR, "get_nodestatus: bad cinfo");
+		ha_api_log(LOG_ERR, "get_nodestatus: bad cinfo");
 		return NULL;
 	}
 	pi = (llc_private_t*)lcl->ll_cluster_private;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return NULL;
 	}
 
@@ -770,7 +774,7 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 		return NULL;
 	}
 	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
-		ha_log(LOG_ERR, "get_nodestatus: cannot add field");
+		ha_api_log(LOG_ERR, "get_nodestatus: cannot add field");
 		ZAPMSG(request);
 		return NULL;
 	}
@@ -778,7 +782,7 @@ get_nodestatus(ll_cluster_t* lcl, const char *host)
 	/* Send message */
 	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("Can't send message to RequestFIFO");
+		ha_api_perror("Can't send message to RequestFIFO");
 		return NULL;
 	}
 	ZAPMSG(request);
@@ -817,12 +821,12 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 
 	ClearLog();
 	if (!ISOURS(lcl)) {
-		ha_log(LOG_ERR, "get_ifstatus: bad cinfo");
+		ha_api_log(LOG_ERR, "get_ifstatus: bad cinfo");
 		return NULL;
 	}
 	pi = (llc_private_t*)lcl->ll_cluster_private;
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return NULL;
 	}
 
@@ -830,12 +834,12 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 		return NULL;
 	}
 	if (ha_msg_add(request, F_NODENAME, host) != HA_OK) {
-		ha_log(LOG_ERR, "get_ifstatus: cannot add field");
+		ha_api_log(LOG_ERR, "get_ifstatus: cannot add field");
 		ZAPMSG(request);
 		return NULL;
 	}
 	if (ha_msg_add(request, F_IFNAME, ifname) != HA_OK) {
-		ha_log(LOG_ERR, "get_ifstatus: cannot add field");
+		ha_api_log(LOG_ERR, "get_ifstatus: cannot add field");
 		ZAPMSG(request);
 		return NULL;
 	}
@@ -843,7 +847,7 @@ get_ifstatus(ll_cluster_t* lcl, const char *host, const char * ifname)
 	/* Send message */
 	if (msg2stream(request, pi->RequestFIFO) != HA_OK) {
 		ZAPMSG(request);
-		ha_perror("Can't send message to RequestFIFO");
+		ha_api_perror("Can't send message to RequestFIFO");
 		return NULL;
 	}
 	ZAPMSG(request);
@@ -1075,7 +1079,7 @@ read_api_msg(llc_private_t* pi)
 		struct ha_msg*	msg;
 		const char *	type;
 		if ((msg=msgfromstream(pi->ReplyFIFO)) == NULL) {
-			ha_perror("read_api_msg: "
+			ha_api_perror("read_api_msg: "
 			"Cannot read reply from ReplyFIFO");
 			continue;
 		}
@@ -1101,7 +1105,7 @@ read_hb_msg(ll_cluster_t* llc, int blocking)
 	llc_private_t* pi;
 
 	if (!ISOURS(llc)) {
-		ha_log(LOG_ERR, "read_hb_msg: bad cinfo");
+		ha_api_log(LOG_ERR, "read_hb_msg: bad cinfo");
 		return NULL;
 	}
 	pi = (llc_private_t*)llc->ll_cluster_private;
@@ -1132,7 +1136,7 @@ set_msg_callback(ll_cluster_t* ci, const char * msgtype
 
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "set_msg_callback: bad cinfo");
+		ha_api_log(LOG_ERR, "set_msg_callback: bad cinfo");
 		return HA_FAIL;
 	}
 	return(add_gen_callback(msgtype,
@@ -1218,13 +1222,13 @@ read_msg_w_callbacks(ll_cluster_t* llc, int blocking)
 	llc_private_t* pi;
 
 	if (!ISOURS(llc)) {
-		ha_log(LOG_ERR, "read_msg_w_callbacks: bad cinfo");
+		ha_api_log(LOG_ERR, "read_msg_w_callbacks: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*) llc->ll_cluster_private;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "read_msg_w_callbacks: Not signed on");
+		ha_api_log(LOG_ERR, "read_msg_w_callbacks: Not signed on");
 		return NULL;
 	}
 	do {
@@ -1263,13 +1267,13 @@ init_nodewalk (ll_cluster_t* ci)
 	llc_private_t*	pi;
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "init_nodewalk: bad cinfo");
+		ha_api_log(LOG_ERR, "init_nodewalk: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 	zap_nodelist(pi);
@@ -1288,12 +1292,12 @@ nextnode (ll_cluster_t* ci)
 
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "nextnode: bad cinfo");
+		ha_api_log(LOG_ERR, "nextnode: bad cinfo");
 		return NULL;
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return NULL;
 	}
 	if (pi->nextnode == NULL) {
@@ -1313,12 +1317,12 @@ end_nodewalk(ll_cluster_t* ci)
 	llc_private_t*	pi;
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "end_nodewalk: bad cinfo");
+		ha_api_log(LOG_ERR, "end_nodewalk: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = ci->ll_cluster_private;
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 	zap_nodelist(pi);
@@ -1334,12 +1338,12 @@ init_ifwalk (ll_cluster_t* ci, const char * host)
 	llc_private_t*	pi;
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "init_ifwalk: bad cinfo");
+		ha_api_log(LOG_ERR, "init_ifwalk: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 	zap_iflist(pi);
@@ -1357,11 +1361,11 @@ nextif (ll_cluster_t* ci)
 
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "nextif: bad cinfo");
+		ha_api_log(LOG_ERR, "nextif: bad cinfo");
 		return HA_FAIL;
 	}
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 	if (pi->nextif == NULL) {
@@ -1382,11 +1386,11 @@ end_ifwalk(ll_cluster_t* ci)
 	llc_private_t*	pi = ci->ll_cluster_private;
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "end_ifwalk: bad cinfo");
+		ha_api_log(LOG_ERR, "end_ifwalk: bad cinfo");
 		return HA_FAIL;
 	}
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 	zap_iflist(pi);
@@ -1402,12 +1406,12 @@ get_inputfd(ll_cluster_t* ci)
 	llc_private_t* pi;
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "get_inputfd: bad cinfo");
+		ha_api_log(LOG_ERR, "get_inputfd: bad cinfo");
 		return(-1);
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return -1;
 	}
 	return(fileno(pi->ReplyFIFO));
@@ -1427,13 +1431,13 @@ msgready(ll_cluster_t*ci )
 
 	ClearLog();
 	if (!ISOURS(ci)) {
-		ha_log(LOG_ERR, "msgready: bad cinfo");
+		ha_api_log(LOG_ERR, "msgready: bad cinfo");
 		return 0;
 	}
 	pi = (llc_private_t*)ci->ll_cluster_private;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return 0;
 	}
 	if (pi->firstQdmsg) {
@@ -1460,12 +1464,12 @@ setfmode(ll_cluster_t* lcl, int mode)
 
 	ClearLog();
 	if (!ISOURS(lcl)) {
-		ha_log(LOG_ERR, "setfmode: bad cinfo");
+		ha_api_log(LOG_ERR, "setfmode: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)lcl->ll_cluster_private;
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 	switch(mode) {
@@ -1499,19 +1503,19 @@ sendclustermsg(ll_cluster_t* lcl, struct ha_msg* msg)
 	llc_private_t* pi;
 	ClearLog();
 	if (!ISOURS(lcl)) {
-		ha_log(LOG_ERR, "sendclustermsg: bad cinfo");
+		ha_api_log(LOG_ERR, "sendclustermsg: bad cinfo");
 		return HA_FAIL;
 	}
 
 	pi = (llc_private_t*)lcl->ll_cluster_private;
 
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 
 	if (pi->iscasual) {
-		ha_log(LOG_ERR, "sendclustermsg: casual client");
+		ha_api_log(LOG_ERR, "sendclustermsg: casual client");
 		return HA_FAIL;
 	}
 
@@ -1528,20 +1532,20 @@ sendnodemsg(ll_cluster_t* lcl, struct ha_msg* msg
 	llc_private_t* pi;
 	ClearLog();
 	if (!ISOURS(lcl)) {
-		ha_log(LOG_ERR, "sendnodemsg: bad cinfo");
+		ha_api_log(LOG_ERR, "sendnodemsg: bad cinfo");
 		return HA_FAIL;
 	}
 	pi = (llc_private_t*)lcl->ll_cluster_private;
 	if (!pi->SignedOn) {
-		ha_log(LOG_ERR, "not signed on");
+		ha_api_log(LOG_ERR, "not signed on");
 		return HA_FAIL;
 	}
 	if (pi->iscasual) {
-		ha_log(LOG_ERR, "sendnodemsg: casual client");
+		ha_api_log(LOG_ERR, "sendnodemsg: casual client");
 		return HA_FAIL;
 	}
 	if (ha_msg_mod(msg, F_TO, nodename) != HA_OK) {
-		ha_log(LOG_ERR, "sendnodemsg: cannot set F_TO field");
+		ha_api_log(LOG_ERR, "sendnodemsg: cannot set F_TO field");
 		return(HA_FAIL);
 	}
 	return(msg2stream(msg, pi->RequestFIFO));
@@ -1564,8 +1568,8 @@ APIError(ll_cluster_t* lcl)
 	return(APILogBuf);
 }
 
-void
-ha_log(int priority, const char * fmt, ...)
+static void
+ha_api_log(int priority, const char * fmt, ...)
 {
 	int	len;
         va_list ap;
@@ -1589,17 +1593,9 @@ ha_log(int priority, const char * fmt, ...)
 	BufLen += len;
 }
 
-
-
-void
-ha_error(const char * msg)
-{
-	ha_log(LOG_ERR, "%s", msg);
-}
-
 extern int	sys_nerr;
-void
-ha_perror(const char * fmt, ...)
+static void
+ha_api_perror(const char * fmt, ...)
 {
 	const char *	err;
 	char	errornumber[16];
@@ -1621,7 +1617,7 @@ ha_perror(const char * fmt, ...)
 	vsnprintf(buf, MAXLINE, fmt, ap);
 	va_end(ap);
 
-	ha_log(LOG_ERR, "%s: %s", buf, err);
+	ha_api_log(LOG_ERR, "%s: %s", buf, err);
 
 }
 
