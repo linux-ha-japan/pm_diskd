@@ -1,4 +1,4 @@
-const static char * _hb_config_c_Id = "$Id: config.c,v 1.75 2003/01/31 10:02:09 lars Exp $";
+const static char * _hb_config_c_Id = "$Id: config.c,v 1.76 2003/02/05 06:07:13 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -181,8 +181,8 @@ init_config(const char * cfgfile)
 		return(HA_FAIL);
 	}
 	config->format_vers = 100;
-	config->heartbeat_ms = 2000;
-	config->deadtime_ms = 5000;
+	config->heartbeat_ms = 1000;
+	config->deadtime_ms = 30000;
 	config->initial_deadtime_ms = -1;
 	config->hopfudge = 1;
 	config->log_facility = -1;
@@ -215,8 +215,7 @@ init_config(const char * cfgfile)
 	}
 
 	if (config->warntime_ms <= 0) {
-		config->warntime_ms
-		=	(config->deadtime_ms *3)/4;
+		config->warntime_ms = config->deadtime_ms/2;
 	}
 	
 #if !defined(MITJA)
@@ -1394,6 +1393,9 @@ add_client_child(const char * directive)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.76  2003/02/05 06:07:13  alan
+ * Changed the default values for deadtime and heartbeat intervals.
+ *
  * Revision 1.75  2003/01/31 10:02:09  lars
  * Various small code cleanups:
  * - Lots of "signed vs unsigned" comparison fixes
