@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.24 2002/08/02 03:29:16 horms Exp $
+#	$Id: IPaddr.in,v 1.25 2002/08/02 22:50:43 alan Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -154,6 +154,9 @@ GetMACaddr() {
 	# Does this catch all types of interfaces on *BSD and SunOS?
 	MACtmp=`$IFCONFIG "$1"  |
 	fgrep "ether" |  sed  "s/^.*ether  *//"`
+	case $MACtmp in
+	  ?:*)	MACtmp=0$MACtmp;;
+	esac
 	ifconfig2sendarp "$MACtmp";;
 
     *)	MACtmp=`$IFCONFIG "$1"  | 
@@ -472,7 +475,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.24 2002/08/02 03:29:16 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.25 2002/08/02 22:50:43 alan Exp $"
 }
 
 #
@@ -519,6 +522,11 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.25  2002/08/02 22:50:43  alan
+# Put in a minor Solaris bug fix for IPaddr.
+# If we get a MAC address that is missing a leading zero, then we add
+# it back in.
+#
 # Revision 1.24  2002/08/02 03:29:16  horms
 # Reworked Lorn Kay's loopback interface patch for Linux.
 #
