@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.36 2001/09/07 16:35:41 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.37 2001/10/03 05:22:19 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -32,6 +32,10 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.36 2001/09/07 16:35:41 al
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/param.h>
+#define index FOOindex
+#define time FOOtime
+#include <glib.h>
+#undef index
 #include <unistd.h>
 #include <dirent.h>
 #include <ltdl.h>
@@ -57,16 +61,18 @@ extern struct hb_media_fns** hbmedia_types;
 extern int num_hb_media_types;
 
 
-PILPluginUniv*	PluginLoadingSystem = NULL;
-GHashTable*	AuthFunctions = NULL;
-GHashTable*	CommFunctions = NULL;
-GHashTable*	StonithFuncs = NULL;
-static void	RegisterNewMedium(struct hb_media* mp);
-static const char *	ParameterValue(const char * name);
-static void	RegisterCleanup(void(*)(void));
-extern int	StringToBaud(const char *);
+PILPluginUniv*		PluginLoadingSystem = NULL;
+GHashTable*		AuthFunctions = NULL;
+GHashTable*		CommFunctions = NULL;
+GHashTable*		StonithFuncs = NULL;
+static GHashTable*	Parameters = NULL;
+
+static void		RegisterNewMedium(struct hb_media* mp);
+static const char *	GetParameterValue(const char * name);
+static void		RegisterCleanup(void(*)(void));
+extern int		StringToBaud(const char *);
 struct hb_media_imports	CommImports =
-{	ParameterValue
+{	GetParameterValue
 ,	RegisterNewMedium
 ,	ttylock
 ,	ttyunlock
@@ -139,10 +145,41 @@ RegisterNewMedium(struct hb_media* mp)
 	sysmedia[nummedia] = mp;
 	++nummedia;
 }
-static const char *
-ParameterValue(const char * name)
+
+
+void
+SetParameterValue(const char * name, const char * value)
 {
-	return NULL;
+	char *	namedup;
+	char *	valdup;
+	void *	gname;
+	void *	gval;
+
+	if (Parameters == NULL) {
+		Parameters = g_hash_table_new(g_str_hash, g_str_equal);
+		if (Parameters == NULL) {
+			ha_log(LOG_ERR
+			,	"ERROR: cannot create parameter table");
+			return;
+		}
+	}
+	if (g_hash_table_lookup_extended(Parameters, name, &gname
+	,	&gval)) {
+		g_hash_table_remove(Parameters, name);
+		g_free(gval);
+		g_free(gname);
+	}
+	namedup = g_strdup(name);
+	valdup = g_strdup(value);
+	g_hash_table_insert(Parameters, namedup, valdup);
+}
+static const char *
+GetParameterValue(const char * name)
+{
+	if (!Parameters) {
+		return NULL;
+	}
+	return g_hash_table_lookup(Parameters, name);
 }
 static void
 RegisterCleanup(void(*fun)(void))

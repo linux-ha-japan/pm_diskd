@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.9 2001/10/02 22:31:33 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.10 2001/10/03 05:22:19 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -58,7 +58,8 @@ struct serial_private {
         struct hb_media*	next;
 };
 
-static int serial_baud = 0;
+static int		serial_baud = 0;
+static const char *	baudstring;
 
 /* Used to maintain a list of our serial ports in the ring */
 static struct hb_media*		lastserialport;
@@ -199,13 +200,13 @@ serial_init (void)
 
 	/* This eventually ought be done through the configuration API */
 	if (serial_baud <= 0) {
-		const char *	chbaud;
-		if ((chbaud  = OurImports->ParamValue("baud")) != NULL) {
-			serial_baud = OurImports->StrToBaud(chbaud);
+		if ((baudstring  = OurImports->ParamValue("baud")) != NULL) {
+			serial_baud = OurImports->StrToBaud(baudstring);
 		}
 	}
-	if (serial_baud <= 0) {
+	if (serial_baud <= 0 || baudstring == NULL) {
 		serial_baud = DEFAULTBAUD;
+		baudstring  = DEFAULTBAUDSTR;
 	}
 	if (ANYDEBUG) {
 		LOG(PIL_DEBUG, "serial_init: serial_baud = 0x%x"
@@ -283,7 +284,8 @@ serial_open (struct hb_media* mp)
 	if ((sp->ttyfd = opentty(sp->ttyname)) < 0) {
 		return(HA_FAIL);
 	}
-	LOG(PIL_INFO, "Starting serial heartbeat on tty %s", sp->ttyname);
+	LOG(PIL_INFO, "Starting serial heartbeat on tty %s (%s baud)"
+	,	sp->ttyname, baudstring);
 	return(HA_OK);
 }
 
@@ -592,6 +594,9 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.10  2001/10/03 05:22:19  alan
+ * Added code to save configuration parameters so we can pass them to the various communication plugins...
+ *
  * Revision 1.9  2001/10/02 22:31:33  alan
  * Fixed really dumb error in the serial code.  I called an init function *after*
  * returning from the function ;-)

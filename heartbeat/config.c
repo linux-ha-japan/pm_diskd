@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.47 2001/09/29 19:08:24 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.48 2001/10/03 05:22:19 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -653,7 +653,11 @@ add_option(const char *	option, const char * value)
 
 	for (j=0; j < DIMOF(Directives); ++j) {
 		if (strcmp(option, Directives[j].name) == 0) {
-			return((*Directives[j].add_func)(value));
+			int rc;
+			rc = ((*Directives[j].add_func)(value));
+			if (rc == HA_OK) {
+				SetParameterValue(option, value);
+			}
 		}
 	}
 
@@ -1214,6 +1218,9 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.48  2001/10/03 05:22:19  alan
+ * Added code to save configuration parameters so we can pass them to the various communication plugins...
+ *
  * Revision 1.47  2001/09/29 19:08:24  alan
  * Wonderful security and error correction patch from Emily Ratliff
  * 	<ratliff@austin.ibm.com>

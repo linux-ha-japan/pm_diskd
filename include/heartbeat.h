@@ -20,7 +20,7 @@
 #ifndef _HEARTBEAT_H
 #	define _HEARTBEAT_H 1
 
-static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.2 2001/10/01 20:34:14 alan Exp $";
+static const char * _heartbeat_h_Id = "$Id: heartbeat.h,v 1.3 2001/10/03 05:22:19 alan Exp $";
 #ifdef SYSV
 #	include <sys/termio.h>
 #	define TERMIOS	termio
@@ -154,6 +154,7 @@ enum deadreason {
 
 #define	DEFAULTBAUD	B19200	/* Default serial link speed */
 #define	DEFAULTBAUDRATE	19200	/* Default serial link speed as int */
+#define	DEFAULTBAUDSTR	"19200"	/* Default serial link speed as string */
 
 /* multicast defaults */
 #define DEFAULT_MCAST_IPADDR "225.0.0.1" /* Default multicast group */
@@ -325,6 +326,7 @@ struct node_info *	lookup_node(const char *);
 struct link * lookup_iface(struct node_info * hip, const char *iface);
 struct link *  iface_lookup_node(const char *);
 int	add_node(const char * value, int nodetype);
+void	SetParameterValue(const char * name, const char * value);
 
 void*		ha_malloc(size_t size);
 void*		ha_calloc(size_t nmemb, size_t size);
