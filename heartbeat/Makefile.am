@@ -29,6 +29,7 @@ halibdir		= $(libdir)/@HEARTBEATPKG@
 commmoddir		= $(halibdir)/modules/comm
 authmoddir		= $(halibdir)/modules/auth
 havarlibdir		= $(localstatedir)/lib/@HEARTBEATPKG@
+havarrundir		= $(localstatedir)/run/
 apidir		       	= $(havarlibdir)/api
 apicasualdir		= $(havarlibdir)/casual
 # fifos with path
@@ -37,7 +38,7 @@ apireg			= $(havarlibdir)/register
 
 
 CFLAGS			= @CFLAGS@	\
--DVAR_RUN_D='"$(localstatedir)/run"'	\
+-DVAR_RUN_D='"$(havarrundir)"'	\
 -DVAR_LIB_D='"$(havarlibdir)"'		\
 -DHA_D='"$(hadir)"'			\
 -DHALIB='"$(halibdir)"'
@@ -118,13 +119,22 @@ crc_la_SOURCES		= crc.c
 crc_la_LDFLAGS		= -export-dynamic -module -avoid-version
 
 ## SCRIPTS/DATA
-ha_DATA			= shellfuncs README.config
+ha_DATA			= README.config
 ha_SCRIPTS		= harc
+ha_PROGRAMS		= shellfuncs
 
 
 ## additional Makefile targets
+shellfuncs: shellfuncs.in
+	sed -e 's%HB_SYSCONFDIR%$(sysconfdir)%' \
+	-e 's%HB_LOCALSTATEDIR%$(localstatedir)%' \
+	-e 's%HB_DATADIR%$(datadir)%' \
+	-e 's%HB_LIBDIR%$(libdir)%' < $< > $@
+	chmod +x $@
+
 # additional installations not covered normally
 install-exec-local:
+	$(mkinstalldirs) $(DESTDIR)$(havarrundir)
 	$(mkinstalldirs) $(DESTDIR)$(apidir)
 	$(mkinstalldirs) $(DESTDIR)$(apicasualdir)
 	test -p $(DESTDIR)$(hafifo) || mkfifo -m 600 $(DESTDIR)$(hafifo)
