@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-# $Id: ldirectord,v 1.28 2001/04/19 03:26:07 horms Exp $
+# $Id: ldirectord,v 1.29 2001/04/19 03:36:21 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -88,7 +88,7 @@ Not used.
 
 B<negotiatetimeout = >I<n>
 
-Defines the number of seconds to wait for TCP/IP timeouts. Default is 
+Defines the number of seconds to wait for TCP/IP timeouts. Default is
 defined by the operating system. If defined in virtual server section
 then the global value is overridden.
 
@@ -121,7 +121,7 @@ the server onto which a webservice is redirected if all real
 servers are down. Typically this would be 127.0.0.1 with
 an emergency page.
 
-This directive may also appear within a virtual server, in which 
+This directive may also appear within a virtual server, in which
 case it will overide the global fallback server, if set.
 
 
@@ -258,28 +258,52 @@ Skliarouk Peter <skliaroukp@bigfoot.com>
 
 =cut
 
+use strict;
+use vars qw(
+	    $AUTOCHECK
+	    $CHECKINTERVAL
+	    $CONNECTTIMEOUT
+	    $LDIRECTORD
+	    $LDIRLOG
+	    $LD_TERM_CALLED
+	    $NEGOTIATETIMEOUT
+	    $RUNPID
+            $CHECKTIMEOUT
+
+	    $CALLBACK
+	    $CFGNAME
+	    $CMD
+	    $CONFIG
+	    $DEBUG
+	    $FALLBACK
+	    $FOREGROUND
+	    $IPVSADM
+	    $checksum
+	    $initializing
+	    $opt_d
+	    $opt_h
+	    $pid
+	    $stattime
+	    %LD_INSTANCE
+	    @OLDVIRTUAL
+	    @REAL
+	    @VIRTUAL
+);
+
 # default values
-$CHECKTIMEOUT = 5;
-$CONNECTTIMEOUT = 0;
+$AUTOCHECK        = "no";
+$CHECKINTERVAL    = 10;
+$CHECKTIMEOUT     = 5;
+$CONNECTTIMEOUT   = 0;
+$LDIRECTORD       = "/usr/sbin/ldirectord"; # path onto myself
+$LDIRLOG          = "/var/log/ldirectord.log";
+$LD_TERM_CALLED   = 0;
 $NEGOTIATETIMEOUT = 0;
-$CHECKINTERVAL = 10;
-$LDIRECTORD="/usr/sbin/ldirectord"; # path onto myself
-$LDIRLOG="/var/log/ldirectord.log";
-$RUNPID="/var/run/ldirectord";
-$AUTOCHECK="no";
-$CALLBACK;
-$FOREGROUND;
-@VIRTUAL;
-@OLDVIRTUAL;
-@REAL;
-%LD_INSTANCE;
-$LD_TERM_CALLED=0;
-$checksum;
-$stattime;
-$initializing;
+$RUNPID           = "/var/run/ldirectord";
+
 
 use Getopt::Std;
-use English;
+#use English;
 #use Time::HiRes qw( gettimeofday tv_interval );
 use Socket;
 use Sys::Hostname;
@@ -290,6 +314,7 @@ use POSIX qw(setsid);
 getopts("dh");
 
 $DEBUG = 3 if (defined $opt_d);
+
 if ($DEBUG>0 and -f "./ipvsadm") {
 	$IPVSADM="./ipvsadm";
 } else {
@@ -436,10 +461,10 @@ sub ld_term
 {
         my ($signal) = (@_);
 	print STDERR "ldirectord $CFGNAME received signal: $signal\n";
-	if ($LD_TERM_CALLED){ 
+	if ($LD_TERM_CALLED){
 		$SIG{'__DIE__'} = "IGNORE";
 		$SIG{"$signal"} = "IGNORE";
-		die("Exit Handler Repeatedly Called\n"); 
+		die("Exit Handler Repeatedly Called\n");
 	}
 	$LD_TERM_CALLED = 1;
 
@@ -550,7 +575,7 @@ sub read_config
 				my $rcmd = $1;
 				next if ($rcmd =~ /^#/);
 				if ($rcmd =~ /^real\s*=\s*(.*)/) {
-					$1 =~ /(\d+\.\d+\.\d+\.\d+)(-(\d+\.\d+\.\d+\.\d+))?:(\d+)\s+(.*)/ 
+					$1 =~ /(\d+\.\d+\.\d+\.\d+)(-(\d+\.\d+\.\d+\.\d+))?:(\d+)\s+(.*)/
 					    or config_error($line, "invalid address for real server");
 					if ( defined ($2) ) {
 						add_real_server_range($line, \%vsrv, \@rsrv, $1, $3, $4, $5);
@@ -700,7 +725,7 @@ sub add_real_server_range
 	my ($line, $vsrv, $rsrv, $first, $last, $port, $flags) = (@_);
 
         my (@tmp, $first_i, $last_i, $i);
-       
+
 	if ( ($first_i=ip_to_decimal($first)) <0 ) {
 		config_error($line, "Invalid IP address: $first");
 	}
@@ -757,7 +782,7 @@ sub add_real_server
 
         my $real    = $vsrv->{"protocol"}.":".$rmts.":".$rmtp;
 	my $virtual = $vsrv->{"protocol"}.":".&get_virtual($vsrv);
-	foreach $r (@REAL){
+	for my $r (@REAL){
 		if($r->{"real"} eq $real){
 			my $ref=$r->{"virtual"};
 			push(@$ref, $virtual);
@@ -798,7 +823,7 @@ sub config_error
 
 sub ld_setup
 {
-	foreach $v (@VIRTUAL) {
+	for my $v (@VIRTUAL) {
 		if ($$v{protocol} eq "tcp") {
 			$$v{proto} = "-t";
 		} elsif ($$v{protocol} eq "udp") {
@@ -813,7 +838,7 @@ sub ld_setup
 			$$v{flags} .= "-M $$v{netmask} " if defined ($$v{netmask});
 		}
 		my $real = $$v{real};
-		foreach $r (@$real) {
+		for my $r (@$real) {
 			if ($$r{forward} eq "masq") {
 				$$r{forw} = "-m";
 			} elsif ($$r{forward} eq "gate") {
@@ -833,9 +858,11 @@ sub ld_setup
 				my $uri = $$r{request};
 				$uri =~ s/^\///g;
 				if ($$r{request} =~ /$$v{service}:\/\//) {
-					$$r{url} = "$$r{request}";
+					my $port=(defined $$v{checkport}?$$v{checkport}:$$r{port});
+					$$r{url} = "$$v{service}:\/\/$$r{server}:$port\/$uri";
 				} else {
-					$$r{url} = "$$v{service}:\/\/$$r{server}:$$r{port}\/$uri";
+					my $port=(defined $$v{checkport}?$$v{checkport}:$$r{port});
+					$$r{url} = "$$v{service}:\/\/$$r{server}:$port\/$uri";
 				}
 			} else {
 				my $uri = $$v{request};
@@ -869,6 +896,7 @@ sub ld_start
 	$_ = <IPVS>; $_ = <IPVS>; $_ = <IPVS>;
 	my %oldsrv;
 	my $real_service;
+	my $fwd;
 	while (<IPVS>) {
 		if ($_ =~ /(\w+)\s+(\d+\.\d+\.\d+\.\d+\:\d+|\d+)\s+(\w+)\s+persistent\s+(\d+)\s+mask\s+(.*)/) {
 			$real_service = "$2 ".lc($1);
@@ -899,6 +927,7 @@ sub ld_start
 
 	# modify service, if changed
 	my $nv;
+	my $nr;
 	foreach $nv (@VIRTUAL) {
 		my $nreal = $$nv{real};
 		$$nv{status} = 0;
@@ -909,7 +938,7 @@ sub ld_start
 			&ld_log("Changing virtual server: " . &get_virtual($nv));
 			my $ov = $oldsrv{&get_virtual($nv) . " " . $$nv{protocol}};
 			my $or = $$ov{real};
-			foreach $nr (@$nreal) {
+			for $nr (@$nreal) {
 				if (exists($$or{"$$nr{server}:$$nr{port}"})) {
 					&system_wrapper("$IPVSADM -e $$nv{proto} " . &get_virtual($nv) . " -R $$nr{server}:$$nr{port} $$nr{forw} $$nr{wght}");
 					$$nr{status} = 1;
@@ -921,7 +950,7 @@ sub ld_start
 				}
 			}
 			# remove remaining entries for real servers
-			foreach $k (keys %$or) {
+			for my $k (keys %$or) {
 				&system_wrapper("$IPVSADM -d $$nv{proto} " . &get_virtual($nv) . " -R $k");
 				print ("Removing real server: $$nr{server}:$$nr{port} ($$nv{status} x " . &get_virtual($nv) . ")\n");
 			}
@@ -929,7 +958,7 @@ sub ld_start
 		} else {
 			# no such service, create a new one
 			&system_wrapper("$IPVSADM -A $$nv{flags}");
-			foreach $nr (@$nreal) {
+			for $nr (@$nreal) {
 				$$nr{status} = 0;
 			}
 			&ld_log("Adding virtual server: " . &get_virtual($nv));
@@ -962,9 +991,9 @@ sub ld_cmd_children
 
 sub ld_stop
 {
-	foreach $v (@VIRTUAL) {
+	foreach my $v (@VIRTUAL) {
 		my $real = $$v{real};
-		foreach $r (@$real) {
+		foreach my $r (@$real) {
 			if ($$r{status}>0) {
 				&system_wrapper("$IPVSADM -d $$v{proto} " . &get_virtual($v) . " -R $$r{server}:$$r{port}");
 				$$r{status} = 0;
@@ -983,7 +1012,7 @@ sub ld_main
 	# Main failover checking code
 	while (1) {
 		my @real_checked;
-		foreach $v (@VIRTUAL) {
+		foreach my $v (@VIRTUAL) {
 			my $real = $$v{real};
 			# unfortunately LWP::Paralell::UserAgent
 			# does not work right now for https and
@@ -993,7 +1022,7 @@ sub ld_main
 			# $ua->redirect(0);
 			# $ua->max_hosts($#$real+1);
 			# $ua->max_req($#$real+1);
-			foreach $r (@$real) {
+			foreach my $r (@$real) {
 				unless(grep(/^$$v{protocol}:$$r{server}:$$r{port}$/, @real_checked)){
 					if ($$v{checktype} eq "negotiate" || $$r{num_connects}>=$$v{num_connects}) {
 						&ld_debug(2, "Checking negotiate: real server=$$r{server}:$$r{port} (virtual: " .  &get_virtual($v) . ")");
@@ -1021,7 +1050,7 @@ sub ld_main
 							$$r{num_connects} = 999999;
 						}
 					}
-						
+
 					push(@real_checked, "$$v{protocol}:$$r{server}:$$r{port}");
 				}
 			}
@@ -1066,7 +1095,7 @@ sub check_http
 	use LWP::UserAgent;
 	my ($v, $r) = @_;
 	my $ua = new LWP::UserAgent;
-	$ua->agent("LinuxDirector/0.1".$ua->agent);
+	$ua->agent("LinuxDirector/0.1 ".$ua->agent);
 	$ua->timeout($$v{negotiatetimeout});
 	my $req = new HTTP::Request(GET=>"$$r{url}");
 	my $res = $ua->request($req);
@@ -1086,10 +1115,10 @@ sub check_https
 	my ($v, $r) = @_;
 	use Net::SSLeay;
 	$Net::SSLeay::trace = 0;
-	$uri = $$v{request};
+	my $uri = $$v{request};
 	my ($page, $result, %headers);
 	{
-		local $SIG{__WARN__}; 
+		local $SIG{__WARN__};
 		($page, $result, %headers)  = &Net::SSLeay::get_https($$r{server}, $$r{port}, $uri);
 	}
 
@@ -1110,7 +1139,6 @@ sub check_https
 sub check_connect
 {
 	my ($v, $r) = @_;
-	undef $EVAL_ERROR, $result;
 
 	my $port=(defined $$v{checkport}?$$v{checkport}:$$r{port});
 	eval {
@@ -1177,6 +1205,7 @@ sub check_ftp
 # check_none
 # Dummy function to check service if service type is none.
 # Just activates the real server
+
 sub check_none
 {
 	my ($v, $r) = @_;
@@ -1187,8 +1216,10 @@ sub check_none
 
 # service_set
 # Used to bring up and down real servers.
-# This is the function you should call if you want to bring a real server up or down.
-# This function is safe to call regrdless of the current state of a real server.
+# This is the function you should call if you want to bring a real 
+# server up or down.
+# This function is safe to call regrdless of the current state of a 
+# real server.
 # Do _not_ call _service_up or _service_down directly.
 # pre: v: virtual that the real service belongs to
 #         Only used to determine the protocol of the service
@@ -1199,6 +1230,7 @@ sub check_none
 # post: The real server is brough up or down for each virtual service
 #       it belongs to.
 # return: none
+
 sub service_set()
 {
 	my ($v, $r, $state) = @_;
@@ -1217,7 +1249,7 @@ sub service_set()
 		}
 	}
 	return unless (defined($virtual));
-	
+
 	# Check each virtual service for the real server and make
 	# changes as neccessary
 	foreach $v (@VIRTUAL){
@@ -1241,13 +1273,14 @@ sub service_set()
 # Bring a real service up if it is down
 # Should be called by set_service only
 # I.e. If you want to change the state of a real server call set_service.
-#      If you call this function directly then ldirectord will lose track 
+#      If you call this function directly then ldirectord will lose track
 #      of the state of real servers.
 # pre: v: reference to virtual service to with the real server belongs
 #      r: refernece to the real server to take down
 # post: real service is taken up from the respective virtual service
 #       if it is inactive
-# return: none   
+# return: none
+
 sub _service_up
 {
 	my ($v, $r) = @_;
@@ -1265,13 +1298,14 @@ sub _service_up
 # Bring a real service down if it is up
 # Should be called by set_service only
 # I.e. if you want to change the state of a real server call set_service.
-#      If you call this function directly then ldirectord will lose track 
+#      If you call this function directly then ldirectord will lose track
 #      of the state of real servers.
 # pre: v: reference to virtual service to with the real server belongs
 #      r: refernece to the real server to take down
 # post: real service is taken down from the respective virtual service
 #       if it is active
-# return: none   
+# return: none
+
 sub _service_down
 {
 	my ($v, $r) = @_;
@@ -1290,7 +1324,8 @@ sub _service_down
 # pre: virtaual: virtual to turn fallback service on for
 # post: fallback server is turned on if it was inactive
 # return: none
-sub fallback_on 
+
+sub fallback_on
 {
 	my ($virtual) = (@_);
 
@@ -1308,7 +1343,8 @@ sub fallback_on
 # pre: virtaual: virtual to turn fallback service off for
 # post: fallback server is turned off if it was active
 # return: none
-sub fallback_off 
+
+sub fallback_off
 {
 	my ($virtual) = (@_);
 
@@ -1328,7 +1364,8 @@ sub fallback_off
 # return: $virtual->{"fallback"} if defined
 #         else $FALLBACK if defined
 #         else undef
-sub fallback_find 
+
+sub fallback_find
 {
 	my ($virtual) = (@_);
 
@@ -1340,7 +1377,7 @@ sub fallback_find
 
 	return;
 }
-  
+
 
 sub check_cfgfile
 {
@@ -1379,7 +1416,7 @@ sub check_cfgfile
 # return: 0 on success
 #         1 on error
 
-sub ld_log 
+sub ld_log
 {
 	my ($message) = (@_);
 
@@ -1403,7 +1440,7 @@ sub ld_log
 # post: message is written to STDOUT if $DEBUG >= priority
 # return: none
 
-sub ld_debug 
+sub ld_debug
 {
 	my ($priority, $message) = (@_);
 
@@ -1442,16 +1479,16 @@ sub system_wrapper
 sub ld_rm_file
 {
 	my ($filename)=(@_);
-	
+
 	my ($status);
 
-	if(-d "$filename"){ 
+	if(-d "$filename"){
 		&ld_debug(2, "ld_rm_file: $filename is a directory, skipping");
-		return(-1); 
+		return(-1);
 	}
-	if(! -e "$filename"){ 
+	if(! -e "$filename"){
 		&ld_debug(2, "ld_rm_file: $filename doesn't exist, skipping");
-		return(-1); 
+		return(-1);
 	}
 	$status = unlink($filename);
 	if($status!=1){
@@ -1466,7 +1503,7 @@ sub ld_rm_file
 # post: 1 if the alleged_octet is an octet
 #       0 otherwise
 
-sub is_octet 
+sub is_octet
 {
 	  my ($alleged_octet)=(@_);
 
@@ -1483,7 +1520,7 @@ sub is_octet
 # post: 1 if alleged_ip is a valid ip address
 #       0 otherwise
 
-sub is_ip 
+sub is_ip
 {
 	  my ($alleged_ip)=(@_);
 
@@ -1506,7 +1543,7 @@ sub is_ip
 # post: -1 if an error occurs
 #       decimal representation of IP address otherwise
 
-sub ip_to_decimal 
+sub ip_to_decimal
 {
 	  my ($ip_address)=(@_);
 
@@ -1516,13 +1553,14 @@ sub ip_to_decimal
 	  return(((((($1<<8)+$2)<<8)+$3)<<8)+$4);
 }
 
+
 # decimal_to_ip
 # Turn an IP address given as a dotted quad into a decimal
 # pre: ip_address: string representing IP address
 # post: -1 if an error occurs
 #       decimal representation of IP address otherwise
 
-sub decimal_to_ip 
+sub decimal_to_ip
 {
 	my ($ip_address)=(@_);
 
@@ -1536,6 +1574,7 @@ sub decimal_to_ip
 		$ip_address&255
 	));
 }
+
 
 # get_virtual
 # Get the service for a virtual
@@ -1610,7 +1649,7 @@ sub open_socket
 # Writen by Horms, horms@vergenet.net for an unrelated project while
 # working for Zip World, http://www.zipworld.com.au/, 1997-1999.
 
-sub ld_daemon 
+sub ld_daemon
 {
 	return if defined $FOREGROUND;
 
@@ -1685,7 +1724,7 @@ sub ld_daemon
 #         child: none  (this is the process that returns)
 # Writen by Horms, horms@vergenet.net for an unrelated project while
 # working for Zip World, http://www.zipworld.com.au/, 1997-1999.
-sub ld_daemon_become_child 
+sub ld_daemon_become_child
 {
 	my($status);
 
