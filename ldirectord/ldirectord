@@ -2,7 +2,7 @@
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
 # THIS IS BETA. checkout version 1.6 for a stable version.
-# $Id: ldirectord,v 1.23 2000/12/13 18:40:55 horms Exp $
+# $Id: ldirectord,v 1.24 2000/12/20 19:23:24 horms Exp $
 # © 2000, Jacob Rief <jacob.rief@tis.at>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -80,17 +80,19 @@ and be indented.
 B<checktimeout = >I<n>
 
 Defines the number of second until a real server is declared dead. Default
-is 5 seconds. If mentioned in virtual server section - overrides global value.
+is 5 seconds. If defined in virtual server section then the global value
+is overridden.
 
 B<checkinterval = >I<n>
 
-Defines the number of second between server checks.
+Defines the number of second between server checks. Default is 10 seconds.
 
 B<autoreload = >[B<yes>|B<no>]
 
-Defines if <ldirectord> should contineously check the configuration
+Defines if <ldirectord> should continuously check the configuration
 file for modification. If this is set to 'yes' and the configuration
 file changed on disk, the configuration is automatically reloaded.
+Default is no.
 
 B<callback = ">I</path/to/callback>B<">
 
@@ -121,7 +123,7 @@ an alternative logfile might be specified with this directive.
 
 B<execute = ">I<configuration>B<">
 
-Use this directive to start an own instance of ldirectord for
+Use this directive to start an instance of ldirectord for
 the named I<configuration>.
 
 
@@ -194,9 +196,9 @@ Password to use to login to FTP server. Default is ldirectord\@<hostname>,
 where hostname is the environment variable HOSTNAME evaluated at run time.
 
 
-B<scheduler = rr>|B<wrr>|B<lc>|B<wlc>
+B<scheduler = rr>|B<wrr>|B<lc>|B<wlc>|B<lblc>|B<lblcr>
 
-Scheduler to be used for loadbalance.
+Scheduler to be used for loadbalance. Default is "wrr".
 
 B<persistent => I<n>
 
@@ -579,7 +581,7 @@ sub read_config
 					$vsrv{load} = $1;
 					lc($1);
 				} elsif ($rcmd =~ /^scheduler\s*=\s*(.*)/) {
-					$1 =~ /(\w+)/ && ($1 eq "rr" || $1 eq "wrr" || $1 eq "lc" || $1 eq "wlc")
+					$1 =~ /(\w+)/ && ($1 eq "rr" || $1 eq "wrr" || $1 eq "lc" || $1 eq "wlc" || $1 eq "lblc" || $1 eq "lblcr" )
 					    or config_error($line, "scheduler must be rr, wrr, lc or wlc");
 					$vsrv{scheduler} = $1;
 				} elsif ($rcmd =~ /^persistent\s*=\s*(.*)/) {
@@ -929,7 +931,7 @@ sub ld_cmd_children
 	# instantiate other ldirectord, if specified
 	my $child;
 	foreach $child (keys %children) {
-		system("$LDIRECTORD $child $cmd");
+		&system_wrapper("$LDIRECTORD $child $cmd");
 	}
 }
 
