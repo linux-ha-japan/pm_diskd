@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.213 2002/09/26 09:20:43 horms Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.214 2002/10/04 14:34:32 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1051,7 +1051,7 @@ read_child(struct hb_media* mp)
 				,	msglen, m->nfields);
 			}
 			if (DEBUGPKTCONT) {
-				ha_log(LOG_DEBUG, sm);
+				ha_log(LOG_DEBUG, "%s", sm);
 			}
 
 			if ((rc=write(statusfd, sm, msglen)) != msglen)  {
@@ -6015,6 +6015,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.214  2002/10/04 14:34:32  alan
+ * Closed a security hole pointed out by Nathan Wallwork.
+ *
  * Revision 1.213  2002/09/26 09:20:43  horms
  * Fixed file descriptor leak in heartbeat side of heartbeat API.
  * I'm not sure about ignoreing SIGPIPE, but it will do for now.
