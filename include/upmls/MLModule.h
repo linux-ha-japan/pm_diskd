@@ -346,6 +346,14 @@ struct MLModuleOps_s {
 	void		(*close) (MLModule*);
 };
 
+typedef enum {
+	ML_FATAL= 1,	/* BOOM! Causes program to stop */
+	ML_CRIT	= 2,	/* Critical -- serious error */
+	ML_WARN	= 3,	/* Warning */
+	ML_INFO	= 4,	/* Informative message */
+	ML_DEBUG= 5,	/* Debug message */
+}MLLogLevel;
+
 /*
  * struct MLModuleImports_s (typedef MLModuleImports) defines
  * the functions and capabilities that every module imports when it is loaded.
@@ -360,13 +368,14 @@ struct MLModuleImports_s {
 	,	void*		Ops		/* Info (functions) exported
 						   by this plugin	*/
 	,	void**		pluginid	/* Plugin id 	(OP)	*/
-	,	void**		Imports);	/* Functions imported by
-						   this plugin	(OP)	*/
+	,	void**		Imports
+	,	void*		ud_plugin);	/* plugin user data */
 
 	ML_rc	(*unregister_plugin)(void* pluginid);
-	ML_rc	(*load_module)(const char * moduletype, const char * modulname);
+	ML_rc	(*load_module)(MLModuleUniv* universe
+	,	const char * moduletype, const char * modulename);
 
-	void	(*log)	(int priority, const char * fmt, ...);
+	void	(*log)	(MLLogLevel priority, const char * fmt, ...);
 					/* Logging function		*/
 };
 
@@ -399,6 +408,8 @@ struct MLModuleImports_s {
 
 /* This is how we get started ;-) */
 MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
+void	DelMLModuleUniv(MLModuleUniv*);
+
 
 ML_rc
 MLLoadModule(MLModuleUniv* moduniv, const char * moduletype
@@ -419,7 +430,7 @@ extern void	MLForEachModType(MLModuleUniv* universe
  *				(AKA struct MLModuleType_s)
  */
 struct MLModuleType_s {
-	const char *		moduletype;
+	char *			moduletype;
 	MLModuleUniv*		moduniv; /* The universe to which we belong */
 	GHashTable*		Modules;
 			/* Key is module type, value is MLModule */
