@@ -2,6 +2,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef HAVE_LIBNET_1_1_API
+#	include <net/ethernet.h>
+#endif
 #include <libnet.h>
 #include <string.h>
 #include <syslog.h>
