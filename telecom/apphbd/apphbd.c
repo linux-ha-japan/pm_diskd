@@ -942,7 +942,11 @@ shutdown(int nsig)
 		tickle_watchdog();
 		shuttingdown = 1;
 	}
-	g_main_quit(mainloop);
+	if (mainloop != NULL && g_main_is_running(mainloop)) {
+		g_main_quit(mainloop);
+	}else{
+		exit(LSB_EXIT_OK);
+	}
 }
 
 
@@ -1018,7 +1022,7 @@ init_start()
 	close_watchdog();
 	wconn->ops->destroy(wconn);
 	if (unlink(PIDFILE) == 0) {
-		cl_log(LOG_INFO, "[%s] stoped", cmdname);
+		cl_log(LOG_INFO, "[%s] stopped", cmdname);
 	}
 	return 0;
 }
@@ -1097,8 +1101,13 @@ init_stop(void)
 
 	if (pid > 0) {
 		if (CL_KILL((pid_t)pid, SIGTERM) < 0) {
-			rc = (errno == EPERM ? LSB_EXIT_EPERM: LSB_EXIT_GENERIC);
+			rc = (errno == EPERM
+			?	LSB_EXIT_EPERM : LSB_EXIT_GENERIC);
 			fprintf(stderr, "Cannot kill pid %ld\n", pid);
+		}else{
+			while (CL_PID_EXISTS(pid)) {
+				sleep(1);
+			}
 		}
 	}
 	return rc;
