@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.9 2001/05/27 05:31:15 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.10 2001/05/27 22:26:37 mmoerz Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -69,8 +69,24 @@ static const char *_module_error = NULL;
 const char *
 module_error (void)
 {
-  return _module_error;
+	return _module_error;
 }
+
+static int
+so_select (const struct dirent *dire)
+{ 
+    
+	const char *end = &dire->d_name[strlen(dire->d_name) - 3];
+	
+	const char *obj_end = ".so";
+	
+	if (strcmp(end, obj_end) == 0) {
+		return 1;
+	}
+	
+	return 0;
+}
+
 
 /* 
  * Generic function to load symbols from a module.
@@ -79,10 +95,10 @@ static int
 generic_symbol_load(struct symbol_str symbols[], int len, lt_dlhandle handle)
 { 
 	int  a;
-
+	
 	for (a = 0; a < len; a++) {
 		struct symbol_str *sym = &symbols[a];
-
+		
 		if ((sym->function = lt_dlsym(handle, sym->name)) == NULL) {
 			if (sym->mandatory) {
 				ha_log(LOG_ERR
@@ -101,9 +117,8 @@ static int
 comm_module_init(void)
 { 
 	struct symbol_str comm_symbols[NR_HB_MEDIA_FNS]; 
-	DIR               *moduledir;
-	struct dirent     *module;
-	char              *help;
+        int a, n;
+        struct dirent **namelist;
 
 	strcpy(comm_symbols[0].name, "hb_dev_init");
 	comm_symbols[0].mandatory = 1;
@@ -135,47 +150,52 @@ comm_module_init(void)
 	strcpy(comm_symbols[9].name, "hb_dev_isping");
 	comm_symbols[9].mandatory = 1;
 
-	moduledir = opendir( COMM_MODULE_DIR );
+	n = scandir(COMM_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
 
-	if (!moduledir) {
-	  /* this is not very descriptive -> use strerror? */
-	  ha_log(LOG_ERR, "%s: opendir failed.", __FUNCTION__);
-	  return (HA_FAIL);
-	}
+        if (n < 0) { 
+		ha_log(LOG_ERR, "%s: scandir failed.", __FUNCTION__);
+		return (HA_FAIL);
+        }
 
-	while ( (module = readdir( moduledir )) ) {
-	  char *mod_path           = NULL;
-	  struct hb_media_fns* fns;
-	  int ret;
+        for (a = 0; a < n; a++) {
+		char *mod_path           = NULL;
+		char *help               = NULL;
+		struct hb_media_fns* fns;
+		int ret;
 
-	  /* should use d_type one day when libc6 implements it */
-	  while ( !strcmp( module->d_name, "." ) || 
-		  !strcmp( module->d_name, ".." ) ) 
-	    module = readdir( moduledir );
+		/* should use d_type one day when libc6 implements it */
+		if ( !strcmp( namelist[a]->d_name, "." ) || 
+		     !strcmp( namelist[a]->d_name, ".." ) ) 
+			continue;
 	  
-	  help = strchr(module->d_name, '.');
-	  if ( !help )
-	    continue;
-	  if ( strcmp( help, ".la" ) ) 
-	    continue;
-	  
-	  mod_path = ha_malloc((strlen(COMM_MODULE_DIR) +
-				strlen(module->d_name) + 2) * sizeof(char));
+		help = strchr(namelist[a]->d_name, '.');
+		if ( !help )
+			continue;
+		if ( strcmp( help, ".la" ) ) 
+			continue;
+		
+		mod_path = ha_malloc((strlen(COMM_MODULE_DIR) 
+		+ strlen(namelist[a]->d_name) + 2) * sizeof(char));
 		if (!mod_path) { 
 		        ha_log(LOG_ERR, "%s: Failed to alloc module path."
 			,	__FUNCTION__);
+			for (a=0; a < n; a++) {
+				free(namelist[a]);
+                        } 
 			return(HA_FAIL);
 		}
 
-		sprintf(mod_path,"%s/%s", COMM_MODULE_DIR, module->d_name);
+		sprintf(mod_path,"%s/%s", COMM_MODULE_DIR, 
+			namelist[a]->d_name);
 
 		fns = MALLOCT(struct hb_media_fns);
 		
 		if (fns == NULL) { 
 			ha_log(LOG_ERR, "%s: fns alloc failed.", __FUNCTION__);
 			ha_free(mod_path); 
-			free(module);
-			closedir(moduledir);
+			for (a=0; a < n; a++) {
+				free(namelist[a]);
+                        } 
 			return(HA_FAIL);
 		}
 
@@ -183,8 +203,9 @@ comm_module_init(void)
 			ha_log(LOG_ERR, "%s: %s", __FUNCTION__, lt_dlerror());
 			ha_free(mod_path); mod_path = NULL;
 			ha_free(fns); fns = NULL;
-			free(module);
-			closedir(moduledir);
+			for (a=0; a < n; a++) {
+				free(namelist[a]);
+                        } 
 			return(HA_FAIL);
 		}
 
@@ -201,12 +222,13 @@ comm_module_init(void)
 		fns->mtype = comm_symbols[7].function;
 		fns->descr = comm_symbols[8].function;
 		fns->isping = comm_symbols[9].function;
-
+		
 		if (ret == HA_FAIL) {
 			ha_free(mod_path);
 			ha_free(fns);
-			free(module);
-			closedir(moduledir);
+			for (a=0; a < n; a++) {
+                                free(namelist[a]);
+                        } 
 			return ret;
 		}
 		hbmedia_types[num_hb_media_types] = fns;
@@ -216,11 +238,12 @@ comm_module_init(void)
 		fns->desc_len = fns->descr(&fns->description);
 		fns->ref = 0;
 		ha_free(mod_path); 
-		mod_path = NULL;
+		/* mod_path = NULL; */ /* obsolete */
 	}
 
-	free(module);
-	closedir(moduledir);
+	for (a=0; a < n; a++) {
+		free(namelist[a]);
+	} 
 
 	return (HA_OK);
 }
@@ -230,71 +253,75 @@ int
 auth_module_init() 
 { 
 	struct symbol_str auth_symbols[NR_AUTH_FNS]; 
-	DIR               *moduledir;
-	struct dirent     *module;
-	char              *help;
-
+        int a, n;
+        struct dirent **namelist;
+	
 	strcpy(auth_symbols[0].name, "hb_auth_calc");
 	auth_symbols[0].mandatory = 1;
-
+	
 	strcpy(auth_symbols[1].name, "hb_auth_atype");
 	auth_symbols[1].mandatory = 1;
-
+	
 	strcpy(auth_symbols[2].name, "hb_auth_nkey");
 	auth_symbols[2].mandatory = 1;
 
-	moduledir = opendir( AUTH_MODULE_DIR );
+        n = scandir(AUTH_MODULE_DIR, &namelist, SCANSEL_C &so_select, 0);
 
-	if (!moduledir) {
-	  /* this is not very descriptive -> use strerror? */
-	  ha_log(LOG_ERR, "%s: opendir failed.", __FUNCTION__);
-	  return (HA_FAIL);
-	}
-
-	while ( (module = readdir( moduledir )) ) {
-	        char *mod_path; 
+        if (n < 0) { 
+		ha_log(LOG_ERR, "%s: scandir failed", __FUNCTION__);
+		return (HA_FAIL);
+        }
+	
+        for (a = 0; a < n; a++) {
+	        char *mod_path         = NULL; 
+		char *help             = NULL;
 		struct auth_type* auth;
 		int ret;
 		
-		/* should use d_type one day when libc6 implements it */
-		while ( !strcmp( module->d_name, "." ) || 
-			!strcmp( module->d_name, ".." ) ) 
-		  module = readdir( moduledir );
-	  
-		help = strchr(module->d_name, '.');
+		if ( !strcmp( namelist[a]->d_name, "." ) || 
+			!strcmp( namelist[a]->d_name, ".." ) ) 
+			continue;
+		
+		help = strchr(namelist[a]->d_name, '.');
 		if ( !help )
-		  continue;
+			continue;
 		if ( strcmp( help, ".la" ) ) 
-		  continue;
+			continue;
 		
 		mod_path = ha_malloc((strlen(AUTH_MODULE_DIR) +
-		      strlen(module->d_name) + 2) * sizeof(char));
+		      strlen(namelist[a]->d_name) + 2) * sizeof(char));
 
 		if (!mod_path) { 
 			ha_log(LOG_ERR, "%s: Failed to alloc module path"
 			,	__FUNCTION__);
-			free(module);
-			closedir(moduledir);			
+                        for (a=0; a < n; a++) {
+                                free(namelist[a]);
+                        }
 			return(HA_FAIL);
 		}
 
-		sprintf(mod_path,"%s/%s", AUTH_MODULE_DIR, module->d_name);
-
+		sprintf(mod_path,"%s/%s", AUTH_MODULE_DIR,
+			namelist[a]->d_name);
+		
 		auth = MALLOCT(struct auth_type);
-
+		
 		if (auth == NULL) { 
 			ha_log(LOG_ERR, "%s: auth_type alloc failed"
 			,	__FUNCTION__);
-			free(module);
-			closedir(moduledir);
+			ha_free(mod_path);
+                        for (a=0; a < n; a++) {
+				free(namelist[a]);
+                        } 
 			return(HA_FAIL);
 		}
 
 		if ((auth->dlhandler = lt_dlopen(mod_path)) == NULL) {
 			ha_log(LOG_ERR, "%s: dlopen failed", __FUNCTION__);
+			ha_free(mod_path);
 			ha_free(auth);
-			free(module);
-			closedir(moduledir);
+                        for (a=0; a < n; a++) {
+                                free(namelist[a]);
+                        } 
 			return(HA_FAIL);
 		}
 		
@@ -306,22 +333,27 @@ auth_module_init()
 		auth->needskey = auth_symbols[2].function;
 
 		if (ret == HA_FAIL) {
+                        ha_free(mod_path); 
 			ha_free(auth);
-			free(module);
-			closedir(moduledir);
+                        for (a=0; a < n; a++) {
+                                free(namelist[a]);
+                        } 
 			return ret;
 		}
-
+		
 		ValidAuths[num_auth_types] = auth;
 		num_auth_types++;
-
+		
 		auth->authname_len = auth->atype(&auth->authname);
 		auth->ref = 0;
+		
+		ha_free(mod_path);
 	}
-
-	free(module);
-	closedir(moduledir);
-
+	
+        for (a=0; a < n; a++) {
+		free(namelist[a]);
+        } 
+	
 	return(HA_OK);
 
 }
