@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.12 2001/10/25 14:34:17 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.13 2002/02/10 22:50:39 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -55,6 +55,7 @@ const static char * _serial_c_Id = "$Id: serial.c,v 1.12 2001/10/25 14:34:17 ala
 struct serial_private {
         char *			ttyname;
         int			ttyfd;		/* For direct TTY i/o */ 
+	int			consecutive_errors;
         struct hb_media*	next;
 };
 
@@ -256,6 +257,7 @@ serial_new (const char * port)
 			sp->next = lastserialport;
 			lastserialport=ret;
 			sp->ttyname = (char *)ha_malloc(strlen(port)+1);
+			sp->consecutive_errors = 0;
 			strcpy(sp->ttyname, port);
 			ret->name = sp->ttyname;
 			ret->pd = sp;
@@ -497,7 +499,7 @@ serial_read (struct hb_media*mp)
 	&&	strncmp(buf, start, startlen) != 0) {
 		/* Nothing */
 	}
-	/* Add Name=value pairs until we reach MSG_END or EOF */
+
 	while (ttygets(buf, MAXLINE, thissp) != NULL
 	&&	strncmp(buf, MSG_END, endlen) != 0) {
 
@@ -514,6 +516,21 @@ serial_read (struct hb_media*mp)
 		return(ret);
 	}
 
+	if (buf[0] == EOS) {
+		++thissp->consecutive_errors;
+		if ((thissp->consecutive_errors % 10) == 0) {
+			LOG(PIL_CRIT
+			,	"10 consecutive EOF errors from serial port %s"
+			,	thissp->ttyname);
+			sleep(10);
+		}
+		ha_msg_del(ret);
+		return NULL;
+	}else{
+		thissp->consecutive_errors=0;
+	}
+
+	/* Add Name=value pairs until we reach MSG_END or EOF */
 	/* Forward message to other port in ring (if any) */
 	for (sp=lastserialport; sp; sp=spp->next) {
 		TTYASSERT(sp);
@@ -587,8 +604,8 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 		/* One read per char -- yecch  (but it's easy) */
 		rc = read(fd, cp, 1);
 		if (rc != 1) {
-			LOG(PIL_CRIT, "EOF in ttygets [%s]: %s"
-			,	tty->ttyname,	strerror(errno));
+			LOG(PIL_CRIT, "EOF in ttygets [%s]: %s [%d]"
+			,	tty->ttyname,	strerror(errno), rc);
 			return(NULL);
 		}
 		if (*cp == '\r' || *cp == '\n') {
@@ -600,6 +617,11 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.13  2002/02/10 22:50:39  alan
+ * Added a bit to the serial code to limit the number of messages which
+ * come out (and the workload on the machine) when the serial port goes
+ * nuts.
+ *
  * Revision 1.12  2001/10/25 14:34:17  alan
  * Changed the serial code to send a BREAK when one side first starts up their
  * conversation.
