@@ -33,6 +33,7 @@ RPMFLAGS		= -ta --nodeps
 TARFILE			= $(distdir).tar.gz
 RPMDIR=$(HOME)/rpms
 WEBDIR=/home/alanr/ha-web/download
+HBWEBDIR=/home/alanr/ha-web/heartbeat
 RPMSRC=$(DESTDIR)$(RPMDIR)/SRPMS/$(PACKAGE)-$(VERSION)-$(RPMREL).src.rpm
 RPM386=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-$(VERSION)-$(RPMREL).i386.rpm
 RPMstonith=$(DESTDIR)$(RPMDIR)/RPMS/i386/$(PACKAGE)-stonith-$(VERSION)-$(RPMREL).i386.rpm
@@ -58,6 +59,7 @@ DIST_SUBDIRS                 = libltdl doc debian replace include lib \
                         cts linux-ha membership contrib config
 
 HANDY_DOCS = doc/ChangeLog doc/GettingStarted.html doc/DirectoryMap.txt
+HBDOCS = doc/heartbeat_api.html
 
 # Pass these to configure when running "make distcheck"
 DISTCHECK_CONFIGURE_FLAGS = --with-initdir=prefix
@@ -74,9 +76,10 @@ drpm:		dist
 handy: drpm handy-copy
 
 handy-copy:
-	cd doc; $(MAKE) ChangeLog
+	cd doc; $(MAKE)
 	rm -f $(WEBDIR)/ChangeLog
 	cp $(HANDY_DOCS) $(TARFILE) $(ALL_RPMS) $(WEBDIR)
+	cp $(HBDOCS) $(HBWEBDIR)
 
 
 
