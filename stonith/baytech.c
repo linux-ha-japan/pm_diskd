@@ -299,6 +299,16 @@ RPCRobustLogin(struct BayTech * bt)
 	int	j;
 
 	for (j=0; j < 5 && rc != S_OK; ++j) {
+
+		if (bt->pid > 0) {
+			RPCkillcomm(bt);
+		}
+
+		if (RPC_connect_device(bt) != S_OK) {
+			RPCkillcomm(bt);
+			continue;
+		}
+
 		rc = RPCLogin(bt);
 	}
 	return rc;
@@ -412,10 +422,6 @@ RPC_onoff(struct BayTech* bt, int unitnum, const char * unitid, int req)
 	const char *	onoff = (req == ST_POWERON ? "on" : "off");
 	int	rc;
 
-
-	if (RPC_connect_device(bt) != S_OK) {
-		return(S_OOPS);
-	}
 
 	if ((rc = RPCRobustLogin(bt) != S_OK)) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
@@ -545,9 +551,6 @@ st_status(Stonith  *s)
 		return(S_OOPS);
 	}
 	bt = (struct BayTech*) s->pinfo;
-	if (RPC_connect_device(bt) != S_OK) {
-		return(S_OOPS);
-	}
 
 	if ((rc = RPCRobustLogin(bt) != S_OK)) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
@@ -587,9 +590,6 @@ st_hostlist(Stonith  *s)
 	}
 	bt = (struct BayTech*) s->pinfo;
 
-	if (RPC_connect_device(bt) != S_OK) {
-		return(NULL);
-	}
 
 	if (RPCRobustLogin(bt) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
@@ -773,9 +773,6 @@ st_reset(Stonith * s, int request, const char * host)
 	}
 	bt = (struct BayTech*) s->pinfo;
 
-	if ((rc = RPC_connect_device(bt)) != S_OK) {
-		return(rc);
-	}
 
 	if ((rc = RPCRobustLogin(bt)) != S_OK) {
 		syslog(LOG_ERR, _("Cannot log into " DEVICE "."));
