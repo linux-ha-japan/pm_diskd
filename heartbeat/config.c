@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.29 2001/05/09 23:21:21 mmoerz Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.30 2001/05/15 19:40:14 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -954,28 +954,70 @@ struct _syslog_code {
 
 struct _syslog_code facilitynames[] =
 {
+#ifdef LOG_AUTH
 	{ "auth", LOG_AUTH },
-	{ "authpriv", LOG_AUTHPRIV },
-	{ "cron", LOG_CRON },
-	{ "daemon", LOG_DAEMON },
-	{ "ftp", LOG_FTP },
-	{ "kern", LOG_KERN },
-	{ "lpr", LOG_LPR },
-	{ "mail", LOG_MAIL },
-/*	{ "mark", INTERNAL_MARK },           * INTERNAL */
-	{ "news", LOG_NEWS },
 	{ "security", LOG_AUTH },           /* DEPRECATED */
+#endif
+#ifdef LOG_AUTHPRIV
+	{ "authpriv", LOG_AUTHPRIV },
+#endif
+#ifdef LOG_CRON
+	{ "cron", LOG_CRON },
+#endif
+#ifdef LOG_DAEMON
+	{ "daemon", LOG_DAEMON },
+#endif
+#ifdef LOG_FTP
+	{ "ftp", LOG_FTP },
+#endif
+#ifdef LOG_KERN
+	{ "kern", LOG_KERN },
+#endif
+#ifdef LOG_LPR
+	{ "lpr", LOG_LPR },
+#endif
+#ifdef LOG_MAIL
+	{ "mail", LOG_MAIL },
+#endif
+
+/*	{ "mark", INTERNAL_MARK },           * INTERNAL */
+
+#ifdef LOG_NEWS
+	{ "news", LOG_NEWS },
+#endif
+#ifdef LOG_SYSLOG
 	{ "syslog", LOG_SYSLOG },
+#endif
+#ifdef LOG_USER
 	{ "user", LOG_USER },
+#endif
+#ifdef LOG_UUCP
 	{ "uucp", LOG_UUCP },
+#endif
+#ifdef LOG_LOCAL0
 	{ "local0", LOG_LOCAL0 },
+#endif
+#ifdef LOG_LOCAL1
 	{ "local1", LOG_LOCAL1 },
+#endif
+#ifdef LOG_LOCAL2
 	{ "local2", LOG_LOCAL2 },
+#endif
+#ifdef LOG_LOCAL3
 	{ "local3", LOG_LOCAL3 },
+#endif
+#ifdef LOG_LOCAL4
 	{ "local4", LOG_LOCAL4 },
+#endif
+#ifdef LOG_LOCAL5
 	{ "local5", LOG_LOCAL5 },
+#endif
+#ifdef LOG_LOCAL6
 	{ "local6", LOG_LOCAL6 },
+#endif
+#ifdef LOG_LOCAL7
 	{ "local7", LOG_LOCAL7 },
+#endif
 	{ NULL, -1 }
 };
 
