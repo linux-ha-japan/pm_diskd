@@ -1,7 +1,7 @@
 #ifndef UPMLS_MLPLUGIN_H
 #  define UPMLS_MLPLUGIN_H
 #  ifndef UPMLS_MLMODULE_H
-#    include <upmls/mlmodule.h>
+#    include <upmls/MLModule.h>
 #  endif
 
 /*****************************************************************************
@@ -73,11 +73,6 @@ struct MLPluginUniv_s{
  */
 typedef struct MLPluginOps_s		MLPluginOps;
 
-static MLPlugin* MLPlugin_new(MLPluginType*	plugintype
-	,	const char*	pluginname
-	,	void *		exports
-	,	void*		ud_plugin);
-
 
 /* Interfaces imported by a PIHandler plugin */
 struct MLPluginImports_s { 
@@ -110,7 +105,7 @@ struct MLPluginOps_s{
 	ML_rc	(*UnRegisterPlugin)(MLPlugin*ipiinfo); /* Unregister PI-PI*/
 				/* And destroy MLPlugin object */
 
-	/* Close a Plugin of the type we manage, not a PIPI ... */
+	/* Close a Plugin of the type we manage (not a PIPI ...) */
 	ML_rc	(*CloseOurPI)(MLPlugin*pipiinfo, MLPlugin* ourpiinfo);
 
 	/* Create a new MLPluginType object */

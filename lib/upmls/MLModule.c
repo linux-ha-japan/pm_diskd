@@ -1,5 +1,8 @@
-#include <upmls/MLModule.h>
+#include <unistd.h>
 #include <upmls/MLPlugin.h>
+#include "../../libltdl/config.h"
+
+static MLModuleImports MLModuleImportSet;/* UNINITIALIZED: FIXME! */
 
 static void MLPlugin_del(MLPlugin*	plugintype);
 
@@ -14,6 +17,26 @@ ML_rc PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* env
 static int ml_GetDebugLevel(void);
 static void ml_SetDebugLevel (int level);
 static void ml_close (MLModule*);
+
+extern MLModule* NewMLModule(MLModuleType* mtype
+	,	const char *	module_name
+	,	lt_dlhandle	dlhand
+	,	MLModuleInitFun ModuleSym);
+
+extern MLModuleType* NewMLModuleType(MLModuleUniv* moduleuniv
+	,	const char *	moduletype
+	,	MLModuleImports * imports
+	
+);
+static MLPlugin* NewMLPlugin(MLPluginType*	plugintype
+	,	const char*	pluginname
+	,	void *		exports
+	,	void*		ud_plugin
+);
+
+MLPluginType* NewMLPluginType(MLPluginUniv*, const char * typename
+,	void* pieports, void* user_data);
+
 
 static MLModuleOps ModExports =
 {	ml_module_version
@@ -44,10 +67,6 @@ static MLPluginOps  PiExports =
 	,	pipi_del_plugintype
 };
 
-static MLModule PluginPluginModinfo ={
-	PLUGIN_PLUGIN
-};
-
 static int PiRefCount(MLPlugin * pih);
 static int PiModRefCount(MLPlugin*epiinfo,int plusminus);
 static void PiUnloadIfPossible(MLPlugin *epiinfo);
@@ -68,22 +87,23 @@ static MLPluginImports PIHandlerImports = {
 ML_rc
 PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 {
+	MLModuleType*	modtype;
 	MLPlugin*	piinfo;
-	MLPluginType*	piuniv;
+	MLPluginType*	pitype;
 	void*		dontcare;
+	MLModule*	pipi_module;
 	ML_rc		rc;
 
 	if (univ->piuniv) {
 		return ML_INVAL;
 	}
 
-	/* We are the creator of the MLPluginType object */
-
-	piuniv = NEW(MLPluginType);
-	memset(piuniv, 0, sizeof(*piuniv));
+	pitype = NewMLPluginType(univ->piuniv, PLUGIN_PLUGIN, &PiExports, NULL);
+	modtype = NewMLModuleType(univ, PLUGIN_PLUGIN, imports);
+	pipi_module= NewMLModule(modtype, PLUGIN_PLUGIN, NULL, NULL);
 
 	/* We can call register_module, since it doesn't depend on us... */
-	rc = imports->register_module(&PluginPluginModinfo, &ModExports);
+	rc = imports->register_module(pipi_module, &ModExports);
 	if (rc != ML_OK) {
 		return(rc);
 	}
@@ -104,7 +124,7 @@ PluginPlugin_module_init(MLModuleImports* imports, MLModuleUniv* univ)
 	 */
 
 	/* The first argument is the MLPluginType */
-	piinfo = pipi_register_plugin(piuniv, PLUGIN_PLUGIN, &PiExports
+	piinfo = pipi_register_plugin(pitype, PLUGIN_PLUGIN, &PiExports
 	,	NULL, &dontcare);
 
 	/* FIXME (unfinished module) */
@@ -198,7 +218,7 @@ pipi_register_plugin(MLPluginType* univ
 	if (g_hash_table_lookup(univ->plugins, pluginname) != NULL) {
 		return NULL;
 	}
-	ret = MLPlugin_new(univ, pluginname, exports, user_data);
+	ret = NewMLPlugin(univ, pluginname, exports, user_data);
 	g_hash_table_insert(univ->plugins, g_strdup(pluginname), ret);
 	*imports = &PIHandlerImports;
 	return ret;
@@ -261,7 +281,7 @@ pipi_del_while_walk(gpointer key, gpointer value, gpointer user_data)
 }
 
 static MLPlugin*
-MLPlugin_new(MLPluginType*	plugintype
+NewMLPlugin(MLPluginType*	plugintype
 	,	const char*	pluginname
 	,	void *		exports
 	,	void*		ud_plugin)
@@ -281,8 +301,33 @@ MLPlugin_new(MLPluginType*	plugintype
 		ret->exports = exports;
 		ret->ud_plugin = ud_plugin;
 		ret->pluginname = g_strdup(pluginname);
-		g_hash_table_insert(plugintype->plugins, g_strdup(ret->pluginname), ret);
-		ret->refcnt = 1;
+		g_hash_table_insert(plugintype->plugins
+		,	g_strdup(ret->pluginname), ret);
+		ret->refcnt = 0;
+	}
+	return ret;
+}
+
+MLPluginType*
+NewMLPluginType(MLPluginUniv*univ, const char * typename
+,	void* pieports, void* user_data)
+{
+	MLPluginType*	pipi_types;
+	MLPlugin*	pipi_ref;
+	MLPluginType*	ret = g_new(MLPluginType, 1);
+	ret->plugins = g_hash_table_new(g_str_hash, g_str_equal);
+	ret->ud_pi_type = user_data;
+	ret->universe = univ;
+	ret->pipi_ref = NULL;
+	/* Now find the pointer to our plugin type in the Plugin Universe*/
+	if ((pipi_types = g_hash_table_lookup(univ->pitypes, PLUGIN_PLUGIN))
+	!= NULL) {
+		if ((pipi_ref=g_hash_table_lookup(pipi_types->plugins
+		,	typename)) != NULL) {
+			ret->pipi_ref = pipi_ref;
+		}else {
+		      g_assert(strcmp(typename, PLUGIN_PLUGIN) == 0);
+		}
 	}
 	return ret;
 }
@@ -359,6 +404,105 @@ RegisterAPlugin(MLModule* modinfo
 ,	void*		ud_plugin	/* plugin user data */
 );
 
+/*
+ * MLLoadModule()	- loads a module into memory and calls the
+ * 			initial() entry point in the module.
+ *
+ *
+ * Method:
+ *
+ * 	Construct file name of module.
+ * 	See if module exists.  If not, fail with ML_NOMODULE.
+ *
+ *	Search Universe for module type
+ *		If found, search module type for modulename
+ *			if found, fail with ML_EXIST.
+ *		Otherwise,
+ *			Create new Module type structure
+ *	Use lt_dlopen() on module to get lt_dlhandle for it.
+ *
+ *	Construct the symbol name of the initialization function.
+ *
+ *	Use lt_dlsym() to find the pointer to the init function.
+ *
+ *	Call the initialization function.
+ */
+ML_rc
+MLLoadModule(MLModuleUniv* universe, const char * moduletype
+,	const char * modulename)
+{
+	char * ModulePath;
+	char * ModuleSym;
+	MLModuleType*	mtype;
+	MLModule*	modinfo;
+	lt_dlhandle	dlhand;
+	MLModuleInitFun	initfun;
+
+	ModulePath = g_strdup_printf("%s%s%s%s%s%s"
+	,	universe->rootdirectory
+	,	G_DIR_SEPARATOR_S
+	,	moduletype
+	,	G_DIR_SEPARATOR_S
+	,	modulename
+	,	LTDL_SHLIB_EXT);
+
+	if (access(ModulePath, R_OK|X_OK) != 0) {
+		g_free(ModulePath); ModulePath=NULL;
+		return ML_NOMODULE;
+	}
+	if((mtype=g_hash_table_lookup(universe->ModuleTypes, moduletype))
+	!= NULL) {
+		if ((modinfo = g_hash_table_lookup
+		(	mtype->Modules, modulename)) != NULL) {
+			g_free(ModulePath); ModulePath=NULL;
+			return ML_EXIST;
+		}
+
+	}else{
+		/* Create a new MLModuleType object */
+		mtype = NewMLModuleType(universe, moduletype
+		,	&MLModuleImportSet);
+	}
+
+	g_assert(mtype != NULL);
+
+	/*
+	 * At this point, we have a MlModuleType object and our
+	 * module name is not listed in it.
+	 */
+
+	dlhand = lt_dlopen(ModulePath);
+	g_free(ModulePath); ModulePath=NULL;
+
+	if (!dlhand) {
+		return ML_NOMODULE;
+	}
+	/* Construct the magic init function symbol name */
+	ModuleSym = g_strdup_printf(ML_FUNC_FMT
+	,	moduletype, modulename);
+
+	initfun = lt_dlsym(dlhand, ModuleSym);
+	g_free(ModuleSym); ModuleSym=NULL;
+
+	if (initfun == NULL) {
+		lt_dlclose(dlhand); dlhand=NULL;
+		return ML_NOMODULE;
+	}
+	/*
+	 *	Construct the new MLModule object
+	 */
+	modinfo = NewMLModule(mtype, modulename, dlhand, initfun);
+	g_assert(modinfo != NULL);
+	g_hash_table_insert(mtype->Modules, modinfo->module_name, modinfo);
+
+	return ML_OK;
+}
+
+/*
+ *	It may be the case that this function needs to be split into
+ *	a couple of functions in order to avoid code duplication
+ */
+
 ML_rc
 RegisterAPlugin(MLModule* modinfo
 ,	const char *	plugintype	/* Type of plugin	*/
@@ -371,20 +515,22 @@ RegisterAPlugin(MLModule* modinfo
 ,	void*		ud_plugin	/* Optional user_data */
 )
 {
-	MLModuleUniv*	moduniv;
-	MLModuleType*	modtype;
-	MLPluginUniv*	piuniv;
-	MLPluginType*	pitype;
-	MLPlugin*	piinfo;
+	MLModuleUniv*	moduniv;	/* Universe this module is in */
+	MLModuleType*	modtype;	/* Type of this module */
+	MLPluginUniv*	piuniv;		/* Universe this plugin is in */
+	MLPluginType*	pitype;		/* Type of this plugin */
+	MLPlugin*	piinfo;		/* Info about this Plugin */
 
-	MLPluginType*	pipitype;
-	MLPlugin*	pipiinfo;
-	MLPluginOps*	piops;
+	MLPluginType*	pipitype;	/* MLPluginType for PLUGIN_PLUGIN */
+	MLPlugin*	pipiinfo;	/* Plugin info for "plugintype" */
+	MLPluginOps*	piops;		/* Ops vector for PluginPlugin */
+					/* of type "plugintype" */
 
-	if (modinfo == NULL
+	if (	 modinfo == NULL
 	||	(modtype = modinfo->moduletype)	== NULL
 	||	(moduniv = modtype->moduniv)	== NULL
 	||	(piuniv = moduniv->piuniv)	== NULL
+	||	piuniv->pitypes	== NULL
 	) {
 		REPORTERR("bad parameters");
 		return ML_INVAL;
@@ -394,8 +540,15 @@ RegisterAPlugin(MLModule* modinfo
 
 	if ((pitype = g_hash_table_lookup(piuniv->pitypes, plugintype))
 	==	NULL) {
-		/* Really ought to try and autoload this plugin module */
-		return ML_BADTYPE;
+
+		/* Try to autoload the needed plugin handler */
+		(void)MLLoadModule(moduniv, PLUGIN_PLUGIN, plugintype);
+
+		/* See if the plugin handler loaded like we expect */
+		if ((pitype = g_hash_table_lookup(piuniv->pitypes
+		,	plugintype)) ==	NULL) {
+			return ML_BADTYPE;
+		}
 	}
 	if ((piinfo = g_hash_table_lookup(pitype->plugins, pluginname))
 	!=	NULL) {
@@ -405,40 +558,59 @@ RegisterAPlugin(MLModule* modinfo
 	}
 	/*
 	 * OK...  Now we know it is valid, and isn't registered...
-	 * let's look up the PluginPlugin hander for this type
+	 * Let's locate the PluginPlugin registrar for this type
 	 */
 	if ((pipitype = g_hash_table_lookup(piuniv->pitypes, PLUGIN_PLUGIN))
 	==	NULL) {
 		REPORTERR("No " PLUGIN_PLUGIN " type!");
 		return ML_OOPS;
 	}
-	if ((pipiinfo = g_hash_table_lookup(pipitype->plugins, PLUGIN_PLUGIN))
+	if ((pipiinfo = g_hash_table_lookup(pipitype->plugins, plugintype))
 	==	NULL) {
-		REPORTERR("No " PLUGIN_PLUGIN " plugin!");
-		return ML_OOPS;
+		REPORTERR("No " PLUGIN_PLUGIN " plugin for given type!");
+		return ML_BADTYPE;
 	}
+
+	piops = pipiinfo->exports;
 
 	/* Now we have all the information anyone could possibly want ;-) */
 
-	piops = pipiinfo->exports;
+	/* Call the registration function for our plugin type */
 	piinfo = piops->RegisterPlugin(pitype, pluginname, Ops
 	,	ud_plugin
 	,	Imports);
 
 	/* FIXME! Probably need to do something with rc from RegisterPlugin */
+	/* FIXME! need to increment the ref count for plugin type */
 	return (piinfo == NULL ? ML_OOPS : ML_OK);
 }
+
+MLModule*
+NewMLModule(	MLModuleType* mtype
+	,	const char *	module_name
+	,	lt_dlhandle	dlhand
+	,	MLModuleInitFun ModuleSym)
+{
+	MLModule*	ret = g_new(MLModule, 1);
+	ret->module_name = g_strdup(module_name);
+	ret->moduletype = mtype;
+	ret->Plugins = g_hash_table_new(g_str_hash, g_str_equal);
+	ret->refcnt = 0;
+	ret->dlhandle = dlhand;
+	ret->dlinitfun = ModuleSym;
+	return ret;
+}
+
 /*
  * We need to write lots more functions:  These include...
  *
  * Module functions:
  *
- * MLloadModule()	- loads a module into memory and calls the
- * 				ml_module_init() entry point in the module.
- *
  * MLModulePath()	- returns path name for a given module
  *
  * MLModuleTypeList()	- returns list of modules of a given type
+ *
+ * MLLoadPluginModule()	- Loads the PluginPlugin Module for the given type
  * 
  * PluginPlugin functions:
  *

@@ -1,6 +1,7 @@
 #ifndef UPMLS_MLMODULE_H
 #  define UPMLS_MLMODULE_H
 #include <glib.h>
+#include <ltdl.h>
 /*
  *	WARNING!! THIS CODE LARGELY / COMPLETELY UNTESTED!!
  */
@@ -61,15 +62,15 @@
  * The basic structures we maintain about modules are as follows:
  *
  *	MLModule		The data which represents a module.
- *	MlModuleType		The data common to all modules of a given type
- *	MlModuleUniv		The set of all module types in the Universe
+ *	MLModuleType		The data common to all modules of a given type
+ *	MLModuleUniv		The set of all module types in the Universe
  *					(well... at least *this* universe)
  *
  * The basic structures we maintain about plugins are as follows:
  * 	MLPlugin		The data which represents a plugin
  * 	MLPluginType		The data which is common to all plugins of
  * 					a given type
- *	MlModuleUniv		The set of all plugin types in the Universe
+ *	MLModuleUniv		The set of all plugin types in the Universe
  *					(well... at least *this* universe)
  *
  * Regarding "Universe"s.  It is our intent that a given program can deal
@@ -166,7 +167,7 @@
  * Each module has only one entry point which is exported directly, regardless
  * of what kind of plugin(s) it implements...
  *
- * This entrypoint is named ml_module_init().
+ * This entrypoint is named ml_module_init()	{more or less - see below}
  *
  * The ml_module_init() function is called once when the module is loaded.
  *
@@ -202,8 +203,94 @@
  *
  *****************************************************************************
  */
+
+/*
+ * If you want to use this funky export stuff, then you need to #define
+ * ML_MODULETYPE and ML_MODULE *before* including this file.
+ *
+ * The way to use this stuff is to declare your primary entry point this way:
+ *
+ * This example is for an module of type "auth" named "sha1"
+ *
+ *	#define ML_MODULETYPE	auth
+ *	#define ML_MODULE	sha1
+ *	#include <upmls/MLModule.h>
+ *
+ *	static const char*	Ourmoduleversion	(void);
+ *	static const char*	Ourmodulename	(void);
+ *	static int		Ourgetdebuglevel(void);
+ *	static void		Oursetdebuglevel(int);
+ *	static void		Ourclose	(MLModule*);
+ *
+ *	static struct MLModuleOps our_exported_module_operations =
+ *	{	Ourmoduleversion,
+ *	,	Ourmodulename
+ *	,	Ourgetdebuglevel
+ *	,	Oursetdebuglevel
+ *	,	Ourclose
+ *	};
+ *
+ *	static MLModuleImports*	ModuleOps;
+ *	static MLModule*	OurModule;
+ *
+ *	// Our module initialization and registration function
+ *	// It gets called when the module gets loaded.
+ *	ML_rc
+ *	ML_MODULE_INIT(MLModule*us, const MLModuleImports* imports)
+ *	{
+ *		ModuleOps = imports;
+ *		OurModule = us;
+ *
+ *		// Register ourself as a module * /
+ *		imports->register_module(us, &our_exported_module_operations);
+ *
+ *		// Register our plugins
+ *		imports->register_plugin(us, "plugintype", "pluginname"
+ *			// Be sure and define "OurExports" and OurImports
+ *			// above...
+ *		,	&OurExports
+ *		,	&OurImports);
+ *		// Repeat for all plugins in this module...
+ *
+ *	}
+ *
+ * Except for the ML_MODULETYPE and the ML_MODULE definitions, and changing
+ * the names of various static variables and functions, every single module is
+ * set up in pretty much the same way
+ *
+ */
+
+/*
+ * No doubt there is a fancy preprocessor trick for avoiding these
+ * duplications but I don't have time to figure it out.  Patches are
+ * being accepted...
+ */
+#define	mlINIT_FUNC	_ml_module_init
+#define mlINIT_FUNC_STR	"_ml_module_init"
+#define ML_INSERT	_LTX_
+#define ML_INSERT_STR	"_LTX_"
+
+/*
+ * snprintf-style format string for initialization entry point name:
+ * 	arguments are: (moduletype, modulename)
+ */
+#define	ML_FUNC_FMT	"%s" ML_INSERT_STR "%s" mlINIT_FUNC_STR
+
+#ifdef HAVE_STRINGIZE
+#  define EXPORTHELP1(moduletype, insert, modulename, function)	\
+ 	moduletype##insert##modulename##function
+#else
+#  define EXPORTHELP1(moduletype, insert, modulename, function)	\
+ 	moduletype/**/insert/**/modulename/**/function
+#endif
+
+#define EXPORTHELP2(a, b, c)    EXPORTHELP1(a, b, c, d)
+#define ML_MODULE_INIT	EXPORTHELP2(ML_MODULETYPE, ML_INSERT, ML_MODULE \
+			,	mlINIT_FUNC)
+
+
 typedef enum {
-	ML_OK=0,		/* Success */
+	ML_OK=0,	/* Success */
 	ML_INVAL,	/* Invalid Parameters */
 	ML_BADTYPE,	/* Bad module/plugin type */
 	ML_EXIST,	/* Duplicate Module/Plugin name */
@@ -217,6 +304,12 @@ typedef struct MLModule_s		MLModule;
 typedef struct MLModuleUniv_s		MLModuleUniv;
 typedef struct MLModuleType_s		MLModuleType;
 
+typedef struct MLModHandle_s		MLModHandle;
+
+
+/* The type of a Module Initialization Function */
+typedef ML_rc (*MLModuleInitFun) (MLModule*us
+,		const MLModuleImports* imports);
 
 /*
  * struct MLModule_s (typedef MLModule) is the structure which
@@ -230,10 +323,12 @@ typedef struct MLModuleType_s		MLModuleType;
  */
 
 struct MLModule_s {
-	const char*	module_name;
+	char*		module_name;
 	MLModuleType*	moduletype;	/* Parent structure */
 	GHashTable*	Plugins;	/* Plugins registered by this module*/
 	int		refcnt;		/* Reference count for this module */
+	lt_dlhandle	dlhandle;	/* Reference to D.L. object */
+	MLModuleInitFun	dlinitfun;	/* Initialization function */
 
 	void*		ud_module;	/* Data needed by module-common code*/
 	/* Other stuff goes here ...  (?) */
@@ -303,12 +398,10 @@ MLModuleUniv*	NewMLModuleUniv(const char * basemoduledirectory);
  * For other modules that implement more than one plugin, one of the plugin
  * names should match the module name.
  */
+ML_rc
+MLLoadModule(MLModuleUniv* moduniv, const char * moduletype
+,	const char * modulename);
 
-
-extern MLModuleType* NewMLModuleType(MLModuleUniv* moduleuniv
-	,	const char * moduletype
-	,	const char* moduledirectory
-	,	MLModuleImports * imports);
 
 /*
  * MLForEachModType calls 'fun2call' once for each module type in
@@ -325,7 +418,6 @@ extern void	MLForEachModType(MLModuleUniv* universe
  */
 struct MLModuleType_s {
 	const char *		moduletype;
-	const char *		basemoduledirectory;
 	MLModuleUniv*		moduniv; /* The universe to which we belong */
 	GHashTable*		Modules;
 			/* Key is module type, value is MLModule */
@@ -350,7 +442,8 @@ struct MLModuleType_s {
 
 struct MLModuleUniv_s {
 			/* key is module type, data is MLModuleType* struct */
-	GHashTable*		ModuleEnvs;
+	char *			rootdirectory;
+	GHashTable*		ModuleTypes;
 	struct MLPluginUniv_s*	piuniv; /* Parallel Universe of plugins */
 	MLModuleImports*	imports;
 };
