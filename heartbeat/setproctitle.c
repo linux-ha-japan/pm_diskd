@@ -1,4 +1,4 @@
-const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.3 2001/09/07 05:51:19 horms Exp $";
+const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.4 2001/10/11 14:25:14 alan Exp $";
 
 /*
  * setproctitle.c
@@ -69,6 +69,10 @@ const static char * _setproctitle_c_Id = "$Id: setproctitle.c,v 1.3 2001/09/07 0
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
+#endif
+
+#if PF_ARGV_TYPE == PF_ARGV_PSTAT
+#	include <pstat.h>
 #endif
 
 #include "setproctitle.h"
