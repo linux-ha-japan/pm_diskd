@@ -1,4 +1,4 @@
-const static char * _serial_c_Id = "$Id: serial.c,v 1.8 2001/10/02 21:57:19 alan Exp $";
+const static char * _serial_c_Id = "$Id: serial.c,v 1.9 2001/10/02 22:31:33 alan Exp $";
 
 /*
  * Linux-HA serial heartbeat code
@@ -134,6 +134,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports);
 PIL_rc
 PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 {
+	PIL_rc	rc;
 	/* Force the compiler to do a little type checking */
 	(void)(PILPluginInitFun)PIL_PLUGIN_INIT;
 
@@ -144,7 +145,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 	imports->register_plugin(us, &OurPIExports);  
 
 	/*  Register our interface implementation */
- 	return imports->register_interface(us, PIL_PLUGINTYPE_S
+ 	rc = imports->register_interface(us, PIL_PLUGINTYPE_S
 	,	PIL_PLUGIN_S
 	,	&serialOps
 	,	serialcloseintf		/*close */
@@ -152,6 +153,7 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 	,	(void*)&OurImports
 	,	interfprivate); 
 	serial_init();
+	return rc;
 }
 
 #define		IsTTYOBJECT(mp)	((mp) && ((mp)->vf == (void*)&serial_media_fns))
@@ -590,6 +592,10 @@ ttygets(char * inbuf, int length, struct serial_private *tty)
 }
 /*
  * $Log: serial.c,v $
+ * Revision 1.9  2001/10/02 22:31:33  alan
+ * Fixed really dumb error in the serial code.  I called an init function *after*
+ * returning from the function ;-)
+ *
  * Revision 1.8  2001/10/02 21:57:19  alan
  * Added debugging to the tty code.
  *

@@ -64,7 +64,10 @@
  */
 
 #include <portability.h>
+#include <sys/time.h>
+#define	time FOOtime
 #include <glib.h>
+#undef time
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -77,7 +80,6 @@
 #include <hb_api.h>
 #include <hb_api_core.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
 
