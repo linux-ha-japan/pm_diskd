@@ -28,8 +28,9 @@ CFLAGS			= @CFLAGS@
 
 ## libraries
 
-plugindir		= $(pkglibdir)/plugins/InterfaceMgr
-plugin_LTLIBRARIES	= HBauth.la generic.la
+halibdir		= $(libdir)/@HEARTBEATPKG@
+plugindir		= $(halibdir)/plugins/InterfaceMgr
+plugin_LTLIBRARIES	= generic.la
 
 generic_la_SOURCES	= generic.c
 generic_la_LDFLAGS	= -export-dynamic -module -avoid-version
