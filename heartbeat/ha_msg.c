@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.21 2002/02/14 14:09:29 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.22 2002/02/21 21:43:33 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -259,7 +259,8 @@ msgfromstream(FILE * f)
 
 	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
 		/* Getting an error with EINTR is pretty normal */
-		if (!ferror(f) || errno != EINTR) {
+		/* (so is EOF) */
+		if ((!ferror(f) || errno != EINTR) && !feof(f)) {
 			ha_error("msgfromstream: cannot get message");
 		}
 		return(NULL);
@@ -421,6 +422,12 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.22  2002/02/21 21:43:33  alan
+ * Put in a few fixes to make the client API work more reliably.
+ * Put in a few changes to the process exit handling code which
+ * also cause heartbeat to (attempt to) restart when it finds one of it's
+ * own processes dies.  Restarting was already broken :-(
+ *
  * Revision 1.21  2002/02/14 14:09:29  alan
  * Put in a change requested by Ram Pai to allow message values to be
  * empty strings.

@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.164 2002/02/12 18:13:39 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.165 2002/02/21 21:43:33 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -403,6 +403,7 @@ void	init_procinfo(void);
 int	initialize_heartbeat(void);
 void	init_status_alarm(void);
 void	ha_versioninfo(void);
+static	const char * core_proc_name(enum process_type t);
 void	dump_proc_stats(volatile struct process_info * proc);
 void	dump_all_proc_stats(void);
 void	check_for_timeouts(void);
@@ -2243,12 +2244,17 @@ reaper_action(void)
 	pid_t	pid;
 
 	while((pid=wait3(&status, WNOHANG, NULL)) > 0) {
-		struct client_child*	child = NULL;
+		struct client_child*	managedchild = NULL;
 		int			deathbysig=0;
 		int			signo=0;
 		int			deathbyexit=0;
 		int			exitcode=0;
+#ifdef WCOREDUMP
 		int			didcoredump=0;
+#endif
+		volatile struct process_info*	coreproc = NULL;
+		const char *		pidname = "";
+		int			forcereport = 0;
 
 		if (WIFEXITED(status)) {
 			deathbyexit=1;
@@ -2256,20 +2262,37 @@ reaper_action(void)
 		}else if (WIFSIGNALED(status)) {
 			deathbysig=1;
 			signo = WTERMSIG(status);
+			forcereport=1;
 		}
 #ifdef WCOREDUMP
 		if (WCOREDUMP(status)) {
 			didcoredump=1;
+			forcereport=1;
 		}
 #endif
-		child = g_hash_table_lookup(config->client_children
+		managedchild = g_hash_table_lookup(config->client_children
 		,	GINT_TO_POINTER(pid));
+		if (managedchild) {
+			pidname = managedchild->command;
+			forcereport=1;
 
-		/* Report Anything but a normal exit */
-		if (!(deathbyexit && exitcode == 0)) {
-			const char * pidname = (child ? child->command : "");
+		}else{	/* Hope it's not a core process... */
+			int	j;
+			for (j=0; j < procinfo->nprocs; ++j) {
+				if (pid == procinfo->info[j].pid) {
+					coreproc = procinfo->info+j;
+					pidname = core_proc_name
+					(	coreproc->type);
+					forcereport=1;
+					break;
+				}
+			}
+		}
 
-			if (child && deathbyexit) {
+		/* Report Anything but a normal exit of unimportant child */
+
+		if (forcereport) {
+			if (deathbyexit) {
 				ha_log(LOG_WARNING
 				,	"Child %d %s exited with rc %d"
 				,	pid, pidname, exitcode);
@@ -2279,55 +2302,69 @@ reaper_action(void)
 				,	pid, pidname, signo);
 			}
 		}
+#ifdef WCOREDUMP
 		if (didcoredump) {
 			ha_log(LOG_ERR
 			,	"Exiting child %d dumped core", pid);
 		}
-			
+#endif
+
 		/* If they're in the API client table, remove them... */
 
 		api_remove_client_pid(pid, "died");
 
+		/* Is it a core heartbeat process? */
+		if (coreproc) {
+			/* UhOh... */
+			ha_log(LOG_ERR
+			,	"Core heartbeat process died! Restarting.");
+			restart_heartbeat(1);
+			/*NOTREACHED*/
+		}
+
 		/* Are they one of our "managed" client processes? */
 
-		if ((child = g_hash_table_lookup(config->client_children
-		,	GINT_TO_POINTER(pid)))) {
+		if (managedchild) {
 			ha_log(LOG_ERR
 			,	"%d is a managed client [%s %d]", pid
-			,	child->command, child->pid);
+			,	managedchild->command, managedchild->pid);
 
 			g_hash_table_remove(config->client_children
 			,	GINT_TO_POINTER(pid));
-			child->pid = 0;
+			managedchild->pid = 0;
 
 			/* If they exit 100 we won't restart them */
 
-			if (child->respawn && !shutdown_in_progress
+			if (managedchild->respawn && !shutdown_in_progress
 			&&	exitcode != 100) {
 				struct tms	proforma_tms;
 				clock_t		now = times(&proforma_tms);
 				clock_t		minticks = CLK_TCK * 30;
-				++child->respawncount;
+				++managedchild->respawncount;
 
-				if ((now - child->lastrespawn) < minticks) {
-					++child->shortrcount;
+				if ((now - managedchild->lastrespawn)
+				<		minticks) {
+					++managedchild->shortrcount;
 				}else{
-					child->shortrcount = 0;
+					managedchild->shortrcount = 0;
 				}
-				if (child->shortrcount > 10) {
+				managedchild->lastrespawn = now;
+				if (managedchild->shortrcount > 10) {
 					ha_log(LOG_ERR
-					,	"Client %s respawning too fast"
-					,	child->command);
-					child->shortrcount = 0;
+					,	"Client %s %s"
+					,	managedchild->command
+					,	"respawning too fast");
+					managedchild->shortrcount = 0;
 				}else{
-					ha_log(LOG_INFO, "Respawning client %s:"
-					,	child->command);
-					start_a_child_client(child
+					ha_log(LOG_INFO
+					,	"Respawning client %s:"
+					,	managedchild->command);
+					start_a_child_client(managedchild
 					,	config->client_children);
 				}
 			}
-		}
-	}
+		}/*managedchild*/
+	}/*endwhile*/
 }
 
 static void
@@ -2398,6 +2435,7 @@ start_a_child_client(gpointer childentry, gpointer pidtable)
 
 	/* Limit peak resource usage, maximize success chances */
 	if (centry->shortrcount > 0) {
+		alarm(0);
 		sleep(1);
 	}
 
@@ -2447,6 +2485,21 @@ term_action(void)
 	signal_all(SIGTERM);
 }
 
+static const char *
+core_proc_name(enum process_type t)
+{
+	const char *	ct = "huh?";
+	switch(t) {
+		case PROC_UNDEF:	ct = "UNDEF";		break;
+		case PROC_CONTROL:	ct = "CONTROL";		break;
+		case PROC_MST_STATUS:	ct = "MST_STATUS";	break;
+		case PROC_HBREAD:	ct = "HBREAD";		break;
+		case PROC_HBWRITE:	ct = "HBWRITE";		break;
+		case PROC_PPP:		ct = "PPP";		break;
+		default:		ct = "huh?";		break;
+	}
+	return ct;
+}
 void
 dump_proc_stats(volatile struct process_info * proc)
 {
@@ -2457,15 +2510,7 @@ dump_proc_stats(volatile struct process_info * proc)
 		return;
 	}
 
-	switch(proc->type) {
-		case PROC_UNDEF:	ct = "UNDEF";		break;
-		case PROC_CONTROL:	ct = "CONTROL";		break;
-		case PROC_MST_STATUS:	ct = "MST_STATUS";	break;
-		case PROC_HBREAD:	ct = "HBREAD";		break;
-		case PROC_HBWRITE:	ct = "HBWRITE";		break;
-		case PROC_PPP:		ct = "PPP";		break;
-		default:		ct = "huh?";		break;
-	}
+	ct = core_proc_name(proc->type);
 
 	ha_log(LOG_INFO, "MSG stats: %ld/%ld age %ld [pid%d/%s]"
 	,	proc->allocmsgs, proc->totalmsgs
@@ -2582,6 +2627,9 @@ restart_heartbeat(int quickrestart)
 		gettimeofday(&newtv, &tz);
 	}while (newtv.tv_sec < tv.tv_sec && newtv.tv_usec < tv.tv_usec);
 
+	/* They'll try and make sure everyone gets it - even us ;-) */
+	IGNORESIG(SIGTERM);
+	procinfo->restart_after_shutdown = 1;
 	/* Kill our child processes */
 	for (j=0; j < procinfo->nprocs; ++j) {
 		pid_t	pid = procinfo->info[j].pid;
@@ -2591,21 +2639,22 @@ restart_heartbeat(int quickrestart)
 			kill(pid, killsig);
 		}
 	}
+	ha_log(LOG_INFO, "Done killing processes for restart.");
 
 	if (!quickrestart) {
 		/* Kill any lingering takeover processes, etc. */
-		IGNORESIG(SIGTERM);
 		kill(-getpid(), SIGTERM);
 		sleep(1);
 	}
+
+
+	ha_log(LOG_INFO, "Performing heartbeat restart exec.");
+	ha_log(LOG_INFO, "Closing files first...");
 
 	for (j=3; j < oflimits.rlim_cur; ++j) {
 		close(j);
 	}
 
-	ha_log(LOG_INFO, "Performing heartbeat restart exec.");
-
-	(void)signal(SIGTERM, SIG_DFL);
 	if (quickrestart) {
 		if (nice_failback) {
 			execl(HALIB "/heartbeat", "heartbeat", "-R"
@@ -3988,6 +4037,7 @@ signal_all(int sig)
 			ha_perror("MSP signal failed");
 		}else if (sig == SIGQUIT) {
 			/* All Resources are now released.  Shut down. */
+			ha_log(LOG_INFO, "control process Received SIGQUIT");
 			sig = SIGTERM;
 		}
 	}
@@ -4998,6 +5048,12 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.165  2002/02/21 21:43:33  alan
+ * Put in a few fixes to make the client API work more reliably.
+ * Put in a few changes to the process exit handling code which
+ * also cause heartbeat to (attempt to) restart when it finds one of it's
+ * own processes dies.  Restarting was already broken :-(
+ *
  * Revision 1.164  2002/02/12 18:13:39  alan
  * Did 3 things:
  * 	Changed the API test program to use syslog for some messages.
