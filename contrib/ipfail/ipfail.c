@@ -359,6 +359,7 @@ giveup(ll_cluster_t *hb)
 
 		msg = ha_msg_new(3);
 		ha_msg_add(msg, F_TYPE, T_ASKRESOURCES);
+		ha_msg_add(msg, F_RESOURCES, "all");
 		ha_msg_add(msg, F_ORIG, node_name);
 		ha_msg_add(msg, F_COMMENT, "me");
 
