@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.125 2001/08/02 01:45:16 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.126 2001/08/02 06:09:19 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -418,7 +418,6 @@ pid_t	processes[MAXPROCS];
 int	send_status_now = 1;	/* Send initial status immediately */
 int	dump_stats_now = 0;
 int	parse_only = 0;
-int	restart_after_shutdown = 0;
 
 enum comm_state {
 	COMM_STARTING,
@@ -2638,7 +2637,7 @@ healed_cluster_partition(struct node_info *t)
 	/* Give up our resources, and restart ourselves */
 	/* This is cleaner than lots of other options. */
 	/* And, it really should work every time... :-) */
-	restart_after_shutdown = 1;
+	procinfo->restart_after_shutdown = 1;
 	giveup_resources(0);
 }
 
@@ -3189,7 +3188,8 @@ signal_all(int sig)
 				kill(-getpid(), SIGTERM);
 				ha_log(LOG_INFO,"Heartbeat shutdown complete.");
 				unlink(PIDFILE);
-				if (restart_after_shutdown) {
+				if (procinfo->restart_after_shutdown) {
+					sleep(config->deadtime_interval+1);
 					restart_heartbeat(0);
 				}
 			}
@@ -3965,6 +3965,14 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.126  2001/08/02 06:09:19  alan
+ * Put in fix inspired by pubz@free.fr (aka erwan@mandrakesoft.com ?)
+ * to fix recovery after a cluster partition.
+ * He discovered that the problem was that the master status process was
+ * setting a flag which the control process needed to check.  So, the result
+ * was that it never saw the flag set because of the different address spaces.
+ * So, I put the flag into the shared memory segment.
+ *
  * Revision 1.125  2001/08/02 01:45:16  alan
  * copyright change and message change.
  *
