@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.41 2000/06/15 14:24:31 alan Exp $
+#	$Id: Makefile,v 1.42 2000/06/15 16:51:04 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -221,7 +221,7 @@ $(TARFILE):     tarclean clean $(SPECFILE)
 
 distclean:	tarclean
 
-tarclean:
+tarclean:	pristene
 		rm -fr $(OURDIR) $(TARFILE)
 		@for j in $(BUILDDIRS);			\
 		do					\
