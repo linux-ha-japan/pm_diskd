@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.104 2001/05/11 14:55:06 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.105 2001/05/15 19:52:50 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -639,7 +639,11 @@ ha_perror(const char * fmt, ...)
 		sprintf(errornumber, "error %d\n", errno);
 		err = errornumber;
 	}else{
+#ifdef HAVE_STRERROR
+		err = strerror(errno);
+#else
 		err = sys_errlist[errno];
+#endif
 	}
 	va_start(ap, fmt);
 	vsnprintf(buf, MAXLINE, fmt, ap);
@@ -3976,6 +3980,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.105  2001/05/15 19:52:50  alan
+ * More portability fixes from David Lee
+ *
  * Revision 1.104  2001/05/11 14:55:06  alan
  * Followed David Lee's suggestion about splitting out all the heartbeat process
  * management stuff into a separate header file...

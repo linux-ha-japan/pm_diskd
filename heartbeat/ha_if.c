@@ -1,4 +1,4 @@
-const static char * _ha_if_c_Id = "$Id: ha_if.c,v 1.2 2000/11/06 10:43:29 jacob Exp $";
+const static char * _ha_if_c_Id = "$Id: ha_if.c,v 1.3 2001/05/15 19:52:50 alan Exp $";
 
 /*
  * ha_if.c - code that extracts information about a network interface
@@ -43,6 +43,11 @@ const static char * _ha_if_c_Id = "$Id: ha_if.c,v 1.2 2000/11/06 10:43:29 jacob 
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+
+#ifdef HAVE_SYS_SOCKIO_H
+#	include <sys/sockio.h>
+#endif
+
 #include <unistd.h>
 
 #include "heartbeat.h"
