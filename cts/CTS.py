@@ -741,6 +741,12 @@ class RandomTests:
 
         self.Audits = Audits
 
+    def incr(self, name):
+        '''Increment (or initialize) the value associated with the given name'''
+        if not self.Stats.has_key(name):
+            self.Stats[name]=0
+        self.Stats[name] = self.Stats[name]+1
+
     def run(self, max=1):
         (
 '''
@@ -769,9 +775,9 @@ random for the selected number of iterations.
                 ret=test(self.Env.RandomNode())
 
             if ret:
-                self.Stats["success"] = self.Stats["success"] + 1
+                self.incr("success");
             else:
-                self.Stats["failure"] = self.Stats["failure"] + 1
+                self.incr("failure");
         	# Better get the current info from the cluster...
                 self.CM.statall()
 
@@ -779,7 +785,7 @@ random for the selected number of iterations.
                 match=BadNews.look()
                 if match:
                    self.CM.log(match)
-                   self.Stats["BadNews"] = self.Stats["BadNews"] + 1
+                   self.incr("BadNews");
                 else:
                   break
             else:
@@ -791,7 +797,7 @@ random for the selected number of iterations.
                 if not audit():
                     self.CM.log("Audit " + audit.name() + " Failed.")
                     test.incr("auditfail")
-                    self.Stats.incr("auditfail")
+                    self.incr("auditfail")
 
         self.Scenario.TearDown(self.CM)
 
