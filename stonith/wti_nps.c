@@ -51,7 +51,7 @@
 /*
  * Version string that is filled in by CVS
  */
-static const char *version __attribute__ ((unused)) = "$Revision: 1.6 $"; 
+static const char *version __attribute__ ((unused)) = "$Revision: 1.7 $"; 
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,8 +63,8 @@ static const char *version __attribute__ ((unused)) = "$Revision: 1.6 $";
 #include <libintl.h>
 #include <sys/wait.h>
 
-#include "expect.h"
-#include "stonith.h"
+#include <stonith/expect.h>
+#include <stonith/stonith.h>
 
 #define	DEVICE	"WTI Network Power Switch"
 
