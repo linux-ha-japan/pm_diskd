@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.28 2002/08/17 14:35:58 alan Exp $
+#	$Id: IPaddr.in,v 1.29 2002/09/04 15:23:36 msoffen Exp $
 #
 #	This script manages IP alias IP addresses
 #
 #	It can add an IP alias, or remove one.
 #
-#	usage: $0 ip-address {start|stop|status}
+#	usage: $0 ip-address {start|stop|status|monitor}
 #
 #	The "start" arg adds an IP alias.
 #
@@ -180,6 +180,33 @@ ifconfig2sendarp() {
 	echo "$1" | sed "s%:%%g"
 }
 
+add_route () {
+  case $SYSTYPE in
+    SunOS)	dev_intf="-interface";;
+    *BSD)	dev_intf="-ifp";;
+    *)		dev_intf="dev";;
+  esac
+
+  ha_log "info: $ROUTE -n -add host $BASEIP $dev_intf $IF"
+  $ROUTE -n add -host $BASEIP $dev_intf $IF
+}
+
+delete_route () {
+  case $SYSTYPE in
+	SunOS)
+			CMD=""
+			;;
+	*BSD)
+			CMD="$ROUTE -n delete -host $BASEIP"
+			;;
+
+	*)		CMD="$ROUTE -n del -host $BASEIP"
+			;;
+  esac
+
+  ha_log "info: $CMD"
+  $CMD
+}
 
 #
 #	Remove the IP alias for the requested IP address...
@@ -219,20 +246,7 @@ ip_stop() {
 #
 
 
-  case $SYSTYPE in
-	SunOS)
-			CMD=""
-			;;
-	*BSD)
-			CMD="$ROUTE delete $BASEIP"
-			;;
-
-	*)		CMD="$ROUTE del -host $BASEIP"
-			;;
-  esac
-
-  ha_log "info: $CMD"
-  $CMD
+  delete_route;
 
   case $SYSTYPE in
 	SunOS)
@@ -425,13 +439,7 @@ ip_start() {
 	return $rc;;
   esac
 
-  case $SYSTYPE in
-    *BSD|SunOS)	dev_intf="-interface";;
-    *)		dev_intf="dev";;
-  esac
-
-  ha_log "info: $ROUTE add -host $BASEIP $dev_intf $IF"
-  $ROUTE add -host $BASEIP $dev_intf $IF
+  # add_route
 
   TARGET_INTERFACE=`echo $IF | sed 's%:.*%%'`
 
@@ -501,7 +509,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.28 2002/08/17 14:35:58 alan Exp $"
+  echo "$Id: IPaddr.in,v 1.29 2002/09/04 15:23:36 msoffen Exp $"
 }
 
 #
@@ -548,6 +556,10 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.29  2002/09/04 15:23:36  msoffen
+# Changed for Solaris.  Removed "Add Route" and moved to subroutine (Left commented out call to subroutine though).
+# Corrected comment (added monitor as allowd parameter).
+#
 # Revision 1.28  2002/08/17 14:35:58  alan
 # Changed BasicSanityCheck to assign the dummy IP address to the dead machine.
 #
