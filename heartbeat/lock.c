@@ -113,7 +113,7 @@ DoLock(const char * prefix, const char *lockname)
 		}
 		unlink(lf_name);
 	}
-	if ((fd = open(tf_name, O_CREAT | O_WRONLY, 0660)) < 0) {
+	if ((fd = open(tf_name, O_CREAT | O_WRONLY, 0644)) < 0) {
 		/* Hmmh, why did we fail? Anyway, nothing we can do about it */
 		return -3;
 	}

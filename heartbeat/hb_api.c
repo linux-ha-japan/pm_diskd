@@ -668,6 +668,10 @@ api_send_client_msg(client_proc_t* client, struct ha_msg *msg)
 	}
 }
 
+/*
+ *	The range of file descriptors we have open for the request FIFOs
+ */
+
 static int	maxfd = -1;
 static int	minfd = -1;
 
@@ -778,6 +782,7 @@ api_add_client(struct ha_msg* msg)
 	client->pid = pid;
 	client->desired_types = DEFAULTREATMENT;
 	client->signal = 0;
+
 	if (fromid != NULL) {
 		strncpy(client->client_id, fromid, sizeof(client->client_id));
 		if (atoi(client->client_id) == pid) {
@@ -790,6 +795,7 @@ api_add_client(struct ha_msg* msg)
 		,	"%d", pid);
 		client->iscasual = 1;
 	}
+
 	client->next = client_list;
 	client_list = client;
 	total_client_count++;
@@ -1251,6 +1257,7 @@ compute_msp_fdset(fd_set* set, int fd1, int fd2)
 	FD_ZERO(set);
 	FD_SET(fd1, set);
 	FD_SET(fd2, set);
+
 	for (fd=minfd; fd <= maxfd; ++fd) {
 		if (FDclients[fd]) {
 			FD_SET(fd, set);
@@ -1265,6 +1272,7 @@ compute_msp_fdset(fd_set* set, int fd1, int fd2)
 	minfd = newmin;
 	return (pmax > newmax ? pmax : newmax)+1;
 }
+
 /* Process select(2)ed API FIFOs for messages */
 void
 process_api_msgs(fd_set* inputs, fd_set* exceptions)
@@ -1273,7 +1281,6 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 	client_proc_t*	client;
 
 	/* Loop over the range of file descriptors open for our clients */
-
 	for (fd=minfd; fd <= maxfd; ++fd) {
 
 		/* Do we have a client on this file descriptor? */
@@ -1281,7 +1288,9 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 		if ((client = FDclients[fd]) != NULL) {
 			struct ha_msg*	msg;
 
-			/* I'm not sure if this is ever happens ... */
+			/* I'm not sure if this is ever happens... */
+			/* But if it does, we're ready for it ;-) */
+
 			if (FD_ISSET(fd, exceptions)) {
 				if (kill(client->pid, 0) < 0
 				&&	errno == ESRCH) {
@@ -1292,10 +1301,12 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 					continue;
 				}
 			}
+
 			/* Skip if no input for this client */
 			if (!FD_ISSET(fd, inputs)) {
 				continue;
 			}
+
 			/* Got a message from 'client' */
 			if (kill(client->pid, 0) < 0
 			&&	errno == ESRCH) {
@@ -1309,10 +1320,13 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 			/* See if we can read the message */
 			if ((msg = msgfromstream(client->input_fifo)) == NULL) {
 				/*
-				 * If you kill -9 the process, we can see
-				 * this.  It appears that we get an input
-				 * indication on the FIFO, but the process
-				 * isn't quite gone yet.
+				 * If you kill -9 the process, then this
+				 * may happen.  It appears that we get an
+				 * input indication on the FIFO, but the
+				 * process isn't quite gone yet.
+				 * It'll never go away unless we close so
+				 * we'll get a *nasty* high-priority infinite
+				 * loop.  Better close it down ;-)
 				 */
 				ha_log(LOG_ERR, "No message from pid %d "
 				,	client->pid);
@@ -1321,9 +1335,9 @@ process_api_msgs(fd_set* inputs, fd_set* exceptions)
 				api_remove_client(client);
 				continue;
 			}
-			api_heartbeat_monitor(msg, APICALL, "<api>");
 
 			/* Process the API request message... */
+			api_heartbeat_monitor(msg, APICALL, "<api>");
 			api_process_request(client, msg);
 			ha_msg_del(msg); msg = NULL;
 		}
