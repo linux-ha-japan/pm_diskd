@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.159 2002/01/16 22:59:17 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.160 2002/02/09 21:21:42 alan Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -1414,7 +1414,6 @@ master_status_process(void)
 
 		/* How about requests from our API clients? */
 		if (selret > 0) {
-			ha_log(LOG_DEBUG, "Processing %d API messages", selret);
 			process_api_msgs(&inpset, &exset);
 		}
 	}
@@ -2952,7 +2951,7 @@ mark_node_dead(struct node_info *hip, enum deadreason reason)
 			/* We have to Zap them before we take the resources */
 			/* This often takes a few seconds. */
 			if (config->stonith) {
-			Initiate_Reset(config->stonith, hip->nodename);
+				Initiate_Reset(config->stonith, hip->nodename);
 				/* Child sends message when reset completes*/
 			}
 		}
@@ -3556,8 +3555,10 @@ main(int argc, char * argv[], char * envp[])
 		if (running_hb_pid < 0) {
 			printf("%s is stopped. No process\n", cmdname);
 		}else{
-			printf("%s OK [pid %ld et al] is running...\n"
-			,	cmdname, running_hb_pid);
+			struct utsname u;
+			uname(&u);
+			printf("%s OK [pid %ld et al] is running on %s...\n"
+			,	cmdname, running_hb_pid, u.nodename);
 		}
 		cleanexit(0);
 	}
@@ -4740,6 +4741,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.160  2002/02/09 21:21:42  alan
+ * Minor message and indentation changes.
+ *
  * Revision 1.159  2002/01/16 22:59:17  alan
  * Fixed a dumb error in restructuring the code.
  * I passed the retransmit history structure by value instead of by address,
