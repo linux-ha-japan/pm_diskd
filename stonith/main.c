@@ -36,7 +36,7 @@ usage(const char * cmd)
 	"[-t devicetype] "
 	"[-F options-file] "
 	"[-p stonith-parameters] "
-	"machinename\n", cmd);
+	"nodename\n", cmd);
 	exit(1);
 }
 
@@ -115,7 +115,7 @@ main(int argc, char** argv)
 		char **	typelist;
 
 		typelist = stonith_types();
-		if (s == NULL) {
+		if (s == NULL || typelist == NULL) {
 			syslog(LOG_ERR, "Could not list Stonith types.");
 		}else{
 			char **	this;
