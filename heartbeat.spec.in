@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.4 2001/08/14 14:10:58 horms Exp $
+#	$Id: heartbeat.spec.in,v 1.5 2001/08/15 02:46:37 alan Exp $
 Summary: @PACKAGE@ - heartbeat subsystem for High-Availability Linux
 Name:	@PACKAGE@
 Version:	@VERSION@
@@ -344,7 +344,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 ###########################################################
 %build
 ###########################################################
-CFLAGS="${RPM_OPT_FLAGS}" \
+#CFLAGS="${RPM_OPT_FLAGS}" \
   ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var
 make
 
@@ -381,8 +381,8 @@ install -m 644 rc.config.heartbeat $TEMPL
 /etc/ha.d/README.config
 /etc/ha.d/conf
 /usr/lib/heartbeat
-/usr/lib/libhbclient.so
-/usr/lib/libhbclient.a
+/usr/lib/libhbclient.*
+/usr/lib/libpils.*
 /etc/ha.d/resource.d/
 /etc/init.d/heartbeat
 /etc/logrotate.d/heartbeat
@@ -434,9 +434,7 @@ install -m 644 rc.config.heartbeat $TEMPL
 ###########################################################
 %defattr(-,root,root)
 /usr/include/stonith.h
-/usr/lib/libstonith.a
-/usr/lib/libstonith.la
-/usr/lib/*bstonith.so*
+/usr/lib/libstonith.*
 /usr/lib/stonith/*.so*
 /usr/sbin/stonith
 /usr/sbin/meatclient

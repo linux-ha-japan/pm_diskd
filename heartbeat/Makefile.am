@@ -38,10 +38,6 @@ apireg			= $(havarlibdir)/register
 
 
 CFLAGS			= @CFLAGS@	\
--DPROCROUTE="\"@PROCROUTE@\"" \
--DROUTE="\"@ROUTE@ @ROUTEPARM@\"" \
--DUSE_ROUTE_GET="\"@USE_ROUTE_GET@\"" \
--DNETSTAT="\"@NETSTAT@ @NETSTATPARM@\"" \
 -DVAR_RUN_D='"$(havarrundir)"'	\
 -DVAR_LIB_D='"$(havarlibdir)"'		\
 -DHA_D='"$(hadir)"'			\
