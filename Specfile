@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.90 2001/03/07 04:22:21 alan Exp $
+#	$Id: Specfile,v 1.91 2001/03/08 14:37:03 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -65,6 +65,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 
 + Version 0.4.9 Beta series
   + Increased the retry count for the Baytech stonith module.
+  + Removed the ppp support code from the build process.
   + Fixed a long-standing bug in configuring the deprecated ppp option ;-)
   + Added Brian Martin's client API library fix <bmartin@penguincomputing.com>
     along with one suggested by 
@@ -353,7 +354,9 @@ machine. It's simple and reliable, albeit admittedly brutal.
 %setup
 %build
 make
+###########################################################
 %install
+###########################################################
 if
   [ -z "${RPM_BUILD_ROOT}"  -a "${RPM_BUILD_ROOT}" != "/" ]
 then
@@ -373,7 +376,9 @@ then
 fi
 install -m 644 rc.config.heartbeat $TEMPL
 
+###########################################################
 %files
+###########################################################
 %defattr(-,root,root)
 %dir /etc/ha.d
 /etc/ha.d/harc
@@ -388,7 +393,6 @@ install -m 644 rc.config.heartbeat $TEMPL
 /etc/init.d/heartbeat
 /etc/logrotate.d/heartbeat
 /var/adm/fillup-templates/rc.config.heartbeat
-%dir /var/run/ppp.d
 %dir /var/lib/%PKG%
 %attr (600, root, root)       /var/lib/%PKG%/fifo
 %attr (750, root, %APIGROUP%) /var/lib/%PKG%/api
@@ -397,8 +401,10 @@ install -m 644 rc.config.heartbeat $TEMPL
 /usr/man/man8/heartbeat.8*
 %doc doc/*
 
+###########################################################
 # Files for ldirectord
 %files ldirectord
+###########################################################
 %defattr(-,root,root)
 /usr/sbin/ldirectord
 /etc/logrotate.d/ldirectord
@@ -407,8 +413,10 @@ install -m 644 rc.config.heartbeat $TEMPL
 /usr/man/man8/ldirectord.8*
 %doc ldirectord/ldirectord.cf
 
+###########################################################
 # Files for the stonith library
 %files stonith
+###########################################################
 %defattr(-,root,root)
 /usr/lib/libstonith.a
 /usr/lib/libstonith.so
@@ -418,10 +426,15 @@ install -m 644 rc.config.heartbeat $TEMPL
 /usr/include/stonith.h
 
 
+###########################################################
 %clean
+###########################################################
 rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_DIR/%PKG%-%VERS%
+
+###########################################################
 %pre
+###########################################################
 #
 #	This isn't perfect.  But getting every distribution
 #	to agree on group id's seems hard to me :-(
@@ -460,7 +473,9 @@ then
     mkdir -p etc/init.d
   fi
 fi
+###########################################################
 %pre ldirectord
+###########################################################
 #
 #  Multi-distribution kludge for init scripts...
 #
@@ -481,44 +496,9 @@ then
     mkdir -p etc/init.d
   fi
 fi
+###########################################################
 %post
-#
-#	Hack to allow ppp-udp to be notified about PPP processes starting
-#
-Install_PPP_hack() {
-  file2hack=etc/ppp/ip-up.local
-  echo "NOTE: Modifying $file2hack"
-  if
-    [ ! -x bin/ed ]
-  then
-    echo "Hey!  Gotta have /bin/ed!"
-    exit 1
-  fi
-  if
-    [ ! -f $file2hack ]
-  then
-    echo '#!/bin/bash' > $file2hack
-    chmod 755 $file2hack
-  fi
-  MARKER="Heartbeat"
-  ed -s $file2hack <<-!EOF  2>/dev/null
-H
-g/ $MARKER\$/d
-\$a
-#	The following lines added for Linux-HA support		# $MARKER
-DEVFILE=\`echo \$DEVICE | sed -e 's!^/dev/!!' -e 's!/!.!g'\`	# $MARKER
-OUTFILE=/var/run/ppp.d/\$DEVFILE				# $MARKER
-(			# $MARKER
-echo "\$IPREMOTE"	# $MARKER
-echo "\$IFNAME"		# $MARKER
-echo "\$PPPD_PID"	# $MARKER
-echo "\$IPLOCAL"		# $MARKER
-) > \$OUTFILE		# $MARKER
-.
-w
-!EOF
-}
-
+###########################################################
 if
   [ ! -x etc/ppp/ip-up.heart ]
 then
@@ -552,7 +532,9 @@ then
 fi
 true
 
+###########################################################
 %preun
+###########################################################
 
 Uninstall_PPP_hack() {
   file2hack=etc/ppp/ip-up.local

@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.46 2000/12/12 23:23:46 alan Exp $
+#	$Id: Makefile,v 1.47 2001/03/08 14:37:03 alan Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -30,7 +30,7 @@ APIDIR=$(VARLIB)/api
 APIREG=$(VARLIB)/register
 APICASUAL=$(VARLIB)/casual
 FIFO=$(VARLIB)/fifo
-HAPPP=$(VARRUN)/ppp.d
+#HAPPP=$(VARRUN)/ppp.d
 INITSCRIPT=$(BUILD_ROOT)/$(INITD)/$(PKG)
 LOGROTATESCRIPT=$(LOGROTATED)/$(PKG)
 RESOURCEDIR=$(BUILD_ROOT)/etc/ha.d/resource.d
@@ -53,7 +53,7 @@ B_HA=$(DESTDIR)/etc/ha.d
 B_VARRUN=$(DESTDIR)/var/run
 B_VARLIB=$(DESTDIR)/var/lib/$(PKG)
 B_FIFO=$(B_VARRUN)/heartbeat-fifo
-B_HAPPP=$(B_VARRUN)/ppp.d
+#B_HAPPP=$(B_VARRUN)/ppp.d
 B_HALIB=/usr/lib/$(PKG)
 
 HTML2TXT = lynx -dump
@@ -83,8 +83,8 @@ CFLAGS=-g 				\
 	-DHALIB='"$(B_HALIB)"'		\
 	-DVAR_RUN_D='"$(B_VARRUN)"'	\
 	-DVAR_LIB_D='"$(B_VARLIB)"'	\
-	-DFIFONAME='"$(B_FIFO)"'	\
-	-DPPP_D='"$(B_HAPPP)"'
+	-DFIFONAME='"$(B_FIFO)"'
+#	-DPPP_D='"$(B_HAPPP)"'
 
 #	-Wtraditional
 
@@ -104,7 +104,7 @@ H_OBJLIST = 	heartbeat.o		\
 		lock.o			\
 		module.o
 
-COMM_OBJS = ping.o serial.o ppp-udp.o udp.o 
+COMM_OBJS = ping.o serial.o udp.o 
 
 AUTH_OBJS =	md5.o sha1.o crc.o
 

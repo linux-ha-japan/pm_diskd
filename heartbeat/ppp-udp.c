@@ -1,9 +1,19 @@
-static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.13 2000/12/12 23:23:47 alan Exp $";
+static const char _ppp_udp_Id [] = "$Id: ppp-udp.c,v 1.14 2001/03/08 14:37:03 alan Exp $";
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
  *
- * Copyright (C) 1999, 2000 Alan Robertson <alanr@unix.sh>
+ * NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE
+ *
+ *	This code is deprecated, never worked wonderfully, and is now
+ *	removed from the build process.  Don't expect it to work.  It has been
+ *	retained for historical reasons, and as a graphic explanation of why
+ *	one should use the straight serial code and not write a ppp module
+ *	again ;-)
+ *
+ * NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE
+ *
+ * Copyright (C) 1999, 2000, 2001 Alan Robertson <alanr@unix.sh>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1197,6 +1207,9 @@ ppp_localdie(void)
 }
 /*
  * $Log: ppp-udp.c,v $
+ * Revision 1.14  2001/03/08 14:37:03  alan
+ * Removed the ppp code from the build process...
+ *
  * Revision 1.13  2000/12/12 23:23:47  alan
  * Changed the type of times from time_t to TIME_T (unsigned long).
  * Added BuildPreReq: lynx
