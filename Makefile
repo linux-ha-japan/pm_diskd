@@ -1,4 +1,4 @@
-#	$Id: Makefile,v 1.59 2000/11/17 13:28:46 alan Exp $
+#	$Id: Makefile,v 1.60 2000/11/23 18:42:14 guest Exp $
 #
 #	Makefile for making High-Availability Linux heartbeat code
 #
@@ -237,3 +237,23 @@ tarclean:	pristene
 
 
 clobber:	tarclean rpmclean clean
+
+###############################################################################
+#
+#       Below is all the boilerplate for making an DEB package out of
+#       the things made above.
+#
+#       To make the deb package, say "make deb".
+#
+###############################################################################
+
+deb:
+	fakeroot dpkg-buildpackage
+	dh_clean
+	rm -f build-stamp
+	rm -R debian/heartbeat
+
+debclean:
+	dh_clean
+	rm -f build-stamp
+	rm -R debian/heartbeat
