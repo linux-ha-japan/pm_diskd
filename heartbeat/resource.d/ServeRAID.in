@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.17 2003/05/22 13:25:24 alan Exp $
+# $Id: ServeRAID.in,v 1.18 2003/05/29 16:53:29 alan Exp $
 # 
 # ServeRAID
 #
@@ -112,7 +112,7 @@ usage() {
 	version becomes available.
 
 
-	$Id: ServeRAID.in,v 1.17 2003/05/22 13:25:24 alan Exp $
+	$Id: ServeRAID.in,v 1.18 2003/05/29 16:53:29 alan Exp $
 	!
   exit 1
 }
@@ -170,7 +170,8 @@ parseinst() {
   esac
   sr_adapter=$1
   sr_mergegroup=$2
-  return 0
+  CheckRaidLevel
+  return $?
 }
 
 #
@@ -225,7 +226,7 @@ MergeGroupToSCSI_ID() {
 MergeGroupRaidLevel() {
 
   PerlScript="while (<>) {
-	/RAID level *: *([0-9]+[A-Z]*)/i && (\$ld=\$1);
+	/RAID level *: *([0-9]+[A-Za-z]*)/i && (\$ld=\$1);
 	/part of merge group *: *$sr_mergegroup *\$/i && print \$ld, \"\n\";
   }"
 
@@ -235,6 +236,20 @@ MergeGroupRaidLevel() {
     *)		return 1;;
   esac
 }
+
+CheckRaidLevel() {
+  RAIDlevel=`MergeGroupRaidLevel`
+  case $RAIDlevel in
+    *5*)
+      echo "ERROR: ServeRAID device $sr_adapter $sr_mergegroup is RAID level $RAIDlevel"
+      echo "	This level of ServeRAID RAID is not supported for failover by the firmware."
+      return 1;;
+  esac
+  return 0
+}
+
+    
+	
 
 ReleaseSCSI() {
   targetid=`MergeGroupToSCSI_ID`
