@@ -184,33 +184,19 @@ main(int argc, char ** argv)
 		ha_log_message(reply);
 		if (strcmp(type, "ping") ==0) {
 			struct ha_msg*	pingreply = ha_msg_new(4);
+			int	count;
 
 			ha_msg_add(pingreply, F_TYPE, "pingreply");
-			if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
-			==	HA_OK) {
-			}else{
-				fprintf(stderr, "PING FAIL to [%s]\n", orig);
-			}
-			if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
-			==	HA_OK) {
-				fprintf(stderr, "Sent ping reply(2) to [%s]\n"
-				,	orig);
-			}else{
-				fprintf(stderr, "PING FAIL(2) to [%s]\n", orig);
-			}
-			if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
-			==	HA_OK) {
-				fprintf(stderr, "Sent ping reply(3) to [%s]\n"
-				,	orig);
-			}else{
-				fprintf(stderr, "PING FAIL(3) to [%s]\n", orig);
-			}
-			if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
-			==	HA_OK) {
-				fprintf(stderr, "Sent ping reply(4) to [%s]\n"
-				,	orig);
-			}else{
-				fprintf(stderr, "PING FAIL(4) to [%s]\n", orig);
+
+			for (count=0; count < 10; ++count) {
+				if (hb->llc_ops->sendnodemsg(hb, pingreply, orig)
+				==	HA_OK) {
+					fprintf(stderr, "Sent ping reply(%d) to [%s]\n"
+					,	count, orig);
+				}else{
+					fprintf(stderr, "PING %d FAIL to [%s]\n"
+					,	count, orig);
+				}
 			}
 			ha_msg_del(pingreply); pingreply=NULL;
 		}
