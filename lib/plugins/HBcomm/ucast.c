@@ -1,4 +1,4 @@
-static const char _ucast_Id [] = "$Id: ucast.c,v 1.2 2002/06/16 06:11:26 alan Exp $";
+static const char _ucast_Id [] = "$Id: ucast.c,v 1.3 2002/09/13 04:18:56 alan Exp $";
 /*
  * Adapted from alanr's UDP broadcast heartbeat bcast.c by Stéphane Billiart
  *	<stephane@reefedge.com>
@@ -459,7 +459,7 @@ HB_make_receive_sock(struct hb_media * mp) {
 
 	UCASTASSERT(mp);
 	ei = (struct ip_private *) mp->pd;
-	bzero(&(my_addr), sizeof(my_addr));	/* zero my address struct */
+	memset(&(my_addr), 0, sizeof(my_addr));	/* zero my address struct */
 	my_addr.sin_family = AF_INET;		/* host byte order */
 	my_addr.sin_port = htons(ei->port);	/* short, network byte order */
 	my_addr.sin_addr.s_addr = INADDR_ANY;	/* auto-fill with my IP */
