@@ -25,44 +25,17 @@
 #ifndef _HB_PROC_H
 #	define _HB_PROC_H 1
 
-#ifndef PAGE_SIZE
-#	ifdef MIN
-#		undef MIN
-#	endif
-#	ifdef MAX
-#		undef MAX
-#	endif
-#	include <sys/param.h>
-#endif
-
-#ifndef PAGE_SIZE
-# ifdef HAVE_ASM_PAGE_H
-#	include <asm/page.h>	/* This is where Linux puts it */
-# endif /*HAVE_ASM_PAGE_H*/
-#endif
-
-#if !defined(PAGE_SIZE)
-
 /*
- * Still don't have PAGE_SIZE?
- *
- * At least on Solaris, we have PAGESIZE.
- * So in theory, could:
- *      #if !defined(PAGE_SIZE) && defined(PAGESIZE)
- *      #define PAGE_SIZE PAGESIZE
- *      #endif
- *
- * Unfortunately, PAGESIZE (Solaris) is not a constant, rather a function call.
+ * Unfortunately, PAGESIZE (Solaris) or PAGE_SIZE is not a guaranteed
+ * constant, but might rather be a function call.
  * So its later use in "struct pstat_shm { ... array[fn(PAGESIZE)]}"
  * would be faulty.  Sigh...
  *
- * Accordingly, define it to 4096, since and it's a reasonable guess
+ * Accordingly, define it to 4096, since it is a reasonable guess.
  * (which is good enough for our purposes - as described below)
  */
 
-#	define PAGE_SIZE 4096
-#endif
-
+#define PAGE_SIZE 4096
 
 enum process_type {
 	PROC_UNDEF=0,		/* OOPS! ;-) */

@@ -1,4 +1,4 @@
-static const char _udp_Id [] = "$Id: ping.c,v 1.6 2002/06/16 06:11:26 alan Exp $";
+static const char _udp_Id [] = "$Id: ping.c,v 1.7 2002/07/16 11:47:53 lars Exp $";
 /*
  * ping.c: ICMP-echo-based heartbeat code for heartbeat.
  *
@@ -318,7 +318,7 @@ ping_read(struct hb_media* mp)
 	int			addr_len = sizeof(struct sockaddr);
    	struct sockaddr_in	their_addr; /* connector's addr information */
 	struct ip *		ip;
-	struct icmp *		icp;
+	struct icmp		icp;
 	int			numbytes;
 	int			hlen;
 
@@ -346,9 +346,9 @@ ping_read(struct hb_media* mp)
 	}
 
 	/* Now the ICMP part */	/* (there may be a better way...) */
-	icp = (struct icmp *)(buf.cbuf + hlen);
+	memcpy(&icp, (buf.cbuf + hlen), sizeof(icp));
 
-	if (icp->icmp_type != ICMP_ECHOREPLY || icp->icmp_id != ei->ident) {
+	if (icp.icmp_type != ICMP_ECHOREPLY || icp.icmp_id != ei->ident) {
 		return NULL;
 	}
 
@@ -357,10 +357,10 @@ ping_read(struct hb_media* mp)
 		,	numbytes, inet_ntoa(their_addr.sin_addr));
 	}
 	if (DEBUGPKTCONT) {
-		LOG(PIL_DEBUG, "%s", &icp->icmp_data[0]);
+		LOG(PIL_DEBUG, "%s", &icp.icmp_data[0]);
 	
 	}
-	msgstart = &icp->icmp_data[0];
+	msgstart = &icp.icmp_data[0];
 	return string2msg(msgstart, bufmax - msgstart);
 }
 

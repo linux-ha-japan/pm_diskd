@@ -218,7 +218,7 @@ static int	RPSOn(struct WTI_RPS10*, char unit_id, const char * rebootid);
 #if defined(ST_POWEROFF) 
 static int	RPSOff(struct WTI_RPS10*, char unit_id, const char * rebootid);
 #endif
-static char	RPSNametoOutlet ( struct WTI_RPS10 * ctx, const char * host );
+static signed char RPSNametoOutlet ( struct WTI_RPS10 * ctx, const char * host );
 
 int  	st_setconffile(Stonith *, const char * cfgname);
 int	st_setconfinfo(Stonith *, const char * info);
@@ -811,7 +811,7 @@ RPSDisconnect(struct WTI_RPS10 * ctx)
  *     -1 on failure (host not found in the config file)
  * 
  */
-static char
+static signed char
 RPSNametoOutlet ( struct WTI_RPS10 * ctx, const char * host )
 {
 	int i=0;
@@ -841,7 +841,7 @@ st_reset(Stonith * s, int request, const char * host)
 {
 	int	rc = S_OK;
 	int	lorc = S_OK;
-	char outlet_id = -1;
+	signed char outlet_id = -1;
 	struct WTI_RPS10*	ctx;
 	
 	if (gbl_debug) printf ("Calling st_reset (%s)\n", WTIid);

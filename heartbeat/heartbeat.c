@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.191 2002/07/08 04:14:12 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: heartbeat.c,v 1.192 2002/07/16 11:47:53 lars Exp $";
 
 /*
  * heartbeat: Linux-HA heartbeat code
@@ -3020,8 +3020,8 @@ QueueRemoteRscReq(RemoteRscReqFunc func, struct ha_msg* msg)
 
 	if (ANYDEBUG) {
 		ha_log(LOG_DEBUG
-		,	"Queueing remote resource request (hook = 0x%x)"
-		,	(unsigned int)hook);
+		,	"Queueing remote resource request (hook = 0x%p)"
+		,	(void *)hook);
 		ha_log_message(msg);
 	}
 	hook->func = func;
@@ -6045,6 +6045,9 @@ setenv(const char *name, const char * value, int why)
 #endif
 /*
  * $Log: heartbeat.c,v $
+ * Revision 1.192  2002/07/16 11:47:53  lars
+ * Type and alignment fixes for IA64, x86_64, sparc, s390 and PPC(64).
+ *
  * Revision 1.191  2002/07/08 04:14:12  alan
  * Updated comments in the front of various files.
  * Removed Matt's Solaris fix (which seems to be illegal on Linux).

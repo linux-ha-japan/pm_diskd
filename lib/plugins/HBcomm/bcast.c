@@ -1,4 +1,4 @@
-static const char _bcast_Id [] = "$Id: bcast.c,v 1.16 2002/06/16 06:11:26 alan Exp $";
+static const char _bcast_Id [] = "$Id: bcast.c,v 1.17 2002/07/16 11:47:53 lars Exp $";
 /*
  * bcast.c: UDP/IP broadcast-based communication code for heartbeat.
  *
@@ -736,15 +736,8 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 	
 	if (return_val == 0 ) {
 		if (ifr.ifr_broadaddr.sa_family == AF_INET) {
-			struct sockaddr_in
-				*sin_ptr = (struct sockaddr_in *)
-				&ifr.ifr_broadaddr;
-			
-			*broadaddr = sin_ptr->sin_addr;
-			
-			/* wanna see it? */
-			/* printf ("ifr_broadaddr %s\n",
-			   inet_ntoa(sin_ptr->sin_addr));*/
+			memcpy(broadaddr, &ifr.ifr_broadaddr, 
+					sizeof(*broadaddr));
 			
 			/* leave return_val set to 0 to return success! */
 		}else{
@@ -768,6 +761,9 @@ if_get_broadaddr(const char *ifn, struct in_addr *broadaddr)
 
 /*
  * $Log: bcast.c,v $
+ * Revision 1.17  2002/07/16 11:47:53  lars
+ * Type and alignment fixes for IA64, x86_64, sparc, s390 and PPC(64).
+ *
  * Revision 1.16  2002/06/16 06:11:26  alan
  * Put in a couple of changes to the PILS interfaces
  *  - exported license information (name, URL)
