@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.34 2001/06/08 04:57:47 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.35 2001/06/16 12:19:08 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -138,7 +138,7 @@ init_config(const char * cfgfile)
 
 	if (config->warntime_interval <= 0) {
 		config->warntime_interval
-		=	(config->deadtime_interval * CLK_TCK*3)/4;
+		=	(config->deadtime_interval * CLOCKS_PER_SEC*3)/4;
 	}
 	
 #if !defined(MITJA)
@@ -1130,7 +1130,7 @@ get_ticks(const char * input)
 {
 	const char *	cp = input;
 	const char *	units;
-	int		multiplier = CLK_TCK;
+	int		multiplier = CLOCKS_PER_SEC;
 	int		divisor = 1;
 	clock_t		ret;
 	double		dret;
@@ -1141,7 +1141,7 @@ get_ticks(const char * input)
 
 	if (strncasecmp(units, "ms", 2) == 0
 	||	strncasecmp(units, "msec", 4) == 0) {
-		multiplier = CLK_TCK;
+		multiplier = CLOCKS_PER_SEC;
 		divisor = 1000;
 	}
 	dret = atof(cp);

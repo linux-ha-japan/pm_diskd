@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.23 2001/06/14 22:06:31 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.24 2001/06/16 12:19:08 alan Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -1348,6 +1348,7 @@ RegisterAPlugin(MLModule* modinfo
 					 this plugin	(OP)	*/
 ,	void*		ud_plugin	/* plugin user data */
 );
+
 ML_rc
 RegisterAPlugin(MLModule* modinfo
 ,	const char *	plugintype	/* Type of plugin	*/
