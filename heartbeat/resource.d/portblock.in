@@ -1,3 +1,4 @@
+#!/bin/sh
 #
 #	portblock: iptables temporary portblocking control 
 #
