@@ -1,4 +1,4 @@
-const static char * _heartbeat_c_Id = "$Id: config.c,v 1.51 2001/10/04 21:14:30 alan Exp $";
+const static char * _heartbeat_c_Id = "$Id: config.c,v 1.52 2001/10/09 01:19:08 alan Exp $";
 /*
  * Parse various heartbeat configuration files...
  *
@@ -336,15 +336,15 @@ parse_config(const char * cfgfile, char *nodename)
 		if ((cp = strchr(bp, COMMENTCHAR)) != NULL)  {
 			*cp = EOS;
 		}
+		
+		/* Strip '\n' and '\r' chars */
+		if ((cp = strpbrk(bp, CRLF)) != NULL) {
+			*cp = EOS;
+		}
 
 		/* Ignore blank (and comment) lines */
 		if (*bp == EOS) {
 			continue;
-		}
-		
-		/* strip '\n' and '\r' */
-		if ((cp = strpbrk(bp, CRLF)) != NULL) {
-			*cp = EOS;
 		}
 
 		/* Now we expect a directive name */
@@ -1225,6 +1225,10 @@ set_stonith_host_info(const char * value)
 }
 /*
  * $Log: config.c,v $
+ * Revision 1.52  2001/10/09 01:19:08  alan
+ * Put in fix from Andreas Piesk for detecting / dealing with blank/comment
+ * lines properly in config.c
+ *
  * Revision 1.51  2001/10/04 21:14:30  alan
  * Patch from Reza Arbab <arbab@austin.ibm.com> to make it compile correctly
  * on AIX.
