@@ -1,4 +1,4 @@
-#	$Id: heartbeat.spec.in,v 1.22 2002/04/04 17:55:27 alan Exp $
+#	$Id: heartbeat.spec.in,v 1.23 2002/06/16 03:50:29 alan Exp $
 Summary: @HEARTBEATPKG@ - heartbeat subsystem for High-Availability Linux
 Name:	@HEARTBEATPKG@
 Version:	@VERSION@
@@ -76,6 +76,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
 	arp replies during IP address takeover.
   + Suppress stonith operations for nodes which went down gracefully.
   + Significantly improved real-time performance
+  + Added new unicast heartbeat type.
   + Added code to make serial ports flush stale data on new connections.
   + The Famous CLK_TCK compile time fixes (really!)
   + Added a document which describes the heartbeat API
@@ -98,7 +99,6 @@ machine. It's simple and reliable, albeit admittedly brutal.
         printf-style messages on GNU C compilers
   + Changed several log messages to have the right parameters (discovered
         as a result of the change above)
-  + Changed send_arp code to send out both ARP requests and responses
 
 * Fri Mar 16 2001 Alan Robertson <alanr@unix.sh>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
