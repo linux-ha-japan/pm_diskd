@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Linux Director Daemon - run "perldoc ldirectord" for details
-my($VERSION)=(qw$Id: ldirectord,v 1.51 2002/07/29 10:24:15 horms Exp $)[2];
+my($VERSION)=(qw$Id: ldirectord,v 1.52 2002/07/31 08:39:27 horms Exp $)[2];
 # (C) 2000, Jacob Rief <jacob.rief@tiscover.com>
 # This is GPL software. You should own a few hundred copies
 # of the GPL by now. if not, get one at http://www.fsf.org
@@ -1740,14 +1740,19 @@ sub service_set()
 	# Check each virtual service for the real server and make
 	# changes as neccessary
 	foreach $v (@VIRTUAL){
+	        # Use found rather than relying on tmp_id being
+		# set when we leave the foreach loop. There
+		# seems to some weirdness in Perl (5.6.0 on Redhat 7.2)
+	        my $found = 0;
 		my $tmp_id;
 		my $virtual_id = get_virtual_id_str($v);
 		foreach $tmp_id (@$virtual) {
 			if($virtual_id eq $tmp_id) {
+				$found = 1;
 				last;
 			}
 		}
-		if ($virtual_id eq $tmp_id) {
+		if ($found == 1) {
 			if ($state=~/up/i) {
 				$$r{status}=0;
 				_service_up($v, $r);
@@ -2232,11 +2237,18 @@ sub get_real_id_str
 	if(defined($r->{"request"})) {
 		$request = $r->{"request"};
 	}
+	else {
+		$request = $v->{"request"};
+	}
 	if(defined($r->{"receive"})) {
-		$request = $r->{"receive"};
+		$receive = $r->{"receive"};
+	}
+	else {
+		$receive = $v->{"receive"};
 	}
 
-	if($v->{"checktype"} eq "negotiate" || $v->{"combined"} eq "negotiate") {
+	if($v->{"checktype"} eq "negotiate" || 
+			$v->{"combined"} eq "negotiate") {
 		$check = $v->{"checktype"} . ":" . $v->{"service"};
 	}
 	else {
