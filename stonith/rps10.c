@@ -104,8 +104,7 @@
  */
 
 struct cntrlr_str {
-  int outletnum;		/* value 0-9 */
-  int configured;	/* 1 == this outlet (plug) is configured */
+  char outlet_id;		/* value 0-9, '*' */
   char * node;          /* name of the node attached to this outlet */
 };
 
@@ -129,6 +128,9 @@ struct WTI_RPS10 {
   struct cntrlr_str 
                 controllers[WTI_NUM_CONTROLLERS];
   		/* one master switch can address 10 controllers */
+
+  /* Number of actually configured units */
+  int	unit_count;
 
 };
 
@@ -193,6 +195,7 @@ static struct Etoken WTItokOutlet[] =	{ {"0", 0, 0},
 					  {"7", 0, 0}, 
 					  {"8", 0, 0}, 
 					  {"9", 0, 0}, 
+					  {"*", 0, 0}, 
 					  {NULL,0,0}};
 
 static struct Etoken WTItokOn[] =	{ {"On", 0, 0}, {NULL,0,0}};
@@ -204,14 +207,14 @@ static struct Etoken WTItokCRNL[] =	{ {"\n\r",0,0},{"\r\n",0,0},{NULL,0,0}};
 static int	RPSConnect(struct WTI_RPS10 * ctx);
 static int	RPSDisconnect(struct WTI_RPS10 * ctx);
 
-static int	RPSReset(struct WTI_RPS10*, int unitnum, const char * rebootid);
+static int	RPSReset(struct WTI_RPS10*, char unit_id, const char * rebootid);
 #if defined(ST_POWERON) 
-static int	RPSOn(struct WTI_RPS10*, int unitnum, const char * rebootid);
+static int	RPSOn(struct WTI_RPS10*, char unit_id, const char * rebootid);
 #endif
 #if defined(ST_POWEROFF) 
-static int	RPSOff(struct WTI_RPS10*, int unitnum, const char * rebootid);
+static int	RPSOff(struct WTI_RPS10*, char unit_id, const char * rebootid);
 #endif
-static int	RPSNametoOutlet ( struct WTI_RPS10 * ctx, const char * host );
+static char	RPSNametoOutlet ( struct WTI_RPS10 * ctx, const char * host );
 
 int  	st_setconffile(Stonith *, const char * cfgname);
 int	st_setconfinfo(Stonith *, const char * info);
@@ -281,7 +284,7 @@ RPSLookFor(struct WTI_RPS10* ctx, struct Etoken * tlist, int timeout)
  * RPSSendCommand - send a command to the specified outlet
  */
 static int
-RPSSendCommand (struct WTI_RPS10 *ctx, int outlet, char command, int timeout)
+RPSSendCommand (struct WTI_RPS10 *ctx, char outlet, char command, int timeout)
 {
 	char            writebuf[10]; /* all commands are 9 chars long! */
 	int		return_val;  /* system call result */
@@ -293,7 +296,7 @@ RPSSendCommand (struct WTI_RPS10 *ctx, int outlet, char command, int timeout)
 	FD_ZERO(&wfds);
 	FD_ZERO(&xfds);
 
-	snprintf (writebuf, sizeof(writebuf), "%s%d%c\r",
+	snprintf (writebuf, sizeof(writebuf), "%s%c%c\r",
 		  WTIpassword, outlet, command);
 
 	if (gbl_debug) printf ("Sending %s\n", writebuf);
@@ -331,10 +334,10 @@ RPSSendCommand (struct WTI_RPS10 *ctx, int outlet, char command, int timeout)
 }  /* end RPSSendCommand() */
 
 /* 
- * RPSReset - Reset (power-cycle) the given outlet number 
+ * RPSReset - Reset (power-cycle) the given outlet id 
  */
 static int
-RPSReset(struct WTI_RPS10* ctx, int unitnum, const char * rebootid)
+RPSReset(struct WTI_RPS10* ctx, char unit_id, const char * rebootid)
 {
 
 	if (gbl_debug) printf ("Calling RPSReset (%s)\n", WTIid);
@@ -346,7 +349,7 @@ RPSReset(struct WTI_RPS10* ctx, int unitnum, const char * rebootid)
 	}
 
 	/* send the "toggle power" command */
-	SEND(unitnum, 'T', 10);
+	SEND(unit_id, 'T', 10);
 
 	/* Expect "Plug 0 Off" */
 	EXPECT(WTItokPlug, 5);
@@ -380,10 +383,10 @@ RPSReset(struct WTI_RPS10* ctx, int unitnum, const char * rebootid)
 
 #if defined(ST_POWERON) 
 /* 
- * RPSOn - Turn OFF the given outlet number 
+ * RPSOn - Turn OFF the given outlet id 
  */
 static int
-RPSOn(struct WTI_RPS10* ctx, int unitnum, const char * host)
+RPSOn(struct WTI_RPS10* ctx, char unit_id, const char * host)
 {
 
 	if (ctx->fd < 0) {
@@ -393,7 +396,7 @@ RPSOn(struct WTI_RPS10* ctx, int unitnum, const char * host)
 	}
 
 	/* send the "On" command */
-	SEND(unitnum, '1', 10);
+	SEND(unit_id, '1', 10);
 
 	/* Expect "Plug 0 On" */
 	EXPECT(WTItokPlug, 5);
@@ -414,10 +417,10 @@ RPSOn(struct WTI_RPS10* ctx, int unitnum, const char * host)
 
 #if defined(ST_POWEROFF) 
 /* 
- * RPSOff - Turn Off the given outlet number 
+ * RPSOff - Turn Off the given outlet id 
  */
 static int
-RPSOff(struct WTI_RPS10* ctx, int unitnum, const char * host)
+RPSOff(struct WTI_RPS10* ctx, char unit_id, const char * host)
 {
 
 	if (ctx->fd < 0) {
@@ -427,7 +430,7 @@ RPSOff(struct WTI_RPS10* ctx, int unitnum, const char * host)
 	}
 
 	/* send the "Off" command */
-	SEND(unitnum, '0', 10);
+	SEND(unit_id, '0', 10);
 
 	/* Expect "Plug 0 Off" */
 	EXPECT(WTItokPlug, 5);
@@ -500,7 +503,7 @@ char **
 st_hostlist(Stonith  *s)
 {
 	char **		ret = NULL;	/* list to return */
-	int 		i, numnames = 0;
+	int 		i;
 	struct WTI_RPS10*	ctx;
 
 	if (gbl_debug) printf ("Calling st_hostlist (%s)\n", WTIid);
@@ -517,24 +520,14 @@ st_hostlist(Stonith  *s)
 
 	ctx = (struct WTI_RPS10*) s->pinfo;
 
-	/* check to see how many outlets are configured */
-	for (i=0;i<WTI_NUM_CONTROLLERS;i++) {
-		if (ctx->controllers[i].configured)
-			numnames++;
-	}
-
-	if (numnames >= 1) {
-		ret = (char **)MALLOC((numnames+1)*sizeof(char*));
+	if (ctx->unit_count >= 1) {
+		ret = (char **)MALLOC((ctx->unit_count+1)*sizeof(char*));
 		if (ret == NULL) {
 			syslog(LOG_ERR, "out of memory");
 		} else {
-			ret[numnames]=NULL; /* null terminate the array */
-			for (i=0;i<WTI_NUM_CONTROLLERS;i++) {
-				if (ctx->controllers[i].configured) {
-					numnames--;
-					ret[numnames] = 
-						strdup(ctx->controllers[i].node);
-				} /* end if this outlet is configured */
+			ret[ctx->unit_count]=NULL; /* null terminate the array */
+			for (i=0;i<ctx->unit_count;i++) {
+				ret[i] = strdup(ctx->controllers[i].node);
 			} /* end for each possible outlet */
 		} /* end if malloc() suceeded */
 	} /* end if any outlets are configured */
@@ -603,7 +596,6 @@ RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 	char *copy;
 	char *token;
 	char *outlet, *node;
-	int  anyconfigured = 0;
 
 
 	if (ctx->config) {
@@ -642,23 +634,31 @@ RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 	/* <nodename> <outlet> pairs */
 	while ((node = strtok (NULL, " \t"))
 	       && (outlet = strtok (NULL, " \t\n"))) {
-		int outletnum;
+		char outlet_id;
 
 		/* validate the outlet token */
-		if ((sscanf (outlet, "%d", &outletnum) != 1)
-		    || outletnum < 0 
-		    || outletnum >= WTI_NUM_CONTROLLERS ) {
+		if ((sscanf (outlet, "%c", &outlet_id) != 1)
+		    || (!((outlet_id > '0') && (outlet_id < '9'))
+			    && (outlet_id != '*'))
+		   ) {
 			syslog(LOG_ERR
-			, "%s: the outlet number %s must be a number between"
-			" 0 and 9",
+			, "%s: the outlet_id %s must be between"
+			" 0 and 9 or '*'",
 			       WTIid, outlet);
 			goto token_error;
 		}
 		
-		ctx->controllers[outletnum].configured = 1;
-		ctx->controllers[outletnum].node = strdup(node);
-		ctx->controllers[outletnum].outletnum = outletnum;
-		++anyconfigured;
+		if (ctx->unit_count >= WTI_NUM_CONTROLLERS) {
+			syslog(LOG_ERR, 
+				"%s: Tried to configure too many controllers",
+				WTIid);
+			goto token_error;
+		}
+		
+		ctx->controllers[ctx->unit_count].node = strdup(node);
+		ctx->controllers[ctx->unit_count].outlet_id = outlet_id;
+		ctx->unit_count++;
+
 	} 
 
 	/* free our private copy of the string we've been destructively 
@@ -666,7 +666,7 @@ RPS_parse_config_info(struct WTI_RPS10* ctx, const char * info)
 	 */
 	free(copy);
 	ctx->config = 1;
-	return (anyconfigured ? S_OK : S_BADCONFIG);
+	return ((ctx->unit_count > 0) ? S_OK : S_BADCONFIG);
 
 token_error:
 	free(copy);
@@ -795,26 +795,25 @@ RPSDisconnect(struct WTI_RPS10 * ctx)
 } 
 
 /*
- * RPSNametoOutlet - Map a hostname to an outlet number on this stonith device.
+ * RPSNametoOutlet - Map a hostname to an outlet on this stonith device.
  *
  * Returns:
- *     0-9 on success ( the outlet number on the RPS10 )
+ *     0-9, * on success ( the outlet id on the RPS10 )
  *     -1 on failure (host not found in the config file)
  * 
  */
-static int
+static char
 RPSNametoOutlet ( struct WTI_RPS10 * ctx, const char * host )
 {
 	int i=0;
 
 	/* scan the controllers[] array to see if this host is there */
-	for (i=0;i<WTI_NUM_CONTROLLERS;i++) {
-		/* return the outlet number */
-		if (ctx->controllers[i].configured
-		    && ctx->controllers[i].node 
+	for (i=0;i<ctx->unit_count;i++) {
+		/* return the outlet id */
+		if ( ctx->controllers[i].node 
 		    && !strcmp(host, ctx->controllers[i].node)) {
 			/* found it! */
-			return ctx->controllers[i].outletnum;
+			return ctx->controllers[i].outlet_id;
 		}
 	}
 
@@ -833,7 +832,7 @@ st_reset(Stonith * s, int request, const char * host)
 {
 	int	rc = S_OK;
 	int	lorc = S_OK;
-	int outletnum = -1;
+	char outlet_id = -1;
 	struct WTI_RPS10*	ctx;
 	
 	if (gbl_debug) printf ("Calling st_reset (%s)\n", WTIid);
@@ -853,9 +852,9 @@ st_reset(Stonith * s, int request, const char * host)
 		return(rc);
 	}
 
-	outletnum = RPSNametoOutlet(ctx, host);
+	outlet_id = RPSNametoOutlet(ctx, host);
 
-	if (outletnum < 0) {
+	if (outlet_id < 0) {
 		syslog(LOG_WARNING, _("%s %s "
 				      "doesn't control host [%s]."), 
 		       ctx->idinfo, ctx->unitid, host);
@@ -867,16 +866,16 @@ st_reset(Stonith * s, int request, const char * host)
 
 #if defined(ST_POWERON) 
 		case ST_POWERON:
-			rc = RPSOn(ctx, outletnum, host);
+			rc = RPSOn(ctx, outlet_id, host);
 			break;
 #endif
 #if defined(ST_POWEROFF)
 		case ST_POWEROFF:
-			rc = RPSOff(ctx, outletnum, host);
+			rc = RPSOff(ctx, outlet_id, host);
 			break;
 #endif
 	case ST_GENERIC_RESET:
-		rc = RPSReset(ctx, outletnum, host);
+		rc = RPSReset(ctx, outlet_id, host);
 		break;
 	default:
 		rc = S_INVAL;
@@ -1039,6 +1038,7 @@ st_new(void)
 	ctx->WTIid = WTIid;
 	ctx->fd = -1;
 	ctx->config = 0;
+	ctx->unit_count = 0;
 	ctx->device = NULL;
 	ctx->idinfo = NULL;
 	ctx->unitid = NULL;
