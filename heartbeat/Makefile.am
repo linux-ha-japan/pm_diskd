@@ -83,7 +83,7 @@ send_arp_CFLAGS	 	= @LIBNETDEFINES@
 send_arp_LDADD	 	= @LIBNETLIBS@
 
 send_arp.o: $(send_arp_SOURCES)
-	( old_pwd="$(PWD)" ; cd $(srcdir) && $(CC) -c $(send_arp_SOURCES) \
+	( old_pwd=`pwd` ; cd $(srcdir) && $(CC) -c $(send_arp_SOURCES) \
 		-o $$old_pwd/$@ $(CPPFLAGS) $(send_arp_CFLAGS) )
 
 
