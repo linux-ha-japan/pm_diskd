@@ -22,10 +22,11 @@
  *
  */
 
-static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.1 2002/10/18 07:16:08 alan Exp $";
+static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.2 2002/10/18 22:46:30 alan Exp $";
 
 
 #define _USE_BSD
+#include <portability.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -46,7 +47,6 @@ static const char * _hb_signal_c_Id = "$Id: hb_signal.c,v 1.1 2002/10/18 07:16:0
 #include <hb_proc.h>
 #include <heartbeat_private.h>
 #include <heartbeat.h>
-#include <portability.h>
 #include <setproctitle.h>
 #include <pils/plugin.h>
 #include <test.h>
@@ -210,7 +210,7 @@ hb_signal_term_action(void)
 	extern volatile struct process_info *curproc;
 	extern int shutdown_in_progress;
 	extern ProcTrack_ops ManagedChildTrackOps;
-	extern ProcTrack_ops RscMgmtProcessTrackOps;
+	extern ProcTrack_ops hb_rsc_RscMgmtProcessTrackOps;
 
 	CL_IGNORE_SIG(SIGTERM);
 	return_to_orig_privs();
@@ -229,7 +229,7 @@ hb_signal_term_action(void)
 			ForEachProc(&ManagedChildTrackOps
 			, 	hb_kill_tracked_process
 			,	GINT_TO_POINTER(SIGTERM));
-			ForEachProc(&RscMgmtProcessTrackOps
+			ForEachProc(&hb_rsc_RscMgmtProcessTrackOps
 			,	hb_kill_tracked_process
 			,	GINT_TO_POINTER(SIGKILL));
 			/* Trigger final shutdown in a second */

@@ -34,7 +34,7 @@
 
 #include <hb_proc.h>
 
-static const char * _heartbeat_private_h_Id = "$Id: heartbeat_private.h,v 1.1 2002/10/18 07:16:08 alan Exp $";
+static const char * _heartbeat_private_h_Id = "$Id: heartbeat_private.h,v 1.2 2002/10/18 22:46:30 alan Exp $";
 
 enum hb_rsc_state {
 	HB_R_INIT,		/* Links not up yet */
@@ -44,15 +44,6 @@ enum hb_rsc_state {
 	HB_R_RSCRCVD,		/* Resource Message received */
 	HB_R_STABLE,		/* Local resources acquired, too... */
 	HB_R_SHUTDOWN,		/* We're in shutdown... */
-};
-
-/*
- * A helper to allow us to pass things into the anonproc
- * environment without any warnings about passing const strings
- * being passed into a plain old (non-const) gpointer.
- */
-struct hb_const_string {
-	const char * str;
 };
 
 /*
@@ -70,14 +61,6 @@ struct hb_const_string {
 #define HB_ALL_RSC		(HB_LOCAL_RSC|HB_FOREIGN_RSC)
 #define HB_ALL_RESOURCES	"all"
 
-
-#define	HB_RSCMGMTPROC(p, s)					\
-	 {							\
-	 	static struct hb_const_string cstr = {(s)};	\
-		extern ProcTrack_ops RscMgmtProcessTrackOps;    \
-		NewTrackedProc((p), 1, PT_LOGNORMAL		\
-		,	&cstr, &RscMgmtProcessTrackOps);	\
-	}
 
 /* Used by signal handlers */
 void hb_init_watchdog(void);
