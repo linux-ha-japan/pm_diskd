@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.42 2002/07/08 04:14:12 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.43 2002/09/11 04:30:32 msoffen Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -49,12 +49,6 @@ static const char _module_c_Id [] = "$Id: module.c,v 1.42 2002/07/08 04:14:12 al
 #include <HBcomm.h>
 #include "lock.h"
 
-/* BSD wants us to cast the select parameter to scandir */
-#ifdef BSD
-#	define SCANSEL_C	(void *)
-#else
-#	define SCANSEL_C	/* Nothing */
-#endif
 #ifndef RTLD_NOW
 #	define RTLD_NOW 0
 #endif
