@@ -25,6 +25,7 @@ htmlfiles		= HardwareGuide.html	\
 			GettingStarted.html	\
 			Requirements.html	\
 			faqntips.html		\
+			heartbeat_api.html	\
 			rsync.html
 
 txtfiles                = $(htmlfiles:.html=.txt)
