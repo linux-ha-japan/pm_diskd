@@ -1,5 +1,8 @@
+Makefile.in
+Makefile
 AudibleAlarm
 Filesystem
+ICP
 IPaddr
 LVM
 LinuxSCSI
