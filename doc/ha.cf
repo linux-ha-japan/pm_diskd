@@ -155,3 +155,14 @@ logfacility	local0
 #	node	nodename ...	-- must match uname -n
 #node	ken3
 #node	kathy
+#
+#	Less common options...
+#
+#	Treats 10.10.10.254 as a psuedo-cluster-member
+#
+#ping 10.10.10.254
+#
+#	Started and stopped with heartbeat.  Restarted unless it exits
+#				with rc=100
+#
+#respawn userid /path/name/to/run
