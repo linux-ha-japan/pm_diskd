@@ -28,15 +28,36 @@
  */
 
 /*
+ * General strategy:  We use the IPC abstraction library for all our
+ * client-server communications.  We use the glib 'mainloop' paradigm
+ * for all our event processing.
+ *
+ * The IPC connection socket is one event source.
+ * Each socket connecting us to our clients are more event sources.
+ * Each heartbeat timeout are also event sources.
+ *
+ * The only limit we have on the number of clients we can support is the
+ * number of file descriptors we can have open.
+ *
+ * We use the Gmain_timeout timeouts instead of native glib mainloop
+ * timeouts because they aren't affected by changes in the time of day
+ * on the system.  They have identical semantics - except for working
+ * correctly ;-)
+ *
+ *
  * TODO list:
  *
  *	- Make it a real production-grade daemon process...
  * 
- *	- change all the fprintfs
+ *	- change all the fprintfs to logging calls
  *
  *	- Log things in the event log
  *
  *	- Implement plugins for (other) notification mechanisms...
+ * 
+ *	- Consider merging all the timeouts into some kind of single
+ *		timeout source.  This would probably more efficient for
+ *		large numbers of clients.  But, it may not matter ;-)
  * 
  */
 
@@ -86,7 +107,7 @@ static void apphb_read_msg(apphb_client_t* client);
 static int apphb_client_hb(apphb_client_t* client, void * msg, int msgsize);
 void apphb_process_msg(apphb_client_t* client, void* msg,  int length);
 
-/* gmainloop event "source" functions for client communication */
+/* gmainloop "event source" functions for client communication */
 static gboolean apphb_prepare(gpointer src, GTimeVal*now, gint*timeout
 ,	gpointer user);
 static gboolean apphb_check(gpointer src, GTimeVal*now, gpointer user);
@@ -99,7 +120,7 @@ static GSourceFuncs apphb_eventsource = {
 	NULL
 };
 
-/* gmainloop event "source" functions for new client connections */
+/* gmainloop "event source" functions for new client connections */
 static gboolean apphb_new_prepare(gpointer src, GTimeVal*now, gint*timeout
 ,	gpointer user);
 static gboolean apphb_new_check(gpointer src, GTimeVal*now, gpointer user);
@@ -136,18 +157,20 @@ apphb_timer_popped(gpointer data)
 	return FALSE;
 }
 
-/* gmainloop "source" prepare function */
+/* gmainloop "event source" prepare function */
 static gboolean
 apphb_prepare(gpointer Src, GTimeVal*now, gint*timeout, gpointer Client)
 {
 	apphb_client_t*		client  = Client;
+
 	if (client->deleteme) {
+		/* It's a good day to die! */
 		apphb_client_remove(client);
 	}
 	return FALSE;
 }
 
-/* gmainloop "source" check function */
+/* gmainloop "event source" check function */
 static gboolean
 apphb_check(gpointer Src, GTimeVal*now, gpointer Client)
 {
@@ -161,7 +184,7 @@ apphb_check(gpointer Src, GTimeVal*now, gpointer Client)
 	||	client->ch->ops->is_message_pending(client->ch);
 }
 
-/* gmainloop "source" dispatch function */
+/* gmainloop "event source" dispatch function */
 static gboolean
 apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 {
@@ -183,7 +206,7 @@ apphb_dispatch(gpointer Src, GTimeVal* now, gpointer Client)
 }
 #define	DEFAULT_TO	(10*60*1000)
 
-/* Create new client - we don't know appname or pid yet */
+/* Create new client (we don't know appname or pid yet) */
 static apphb_client_t*
 apphb_client_new(struct OCF_IPC_CHANNEL* ch)
 {
@@ -241,6 +264,7 @@ apphb_client_new(struct OCF_IPC_CHANNEL* ch)
 
 	/* Set timer for this client... */
 	ret->timerid = Gmain_timeout_add(DEFAULT_TO, apphb_timer_popped, ret);
+	ret->timerms = DEFAULT_TO;
 
 	/* Set up "real" input message source for this client */
 	ret->sourceid = g_source_add(G_PRIORITY_HIGH, FALSE
@@ -305,15 +329,16 @@ apphb_client_remove(apphb_client_t* client)
 	memset(client, 0, sizeof(*client));
 }
 
-/* Process disconnect message from client */
+/* Client requested disconnect */
 static int
 apphb_client_disconnect(apphb_client_t* client , void * msg, int msgsize)
 {
+	/* We can't delete it right away... */
 	client->deleteme=TRUE;
 	return 0;
 }
 
-/* Establish new timeout interval for this client */
+/* Client requested new timeout interval */
 static int
 apphb_client_set_timeout(apphb_client_t* client, void * Msg, int msgsize)
 {
@@ -449,7 +474,7 @@ apphb_new_check(gpointer Src, GTimeVal*now, gpointer user)
 	return src->revents != 0;
 }
 
-/* gmainloop client connection source "dispatch" function */
+/* gmainloop client connection "dispatch" function */
 /* This is where we accept connections from a new client */
 static gboolean
 apphb_new_dispatch(gpointer Src, GTimeVal*now, gpointer user)
