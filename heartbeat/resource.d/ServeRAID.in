@@ -1,11 +1,10 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.4 2002/03/14 04:28:51 alan Exp $
+# $Id: ServeRAID.in,v 1.5 2002/03/19 02:46:59 alan Exp $
 # 
 # ServeRAID
 #
-# Description:	Enables/Disables shared ServeRAID logical drives
-#		MUST BE used in conjunction with LinuxSCSI
+# Description:	Enables/Disables shared ServeRAID merge groups
 #
 # Author:	Alan Robertson, Renzo Alejandro Granados
 #
@@ -18,14 +17,12 @@
 #
 # usage: ./ServeRAID <adapter> <MergeGroup#>  (start|stop|status)
 #
-# NOTE:		MUST be used together with the LinuxSCSI resource...
-#
 #<adapter>:	Adapter number of the ServeRAID adapter 
 #<MergeGroup#>:	MergeGroup # of the logical drive under consideration.
 #
 #
 # An example usage in /etc/ha.d/haresources: 
-#       node1  10.0.0.170 LinuxSCSI::0:0   ServeRAID::1::1
+#       node1  10.0.0.170 ServeRAID::1::1
 #
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
@@ -40,17 +37,11 @@ usage() {
 	The shared merge group number is a number between 1 and 8 inclusive.
 	It indicates to the controller which logical disk to fail over.
 
-	CAVEATS:
-	NOTE:  This resource will NOT WORK without being used in conjunction with
-	the LinuxSCSI resource.  It must be preceded by the LinuxSCSI
-	resource on the resource group line as shown in the example below.
-
-                node1  10.0.0.170 LinuxSCSI::0::0   ServeRAID::1::1
-
-	The arguments to LinuxSCSI are NOT the same as those to $0.
+                node1  10.0.0.170 ServeRAID::1::1
 
 	PREREQUISITES:
-	You must configure your ServeRAID adapters for clustering for this to work.
+	You must configure your ServeRAID adapters for clustering for this
+	to work.
 
 	To do this, you must use the bootable "ServeRAID Support CD" and right
 	click your controller and pick "configure for clustering".  The Linux
@@ -60,7 +51,7 @@ usage() {
 	You will need at least version 5.10 (~July 2002 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.4 2002/03/14 04:28:51 alan Exp $
+	$Id: ServeRAID.in,v 1.5 2002/03/19 02:46:59 alan Exp $
 	!
   exit 1
 }
@@ -83,6 +74,7 @@ ServeRAIDSCSI="/proc/scsi/ips"
 
  
 IPS=ipssend
+proc_scsi=/proc/scsi/scsi
 
 
 parseinst() {
@@ -117,7 +109,7 @@ parseinst() {
 
 #
 #	Run:  Run a script, and log its output.
-#	Note that we the stupid ipssend command has its return
+#	Note that we know the stupid ipssend command has its return
 #	codes reversed - it returns 1 for success, and 0 for failure...
 #	We account for that too...
 #
@@ -146,6 +138,30 @@ run() {
   fi
 }
 
+MergeGroupToSCSI_ID() {
+
+  PerlScript="while (<>) {
+	/logical drive number *([0-9]+)/i && (\$ld=\$1);
+	/part of merge group *: *$mergegroup /i && print \"\$ld\n\"; 
+  }"
+
+  ID=`$IPS getconfig $adapter ld | perl -e "$PerlScript"`
+  case $ID in
+    [0-9]*)	expr "$ID" - 1; return 0;;
+    *)		return 1;;
+  esac
+}
+
+ReleaseSCSI() {
+  SID=`MergeGroupToSCSI_ID` &&
+  echo "scsi-remove-single-device $adapter 0 $SID 0" > $proc_scsi
+}
+
+AddSCSI() {
+  SID=`MergeGroupToSCSI_ID` &&
+  echo "scsi-add-single-device $adapter 0 $SID 0" > $proc_scsi
+}
+
 #
 # start: Enable the given ServeRAID device
 #
@@ -159,10 +175,11 @@ ServeRAID_start() {
       # Normally we do a MERGE PARTNER, but if we still own the drive for
       # some reason, then we'll need to do a MERGE OWN instead...
       #
-      $IPS MERGE $adapter $mergegroup PARTNER
+      $IPS MERGE $adapter $mergegroup PARTNER >/dev/null 2>&1
       [ $? -eq 1 ]	|| run $IPS MERGE $adapter $mergegroup OWN
     then
       : OK All is well!
+      AddSCSI
     else
       return $?
     fi
@@ -185,10 +202,11 @@ ServeRAID_start() {
 #
 ServeRAID_stop() {
   parseinst "$@" || return $?
+  ReleaseSCSI
   if
     run $IPS UNMERGE $adapter $mergegroup
   then
-    : OK All is well!
+    : UNMERGE $adapter $mergegroup worked
   fi
   if
     ServeRAID_status "$@"
@@ -242,10 +260,10 @@ case "$3" in
 	if
 	  ServeRAID_status $1 $2
 	then
-	  echo ServeRAID logical drive $1 $2 is running
+	  echo ServeRAID merge group $1 $2 is running
 	  exit 0
 	else
-	  echo ServeRAID logical drive $1 $2 is stopped.
+	  echo ServeRAID merge group $1 $2 is stopped.
 	  exit 1
 	 fi
 	exit $?;;
