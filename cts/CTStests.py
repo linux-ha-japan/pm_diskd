@@ -57,7 +57,7 @@ class CTSTest:
 #        if not issubclass(cm.__class__, ClusterManager):
 #            raise ValueError("Must be a ClusterManager object")
         self.CM = cm
-        self.timeout=30
+        self.timeout=120
 
     def incr(self, name):
         '''Increment (or initialize) the value associated with the given name'''
@@ -126,7 +126,7 @@ class StopTest(CTSTest):
                 pat = (self.thempat % node)
 
         watch = CTS.LogWatcher(self.CM["LogFileName"], [pat]
-	,	timeout=self.timeout)
+        ,	timeout=self.CM["DeadTime"]+10)
         watch.setwatch()
         self.CM.StopaCM(node)
         if watch.look():
@@ -163,7 +163,7 @@ class StartTest(CTSTest):
             pat = (self.thempat % node)
 
         watch = CTS.LogWatcher(self.CM["LogFileName"], [pat]
-	,	timeout=self.timeout)
+        ,	timeout=self.CM["DeadTime"]+10)
         watch.setwatch()
 
         self.CM.StartaCM(node)
@@ -197,7 +197,7 @@ class FlipTest(CTSTest):
             ret = self.stop(node)
             type="up->down"
             # Give the cluster time to recognize it's gone...
-            time.sleep(self.CM["DeadTime"]+1)
+            time.sleep(self.CM["DeadTime"]+10)
         elif self.CM.ShouldBeStatus[node] == self.CM["down"]:
             self.incr("started")
             ret = self.start(node)
@@ -237,7 +237,7 @@ class RestartTest(CTSTest):
 
         ret1 = self.stop(node)
         # Give the cluster time to recognize we're gone...
-        time.sleep(self.CM["DeadTime"]+1)
+        time.sleep(self.CM["DeadTime"]+10)
         ret2 = self.start(node)
 
         if not ret1:
@@ -282,11 +282,11 @@ class StonithTest(CTSTest):
             uppat = (self.themstart % node)
 
         upwatch = CTS.LogWatcher(self.CM["LogFileName"], [uppat]
-       ,	timeout=self.timeout)
+	,	timeout=self.timeout)
 
         if stopwatch:
             watch = CTS.LogWatcher(self.CM["LogFileName"], [stopwatch]
-            ,	timeout=self.CM["DeadTime"]+1)
+            ,	timeout=self.CM["DeadTime"]+10)
             watch.setwatch()
 
 	#	Reset (stonith) the node
@@ -361,7 +361,7 @@ class IPaddrtest(CTSTest):
 
         ret1 = self.stop(node)
         # Give the cluster time to recognize we're gone...
-        time.sleep(self.CM["DeadTime"]+1)
+        time.sleep(self.CM["DeadTime"]+10)
         ret2 = self.start(node)
 
 

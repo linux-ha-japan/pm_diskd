@@ -50,7 +50,7 @@ class HeartbeatCM(ClusterManager):
         ClusterManager.__init__(self, Environment, randseed=randseed)
         self.update({
             "Name"	     : "heartbeat",
-            "DeadTime"	     : 5,
+            "DeadTime"	     : 30,
             "StartCmd"	     : "/usr/lib/heartbeat/heartbeat ",
             "StopCmd"	     : "/usr/lib/heartbeat/heartbeat -k",
             "StatusCmd"	     : "/usr/lib/heartbeat/heartbeat -s",

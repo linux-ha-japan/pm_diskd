@@ -223,7 +223,7 @@ class ClusterManager(UserDict):
             "up"	     : "up",	# Status meaning up
             "down"	     : "down",  # Status meaning down
             "StonithCmd"     : "/usr/sbin/stonith -t baytech -p '10.10.10.100 admin admin' %s",
-            "DeadTime"	     : 5,	# Max time to detect dead node...
+            "DeadTime"	     : 30,	# Max time to detect dead node...
     #
     # These next values need to be overridden in the derived class.
     #
