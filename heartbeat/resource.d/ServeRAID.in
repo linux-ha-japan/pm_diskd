@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.7 2002/04/27 05:02:16 alan Exp $
+# $Id: ServeRAID.in,v 1.8 2003/02/19 17:32:35 alan Exp $
 # 
 # ServeRAID
 #
@@ -21,6 +21,35 @@
 #<MergeGroup#>:	MergeGroup # of the logical drive under consideration.
 #
 #
+# The ServeRAID clustering model is a bit odd, and its terminology needs
+# a little explanation
+#
+#	Logical Volume - a particular SCSI id {target id and LUN} on
+#		a particular controller.
+#
+#	Merge Group - when active on one side or the other of the ServeRAID
+#		configuration it corresponds with a logical drive.
+#		Merge group numbers are permanently assigned to a particular
+#		chunk of storage.  Shared merge groups are in the
+#		range of 1 to 8, and are largely arbitrary.
+#		Unshared merge groups start at 200.
+#		We can only deal with shared merge groups.  When a merge
+#		group is activated on one of the controllers, it becomes
+#		a logical volume on that system.  NOTE:  The order in
+#		which the Merge Groups are activated determines which
+#		SCSI Ids they become.  This makes for extra headaches
+#		for this script to deal with.  It also means that if
+#		you have more than one shared ServeRAID merge group on
+#		a particular controller, that the SCSI IDs will not
+#		be constant.  This requires mounting by uuid or label.
+#
+#	One of the ServerRAID controllers has to be configured with
+#	SCSI initiator ID 6, and the other with SCSI id 7.
+#
+#	At this time, the ServeRAID clustering solution only works with
+#	RAID 1 setups.  It does NOT support RAID 5.
+#
+#
 # An example usage in /etc/ha.d/haresources: 
 #       node1  10.0.0.170 ServeRAID::1::1
 #
@@ -28,8 +57,9 @@ unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
 #	ServeRAID utility returns 1 when it succeeds (weird)
+#	BUT - the newly released version is more normal...
 
-$srsuccess=1
+srsuccess=1
 
 usage() {
   cat <<-! >&1
@@ -55,7 +85,7 @@ usage() {
 	You will need at least version 5.10 (~July 2002 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.7 2002/04/27 05:02:16 alan Exp $
+	$Id: ServeRAID.in,v 1.8 2003/02/19 17:32:35 alan Exp $
 	!
   exit 1
 }
