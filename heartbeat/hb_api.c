@@ -123,7 +123,7 @@ static int api_get_parameter (const struct ha_msg* msg, struct ha_msg* resp
 static int api_get_resources (const struct ha_msg* msg, struct ha_msg* resp
 ,	client_proc_t* client, const char** failreason);
 
-void ProcessAnAPIRequest(client_proc_t* client);
+gboolean ProcessAnAPIRequest(client_proc_t* client);
 
 struct api_query_handler query_handler_list [] = {
 	{ API_SIGNOFF, api_signoff },
@@ -1713,7 +1713,9 @@ APIclients_input_dispatch(int fd, gpointer user_data)
 
 	/* Process a single API client request */
 	client->isindispatch = TRUE;
-	ProcessAnAPIRequest(client);
+	while (ProcessAnAPIRequest(client)) {
+		/* Do nothing */;
+	}
 	client->isindispatch = FALSE;
 
 	if (client->removereason) {
@@ -1724,7 +1726,7 @@ APIclients_input_dispatch(int fd, gpointer user_data)
 }
 
 
-void
+gboolean
 ProcessAnAPIRequest(client_proc_t*	client)
 {
 	struct ha_msg*	msg;
@@ -1737,7 +1739,7 @@ ProcessAnAPIRequest(client_proc_t*	client)
 		,	"Client pid %ld died (input)"
 		,	(long)client->pid);
 		client->removereason = "died";
-		return;
+		return FALSE;
 	}
 
 	/* See if we can read the message */
@@ -1749,14 +1751,14 @@ ProcessAnAPIRequest(client_proc_t*	client)
 			,	"EOF from client pid %ld"
 			,	(long)client->pid);
 			client->removereason = "EOF";
-			return;
+			return FALSE;
 		}
 
-		/* Interrupted read? */
+		/* Interrupted read or no data? */
 		if (ferror(client->input_fifo)
 		&&	(errno == EINTR || errno == EAGAIN)) {
 			clearerr(client->input_fifo);
-			return;
+			return FALSE;
 		}
 
 		/* None of the above... */
@@ -1781,7 +1783,7 @@ ProcessAnAPIRequest(client_proc_t*	client)
 			client->removereason = "noinput";
 			consecutive_failures = 0;
 		}
-		return;
+		return FALSE;
 	}
 	consecutive_failures = 0;
 
@@ -1789,4 +1791,6 @@ ProcessAnAPIRequest(client_proc_t*	client)
 	api_heartbeat_monitor(msg, APICALL, "<api>");
 	api_process_request(client, msg);
 	msg = NULL;
+
+	return TRUE;
 }

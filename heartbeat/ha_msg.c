@@ -1,4 +1,4 @@
-static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.44 2003/06/24 06:36:51 alan Exp $";
+static const char * _ha_msg_c_Id = "$Id: ha_msg.c,v 1.45 2003/07/14 04:30:49 alan Exp $";
 /*
  * Heartbeat messaging object.
  *
@@ -426,7 +426,8 @@ msgfromstream(FILE * f)
 	if (getsret == NULL || (ret = ha_msg_new(0)) == NULL) {
 		/* Getting an error with EINTR is pretty normal */
 		/* (so is EOF) */
-		if ((!ferror(f) || errno != EINTR) && !feof(f)) {
+		if (   (!ferror(f) || (errno != EINTR && errno != EAGAIN))
+		&&	!feof(f)) {
 			ha_log(LOG_ERR, "msgfromstream: cannot get message");
 		}
 		return(NULL);
@@ -704,6 +705,16 @@ main(int argc, char ** argv)
 #endif
 /*
  * $Log: ha_msg.c,v $
+ * Revision 1.45  2003/07/14 04:30:49  alan
+ * This patch from Kurosawa-san (by way of Horms):
+ *    Heartbeat uses poll() in order to check messages in API FIFO and
+ *    stdio functions to read messages.  stdio functions (fgets() in
+ *    msgfromstream() in this case) uses a internal buffer.  When an application
+ *    sends 2 messages at a time to API FIFO,  heartbeat's fgets() in
+ *    msgfromstream() may read 2 messages to the internal buffer at a time.
+ *    But heartbeat processes only one message and leaves the latter
+ *    message, because there is no poll() event for the file descriptor.
+ *
  * Revision 1.44  2003/06/24 06:36:51  alan
  * Fixed an unsafe sprintf which occurred only when high levels of debug
  * were turned on.
