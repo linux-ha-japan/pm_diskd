@@ -446,10 +446,9 @@ api_ping_iflist(const struct ha_msg* msg, struct node_info * node
 				return I_API_IGN;
 			}
 			api_send_client_msg(client, resp);
-			return I_API_IGN;
+			return I_API_RET;
 		}
 	}
-	ha_log(LOG_ERR, "api_ping_iflist: cannot find response field");
 	*failreason = "UhOh";
 	return I_API_BADREQ;
 }
