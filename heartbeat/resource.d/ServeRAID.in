@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $Id: ServeRAID.in,v 1.8 2003/02/19 17:32:35 alan Exp $
+# $Id: ServeRAID.in,v 1.9 2003/03/12 15:51:09 alan Exp $
 # 
 # ServeRAID
 #
@@ -56,10 +56,10 @@
 unset LC_ALL; export LC_ALL
 unset LANGUAGE; export LANGUAGE
 
-#	ServeRAID utility returns 1 when it succeeds (weird)
+#	Older ServeRAID utility returns 1 when it succeeds (weird)
 #	BUT - the newly released version is more normal...
 
-srsuccess=1
+srsuccess=0
 
 usage() {
   cat <<-! >&1
@@ -85,7 +85,7 @@ usage() {
 	You will need at least version 5.10 (~July 2002 release) of the ipssend
 	command for this script to work.
 
-	$Id: ServeRAID.in,v 1.8 2003/02/19 17:32:35 alan Exp $
+	$Id: ServeRAID.in,v 1.9 2003/03/12 15:51:09 alan Exp $
 	!
   exit 1
 }
