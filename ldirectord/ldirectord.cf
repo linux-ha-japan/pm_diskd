@@ -14,6 +14,7 @@
 checktimeout=3
 checkinterval=1
 fallback=127.0.0.1:80
+autoreload=yes
 
 # A sample virual with a fallback that will override the gobal setting
 virtual=192.168.6.240:80
