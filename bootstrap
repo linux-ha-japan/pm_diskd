@@ -3,6 +3,14 @@
 #	Copyright 2001 horms <horms@vergenet.net>
 #		(heavily mangled by alanr)
 #
+#	bootstrap: set up the project and get it ready to make
+#
+#	Basically, we run autoconf, automake and libtool in the
+#	right way to get things set up for this environment.
+#
+#	We also look and see if those tools are installed, and
+#	tell you where to get them if they're not.
+#
 #	Our goal is to not require dragging along anything
 #	more than we need.  If this doesn't work on your system,
 #	(i.e., your /bin/sh is broken) send us a patch.
@@ -10,17 +18,22 @@
 #	This code loosely based on the corresponding named script in
 #	enlightenment, and also on the sort-of-standard autoconf
 #	bootstrap script.
-#
-#
 
 # Run this to generate all the initial makefiles, etc.
 
 srcdir=`dirname $0`
+CONFIG=$srcdir/configure
 if
   [ X$srcdir = "X" ]
 then
   srcdir=.
 fi
+
+case "$*" in
+  --help)	IsHelp=yes;;
+  -?)		IsHelp=yes; set -- --help;;
+  *)		IsHelp=no;;
+esac
 
 set -e
 #
@@ -66,13 +79,17 @@ case $RC in
   *)	exit $RC;;
 esac
 
+case $IsHelp in
+  yes)	$CONFIG "$@"; trap '' 0; exit 0;;
+esac
+
 if
   [ $# -lt 1 ]
 then
   cat <<-!
-	Running $srcdir/configure with no arguments.
-	If you wish to pass any arguments to it, please specify them
-	       on the $0 command line.
+	Running $CONFIG with no arguments.
+	If you wish to pass any arguments to $CONFIG please
+	       specify them on the $0 command line.
 	!
 fi
 
@@ -90,8 +107,8 @@ autoconf
 
 cd $HERE
 
-$srcdir/configure "$@"
+$CONFIG "$@"
 
-echo 
 echo "Now type 'gmake' to compile the system."
+echo 
 trap '' 0
