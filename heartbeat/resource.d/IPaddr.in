@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: IPaddr.in,v 1.23 2002/07/30 17:33:34 horms Exp $
+#	$Id: IPaddr.in,v 1.24 2002/08/02 03:29:16 horms Exp $
 #
 #	This script manages IP alias IP addresses
 #
@@ -81,7 +81,7 @@ find_interface_solaris() {
 #	The argument is an IP address, and its output
 #	is an aliased interface name (e.g., "eth0:0").
 #
-find_interface() {
+find_interface_generic() {
 
   ipaddr=$1;
 
@@ -96,6 +96,8 @@ find_interface() {
     done
 
     case $ifname in
+      lo:*)	#Skip Loopback on Linux;;
+		if [ $SYSTYPE == "Linux" ]; then continue; fi;;
       *:*)	;;
       *)	continue;;
     esac
@@ -121,34 +123,24 @@ find_interface() {
   return 1
 }
 
-# Find hidden loopback aliases on Linux.
 #
+#       Find out which alias serves the given IP address
+#       The argument is an IP address, and its output
+#       is an aliased interface name (e.g., "eth0:0").
 #
-find_loopback () {
-  BASEIP=`echo $1 | sed s'%/.*%%'`
+find_interface() {
     case $SYSTYPE in
-      Linux)
-        if [ -e /proc/sys/net/ipv4/conf/lo/hidden ]; then
-          loopbackaliases=`$IFCONFIG $IFCONFIG_A_OPT | grep "lo:" | awk '{printf "%s\n",$1}'`
-          for loopbackalias in $loopbackaliases
-            do
-              if
-                $IFCONFIG $loopbackalias | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
-                then
-                    echo $loopbackalias
-                fi
-           done
-        else
-          return 0
-        fi
+	SunOS)
+	 	IF=`find_interface_solaris $BASEIP`
         ;;
-
       *)
-                return 0
+	 	IF=`find_interface_generic $BASEIP`
        ;;
        esac
-}
 
+  echo $IF
+  return 0;
+}
 
 #
 #	Return the MAC address of the given interface in the form
@@ -189,14 +181,7 @@ ifconfig2sendarp() {
 #
 ip_stop() {
   BASEIP=`echo $1 | sed s'%/.*%%'`
-  case $SYSTYPE in
-	SunOS)
-	 	IF=`find_interface_solaris $BASEIP`
-		;;
-	*)
 	 	IF=`find_interface $BASEIP`
-		;;
-  esac
 
   if
     [ -z "$IF" ]
@@ -360,24 +345,6 @@ ip_start() {
 #
 #	Do we already service this IP address?
 #
-  case `ip_status $1` in
-    loopback)
-          #
-          # Remove conflicting hidden loopback IP aliases
-          # On Linux before giving up.
-          #
-          loopback=`find_loopback $1`
-          case $loopback in
-            lo*)
-                ha_log "Removing conflicting hidden loopback alias on $loopback"
-                $IFCONFIG $loopback down
-                $ROUTE del -host $1
-             ;;
-             esac
-    ;;
-    *unning*)	exit 0;
-  esac
-
   BASEIP=`echo $1 | sed s'%/.*%%'`
 
   if
@@ -471,22 +438,15 @@ ip_start() {
 }
 
 ip_status() {
-  BASEIP=`echo $1 | sed -e s'%/.*%%' -e 's%\.%\\\\.%g'`
+  BASEIP=`echo $1 | sed -e s'%/.*%%'`
+  IF=`find_interface $BASEIP`
+
   if
-    $IFCONFIG $IFCONFIG_A_OPT | grep "inet.*[: ]$BASEIP " >/dev/null 2>&1
+    [ -z "$IF" ]
   then
-    # If this is a Linux system with a hidden loopback
-    # alias for this IP address we say loopback instead of
-    # running or stopped.
-    case `find_loopback $1` in
-      lo*)
-       echo "loopback"
-       ;;
-      *)
-        echo "running";;
-      esac
-  else
     echo "stopped"
+  else
+    echo "running"
   fi
 }
 
@@ -512,7 +472,7 @@ ip_monitor() {
 
 usage() {
   echo $USAGE >&2
-  echo "$Id: IPaddr.in,v 1.23 2002/07/30 17:33:34 horms Exp $"
+  echo "$Id: IPaddr.in,v 1.24 2002/08/02 03:29:16 horms Exp $"
 }
 
 #
@@ -559,6 +519,21 @@ esac
 #
 #
 # $Log: IPaddr.in,v $
+# Revision 1.24  2002/08/02 03:29:16  horms
+# Reworked Lorn Kay's loopback interface patch for Linux.
+#
+# Notes:
+#
+# This script assumes that an IP address can only belong
+# to one interface. This is _wrong_. However, it works for
+# almost all cases so I'm happy to leave it as is for now.
+#
+# In the mean time, this work arround allows us to have
+# manages addresses on the loopback interface on Linux,
+# which is very useful when heartbeat is used in conjunction
+# with the Linux Virtual Server, and a node is both
+# a Real Server and a Linux Director.
+#
 # Revision 1.23  2002/07/30 17:33:34  horms
 # The old checking for an empty string without putting the suspect
 # variable in quotes trick. Gets 'em every time.
