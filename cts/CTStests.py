@@ -164,7 +164,7 @@ class StartTest(CTSTest):
             pat = (self.thempat % node)
 
         watch = CTS.LogWatcher(self.CM["LogFileName"], [pat]
-        ,	timeout=self.CM["DeadTime"]+10)
+        ,	timeout=self.CM["StartTime"]+10)
         watch.setwatch()
 
         self.CM.StartaCM(node)
@@ -266,7 +266,7 @@ AllTestClasses.append(RestartTest)
 class StonithTest(CTSTest):
 ###################################################################
     '''Reboot a node by whacking it with stonith.'''
-    def __init__(self, cm, timeout=300):
+    def __init__(self, cm, timeout=600):
         CTSTest.__init__(self,cm)
         self.name="Stonith"
         self.theystopped  = self.CM["Pat:They_stopped"]

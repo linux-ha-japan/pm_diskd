@@ -36,7 +36,7 @@ class ResetMechanism:
         raise ValueError("Abstract class member (reset)")
 
 class Stonith(ResetMechanism):
-    def __init__(self, sttype="baytech", parm="10.10.10.100 admin admin"
+    def __init__(self, sttype="ssh", parm="foobar"
     ,	path="/usr/sbin/stonith"):
         self.pathname=path
         self.configstring=parm
@@ -283,7 +283,7 @@ if __name__ == '__main__':
 
     Environment = CtsLab(["sgi1", "sgi2"])
     #Environment["RandSeed"] = (1,2,3)
-    Environment["DoStonith"] = 0
+    Environment["DoStonith"] = 1
     Environment.SupplyDefaults()
 
     print Environment
@@ -307,7 +307,7 @@ if __name__ == '__main__':
     Tests = TestList(cm)
 
     tests = RandomTests(scenario, cm, Tests, Audits)
-    overall, detailed = tests.run(2000)
+    overall, detailed = tests.run(5000)
  
     cm.log("****************")
     cm.log("Overall Results:" + repr(overall))
