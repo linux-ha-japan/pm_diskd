@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-#	$Id: heartbeat.in,v 1.24 2003/02/18 04:32:09 alan Exp $
+#	$Id: heartbeat.in,v 1.25 2003/02/19 17:50:20 alan Exp $
 #
 # heartbeat     Start high-availability services
 #
@@ -32,7 +32,7 @@
 # Required-Start: $network $time $syslog
 # Required-Stop: $network $time $syslog
 # Default-Start: 2 3 4 5
-# Default-Stop: 2 3 4 5
+# Default-Stop: 0 1 6
 ### END INIT INFO
 # chkconfig: 2345 @HB_INITSTARTPRI@ @HB_INITSTOPPRI@
 # description: Startup script high-availability services.
@@ -390,6 +390,9 @@ exit $RC
 #
 #
 #  $Log: heartbeat.in,v $
+#  Revision 1.25  2003/02/19 17:50:20  alan
+#  Fixed a minor comment bug pointed out by LMB.
+#
 #  Revision 1.24  2003/02/18 04:32:09  alan
 #  Added some comments to the heartbeat init script necessary for LSB
 #  compatibility.
