@@ -1,4 +1,4 @@
-static const char _module_c_Id [] = "$Id: module.c,v 1.30 2001/07/19 16:34:02 alan Exp $";
+static const char _module_c_Id [] = "$Id: module.c,v 1.31 2001/08/10 05:39:26 horms Exp $";
 /*
  * module: Dynamic module support code
  *
@@ -133,9 +133,9 @@ generic_symbol_load(const char * module
 { 
 	int  a;
 #ifdef MODPREFIXSTR
-	char symbolname[MAX_FUNC_NAME + sizeof(MODPREFIXSTR)];
+	char symbolname[ 2 * MAX_FUNC_NAME + sizeof(MODPREFIXSTR)];
 #else
-	char symbolname[MAX_FUNC_NAME + sizeof(MODPREFIXSTR)];
+	char symbolname[MAX_FUNC_NAME];
 #endif
 	char modlen = strlen(module);
 	char modulename[MAX_FUNC_NAME];
@@ -150,13 +150,17 @@ generic_symbol_load(const char * module
 	
 	for (a = 0; a < len; a++) {
 
+                int n = 0;
 		struct symbol_str *sym = &symbols[a];
 
-#if defined(MODPREFIXSTR)
-		strncpy(symbolname, modulename, sizeof(symbolname));
-		strncat(symbolname, MODPREFIXSTR, sizeof(symbolname));
+                bzero(symbolname, sizeof(symbolname));
+#ifdef MODPREFIXSTR
+		strncpy(symbolname, modulename, sizeof(symbolname) - 1);
+                n+=strlen(modulename);
+		strncat(symbolname, MODPREFIXSTR, sizeof(symbolname) - n - 1);
+                n+=strlen(MODPREFIXSTR);
 #endif
-		strncat(symbolname, sym->name, sizeof(symbolname));
+		strncat(symbolname, sym->name, sizeof(symbolname) - n - 1);
 		
 		if ((sym->function = lt_dlsym(handle, symbolname)) == NULL) {
 			if (sym->mandatory) {
