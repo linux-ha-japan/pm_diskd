@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <heartbeat.h>
 #include <hb_api_core.h>
+#include <hb_api.h>
 
 struct stringlist {
 	char *			value;
@@ -26,6 +27,23 @@ struct MsgQueue {
 struct MsgQueue *	firstQdmsg = NULL;
 struct MsgQueue *	lastQdmsg = NULL;
 
+typedef struct gen_callback {
+	char *			msgtype;
+	llc_msg_callback_t *	cf;
+	void *			pd;
+	struct gen_callback*	next;
+}gen_callback_t;
+
+typedef struct llc_private {
+	llc_nstatus_callback_t*		node_callback;
+	void*				node_private;
+	llc_ifstatus_callback_t*	if_callback;
+	void*				if_private;
+	struct gen_callback*		genlist;
+	struct stringlist*		nextnode;
+	struct stringlist*		nextif;
+}llc_private_t;
+
 static struct ha_msg*	hb_api_boilerplate(const char * apitype);
 static int		hb_api_signon(const char * clientid);
 static int		hb_api_signoff(void);
@@ -42,8 +60,28 @@ static int		get_iflist(const char *host);
 static void		zap_iflist(void);
 static int		enqueue_msg(struct ha_msg*);
 static struct ha_msg*	dequeue_msg(void);
+static gen_callback_t*	search_gen_callback(const char * type, llc_private_t*);
+static int		add_gen_callback(const char * msgtype
+,	llc_private_t*, llc_msg_callback_t *, void*);
+static int		del_gen_callback(llc_private_t*, const char * msgtype);
+
 static struct ha_msg*	read_api_msg(void);
 static struct ha_msg*	read_hb_msg(void);
+
+static int set_msg_callback
+			(ll_cluster_t*, const char * msgtype
+,			llc_msg_callback_t* callback, void * p);
+static int
+set_nstatus_callback (ll_cluster_t*
+,		llc_nstatus_callback_t* cbf, 	void * p);
+static int
+		set_ifstatus_callback (ll_cluster_t* ci
+,		const char *node
+,		const char *iface
+,		llc_ifstatus_callback_t* cbf, void * p);
+static int init_nodewalk (ll_cluster_t*);
+static const char * nextnode (ll_cluster_t* ci);
+static int init_ifwalk (ll_cluster_t* ci, const char * host);
 
 volatile struct process_info *	curproc = NULL;
 static char		OurPid[16];
@@ -564,6 +602,71 @@ dequeue_msg()
 	return(ret);
 }
 
+static gen_callback_t*
+search_gen_callback(const char * type, llc_private_t* lcp)
+{
+	struct gen_callback*	gcb;
+
+	for (gcb=lcp->genlist; gcb != NULL; gcb=gcb->next) {
+		if (strcmp(type, gcb->msgtype) == 0) {
+			return(gcb);
+		}
+	}
+	return(NULL);
+}
+ 
+static int
+add_gen_callback(const char * msgtype, llc_private_t* lcp
+,	llc_msg_callback_t * funp, void* pd)
+{
+	struct gen_callback*	gcb;
+	char *			type;
+
+	if ((gcb = search_gen_callback(msgtype, lcp)) == NULL) {
+		gcb = MALLOCT(struct gen_callback);
+		if (gcb == NULL) {
+			return(HA_FAIL);
+		}
+		type = ha_malloc(strlen(msgtype)+1);
+		if (type == NULL) {
+			ha_free(gcb);
+			return(HA_FAIL);
+		}
+		strcpy(type, msgtype);
+		gcb->msgtype = type;
+		gcb->next = lcp->genlist;
+		lcp->genlist = gcb;
+	}else if (funp == NULL) {
+		return(del_gen_callback(lcp, msgtype));
+	}
+	gcb->cf = funp;
+	gcb->pd = pd;
+	return(HA_OK);
+}
+
+static int	
+del_gen_callback(llc_private_t* lcp, const char * msgtype)
+{
+	struct gen_callback*	gcb;
+	struct gen_callback*	prev = NULL;
+
+	for (gcb=lcp->genlist; gcb != NULL; gcb=gcb->next) {
+		if (strcmp(msgtype, gcb->msgtype) == 0) {
+			if (prev) {
+				prev->next = gcb->next;
+			}else{
+				lcp->genlist = gcb->next;
+			}
+			ha_free(gcb->msgtype);
+			gcb->msgtype = NULL;
+			free(gcb);
+			return(HA_OK);
+		}
+		prev = gcb;
+	}
+	return(HA_FAIL);
+}
+ 
 static struct ha_msg *
 read_api_msg(void)
 {
@@ -597,6 +700,119 @@ read_hb_msg(void)
 	return(msgfromstream(ReplyFIFO));
 	
 }
+static int
+set_msg_callback (ll_cluster_t* ci, const char * msgtype
+,			llc_msg_callback_t* callback, void * p)
+{
+
+	return(add_gen_callback(msgtype,
+	(llc_private_t*)ci->ll_cluster_private, callback, p));
+}
+static int
+set_nstatus_callback (ll_cluster_t* ci
+,		llc_nstatus_callback_t* cbf, 	void * p)
+{
+	llc_private_t*	pi = ci->ll_cluster_private;
+	pi->node_callback = cbf;
+	pi->node_private = p;
+	return(HA_OK);
+}
+static int
+set_ifstatus_callback (ll_cluster_t* ci
+,		const char *node
+,		const char *iface
+,		llc_ifstatus_callback_t* cbf, void * p)
+{
+	llc_private_t*	pi = ci->ll_cluster_private;
+	pi->if_callback = cbf;
+	pi->if_private = p;
+	return(HA_OK);
+}
+static int
+init_nodewalk (ll_cluster_t* ci)
+{
+	llc_private_t*	pi = ci->ll_cluster_private;
+	zap_nodelist();
+	pi->nextnode = nodelist;
+
+	return(get_nodelist());
+}
+
+static const char *
+nextnode (ll_cluster_t* ci)
+{
+	llc_private_t*	pi = ci->ll_cluster_private;
+	const char *	ret;
+
+	if (pi->nextnode == NULL) {
+		return(NULL);
+	}
+	ret = pi->nextnode->value;
+
+	pi->nextnode = pi->nextnode->next;
+	return(ret);
+}
+static int
+end_nodewalk(ll_cluster_t* ci)
+{
+	llc_private_t*	pi = ci->ll_cluster_private;
+	pi->nextnode = NULL;
+	zap_nodelist();
+	return(HA_OK);
+}
+
+static int
+init_ifwalk (ll_cluster_t* ci, const char * host)
+{
+	llc_private_t*	pi = ci->ll_cluster_private;
+	zap_iflist();
+	pi->nextif = iflist;
+	return(get_iflist(host));
+}
+static const char *
+nextif (ll_cluster_t* ci)
+{
+	llc_private_t*	pi = ci->ll_cluster_private;
+	const char *	ret;
+
+	if (pi->nextif == NULL) {
+		return(NULL);
+	}
+	ret = pi->nextif->value;
+
+	pi->nextif = pi->nextif->next;
+	return(ret);
+}
+static int
+end_ifwalk(ll_cluster_t* ci)
+{
+	llc_private_t*	pi = ci->ll_cluster_private;
+	pi->nextif = NULL;
+	zap_iflist();
+	return(HA_OK);
+}
+
+struct llc_ops heartbeat_ops = {
+	set_msg_callback,	/* set_msg_callback */
+	set_nstatus_callback,	/* set_nstatus_callback */
+	set_ifstatus_callback,	/* set_ifstatus_callback */
+	init_nodewalk,		/* init_nodewalk */
+	nextnode,		/* nextnode */
+	end_nodewalk,		/* end_nodewalk */
+	NULL	,		/* node_status */
+	init_ifwalk,		/* init_ifwalk */
+	nextif,			/* nextif */
+	end_ifwalk,		/* end_ifwalk */
+	NULL,			/* if_status */
+	NULL,			/* sendclustermsg */
+	NULL,			/* sendnodemsg */
+	NULL,			/* inputfd */
+	NULL,			/* msgready */
+	NULL,			/* setmsgsignal */
+	NULL,			/* rcvmsg */
+	NULL,			/* readmsg */
+	NULL,			/* setfmode */
+};
 
 void gotsig(int nsig);
 int quitnow = 0;
