@@ -1,6 +1,6 @@
-static const char _udp_Id [] = "$Id: udp.c,v 1.2 1999/09/26 14:01:21 alanr Exp $";
+static const char _udp_Id [] = "$Id: udp.c,v 1.3 1999/09/30 16:04:22 alanr Exp $";
 /*
-   About half the code in ths file borrowed 1999 from Tom Vogt's
+   About 150 lines of the code in this file borrowed 1999 from Tom Vogt's
 	"Heart" program, and significantly mangled by
 	Alan Robertson <alanr@henge.com> (c) 1999
 	Released under the GNU General Public License
@@ -450,6 +450,9 @@ new_ip_interface(const char * ifn, int port)
 }
 /*
  * $Log: udp.c,v $
+ * Revision 1.3  1999/09/30 16:04:22  alanr
+ * Minor comment change.
+ *
  * Revision 1.2  1999/09/26 14:01:21  alanr
  * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
  *
