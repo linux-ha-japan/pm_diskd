@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.17 1999/10/19 14:02:12 alan Exp $
+#	$Id: Specfile,v 1.18 1999/10/25 15:37:23 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -31,6 +31,8 @@ It implements the following kinds of heartbeats:
   + Fixed timing problem in "heartbeat restart" so it's reliable now
   + Made start/stop status compatible with SuSE expectations
   + Made resource status detection compatible with SuSE start/stop expectations
+  + Fixed a bug relating to serial and ppp-udp authentication (it never worked)
+  + added a little more substance to the error recovery for the HB protocol.
 
 * Wed Oct 13 1999  Alan Robertson <alanr@henge.com>,
      Volker Wiegand <wiegand@suse.de>, Rudy Pawul <rpawul@iso-ne.com>,
