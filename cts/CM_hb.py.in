@@ -230,7 +230,7 @@ class HBResource(Resource):
             "$dir/$T" $I ''' + operation + '''
             exit $?
           fi
-        done;
+        done 2>&1;
         exit 1;'''
 
 	#print "Running " + Script + "\n"
