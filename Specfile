@@ -1,4 +1,4 @@
-#	$Id: Specfile,v 1.89 2001/03/07 04:20:51 alan Exp $
+#	$Id: Specfile,v 1.90 2001/03/07 04:22:21 alan Exp $
 Summary: %PKG% - heartbeat subsystem for High-Availability Linux
 Name:	%PKG%
 Version:	%VERS%
@@ -64,6 +64,7 @@ machine. It's simple and reliable, albeit admittedly brutal.
      Andreas Piesk's <a.piesk@gmx.net>, Chris Wright <chris@wirex.com>
 
 + Version 0.4.9 Beta series
+  + Increased the retry count for the Baytech stonith module.
   + Fixed a long-standing bug in configuring the deprecated ppp option ;-)
   + Added Brian Martin's client API library fix <bmartin@penguincomputing.com>
     along with one suggested by 
