@@ -99,7 +99,7 @@ resource_alloc_functions_t resource_class_alloc_functions[] = {
 		master_internal_constraints,
 		clone_agent_constraints,
 		clone_rsc_colocation_lh,
-		clone_rsc_colocation_rh,
+		master_rsc_colocation_rh,
 		clone_rsc_order_lh,
 		clone_rsc_order_rh,
 		clone_rsc_location,
@@ -508,12 +508,7 @@ stage2(pe_working_set_t *data_set)
 
 
 /*
- * Choose a color for all resources from highest priority and XML_STRENGTH_VAL_MUST
- *  dependencies to lowest, creating new colors as necessary (returned
- *  as "colors").
- *
- * Some nodes may be colored as a "no_color" meaning that it was unresolvable
- *  given the current node stati and constraints.
+ * Create internal resource constraints before allocation
  */
 gboolean
 stage3(pe_working_set_t *data_set)
@@ -527,39 +522,26 @@ stage3(pe_working_set_t *data_set)
 }
 
 /*
- * Choose a node for each (if possible) color
+ * Check for orphaned or redefined actions
  */
 gboolean
 stage4(pe_working_set_t *data_set)
 {
-	/* Take (next) highest resource */
-	slist_iter(
-		rsc, resource_t, data_set->resources, lpc,
-		rsc->cmds->color(rsc, data_set);
-		);
+	check_actions(data_set);
 	return TRUE;
 }
 
 
 
-/*
- * Attach nodes to the actions that need to be taken
- *
- * Mark actions XML_LRM_ATTR_OPTIONAL if possible (Ie. if the start and stop are
- *  for the same node)
- *
- * Mark unrunnable actions
- */
 gboolean
 stage5(pe_working_set_t *data_set)
 {
-	crm_debug_3("Creating actions and internal ording constraints");
-	
-	check_actions(data_set);
+	/* Take (next) highest resource and assign it */
 	slist_iter(
 		rsc, resource_t, data_set->resources, lpc,
-		rsc->cmds->create_actions(rsc, data_set);
+		rsc->cmds->color(rsc, data_set);
 		);
+	
 	return TRUE;
 }
 
@@ -1211,19 +1193,23 @@ rsc_colocation_new(const char *id, int score,
 	if(new_con == NULL) {
 		return FALSE;
 	}
-	if(safe_str_eq(state_lh, CRMD_ACTION_STARTED)) {
-		state_lh = NULL;
+
+	if(state_lh == NULL
+	   || safe_str_eq(state_lh, RSC_ROLE_STARTED_S)) {
+		state_lh = RSC_ROLE_UNKNOWN_S;
 	}
-	if(safe_str_eq(state_rh, CRMD_ACTION_STARTED)) {
-		state_rh = NULL;
-	}
+
+	if(state_rh == NULL
+	   || safe_str_eq(state_rh, RSC_ROLE_STARTED_S)) {
+		state_rh = RSC_ROLE_UNKNOWN_S;
+	} 
 
 	new_con->id       = id;
 	new_con->rsc_lh   = rsc_lh;
 	new_con->rsc_rh   = rsc_rh;
 	new_con->score = score;
-	new_con->state_lh = state_lh;
-	new_con->state_rh = state_rh;
+	new_con->role_lh = text2role(state_lh);
+	new_con->role_rh = text2role(state_rh);
 
 	
 	crm_debug_4("Adding constraint %s (%p) to %s",

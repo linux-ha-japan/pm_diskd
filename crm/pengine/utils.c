@@ -46,8 +46,8 @@ invert_constraint(rsc_colocation_t *constraint)
 	/* swap the direction */
 	inverted_con->rsc_lh = constraint->rsc_rh;
 	inverted_con->rsc_rh = constraint->rsc_lh;
-	inverted_con->state_lh = constraint->state_rh;
-	inverted_con->state_rh = constraint->state_lh;
+	inverted_con->role_lh = constraint->role_rh;
+	inverted_con->role_rh = constraint->role_lh;
 
 	crm_action_debug_3(
 		print_rsc_colocation("Inverted constraint", inverted_con, FALSE));
@@ -304,6 +304,8 @@ native_assign_node(resource_t *rsc, GListPtr nodes, node_t *chosen)
 {
 	int multiple = 0;
 	CRM_ASSERT(rsc->variant == pe_native);
+
+	rsc->provisional = FALSE;
 	
 	if(chosen == NULL) {
 		crm_debug("Could not allocate a node for %s", rsc->id);
@@ -363,7 +365,6 @@ native_assign_node(resource_t *rsc, GListPtr nodes, node_t *chosen)
 	}
 	
 	crm_debug("Assigning %s to %s", chosen->details->uname, rsc->id);
-	rsc->provisional = FALSE;
 	crm_free(rsc->allocated_to);
 	rsc->allocated_to = node_copy(chosen);
 

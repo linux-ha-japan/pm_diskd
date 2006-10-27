@@ -176,7 +176,7 @@ native_color(resource_t *rsc, pe_working_set_t *data_set)
 	slist_iter(
 		constraint, rsc_colocation_t, rsc->rsc_cons, lpc,
 
-		crm_debug_3("Pre-Processing %s", constraint->id);		
+		crm_debug_3("%s: Pre-Processing %s", rsc->id, constraint->id);		
 
 		if(rsc->provisional && constraint->rsc_rh->provisional) {
 			crm_info("Combine scores from %s and %s",
@@ -193,22 +193,29 @@ native_color(resource_t *rsc, pe_working_set_t *data_set)
 		
 		);
 
+	print_resource(LOG_DEBUG, "Allocating: ", rsc, FALSE);
+	
 	if(rsc->provisional && native_choose_node(rsc) ) {
-		crm_debug("Allocated resource %s to %s",
+		crm_debug_3("Allocated resource %s to %s",
 			    rsc->id, rsc->allocated_to->details->uname);
 
 	} else if(rsc->allocated_to == NULL) {
-		pe_warn("Resource %s cannot run anywhere", rsc->id);
-
+		if(rsc->orphan == FALSE) {
+			pe_warn("Resource %s cannot run anywhere", rsc->id);
+		} else {
+			crm_info("Stopping orphan resource %s", rsc->id);
+		}
+		
 	} else {
 		crm_debug("Pre-Allocated resource %s to %s",
 			  rsc->id, rsc->allocated_to->details->uname);
 	}
 	
-	rsc->provisional = FALSE;
 	rsc->is_allocating = FALSE;
 	print_resource(LOG_DEBUG_3, "Allocated ", rsc, TRUE);
 
+	rsc->cmds->create_actions(rsc, data_set);
+	
 	return rsc->allocated_to;
 }
 
@@ -348,6 +355,8 @@ void native_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 	enum rsc_role_e role = RSC_ROLE_UNKNOWN;
 	enum rsc_role_e next_role = RSC_ROLE_UNKNOWN;
 
+	crm_debug_2("Creating actions for %s", rsc->id);
+	
 	chosen = rsc->allocated_to;
 	if(chosen != NULL) {
 		CRM_CHECK(rsc->next_role != RSC_ROLE_UNKNOWN, rsc->next_role = RSC_ROLE_STARTED);
@@ -449,17 +458,17 @@ filter_colocation_constraint(
 		return FALSE;
 	}
 
-	if(constraint->state_lh != NULL
-	   && text2role(constraint->state_lh) != rsc_lh->next_role) {
+	if(constraint->role_lh != RSC_ROLE_UNKNOWN
+	   && constraint->role_lh != rsc_lh->next_role) {
 		crm_debug_4("RH: Skipping constraint: \"%s\" state filter",
-			    constraint->state_rh);
+			    role2text(constraint->role_rh));
 		return FALSE;
 	}
 	
-	if(constraint->state_rh != NULL
-	   && text2role(constraint->state_rh) != rsc_rh->next_role) {
+	if(constraint->role_rh != RSC_ROLE_UNKNOWN
+	   && constraint->role_rh != rsc_rh->next_role) {
 		crm_debug_4("RH: Skipping constraint: \"%s\" state filter",
-			    constraint->state_rh);
+			    role2text(constraint->role_rh));
 		return FALSE;
 	}
 	return TRUE;
@@ -543,10 +552,10 @@ void native_rsc_colocation_rh(
 		return;
 	}
 	
-	if(rsc_lh->provisional && rsc_rh->provisional) {
+	if(rsc_rh->provisional) {
 		return;
 
-	} else if( (!rsc_lh->provisional) && (!rsc_rh->provisional) ) {
+	} else if(rsc_lh->provisional == FALSE) {
 		/* error check */
 		struct node_shared_s *details_lh;
 		struct node_shared_s *details_rh;
@@ -573,25 +582,7 @@ void native_rsc_colocation_rh(
 		
 		return;
 		
-	} else if(rsc_lh->provisional == FALSE) {
-		crm_debug_3("update _them_ : postproc version");
-		if(rsc_lh->allocated_to) {
-			if(native_update_node_weight(
-				   rsc_rh, constraint->id, rsc_lh->allocated_to,
-				   constraint->score) == FALSE) {
-				rsc_rh->provisional = FALSE;
-				crm_warn("%s cant run on %s", rsc_rh->id,
-					rsc_lh->allocated_to->details->uname);
-			}
-			
-		} else if(constraint->score == INFINITY) {
-			rsc_rh->provisional = FALSE;
-			crm_notice("%s must run with %s which can't run anywhere",
-				   rsc_rh->id, rsc_lh->id);
-		}
-		
-	} else if(rsc_rh->provisional == FALSE) {
-		crm_debug_3("update _us_ : postproc version");
+	} else {
 		if(rsc_rh->allocated_to) {
 			if(native_update_node_weight(
 				   rsc_lh, constraint->id, rsc_rh->allocated_to,
