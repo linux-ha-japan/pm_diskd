@@ -699,7 +699,7 @@ print_xml_formatted(int log_level, const char *function,
 		    const crm_data_t *msg, const char *text)
 {
 	if(msg == NULL) {
-		do_crm_log(log_level,NULL,function, "%s: NULL", crm_str(text));
+		do_crm_log(log_level, "%s: %s: NULL", function, crm_str(text));
 		return;
 	}
 
@@ -869,8 +869,8 @@ log_data_element(
 
 	printed = sprintf(buffer, "%s>", has_children==0?"/":"");
 	update_buffer_head(buffer, printed);
-	do_crm_log(log_level, NULL, function, "%s%s",
-		   prefix?prefix:"", print_buffer);
+	do_crm_log(log_level, "%s: %s%s",
+		   function, prefix?prefix:"", print_buffer);
 	buffer = print_buffer;
 	
 	if(has_children == 0) {
@@ -889,8 +889,8 @@ log_data_element(
 		printed = print_spaces(buffer, depth);
 		update_buffer_head(buffer, printed);
 	}
-	do_crm_log(log_level, NULL, function, "%s%s</%s>",
-		   prefix?prefix:"", print_buffer, name);
+	do_crm_log(log_level, "%s: %s%s</%s>",
+		   function, prefix?prefix:"", print_buffer, name);
 	crm_debug_5("Dumped %s...", name);
 
 	return has_children;
@@ -1297,19 +1297,11 @@ drop_whitespace(const char *input, int *offset)
 	while(lpc < len && more) {
 		ch = our_input[lpc];
 		crm_debug_6("Processing char %c[%d]", ch, lpc);
-		switch(ch) {
-			case 0:
-				more = FALSE;
-			case ' ':
-			case '\t':
-			case '\n':
-			case '\r':
-				lpc++;
-				crm_debug_6("Skipping whitespace char %d", our_input[lpc]);
-				break;
-			default:
-				more = FALSE;
-				break;
+		if(isspace(ch)) {
+			lpc++;
+
+		} else {
+			more = FALSE;
 		}
 	}
 
