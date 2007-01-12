@@ -37,7 +37,7 @@
 #include <lib/crm/pengine/utils.h>
 
 void set_alloc_actions(pe_working_set_t *data_set);
-gboolean migrate_madness(pe_working_set_t *data_set);
+void migrate_reload_madness(pe_working_set_t *data_set);
 
 resource_alloc_functions_t resource_class_alloc_functions[] = {
 	{
@@ -54,6 +54,7 @@ resource_alloc_functions_t resource_class_alloc_functions[] = {
 		native_rsc_order_rh,
 		native_rsc_location,
 		native_expand,
+		native_migrate_reload,
 		native_stonith_ordering,
 		native_create_notify_element,
 	},
@@ -71,6 +72,7 @@ resource_alloc_functions_t resource_class_alloc_functions[] = {
 		group_rsc_order_rh,
 		group_rsc_location,
 		group_expand,
+		group_migrate_reload,
 		group_stonith_ordering,
 		group_create_notify_element,
 	},
@@ -88,6 +90,7 @@ resource_alloc_functions_t resource_class_alloc_functions[] = {
 		clone_rsc_order_rh,
 		clone_rsc_location,
 		clone_expand,
+		clone_migrate_reload,
 		clone_stonith_ordering,
 		clone_create_notify_element,
 	},
@@ -105,6 +108,7 @@ resource_alloc_functions_t resource_class_alloc_functions[] = {
 		clone_rsc_order_rh,
 		clone_rsc_location,
 		clone_expand,
+		clone_migrate_reload,
 		clone_stonith_ordering,
 		clone_create_notify_element,
 	}
@@ -157,13 +161,18 @@ check_action_definition(resource_t *rsc, node_t *active_node, crm_data_t *xml_op
 	const char *interval_s = NULL;
 	
 	gboolean did_change = FALSE;
+	gboolean start_op = FALSE;
 
-	crm_data_t *pnow = NULL;
+	crm_data_t *params_all = NULL;
+	crm_data_t *params_restart = NULL;
 	GHashTable *local_rsc_params = NULL;
 	
-	char *pnow_digest = NULL;
-	const char *param_digest = NULL;
-	char *local_param_digest = NULL;
+	char *digest_all_calc = NULL;
+	const char *digest_all = NULL;
+
+	const char *restart_list = NULL;
+	const char *digest_restart = NULL;
+	char *digest_restart_calc = NULL;
 
 	action_t *action = NULL;
 	const char *task = crm_element_value(xml_op, XML_LRM_ATTR_TASK);
@@ -173,12 +182,13 @@ check_action_definition(resource_t *rsc, node_t *active_node, crm_data_t *xml_op
 
 	interval_s = crm_element_value(xml_op, XML_LRM_ATTR_INTERVAL);
 	interval = crm_parse_int(interval_s, "0");
+	/* we need to reconstruct the key because of the way we used to construct resource IDs */
 	key = generate_op_key(rsc->id, task, interval);
 
 	if(interval > 0) {
 		crm_data_t *op_match = NULL;
 
-		crm_debug_2("Checking parameters for %s %s", key, task);
+		crm_debug_2("Checking parameters for %s", key);
 		op_match = find_rsc_op_entry(rsc, key);
 
 		if(op_match == NULL && data_set->stop_action_orphans) {
@@ -189,7 +199,8 @@ check_action_definition(resource_t *rsc, node_t *active_node, crm_data_t *xml_op
 			crm_info("Orphan action will be stopped: %s on %s",
 				 key, active_node->details->uname);
 
-			cancel_key = generate_op_key(rsc->id, CRMD_ACTION_CANCEL, interval);
+			cancel_key = generate_op_key(
+				rsc->id, CRMD_ACTION_CANCEL, interval);
 
 			cancel = custom_action(
 				rsc, cancel_key, CRMD_ACTION_CANCEL,
@@ -222,29 +233,61 @@ check_action_definition(resource_t *rsc, node_t *active_node, crm_data_t *xml_op
 		rsc->xml, XML_TAG_ATTR_SETS, active_node->details->attrs,
 		local_rsc_params, NULL, data_set->now);
 	
-	pnow = create_xml_node(NULL, XML_TAG_PARAMS);
-	g_hash_table_foreach(action->extra, hash2field, pnow);
-	g_hash_table_foreach(rsc->parameters, hash2field, pnow);
-	g_hash_table_foreach(local_rsc_params, hash2field, pnow);
+	params_all = create_xml_node(NULL, XML_TAG_PARAMS);
+	g_hash_table_foreach(action->extra, hash2field, params_all);
+	g_hash_table_foreach(rsc->parameters, hash2field, params_all);
+	g_hash_table_foreach(local_rsc_params, hash2field, params_all);
 
-	filter_action_parameters(pnow, op_version);
-	pnow_digest = calculate_xml_digest(pnow, TRUE);
-	param_digest = crm_element_value(xml_op, XML_LRM_ATTR_OP_DIGEST);
+	filter_action_parameters(params_all, op_version);
+	digest_all_calc = calculate_xml_digest(params_all, TRUE);
+	digest_all = crm_element_value(xml_op, XML_LRM_ATTR_OP_DIGEST);
+	digest_restart = crm_element_value(xml_op, XML_LRM_ATTR_RESTART_DIGEST);
+	restart_list = crm_element_value(xml_op, XML_LRM_ATTR_OP_RESTART);
 
-	if(safe_str_neq(pnow_digest, param_digest)) {
-		did_change = TRUE;
-		crm_log_xml_info(pnow, "params:calc");
- 		crm_warn("Parameters to %s on %s changed: recorded %s vs. calculated %s",
-			 ID(xml_op), active_node->details->uname,
-			 crm_str(param_digest), pnow_digest);
+	if(crm_str_eq(task, CRMD_ACTION_START, TRUE)) {
+		start_op = TRUE;
+	}
+	
+	if(start_op && digest_restart) {
+		params_restart = copy_xml(params_all);
+		if(restart_list) {
+			filter_reload_parameters(params_restart, restart_list);
+		}
 
-		key = generate_op_key(rsc->id, task, interval);
-		custom_action(rsc, key, task, NULL, FALSE, TRUE, data_set);
+		digest_restart_calc = calculate_xml_digest(params_restart, TRUE);
+		if(safe_str_neq(digest_restart_calc, digest_restart)) {
+			did_change = TRUE;
+			crm_log_xml_info(params_restart, "params:restart");
+			crm_warn("Parameters to %s on %s changed: recorded %s vs. calculated (restart) %s",
+				 key, active_node->details->uname,
+				 crm_str(digest_restart), digest_restart_calc);
+			
+			key = generate_op_key(rsc->id, task, interval);
+			custom_action(rsc, key, task, NULL, FALSE, TRUE, data_set);
+			goto cleanup;
+		}
 	}
 
-	free_xml(pnow);
-	crm_free(pnow_digest);
-	crm_free(local_param_digest);
+	if(safe_str_neq(digest_all_calc, digest_all)) {
+		action_t *op = NULL;
+		did_change = TRUE;
+		crm_log_xml_info(params_all, "params:all");
+ 		crm_warn("Parameters to %s on %s changed: recorded %s vs. calculated (all) %s",
+			 key, active_node->details->uname,
+			 crm_str(digest_all), digest_all_calc);
+		
+		key = generate_op_key(rsc->id, task, interval);
+		op = custom_action(rsc, key, task, NULL, FALSE, TRUE, data_set);
+		if(start_op && digest_restart) {
+			op->allow_reload_conversion = TRUE;
+		}
+	}
+
+  cleanup:
+	free_xml(params_all);
+	free_xml(params_restart);
+	crm_free(digest_all_calc);
+	crm_free(digest_restart_calc);
 	g_hash_table_destroy(local_rsc_params);
 
 	pe_free_action(action);
@@ -673,121 +716,13 @@ stage7(pe_working_set_t *data_set)
 		);
 
 	update_action_states(data_set->actions);
-	migrate_madness(data_set);
-
-	return TRUE;
-}
-
-
-gboolean
-migrate_madness(pe_working_set_t *data_set)
-{
-	const char *value = NULL;
 
 	slist_iter(
 		rsc, resource_t, data_set->resources, lpc,
 
-		if(rsc->parent != NULL) {
-			continue;
-		}
-	
-		value = g_hash_table_lookup(rsc->meta, "allow_migrate");
-		if(crm_is_true(value) == FALSE) {
-			continue;
-		}
-
-		rsc->can_migrate = TRUE;
-		
-		if(rsc->variant == pe_native
-		   && rsc->next_role == RSC_ROLE_STARTED
-		   && rsc->can_migrate
-		   && rsc->is_managed
-		   && rsc->failed == FALSE
-		   && rsc->start_pending == FALSE
-		   && g_list_length(rsc->running_on) == 1) {
-			char *key = NULL;
-			action_t *stop = NULL;
-			action_t *start = NULL;
-			action_t *other = NULL;
-			action_t *action = NULL;
-			GListPtr action_list = NULL;
-			crm_debug_4("Processing actions for rsc=%s", rsc->id);
-
-			/* does anyone depend on us?
-			 * check start action first
-			 */
-			key = start_key(rsc);
-			action_list = find_actions(rsc->actions, key, NULL);
-			CRM_CHECK(action_list != NULL, continue);
-			action = action_list->data;
-			crm_free(key);
-
-			if(action->pseudo
-			   || action->optional
-			   || action->runnable == FALSE) {
-				crm_debug_3("Skipping: start");
-				continue;
-			}
-
-			slist_iter(other_w, action_wrapper_t, action->actions_before, lpc,
-				   other = other_w->action;
-				   if(other->optional == FALSE
-				      && other->rsc != NULL
-				      && other->rsc != action->rsc) {
-					   crm_debug_2("Skipping: start depends");
-					   goto skip;
-				   }
-				);
-
-			start = action;
-			
-			/* does anyone depend on us? (cont)
-			 * check stop action
-			 */
-			key = stop_key(rsc);
-			action_list = find_actions(rsc->actions, key, NULL);
-			CRM_CHECK(action_list != NULL, continue);
-			action = action_list->data;
-			crm_free(key);
-
-			if(action->pseudo
-			   || action->optional
-			   || action->runnable == FALSE) {
-				crm_debug_3("Skipping: stop");
-				continue;
-			}
-			slist_iter(other_w, action_wrapper_t, action->actions_after, lpc,
-				   other = other_w->action;
-				   if(other->optional == FALSE
-				      && other->rsc != NULL
-				      && other->rsc != action->rsc) {
-					   crm_debug_2("Skipping: stop depends");
-					   goto skip;
-				   }
-				);
-			stop = action;
-
-			crm_info("Migrating %s from %s to %s", rsc->id,
-				 stop->node->details->uname,
-				 start->node->details->uname);
-			
-			crm_free(stop->uuid);
-			stop->task = CRMD_ACTION_MIGRATE;
-			stop->uuid = generate_op_key(rsc->id, stop->task, 0);
-			add_hash_param(stop->meta, stop->task,
-				       start->node->details->uname);
-
-			crm_free(start->uuid);
-			start->task = CRMD_ACTION_MIGRATED;
-			start->uuid = generate_op_key(rsc->id, start->task, 0);
-			add_hash_param(start->meta, stop->task,
-				       stop->node->details->uname);
-			add_hash_param(
-				start->meta, CRMD_ACTION_MIGRATED"_uuid",
-				stop->node->details->id);
-		}
-	  skip:
+		rsc->cmds->migrate_reload(rsc, data_set);
 		);
+
 	return TRUE;
 }
 
@@ -1419,6 +1354,8 @@ unpack_rsc_colocation(crm_data_t * xml_obj, pe_working_set_t *data_set)
 	const char *state_lh = crm_element_value(xml_obj, XML_RULE_ATTR_FROMSTATE);
 	const char *state_rh = crm_element_value(xml_obj, XML_RULE_ATTR_TOSTATE);
 	const char *attr = crm_element_value(xml_obj, "node_attribute");
+	const char *symmetrical = crm_element_value(xml_obj, XML_CONS_ATTR_SYMMETRICAL);
+
 
 	resource_t *rsc_lh = pe_find_resource(data_set->resources, id_lh);
 	resource_t *rsc_rh = pe_find_resource(data_set->resources, id_rh);
@@ -1436,8 +1373,14 @@ unpack_rsc_colocation(crm_data_t * xml_obj, pe_working_set_t *data_set)
 		score_i = char2score(score);
 	}
 
-	return rsc_colocation_new(
+	rsc_colocation_new(
 		id, attr, score_i, rsc_lh, rsc_rh, state_lh, state_rh);
+	
+	if(crm_is_true(symmetrical)) {
+		rsc_colocation_new(
+			id, attr, score_i, rsc_rh, rsc_lh, state_rh, state_lh);
+	}
+	return TRUE;
 }
 
 gboolean is_active(rsc_to_node_t *cons)
