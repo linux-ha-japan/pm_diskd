@@ -46,7 +46,6 @@
 
 char *make_stop_id(const char *rsc, int call_id);
 gboolean verify_stopped(gboolean force, int log_level);
-gboolean resource_stopped(gpointer key, gpointer value, gpointer user_data);
 
 gboolean build_operation_update(
 	crm_data_t *rsc_list, lrm_op_t *op, const char *src, int lpc);
@@ -415,6 +414,7 @@ build_operation_update(
 	const char *task = NULL;
 	crm_data_t *xml_op = NULL;
 	char *op_id = NULL;
+	char *local_user_data = NULL;
 	const char *caller_version = NULL;	
 	char *digest = NULL;
 	crm_data_t *args_xml = NULL;
@@ -526,7 +526,15 @@ build_operation_update(
 	crm_xml_add(xml_op, XML_ATTR_ORIGIN,   src);
 	
 	if(op->user_data == NULL) {
-		op->user_data = generate_transition_key(-1, 0, fsa_our_uname);
+		char *id = crm_itoa(op->call_id);
+
+		crm_debug("Generating fake transition key for:"
+			  " %s_%s_%d %d from %s",
+			  op->rsc_id, op->op_type, op->interval, op->call_id,
+			  op->app_name);
+		local_user_data = generate_transition_key(-1, 0, id);
+		op->user_data = local_user_data;
+		crm_free(id);
 	}
 	
 	if(compare_version("1.0.3", caller_version) > 0) {
@@ -596,6 +604,10 @@ build_operation_update(
 		crm_xml_add(xml_op, CRMD_ACTION_MIGRATED, host);
 	}	
 	
+	if(local_user_data) {
+		crm_free(local_user_data);
+		op->user_data = NULL;
+	}
 	return TRUE;
 }
 
@@ -1643,15 +1655,4 @@ make_stop_id(const char *rsc, int call_id)
 		snprintf(op_id, strlen(rsc) + 34, "%s:%d", rsc, call_id);
 	}
 	return op_id;
-}
-
-gboolean
-resource_stopped(gpointer key, gpointer value, gpointer user_data)
-{
-	const char *this_rsc = value;
-	const char *target_rsc = user_data;
-	if(safe_str_eq(this_rsc, target_rsc)) {
-		return TRUE;
-	}
-	return FALSE;
 }
