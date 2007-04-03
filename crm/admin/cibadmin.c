@@ -1,4 +1,3 @@
-/* $Id: cibadmin.c,v 1.56 2006/07/18 06:15:54 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 
@@ -47,7 +46,6 @@
 #  include <getopt.h>
 #endif
 #include <ha_msg.h> /* someone complaining about _ha_msg_mod not being found */
-#include <crm/dmalloc_wrapper.h>
 
 int exit_code = cib_ok;
 int message_timer_id = -1;
@@ -301,6 +299,7 @@ main(int argc, char **argv)
 			fprintf(stderr, "Couldn't parse input file: %s\n", admin_input_file);
 			return 1;
 		}
+		fclose(xml_strm);
 		
 	} else if(admin_input_xml != NULL) {
 		input = string2xml(admin_input_xml);
@@ -308,6 +307,7 @@ main(int argc, char **argv)
 			fprintf(stderr, "Couldn't parse input string: %s\n", admin_input_xml);
 			return 1;
 		}
+
 	} else if(admin_input_stdin) {
 		input = stdin2xml();
 		if(input == NULL) {
@@ -390,7 +390,9 @@ do_work(crm_data_t *input, int call_options, crm_data_t **output)
 
 	} else if(cib_action != NULL) {
 		crm_debug_4("Passing \"%s\" to variant_op...", cib_action);
-		if(input != NULL && do_id_check(input, NULL, TRUE, FALSE)) {
+		if(strcasecmp(CIB_OP_APPLY_DIFF, cib_action) != 0 
+		   && input != NULL
+		   && do_id_check(input, NULL, TRUE, FALSE)) {
 			crm_err("ID Check failed.");
 			return cib_id_check;
 		}

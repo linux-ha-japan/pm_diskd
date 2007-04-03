@@ -1,4 +1,3 @@
-/* $Id: auth.c,v 1.19 2005/08/02 15:27:52 gshi Exp $ */
 /*
  * auth.c: Authentication code for heartbeat
  *
@@ -19,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-#include <portability.h>
+#include <lha_internal.h>
 #define time FOOtime
 #include <glib.h>
 #undef time
@@ -157,7 +156,7 @@ parse_authfile(void)
 
 			}
 			if (config->auth_config[j].key) {
-				ha_free(config->auth_config[j].key);
+				cl_free(config->auth_config[j].key);
 			}
 		}
 		config->auth_config[j].auth = NULL;
@@ -236,7 +235,7 @@ parse_authfile(void)
 				continue;
 			}
 
-			cpkey =	ha_strdup(key);
+			cpkey =	cl_strdup(key);
 			if (cpkey == NULL) {
 				ha_log(LOG_ERR, "Out of memory for authkey");
 				fclose(f);
@@ -292,72 +291,4 @@ parse_authfile(void)
 	}
 	return(rc);
 }
-/*
- * $Log: auth.c,v $
- * Revision 1.19  2005/08/02 15:27:52  gshi
- * it should be (gpointer*) instead of gpointer
- *
- * Revision 1.18  2004/09/18 23:10:50  alan
- * Brought forward changes from 1.2 stable version.
- *
- * Revision 1.17  2004/09/03 18:12:48  gshi
- * fixed a bug in PILS for unloading a plugin
- * enabled unloading in HBauth and stonith
- *
- * Revision 1.16  2004/08/28 00:23:44  alan
- * Fixed a bug pointed out by Lars Ellenberg.
- *
- * Revision 1.15  2004/02/17 22:11:57  lars
- * Pet peeve removal: _Id et al now gone, replaced with consistent Id header.
- *
- * Revision 1.14  2004/02/10 05:32:43  alan
- * Suppress unloading authentication modules for now.
- *
- * Revision 1.13  2004/01/21 11:34:14  horms
- * - Replaced numerous malloc + strcpy/strncpy invocations with strdup
- *   * This usually makes the code a bit cleaner
- *   * Also is easier not to make code with potential buffer over-runs
- * - Added STRDUP to pils modules
- * - Removed some spurious MALLOC and FREE redefinitions
- *   _that could never be used_
- * - Make sure the return value of strdup is honoured in error conditions
- *
- * Revision 1.12  2003/12/21 11:18:37  horms
- * Don't used type-pruned pointers. Fixed some uninitialised variables
- *
- * Revision 1.11  2003/02/07 08:37:16  horms
- * Removed inclusion of portability.h from .h files
- * so that it does not need to be installed.
- *
- * Revision 1.10  2003/02/05 09:06:33  horms
- * Lars put a lot of work into making sure that portability.h
- * is included first, everywhere. However this broke a few
- * things when building against heartbeat headers that
- * have been installed (usually somewhere under /usr/include or
- * /usr/local/include).
- *
- * This patch should resolve this problem without undoing all of
- * Lars's hard work.
- *
- * As an asside: I think that portability.h is a virus that has
- * infected all of heartbeat's code and now must also infect all
- * code that builds against heartbeat. I wish that it didn't need
- * to be included all over the place. Especially in headers to
- * be installed on the system. However, I respect Lars's opinion
- * that this is the best way to resolve some weird build problems
- * in the current tree.
- *
- * Revision 1.9  2002/10/21 10:17:17  horms
- * hb api clients may now be built outside of the heartbeat tree
- *
- * Revision 1.8  2002/04/20 05:36:22  alan
- * Added a little debug for debugging Matt Soffen's authentication
- * problems.
- *
- * Revision 1.7  2001/07/18 20:44:55  alan
- * Removed extra #endif somehow added during last delta...
- *
- * Revision 1.6  2001/07/18 15:36:33  alan
- * Put in Emily Ratliff's fix of adding a missing parameter to an ha_log() call.
- *
- */
+

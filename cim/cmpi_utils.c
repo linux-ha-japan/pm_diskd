@@ -20,10 +20,7 @@
  *
  */
 
-#include <portability.h>
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <lha_internal.h>
 #include <stdio.h>
 #include <hb_api.h>
 #include <ha_msg.h>

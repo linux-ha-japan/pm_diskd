@@ -1,4 +1,3 @@
-/* $Id: ccmlib.h,v 1.22 2006/04/13 09:08:37 zhenh Exp $ */
 /*
  * ccmlib.h: internal definations for ccm library files.
  *
@@ -21,7 +20,6 @@
  */
 #ifndef __CCMLIB_H_
 #define __CCMLIB_H_
-#include <portability.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdio.h>

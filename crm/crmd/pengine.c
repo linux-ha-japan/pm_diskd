@@ -16,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 #include <crm/crm.h>
@@ -48,7 +48,6 @@
 #include <crm/cib.h>
 #include <crmd.h>
 
-#include <crm/dmalloc_wrapper.h>
 
 #define CLIENT_EXIT_WAIT 30
 

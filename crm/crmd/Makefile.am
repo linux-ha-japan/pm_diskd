@@ -22,7 +22,7 @@ INCLUDES        = -I$(top_builddir)/include -I$(top_srcdir)/include	\
 		-I$(top_builddir)/linux-ha  -I$(top_srcdir)/linux-ha \
 		-I$(top_builddir)           -I$(top_srcdir)
 
-EXTRA_DIST	= version.h
+EXTRA_DIST	= 
 
 hadir		= $(sysconfdir)/ha.d
 halibdir	= $(libdir)/@HB_PKG@
@@ -53,16 +53,15 @@ AM_CFLAGS	= @CFLAGS@						\
 lib_LTLIBRARIES	= 
 
 ## binary progs
-halib_PROGRAMS	= version crmd atest
+halib_PROGRAMS	= crmd atest
 
 ## SOURCES
 
 noinst_HEADERS	= crmd.h crmd_fsa.h crmd_messages.h fsa_defines.h 	\
 		fsa_matrix.h fsa_proto.h crmd_utils.h crmd_callbacks.h \
-		crmd_lrm.h version.h
+		crmd_lrm.h
 
 atest_SOURCES	= atest.c
-atest_CFLAGS	= -DHA_VARLIBDIR='"@HA_VARLIBDIR@"'
 atest_LDADD	= $(COMMONLIBS)
 
 
@@ -72,17 +71,9 @@ crmd_SOURCES	= main.c crmd.c 					\
 		cib.c pengine.c tengine.c lrm.c 			\
 		utils.c misc.c
 
-crmd_CFLAGS	= -DHA_VARLIBDIR='"@HA_VARLIBDIR@"'
 crmd_LDADD	= $(COMMONLIBS) 					\
 		  $(top_builddir)/lib/lrm/liblrm.la			\
 		  $(top_builddir)/membership/ccm/libccmclient.la  
-
-# Simple HA client app
-#clnt_SOURCES	= clnt.c
-
-#clnt_CFLAGS	= $(XML_FLAGS) -DHA_VARLIBDIR='"@HA_VARLIBDIR@"'
-#clnt_LDFLAGS	= $(XML_LIBS)
-#clnt_LDADD	= $(COMMONLIBS) 
 
 clean-generic:
 	rm -f *.log *.debug *.xml *~
@@ -96,30 +87,5 @@ graphs:	fsa_inputs.png fsa_inputs_by_action.png fsa_actions_by_state.png
 %.png: %.dot
 	dot -Tpng $< > $@ 
 
-%.dot : fsa_matrix.h
-	perl make_dot.pl
-
-.PHONY: version
-version.h: version
-version.c:
-	touch $(top_builddir)/crm/crmd/version.c
-
-VERSION_FILE="$(top_builddir)/crm/crmd/version.h"
-CRM_HG_VERSION=$(shell hg -R $(top_srcdir) id | tr ' ' ':')
-CRM_NOW_VERSION=$(shell test -f $(VERSION_FILE) && head -n 1 $(VERSION_FILE))
-
-version:
-	if [ "x$(CRM_HG_VERSION)" = "x" -a "x$(CRM_NOW_VERSION)" = "x" ]; then		\
-		echo "Unknown CRM version"; 						\
-		echo "/* unknown */" > $(VERSION_FILE); 				\
-		echo "#define CRM_HG_VERSION \"unknown\"" >> $(VERSION_FILE); 		\
-	elif [ "x$(CRM_HG_VERSION)" = "x" ]; then					\
-		echo "Using exported CRM version: $(CRM_NOW_VERSION)"; 			\
-	elif [ "/* $(CRM_HG_VERSION) */" = "$(CRM_NOW_VERSION)" ]; then 		\
-		echo "CRM version correct: $(CRM_NOW_VERSION)"; 			\
-	else 										\
-		echo "Updating CRM version"; 						\
-		echo "/* $(CRM_HG_VERSION) */" > $(VERSION_FILE); 			\
-		echo "#define CRM_HG_VERSION \"$(CRM_HG_VERSION)\"" >> $(VERSION_FILE); \
-	fi
-
+%.dot : fsa_matrix.h make_dot.pl
+	perl $(top_srcdir)/crm/crmd/make_dot.pl $(top_srcdir)/crm/crmd/fsa_matrix.h $(top_builddir)/crm/crmd

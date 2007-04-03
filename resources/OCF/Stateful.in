@@ -1,6 +1,5 @@
 #!/bin/bash
 #
-#	$Id: Stateful.in,v 1.1 2006/08/14 12:57:29 andrew Exp $
 #
 #	Example of a stateful OCF Resource Agent. 
 #
@@ -52,7 +51,7 @@ This is an example resource agent that impliments two states
 Location to store the resource state in
 </longdesc>
 <shortdesc lang="en">State file</shortdesc>
-<content type="string" default="@localstatedir@/run/@HB_PKG@/rsctmp/Stateful-{OCF_RESOURCE_INSTANCE}.state" />
+<content type="string" default="@HA_VARRUNHBRSCDIR@/Stateful-{OCF_RESOURCE_INSTANCE}.state" />
 </parameter>
 
 </parameters>
@@ -165,7 +164,7 @@ stateful_validate() {
 	exit $OCF_SUCCESS
 }
 
-: ${OCF_RESKEY_state=@localstatedir@/run/@HB_PKG@/rsctmp/Stateful-${OCF_RESOURCE_INSTANCE}.state}
+: ${OCF_RESKEY_state=@HA_VARRUNHBRSCDIR@/Stateful-${OCF_RESOURCE_INSTANCE}.state}
 
 case $__OCF_ACTION in
 meta-data)	meta_data;;

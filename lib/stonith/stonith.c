@@ -1,4 +1,3 @@
-/* $Id: stonith.c,v 1.26 2006/04/10 09:07:21 sunjd Exp $ */
 /*
  * Stonith API infrastructure.
  *
@@ -19,10 +18,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <portability.h>
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <lha_internal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

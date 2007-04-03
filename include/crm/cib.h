@@ -1,4 +1,3 @@
-/* $Id: cib.h,v 1.43 2006/06/22 15:11:56 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -18,8 +17,6 @@
  */
 #ifndef CIB__H
 #define CIB__H
-
-#include <portability.h>
 
 #include <clplumbing/ipc.h>
 #include <crm/common/ipc.h>
@@ -118,7 +115,8 @@ enum cib_errors {
 	cib_bad_section		= -48,
 	cib_bad_digest		= -49,
 	cib_bad_permissions	= -50,
-	cib_bad_config		= -51
+	cib_bad_config		= -51,
+	cib_invalid_argument	= -52
 };
 
 enum cib_update_op {

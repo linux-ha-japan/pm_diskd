@@ -1,4 +1,3 @@
-/* $Id: recoverymgrd.c,v 1.15 2005/07/27 09:03:24 panjiam Exp $ */
 /*
  * Generic Recovery manager implementation
  * 
@@ -29,7 +28,7 @@
  * 
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <sys/time.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -64,7 +63,7 @@
 #define HBINTERVAL_MSEC		2000
 
 #define CONFIG_FILE	"./recoverymgrd.conf"
-#define PIDFILE		VAR_RUN_D "/recoverymgrd.pid"
+#define PIDFILE		HA_VARRUNDIR "/recoverymgrd.pid"
 #define DEBUG 
 #define         DBGMIN          1
 #define         DBGDETAIL       3

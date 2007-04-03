@@ -1,4 +1,3 @@
-/* $Id: hb_api.c,v 1.154 2006/05/28 00:56:57 zhenh Exp $ */
 /*
  * hb_api: Server-side heartbeat API code
  *
@@ -65,7 +64,7 @@
  *	same UID on each machine.
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <sys/time.h>
 #define	time FOOtime
 #include <glib.h>
@@ -1703,7 +1702,7 @@ api_remove_client_int(client_proc_t* req, const char * reason)
 		api_send_client_status(req, LEAVESTATUS, reason);
 		/* Zap! */
 		memset(client, 0, sizeof(*client));
-		ha_free(client); client = NULL;
+		cl_free(client); client = NULL;
 
 	}else{
 		cl_log(LOG_ERR,	"api_remove_client_int: could not find pid [%ld]"

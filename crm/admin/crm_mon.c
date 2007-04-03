@@ -1,4 +1,3 @@
-/* $Id: crm_mon.c,v 1.30 2006/08/14 15:59:18 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 
@@ -47,12 +46,12 @@
 
 #include <crm/cib.h>
 #include <crm/pengine/status.h>
+#include <lib/crm/pengine/unpack.h>
 
 #ifdef HAVE_GETOPT_H
 #  include <getopt.h>
 #endif
 
-#include <crm/dmalloc_wrapper.h>
 
 /* GMainLoop *mainloop = NULL; */
 const char *crm_system_name = "crm_mon";
@@ -248,13 +247,17 @@ main(int argc, char **argv)
 	if(one_shot == FALSE) {
 		timer_id = Gmain_timeout_add(
 			interval, mon_timer_popped, NULL);
+
 	} else if(xml_file != NULL) {
 		FILE *xml_strm = fopen(xml_file, "r");
-		crm_data_t *cib_object = NULL;
+		crm_data_t *cib_object = NULL;			
 		if(strstr(xml_file, ".bz2") != NULL) {
 			cib_object = file2xml(xml_strm, TRUE);
 		} else {
 			cib_object = file2xml(xml_strm, FALSE);
+		}
+		if(xml_strm != NULL) {
+			fclose(xml_strm);
 		}
 		one_shot = TRUE;
 		mon_update(NULL, 0, cib_ok, cib_object, NULL);
@@ -591,6 +594,7 @@ print_html_status(crm_data_t *cib, const char *filename, gboolean web_cgi)
 	} else {
 		filename_tmp = crm_concat(filename, "tmp", '.');
 		stream = fopen(filename_tmp, "w");
+		cl_perror("Cannot open %s for writing", filename_tmp);
 		if(stream == NULL) {
 			crm_free(filename_tmp);
 			return -1;

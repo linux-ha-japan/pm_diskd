@@ -1,4 +1,3 @@
-/* $Id: clone.c,v 1.7 2006/08/14 09:14:45 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,9 +16,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <crm/pengine/status.h>
+#include <unpack.h>
 #include <utils.h>
 #include <crm/msg_xml.h>
 
@@ -30,23 +30,11 @@ void clone_create_notifications(
 	resource_t *rsc, action_t *action, action_t *action_complete,
 	pe_working_set_t *data_set);
 
-void child_stopping_constraints(
-	clone_variant_data_t *clone_data, enum pe_ordering type,
-	resource_t *child, resource_t *last, pe_working_set_t *data_set);
-
-void child_starting_constraints(
-	clone_variant_data_t *clone_data, enum pe_ordering type,
-	resource_t *child, resource_t *last, pe_working_set_t *data_set);
-
-
-#define get_clone_variant_data(data, rsc)				\
-	CRM_ASSERT(rsc->variant == pe_clone || rsc->variant == pe_master); \
-	data = (clone_variant_data_t *)rsc->variant_opaque;
-
 
 static gboolean
 create_child_clone(resource_t *rsc, int sub_id, pe_working_set_t *data_set) 
 {
+	gboolean rc = TRUE;
 	char *inc_num = NULL;
 	char *inc_max = NULL;
 	resource_t *child_rsc = NULL;
@@ -67,7 +55,7 @@ create_child_clone(resource_t *rsc, int sub_id, pe_working_set_t *data_set)
 			 rsc, data_set) == FALSE) {
 		pe_err("Failed unpacking resource %s",
 		       crm_element_value(child_copy, XML_ATTR_ID));
-		return FALSE;
+		goto bail;
 	}
 /* 	child_rsc->globally_unique = rsc->globally_unique; */
 	
@@ -78,11 +66,12 @@ create_child_clone(resource_t *rsc, int sub_id, pe_working_set_t *data_set)
 	add_hash_param(child_rsc->meta, XML_RSC_ATTR_INCARNATION_MAX, inc_max);
 	
 	print_resource(LOG_DEBUG_3, "Added", child_rsc, FALSE);
-	
+
+  bail:
 	crm_free(inc_num);
 	crm_free(inc_max);
 	
-	return TRUE;
+	return rc;
 }
 
 gboolean master_unpack(resource_t *rsc, pe_working_set_t *data_set)
@@ -172,7 +161,7 @@ gboolean clone_unpack(resource_t *rsc, pe_working_set_t *data_set)
 		add_node_copy(xml_self, xml_tmp);
 	}
 
-	if(common_unpack(xml_self, &self, NULL, data_set)) {
+	if(common_unpack(xml_self, &self, rsc, data_set)) {
 		clone_data->self = self;
 
 	} else {

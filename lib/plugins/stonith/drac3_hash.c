@@ -1,4 +1,3 @@
-/* $Id: drac3_hash.c,v 1.8 2005/09/26 05:05:54 sunjd Exp $ */
 /*
  * Stonith module for Dell DRACIII (Dell Remote Access Card)
  *
@@ -21,10 +20,7 @@
  *
  */
 
-#include <portability.h>
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <lha_internal.h>
 
 #include <string.h>
 #include <stdio.h>

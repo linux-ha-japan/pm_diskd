@@ -17,8 +17,6 @@
 #define _CCMMSG_H_
 
 #include <ccm.h>
-#include <config.h>
-#include <ha_config.h>
 #include <clplumbing/cl_signal.h>
 #include <clplumbing/coredumps.h>
 

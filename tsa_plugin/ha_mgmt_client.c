@@ -20,10 +20,7 @@
  *
  */
 
-#include <portability.h>
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <lha_internal.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif /* HAVE_STDINT_H */

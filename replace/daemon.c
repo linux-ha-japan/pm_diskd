@@ -1,4 +1,3 @@
-/* $Id: daemon.c,v 1.3 2006/04/07 15:49:03 davidlee Exp $ */
 /*-
  *
  * daemon - replacement for daemon function.
@@ -47,7 +46,7 @@
 static char sccsid[] = "@(#)daemon.c	8.1 (Berkeley) 6/4/93";
 #endif /* LIBC_SCCS and not lint */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <fcntl.h>
 #include <unistd.h>

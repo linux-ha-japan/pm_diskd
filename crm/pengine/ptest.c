@@ -1,4 +1,3 @@
-/* $Id: ptest.c,v 1.80 2006/07/18 06:15:54 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <crm/crm.h>
 
 #include <stdio.h>
@@ -61,7 +60,6 @@ FILE *dot_strm = NULL;
 #define dot_write(fmt...) if(dot_strm != NULL) {	\
 		fprintf(dot_strm, fmt);			\
 		fprintf(dot_strm, "\n");		\
-		fflush(dot_strm);		\
 	} else {					\
 		crm_debug(DOT_PREFIX""fmt);		\
 	}
@@ -278,10 +276,17 @@ main(int argc, char **argv)
 		
 	} else if(xml_file != NULL) {
 		FILE *xml_strm = fopen(xml_file, "r");
-		if(strstr(xml_file, ".bz2") != NULL) {
-			cib_object = file2xml(xml_strm, TRUE);
+		if(xml_strm == NULL) {
+			cl_perror("Could not open %s for reading", xml_file);
+			
 		} else {
-			cib_object = file2xml(xml_strm, FALSE);
+			if(strstr(xml_file, ".bz2") != NULL) {
+				cib_object = file2xml(xml_strm, TRUE);
+				
+			} else {
+				cib_object = file2xml(xml_strm, FALSE);
+			}
+			fclose(xml_strm);
 		}
 		
 	} else if(use_stdin) {
@@ -305,14 +310,19 @@ main(int argc, char **argv)
 	
 	if(input_file != NULL) {
 		FILE *input_strm = fopen(input_file, "w");
-		msg_buffer = dump_xml_formatted(cib_object);
-		fprintf(input_strm, "%s\n", msg_buffer);
-		fflush(input_strm);
-		fclose(input_strm);
-		crm_free(msg_buffer);
+		if(input_strm == NULL) {
+			cl_perror("Could not open %s for writing", input_file);
+		} else {
+			msg_buffer = dump_xml_formatted(cib_object);
+			if(fprintf(input_strm, "%s\n", msg_buffer) < 0) {
+				cl_perror("Write to %s failed", graph_file);
+			}
+			fflush(input_strm);
+			fclose(input_strm);
+			crm_free(msg_buffer);
+		}
 	}
 	
-	crm_zero_mem_stats(NULL);
 #ifdef HA_MALLOC_TRACK
 	cl_malloc_dump_allocated(LOG_DEBUG_2, TRUE);
 #endif
@@ -330,9 +340,15 @@ main(int argc, char **argv)
 	msg_buffer = dump_xml_formatted(data_set.graph);
 	if(graph_file != NULL) {
 		FILE *graph_strm = fopen(graph_file, "w");
-		fprintf(graph_strm, "%s\n", msg_buffer);
-		fflush(graph_strm);
-		fclose(graph_strm);
+		if(graph_strm == NULL) {
+			cl_perror("Could not open %s for writing", graph_file);
+		} else {
+			if(fprintf(graph_strm, "%s\n", msg_buffer) < 0) {
+				cl_perror("Write to %s failed", graph_file);
+			}
+			fflush(graph_strm);
+			fclose(graph_strm);
+		}
 		
 	} else {
 		fprintf(stdout, "%s\n", msg_buffer);
@@ -340,37 +356,53 @@ main(int argc, char **argv)
 	}
 	crm_free(msg_buffer);
 
-	dot_strm = fopen(dot_file, "w");
+	if(dot_file != NULL) {
+		dot_strm = fopen(dot_file, "w");
+		if(dot_strm == NULL) {
+			cl_perror("Could not open %s for writing", dot_file);
+		}
+	}
+
 	init_dotfile();
 	slist_iter(
 		action, action_t, data_set.actions, lpc,
 
+		const char *style = "filled";
+		const char *font  = "black";
+		const char *color = "black";
+		const char *fill  = NULL;
 		char *action_name = create_action_name(action);
 		crm_debug_3("Action %d: %p", action->id, action);
 
-		if(action->dumped == FALSE) {
-			if(action->rsc != NULL && action->rsc->is_managed == FALSE) {
-				dot_write("\"%s\" [ font_color=black style=filled fillcolor=%s ]",
-					  action_name, "purple");
-
-			} else if(action->optional) {
-				if(all_actions) {
-					dot_write("\"%s\" [ style=\"dashed\" color=\"%s\" fontcolor=\"%s\" ]",
-						  action_name, "blue",
-						  action->pseudo?"orange":"black");
-				}
-				
-			} else {
-				dot_write("\"%s\" [ font_color=purple style=filled fillcolor=%s ]",
-					  action_name, "red");
- 				CRM_CHECK(action->runnable == FALSE, ;);
-			}
-			
-		} else {
-			dot_write("\"%s\" [ style=bold color=\"%s\" fontcolor=\"%s\" ]",
-				  action_name, "green",
-				  action->pseudo?"orange":"black");
+		if(action->pseudo) {
+			font = "orange";
 		}
+		
+		if(action->dumped) {
+			style = "bold";
+			color = "green";
+			
+		} else if(action->rsc != NULL && action->rsc->is_managed == FALSE) {
+			fill = "purple";
+			if(all_actions == FALSE) {
+				goto dont_write;
+			}			
+			
+		} else if(action->optional) {
+			style = "dashed";
+			color = "blue";
+			if(all_actions == FALSE) {
+				goto dont_write;
+			}			
+				
+		} else {
+			fill = "red";
+			CRM_CHECK(action->runnable == FALSE, ;);	
+		}
+		
+		dot_write("\"%s\" [ style=%s color=\"%s\" fontcolor=\"%s\"  %s%s]",
+			  action_name, style, color, font, fill?"fillcolor=":"", fill?fill:"");
+	  dont_write:
 		crm_free(action_name);
 		);
 
@@ -403,9 +435,13 @@ main(int argc, char **argv)
 			);
 		);
 	dot_write("}");
-
+	if(dot_strm != NULL) {
+		fflush(dot_strm);
+		fclose(dot_strm);
+	}
+	
 	transition = unpack_graph(data_set.graph);
-	print_graph(LOG_NOTICE, transition);
+	print_graph(LOG_DEBUG, transition);
 	do {
 		graph_rc = run_graph(transition);
 		
@@ -419,11 +455,6 @@ main(int argc, char **argv)
 	cleanup_alloc_calculations(&data_set);
 	destroy_graph(transition);
 	
-	crm_mem_stats(NULL);
-#ifdef HA_MALLOC_TRACK
-	cl_malloc_dump_allocated(LOG_ERR, TRUE);
-#endif
- 	CRM_CHECK(crm_mem_stats(NULL) == FALSE, all_good = FALSE; crm_err("Memory leak detected"));
 	CRM_CHECK(graph_rc == transition_complete, all_good = FALSE; crm_err("An invalid transition was produced"));
 
 	crm_free(cib_object);	
@@ -432,6 +463,9 @@ main(int argc, char **argv)
 	muntrace();
 #endif
 	
+#ifdef HA_MALLOC_TRACK
+	cl_malloc_dump_allocated(LOG_ERR, TRUE);
+#endif
 
 	/* required for MallocDebug.app */
 	if(inhibit_exit) {

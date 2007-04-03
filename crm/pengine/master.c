@@ -1,4 +1,3 @@
-/* $Id: master.c,v 1.22 2006/06/07 12:46:58 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <crm/msg_xml.h>
 #include <allocate.h>
@@ -28,6 +27,8 @@
 #include <lib/crm/pengine/variant.h>
 
 #define NO_MASTER_PREFS 0
+
+extern gint sort_clone_instance(gconstpointer a, gconstpointer b);
 
 extern void clone_create_notifications(
 	resource_t *rsc, action_t *action, action_t *action_complete,
@@ -40,7 +41,7 @@ child_promoting_constraints(
 {
 /* 	if(clone_data->ordered */
 /* 	   || clone_data->self->restart_type == pe_restart_restart) { */
-/* 		type = pe_ordering_manditory; */
+/* 		type = pe_order_implies_left; */
 /* 	} */
 	if(child == NULL) {
 		if(clone_data->ordered && last != NULL) {
@@ -91,7 +92,7 @@ child_demoting_constraints(
 {
 /* 	if(clone_data->ordered */
 /* 	   || clone_data->self->restart_type == pe_restart_restart) { */
-/* 		type = pe_ordering_manditory; */
+/* 		type = pe_order_implies_left; */
 /* 	} */
 	
 	if(child == NULL) {
@@ -101,7 +102,7 @@ child_demoting_constraints(
 			custom_action_order(
 				clone_data->self, demote_key(clone_data->self), NULL,
 				last, demote_key(last), NULL,
-				pe_ordering_manditory, data_set);
+				pe_order_implies_left, data_set);
 		}
 		
 	} else if(clone_data->ordered && last != NULL) {
@@ -241,6 +242,30 @@ can_be_master(resource_t *rsc)
 	return NULL;
 }
 
+static gint sort_master_instance(gconstpointer a, gconstpointer b)
+{
+	int rc;
+	const resource_t *resource1 = (const resource_t*)a;
+	const resource_t *resource2 = (const resource_t*)b;
+
+	CRM_ASSERT(resource1 != NULL);
+	CRM_ASSERT(resource2 != NULL);
+
+	rc = sort_rsc_priority(a, b);
+	if( rc != 0 ) {
+		return rc;
+	}
+	
+	if(resource1->role > resource2->role) {
+		return -1;
+
+	} else if(resource1->role < resource2->role) {
+		return 1;
+	}
+	
+	return sort_clone_instance(a, b);
+}
+
 node_t *
 master_color(resource_t *rsc, pe_working_set_t *data_set)
 {
@@ -261,7 +286,7 @@ master_color(resource_t *rsc, pe_working_set_t *data_set)
 	slist_iter(node, node_t, clone_data->self->allowed_nodes, lpc,
 		   node->count = 0;
 		);
-	
+
 	/*
 	 * assign priority
 	 */
@@ -344,7 +369,7 @@ master_color(resource_t *rsc, pe_working_set_t *data_set)
 	
 	/* sort based on the new "promote" priority */
 	clone_data->child_list = g_list_sort(
-		clone_data->child_list, sort_rsc_priority);
+		clone_data->child_list, sort_master_instance);
 
 	/* mark the first N as masters */
 	slist_iter(
@@ -414,10 +439,12 @@ void master_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 		CRMD_ACTION_PROMOTED, NULL, !any_promoting, TRUE, data_set);
 
 	action->pseudo = TRUE;
+	action->runnable = TRUE;
 	action_complete->pseudo = TRUE;
+	action_complete->runnable = TRUE;
 	action_complete->priority = INFINITY;
 	
-	child_promoting_constraints(clone_data, pe_ordering_optional, 
+	child_promoting_constraints(clone_data, pe_order_optional, 
 				   NULL, last_promote_rsc, data_set);
 
 	clone_create_notifications(rsc, action, action_complete, data_set);	
@@ -431,9 +458,11 @@ void master_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 	action_complete->priority = INFINITY;
 
 	action->pseudo = TRUE;
+	action->runnable = TRUE;
 	action_complete->pseudo = TRUE;
+	action_complete->runnable = TRUE;
 	
-	child_demoting_constraints(clone_data, pe_ordering_optional,
+	child_demoting_constraints(clone_data, pe_order_optional,
 				   NULL, last_demote_rsc, data_set);
 
 	clone_create_notifications(rsc, action, action_complete, data_set);	
@@ -452,26 +481,32 @@ master_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 	custom_action_order(
 		clone_data->self, demoted_key(clone_data->self), NULL,
 		clone_data->self, start_key(clone_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 
 	/* global started before promote */
 	custom_action_order(
 		clone_data->self, started_key(clone_data->self), NULL,
 		clone_data->self, promote_key(clone_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 
 	/* global demoted before stop */
 	custom_action_order(
 		clone_data->self, demoted_key(clone_data->self), NULL,
 		clone_data->self, stop_key(clone_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 
 	/* global demote before demoted */
 	custom_action_order(
 		clone_data->self, demote_key(clone_data->self), NULL,
 		clone_data->self, demoted_key(clone_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 	
+	/* global demoted before promote */
+	custom_action_order(
+		clone_data->self, demoted_key(clone_data->self), NULL,
+		clone_data->self, promote_key(clone_data->self), NULL,
+		pe_order_internal_restart, data_set);
+
 	slist_iter(
 		child_rsc, resource_t, clone_data->child_list, lpc,
 
@@ -479,12 +514,12 @@ master_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 		custom_action_order(
 			child_rsc, demote_key(child_rsc), NULL,
 			child_rsc, promote_key(child_rsc), NULL,
-			pe_ordering_restart, data_set);
+			pe_order_internal_restart, data_set);
 		
-		child_promoting_constraints(clone_data, pe_ordering_optional,
+		child_promoting_constraints(clone_data, pe_order_optional,
 					    child_rsc, last_rsc, data_set);
 
-		child_demoting_constraints(clone_data, pe_ordering_optional,
+		child_demoting_constraints(clone_data, pe_order_optional,
 					   child_rsc, last_rsc, data_set);
 
 		last_rsc = child_rsc;
@@ -502,10 +537,6 @@ void master_rsc_colocation_rh(
 	if(rsc_rh->provisional) {
 		return;
 
-	} else if(rsc_rh == NULL) {
-		pe_err("rsc_rh was NULL for %s", constraint->id);
-		return;
-
 	} else if(constraint->role_rh == RSC_ROLE_UNKNOWN) {
 		crm_debug_3("Handling %s as a clone colocation", constraint->id);
 		clone_rsc_colocation_rh(rsc_lh, rsc_rh, constraint);
@@ -514,7 +545,7 @@ void master_rsc_colocation_rh(
 	
 	CRM_CHECK(rsc_lh != NULL, return);
 	CRM_CHECK(rsc_lh->variant == pe_native, return);
-	crm_debug_3("Processing constraint %s: %d", constraint->id, constraint->score);
+	crm_info("Processing constraint %s: %d", constraint->id, constraint->score);
 
 	if(constraint->score < INFINITY) {
 		slist_iter(
@@ -529,8 +560,10 @@ void master_rsc_colocation_rh(
 
 		slist_iter(
 			child_rsc, resource_t, clone_data->child_list, lpc,
+			crm_info("Processing: %s", child_rsc->id);
 			if(child_rsc->allocated_to != NULL
 			   && child_rsc->next_role == constraint->role_rh) {
+				crm_info("Applying: %s %s", child_rsc->id, role2text(child_rsc->next_role));
 				rhs = g_list_append(rhs, child_rsc->allocated_to);
 			}
 			);

@@ -1,6 +1,5 @@
 #!/bin/sh
 #
-# $Id: LVM.in,v 1.13 2006/06/02 06:33:16 andrew Exp $
 # 
 # LVM
 #
@@ -48,7 +47,6 @@ usage() {
 	The 'validate-all' operation checks whether the OCF parameters are valid
 	The 'methods' operation reports on the methods $0 supports
 
-	$Id: LVM.in,v 1.13 2006/06/02 06:33:16 andrew Exp $
 	!
   exit $OCF_ERR_GENERIC 
 
@@ -184,6 +182,8 @@ LVM_monitor() {
 #
 LVM_start() {
 
+  # TODO: This MUST run vgimport as well
+
   ocf_log info "Activating volume group $1"
 
   if 
@@ -194,6 +194,7 @@ LVM_start() {
 	ocf_run vgscan
   fi
 
+  # TODO: For v2, this MUST use --refresh
   ocf_run vgchange -a y $1 || return $OCF_ERR_GENERIC
 
   if
@@ -221,6 +222,9 @@ LVM_stop() {
     ocf_log err "LVM: $1 did not stop correctly"
     return $OCF_ERR_GENERIC 
   fi
+
+  # TODO: This MUST run vgexport as well
+
   return $OCF_SUCCESS
 }
 

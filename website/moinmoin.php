@@ -69,32 +69,57 @@ function MoinMoinNoCache($cachefile)
 	return false;
 }
 
+function MoinMoinLang ($ptitle, $INCLUDEPHP = false, $CACHESUFFIX = "")
+{
+	global $MOINMOINlang;
+	if ($MOINMOINlang == "" || $MOINMOINlang == "en" || $MOINMOINlang == "us_en") {
+	    return "<!-- lang: en $MOINMOINlang --> " . MoinMoin($ptitle, $INCLUDEPHP, $CACHESUFFIX);
+        }else{
+	    return "<!-- lang: $MOINMOINlang --> " .
+                     MoinMoin($MOINMOINlang . "/" . $ptitle . "_" . $MOINMOINlang, $INCLUDEPHP, $CACHESUFFIX);
+        }
+}
+
+$MOINMOIN404string = "<b>Page not found.</b> <!-- 404 -->";
+
 function MoinMoin($ptitle, $INCLUDEPHP = false, $CACHESUFFIX = "")
 {
 	global $MOINMOINurl, $MOINMOINalias, $MOINMOINcachedir, $MOINMOINfilemod, $MOINMOINstandardsearch;
 	global $MOINMOINstandardreplace, $current_cache_prefix, $current_cache_relprefix, $PageTitle;
-	global $MOINMOINfetched;
-
-	# $PageTitle = str_replace("/","_", $ptitle);
+	global $MOINMOINfetched, $MOINMOINpagename;
+ 
+	#$PageTitle = str_replace("/","_", $ptitle);
 	$PageTitle = $ptitle;
 	$filename = "$MOINMOINurl/$PageTitle";
-	# $cachefile = "$MOINMOINcachedir/$MOINMOINalias$PageTitle$CACHESUFFIX.html";
+#	$cachefile = "$MOINMOINcachedir/$MOINMOINalias$PageTitle$CACHESUFFIX.html";
 	$cachefile = sprintf("%s/%s%s%s.html", $MOINMOINcachedir, $MOINMOINalias, str_replace("/","_2f", $ptitle), $CACHESUFFIX);
 	# for attachments and the like
-	$current_cache_prefix = "$MOINMOINcachedir/${MOINMOINalias}${PageTitle}__";
+	$PageTitleNoSlash = str_replace("/","_",$ptitle);
+	$current_cache_prefix = "$MOINMOINcachedir/${MOINMOINalias}${PageTitleNoSlash}__";
 	$current_cache_relprefix = "${MOINMOINalias}${PageTitle}__";
 	set_time_limit(30);
 	umask(077);
 	
-	if (!MoinMoinNoCache($cachefile) && file_exists($cachefile)) {
-		$body = implode("",file($cachefile));
-		$msg=sprintf("READ %d bytes from %s"
-		,	filesize($cachefile), $cachefile);
-		LogIt($msg);
-	} else {
-		if (!file_exists($filename))
-			return "<b>Not Found.</b>";
-		$content = implode("",file($filename));
+	if (MoinMoinNoCache($cachefile) && file_exists($cachefile)) {
+		unlink($cachefile);
+	}
+	if (!file_exists($cachefile))
+	{
+		$content = wget_text($filename);
+		if ($content == "")
+		{
+			/* OOPS! ptitle URL is 404! */
+			global $MOINMOIN404string, $MOINMOINlang;
+			/* Try the English version of the page (if any) */
+			if (preg_match("/^$MOINMOINlang\/(.*)_$MOINMOINlang/"
+			,	$ptitle, $match)) {
+				/* Better than nothing, eh? */
+				LogIt("SUBSTITUTED $match[1] for $ptitle");
+				return MoinMoin($match[1], $INCLUDEPHP, $CACHESUFFIX);
+			}
+			LogIt("GOT404 on $ptitle");
+			return $MOINMOIN404string;
+		}
 
 		if (!$GLOBALS["MOINMOINstandardregsloaded"])
 		{
@@ -104,10 +129,10 @@ function MoinMoin($ptitle, $INCLUDEPHP = false, $CACHESUFFIX = "")
 		if ($INCLUDEPHP)
 		{
 			include($INCLUDEPHP);
-			
+
 			$MOINMOINallsearch = array_merge($MOINMOINstandardsearch, $MOINMOINsearch);
 			$MOINMOINallreplace = array_merge($MOINMOINstandardreplace, $MOINMOINreplace);
-			
+
 			unset($MOINMOINsearch);
 			unset($MOINMOINreplace);
 		} else {
@@ -115,18 +140,22 @@ function MoinMoin($ptitle, $INCLUDEPHP = false, $CACHESUFFIX = "")
 			$MOINMOINallreplace = $MOINMOINstandardreplace;
 		}
 		$body = preg_replace ($MOINMOINallsearch, $MOINMOINallreplace, $content);
+		# Because we include things, these line numbers can easily wind up conflicting...
+		$body  = preg_replace("'<span id=\"line-[0-9]+\"></span>'si", "", $body);
 
-		if($fd = fopen($cachefile, "w"))
-		{
-			fwrite($fd, $body);
-			fclose ($fd);
-			chmod($cachefile, $MOINMOINfilemod);
-			$msg=sprintf("EXPANDED %d bytes into %s"
-			,	filesize($cachefile), $cachefile);
-			LogIt($msg);
-			$MOINMOINfetched[$cachefile] = true;
-		}
+		$fd = fopen($cachefile, "w");
+		fwrite($fd, $body);
+		fclose ($fd);
+		chmod($cachefile, $MOINMOINfilemod);
+		$msg=sprintf("EXPANDED %d bytes into %s"
+		,	filesize($cachefile), $cachefile);
+		$MOINMOINfetched[$cachefile] = true;
 
+	} else {
+		$body = implode("",file($cachefile));
+		$msg=sprintf("READ %d bytes from %s"
+		,	filesize($cachefile), $cachefile);
+		LogIt($msg);
 	}
 
 	return $body;
@@ -137,6 +166,7 @@ function MOINMOINloadstandardregs()
 {
 	global $MOINMOINstandardsearch, $MOINMOINstandardreplace, $MOINMOINalias
 	,	$local_cache_url_prefix, $MOINMOINExtraneousImages;
+	global $MOINMOIN404string;
 	
 	if (!isset($MOINMOINstandardsearch)) { $MOINMOINstandardsearch = array(); }
 	if (!isset($MOINMOINstandardreplace)) { $MOINMOINstandardreplace = array(); }
@@ -145,16 +175,16 @@ function MOINMOINloadstandardregs()
 	# Trap Pages Not In Wiki
 	# FIXME
 	$MOINMOINstandardsearch[] = "'^.*<a href=\"[^\">]*?\?action=edit\">Create this page</a>.*$'s";
-	$MOINMOINstandardreplace[] = "<b>Not Found.</b>";
+	$MOINMOINstandardreplace[] = $MOINMOIN404string;
 	
 	# Eliminate Goto Link from Include Macro
 	$MOINMOINstandardsearch[] = "'<div class=\"include-link\"><a [^>]*>.*?</a></div>'s";
 	$MOINMOINstandardreplace[] = "";
 
 	# Get Content Area
-	$MOINMOINstandardsearch[] = "'^.*?<a  *id=\"top\"[^>]*></a>'s";
+	$MOINMOINstandardsearch[] = "'.*<span class=\"anchor\" id=\"top\"></span>'s";
 	$MOINMOINstandardreplace[] = "";
-	$MOINMOINstandardsearch[] = "'<a *id=\"bottom\"[^>]*>.*?$'s";
+	$MOINMOINstandardsearch[] = "'<span class=\"anchor\" id=\"bottom\"></span></div>.*$'s";
 	$MOINMOINstandardreplace[] = "";
 	
 	# Strip Wiki Class Tags
@@ -169,10 +199,12 @@ function MOINMOINloadstandardregs()
 	$MOINMOINstandardsearch[] = "'(<a\s[^>]*href=\")/$MOINMOINalias([^\">]*\">)'iU";
 	$MOINMOINstandardreplace[] = "\\1$local_cache_url_prefix\\2";
 
-	# Someone needs to fix "illegal" id fields
+	# Fix "illegal" id fields
 	#   ID and NAME tokens must begin with a letter ([A-Za-z]) and may be
 	#   followed by any number of letters, digits ([0-9]), hyphens ("-"),
 	#   underscores ("_"), colons (":"), and periods (".").
+	$MOINMOINstandardsearch[] = "'id=\"([^\"]*)\"'ie";
+	$MOINMOINstandardreplace[] = "'id=\"' . str_replace('/','_2f','\\1') . '\"'";
 
 	# Strip out [WWW] [FTP] images, etc.
 	foreach ($MOINMOINExtraneousImages as $im) {
@@ -190,6 +222,9 @@ function MOINMOINloadstandardregs()
 
 	# Cache MoinMoin Attachments Localy
 	$MOINMOINstandardsearch[] = "'(<a\s*[^>]*href=\")/$MOINMOINalias([^\">]*?action=AttachFile&[^\">]*target=([^\">]*))(\"[^>]*>)'iUe";
+	$MOINMOINstandardreplace[] = "stripslashes('\\1') . MOINMOINcacheattachments('\\2','\\3') . stripslashes('\\4')";
+	# Cache MoinMoin EMBED/OBJECT Attachments Localy
+	$MOINMOINstandardsearch[] = "'(<EMBED\s*[^>]*SRC=\")/$MOINMOINalias([^\">]*?action=AttachFile&[^\">]*target=([^\">]*))(\"[^>]*>)'iUe";
 	$MOINMOINstandardreplace[] = "stripslashes('\\1') . MOINMOINcacheattachments('\\2','\\3') . stripslashes('\\4')";
 
 	$GLOBALS["MOINMOINstandardregsloaded"] = true;
@@ -331,6 +366,8 @@ function LogIt($message)
 	$datestamp=date("Y/m/d_H:i:s");
 	if (file_exists($logfile) && filesize($logfile) > 1000000) {
 		rename($logfile, "$logfile.OLD");
+		touch($logfile);
+		chmod($logfile, 0644);
 	}
 	error_log("$datestamp	$message\n", 3, $logfile);
 	chmod($logfile, 0644);
@@ -363,10 +400,25 @@ function wget($url, $file) {
 	$url = preg_replace('/\'/', '\\\'', $url);
 	$CMD="$WGET -q -U 'Mozilla/5.0' -S -nd -O '$file' '" . $url . '\'';
 	system($CMD, $rc);
-	if ($rc != 0 && file_exists($file)) {
-		unlink($file);
+	if ($rc != 0) {
+		/* LogIt("WGETFAIL: [$CMD] failed with $rc"); */
+		if (file_exists($file)) {
+			unlink($file);
+		}
+	}else{
+		/*LogIt(sprintf("wget %s got %d bytes", $url, filesize($file)))*/;
 	}
 	return $rc;
+}
+function wget_text($url) {
+	$tmpname = tempnam("/var/tmp", "wget");
+	if (wget($url, $tmpname) == 0) {
+		$ret = implode("",file($tmpname));
+		unlink($tmpname);
+		return $ret;
+	}
+	/* LogIt("wget_text failed: [$url] failed"); */
+	return "";
 }
 
 #	Inputs are the results from microtime()

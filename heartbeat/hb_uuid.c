@@ -18,11 +18,11 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <portability.h>
-#include <config.h>
+#include <lha_internal.h>
 #include <clplumbing/cl_uuid.h>
 #include <heartbeat.h>
 #include <string.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -258,7 +258,7 @@ tables_remove(const char* nodename, cl_uuid_t* uuid)
 void
 add_nametable(const char* nodename, struct node_info* value)
 {
-	char * ds = ha_strdup(nodename);
+	char * ds = cl_strdup(nodename);
 	g_hash_table_insert(name_table, ds, value);
 }
 
@@ -271,7 +271,7 @@ add_uuidtable(cl_uuid_t* uuid, struct node_info* value)
 		return;
 	}
 
-	du = (cl_uuid_t*)ha_malloc(sizeof(cl_uuid_t));
+	du = (cl_uuid_t*)cl_malloc(sizeof(cl_uuid_t));
 	cl_uuid_copy(du, uuid);
 	
 	g_hash_table_insert(uuid_table, du, value);
@@ -409,7 +409,7 @@ gen_uuid_from_name(const char* nodename, cl_uuid_t* uu)
 
 
 #ifndef HB_UUID_FILE
-#define HB_UUID_FILE VAR_LIB_D "/hb_uuid"
+#define HB_UUID_FILE HA_VARLIBHBDIR "/hb_uuid"
 #endif
 
 int

@@ -1,4 +1,3 @@
-/* $Id: graph.c,v 1.15 2006/05/29 13:22:48 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <crm/crm.h>
 #include <crm/msg_xml.h>

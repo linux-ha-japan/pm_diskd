@@ -1,4 +1,3 @@
-/* $Id: hb_signal.c,v 1.18 2005/09/28 20:29:55 gshi Exp $ */
 /*
  * hb_signal.c: signal handling routines to be used by Heartbeat
  *
@@ -23,7 +22,7 @@
  */
 
 #define _USE_BSD
-#include <portability.h>
+#include <lha_internal.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>

@@ -1,4 +1,3 @@
-/* $Id: ccm.h,v 1.51 2006/08/16 09:59:34 zhenh Exp $ */
 /*
  * ccm.h: definitions Consensus Cluster Manager internal header
  *				file
@@ -24,9 +23,6 @@
 #ifndef _CLUSTER_MANAGER_H_
 #define _CLUSTER_MANAGER_H_
  
-/* MUST BE INCLUDED for configure time ifdef vars */
-#include <portability.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,7 +46,6 @@
 #include <clplumbing/realtime.h>
 #include <base64.h>
 
-#include <ha_config.h>
 #include <heartbeat.h>
 #include <hb_api.h>
 

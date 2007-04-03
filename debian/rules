@@ -56,7 +56,10 @@ unpatch:
 build: checkbuild build-stamp
 build-stamp:
 	dh_testdir
-	./configure $(cfg)
+	# Allow debian packages to also be built directly from Hg archives
+	# Official debian packages are built from dist tarballs
+	test ! -e ./configure || ./configure $(cfg)
+	test -e ./configure || ./bootstrap $(cfg)
 	$(MAKE)
 	touch build-stamp
 
@@ -102,6 +105,7 @@ install-stamp:
 	cd $(DTMP)/etc/ha.d/resource.d \
 	  && ln -s /usr/sbin/ldirectord ldirectord
 	cd $(DTMP)/etc/ && ln -s ha.d heartbeat
+	cd $(DTMP)/usr/bin/ && ln -s ../lib/heartbeat-gui/haclient.py hb_gui
 	dh_movefiles --source=debian/tmp
 
 binary-indep: build install

@@ -1,4 +1,3 @@
-/* $Id: complex.c,v 1.7 2006/08/14 16:32:21 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <crm/cib.h>
 #include <utils.h>
@@ -187,9 +186,6 @@ common_unpack(crm_data_t * xml_obj, resource_t **rsc,
 			parent->parameters, dup_attr, (*rsc)->parameters);
 	}
 
-	if((*rsc)->fns->unpack(*rsc, data_set) == FALSE) {
-		return FALSE;
-	}
 	(*rsc)->runnable	   = TRUE; 
 	(*rsc)->provisional	   = TRUE; 
 	(*rsc)->starting	   = FALSE; 
@@ -273,6 +269,10 @@ common_unpack(crm_data_t * xml_obj, resource_t **rsc,
 	crm_debug_2("\tDesired next state: %s",
 		    (*rsc)->next_role!=RSC_ROLE_UNKNOWN?role2text((*rsc)->next_role):"default");
 
+	if((*rsc)->fns->unpack(*rsc, data_set) == FALSE) {
+		return FALSE;
+	}
+	
 	if((*rsc)->is_managed == FALSE) {
 		crm_warn("Resource %s is currently not managed", (*rsc)->id);
 

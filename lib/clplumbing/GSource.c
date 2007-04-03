@@ -1,4 +1,3 @@
-/* $Id: GSource.c,v 1.85 2006/08/16 14:37:08 alan Exp $ */
 /*
  * Copyright (c) 2002 Alan Robertson <alanr@unix.sh>
  *
@@ -17,13 +16,14 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <errno.h>
 
 #include <clplumbing/cl_log.h>
@@ -1184,7 +1184,7 @@ set_sigchld_proctrack(int priority)
 	,	child_death_dispatch, NULL, NULL);
 
 	G_main_setmaxdispatchdelay((GSource*) src, 100);
-	G_main_setmaxdispatchtime((GSource*) src, 10);
+	G_main_setmaxdispatchtime((GSource*) src, 30);
 	G_main_setdescription((GSource*)src, "SIGCHLD");
 	return;
 }

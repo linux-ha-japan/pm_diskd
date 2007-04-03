@@ -1,4 +1,3 @@
-/* $Id: recoverymgr.c,v 1.4 2004/11/22 20:06:42 gshi Exp $ */
 /*
  * recoverymgr.c: recovery manager client library code.
  *
@@ -25,7 +24,7 @@
  *
  *  
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>

@@ -1,4 +1,3 @@
-/* $Id: generic.c,v 1.23 2004/10/06 10:55:17 lars Exp $ */
 /*
  * 
  * Generic interface (implementation) manager
@@ -57,7 +56,7 @@
 #define ENABLE_PLUGIN_MANAGER_PRIVATE
 #define ENABLE_PIL_DEFS_PRIVATE
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <pils/generic.h>
 
 #include <stdio.h>

@@ -1,4 +1,3 @@
-/* $Id: apphbd.c,v 1.64 2005/10/15 02:46:24 gshi Exp $ */
 /*
  * apphbd:	application heartbeat daemon
  *
@@ -58,7 +57,7 @@
  *
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdio.h>
 #include <syslog.h>
 #include <sys/types.h>
@@ -1256,7 +1255,7 @@ load_notification_plugin(const char * pluginname)
 	PIL_rc	rc;
 	void*	exports;
 	if (pisys == NULL) {
-		pisys = NewPILPluginUniv(HA_LIBDIR "/heartbeat/plugins");
+		pisys = NewPILPluginUniv(HA_LIBHBDIR "/heartbeat/plugins");
 		if (pisys == NULL) {
 			return FALSE;
 		}

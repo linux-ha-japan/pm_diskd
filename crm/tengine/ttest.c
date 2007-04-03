@@ -1,4 +1,3 @@
-/* $Id: ttest.c,v 1.24 2006/07/18 06:16:08 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 #include <crm/crm.h>
@@ -138,8 +137,10 @@ main(int argc, char **argv)
 		FILE *xml_strm = fopen(xml_file, "r");
 		if(xml_strm) {
 			xml_graph = file2xml(xml_strm, FALSE);
+			fclose(xml_strm);
+			
 		} else {
-			crm_err("Could not open %s for reading", xml_file);
+			cl_perror("Could not open %s for reading", xml_file);
 			xml_file = NULL;
 		}
 		

@@ -1,4 +1,3 @@
-/* $Id: setenv.c,v 1.6 2005/11/18 09:43:19 davidlee Exp $ */
 /*
  * Copyright (C) 2001 Alan Robertson <alanr@unix.sh>
  * This software licensed under the GNU LGPL.
@@ -19,7 +18,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdlib.h>
 #include <stdio.h>
 

@@ -1,5 +1,4 @@
-/* $Id: strnlen.c,v 1.2 2004/02/17 22:12:01 lars Exp $ */
-#include <portability.h>
+#include <lha_internal.h>
 #include <string.h>
 /*
  * Copyright (C) 2003 Alan Robertson <alanr@unix.sh>

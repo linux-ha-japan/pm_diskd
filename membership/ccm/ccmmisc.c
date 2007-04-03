@@ -1,4 +1,3 @@
-/* $Id: ccmmisc.c,v 1.29 2006/02/17 05:48:24 zhenh Exp $ */
 /* 
  * ccmmisc.c: Miscellaneous Consensus Cluster Service functions
  *
@@ -19,7 +18,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <ccm.h>
 #include <stdlib.h>
 #ifdef HAVE_MALLINFO

@@ -1,4 +1,3 @@
-/* $Id: rules.c,v 1.3 2006/06/21 14:53:48 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <crm/crm.h>
 #include <crm/msg_xml.h>
 #include <crm/common/xml.h>
@@ -234,7 +233,7 @@ test_attr_expression(crm_data_t *expr, GHashTable *hash, ha_time_t *now)
 	
 	if(value != NULL && h_val != NULL) {
 		if(type == NULL || (safe_str_eq(type, "string"))) {
-			cmp = strcmp(h_val, value);
+			cmp = strcasecmp(h_val, value);
 			
 		} else if(safe_str_eq(type, "number")) {
 			int h_val_f = crm_parse_int(h_val, NULL);
@@ -530,6 +529,7 @@ populate_hash(crm_data_t *nvpair_list, GHashTable *hash)
 {
 	const char *name = NULL;
 	const char *value = NULL;
+
 	xml_child_iter_filter(
 		nvpair_list, an_attr, XML_CIB_TAG_NVPAIR,
 		
@@ -540,11 +540,11 @@ populate_hash(crm_data_t *nvpair_list, GHashTable *hash)
 			an_attr, XML_NVPAIR_ATTR_VALUE);
 		
 		if(name == NULL || value == NULL) {
-			return;
+			continue;
 
 		} else if(safe_str_eq(value, "#default")) {
-			return;
-		
+			continue;
+
 		} else if(g_hash_table_lookup(hash, name) == NULL) {
 			g_hash_table_insert(
 				hash, crm_strdup(name), crm_strdup(value));

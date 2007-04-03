@@ -1,4 +1,3 @@
-/* $Id: wti_nps.c,v 1.29 2006/01/12 03:23:18 alan Exp $ */
 /*
  *
  *  Copyright 2001 Mission Critical Linux, Inc.
@@ -60,6 +59,7 @@
  *    private subnet.
  */
 
+#include <lha_internal.h>
 #define	DEVICE	"WTI Network Power Switch"
 
 #define DOESNT_USE_STONITHKILLCOMM	1

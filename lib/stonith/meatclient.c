@@ -1,4 +1,3 @@
-/* $Id: meatclient.c,v 1.9 2005/09/05 02:59:42 msoffen Exp $ */
 /*
  * Stonith client for Human Operator Stonith device
  *
@@ -24,7 +23,7 @@
  *
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>

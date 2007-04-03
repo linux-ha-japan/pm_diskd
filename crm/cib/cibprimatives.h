@@ -1,4 +1,3 @@
-/* $Id: cibprimatives.h,v 1.13 2005/09/12 11:00:19 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -20,7 +19,6 @@
 #ifndef CIB_PRIMATIVES__H
 #define CIB_PRIMATIVES__H
 
-#include <portability.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>

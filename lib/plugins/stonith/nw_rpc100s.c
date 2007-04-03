@@ -1,4 +1,3 @@
-/* $Id: nw_rpc100s.c,v 1.24 2005/04/22 12:23:05 blaschke Exp $ */
 /*
  *	Stonith module for Night/Ware RPC100S 
  *
@@ -27,6 +26,7 @@
  *
  */
 
+#include <lha_internal.h>
 #define	DEVICE	"NW RPC100S Power Switch"
 #include "stonith_plugin_common.h"
 

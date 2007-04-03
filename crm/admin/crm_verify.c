@@ -1,4 +1,3 @@
-/* $Id: crm_verify.c,v 1.20 2006/08/20 10:54:57 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <crm/crm.h>
 
 #include <stdio.h>
@@ -38,7 +37,7 @@
 #include <crm/cib.h>
 #include <clplumbing/lsb_exitcodes.h>
 
-#define OPTARGS	"V?X:x:pLS:"
+#define OPTARGS	"V?X:x:pLS:D:"
 
 #ifdef HAVE_GETOPT_H
 #  include <getopt.h>
@@ -52,6 +51,7 @@ const char *crm_system_name = NULL;
 void usage(const char *cmd, int exit_status);
 extern gboolean stage0(pe_working_set_t *data_set);
 void cleanup_alloc_calculations(pe_working_set_t *data_set);
+const char *dtd_file = HA_LIBDIR"/heartbeat/crm.dtd";
 
 int
 main(int argc, char **argv)
@@ -95,6 +95,7 @@ main(int argc, char **argv)
 		static struct option long_options[] = {
 			/* Top-level Options */
 			{F_CRM_DATA,    1, 0, 'X'},
+			{"dtd-file",    1, 0, 'D'},
 			{"xml-file",    1, 0, 'x'},
 			{"xml-pipe",    0, 0, 'p'},
 			{"save-xml",    1, 0, 'S'},
@@ -125,6 +126,11 @@ main(int argc, char **argv)
 				break;
 #endif
       
+			case 'D':
+				crm_debug_2("Option %c => %s", flag, optarg);
+				dtd_file = optarg;
+				break;
+
 			case 'X':
 				crm_debug_2("Option %c => %s", flag, optarg);
 				xml_string = crm_strdup(optarg);
@@ -174,7 +180,6 @@ main(int argc, char **argv)
   
 	crm_info("=#=#=#=#= Getting XML =#=#=#=#=");
 
-	crm_zero_mem_stats(NULL);
 #ifdef HA_MALLOC_TRACK
 	cl_malloc_dump_allocated(LOG_DEBUG_2, TRUE);
 #endif
@@ -213,6 +218,7 @@ main(int argc, char **argv)
 				"Couldn't parse input file: %s\n", xml_file);
 			return 1;
 		}
+		fclose(xml_strm);
 		
 	} else if(xml_string != NULL) {
 		cib_object = string2xml(xml_string);
@@ -249,8 +255,7 @@ main(int argc, char **argv)
 		crm_config_err("ID Check failed");
 	}
 
-	if(validate_with_dtd(
-		   cib_object, FALSE, HA_LIBDIR"/heartbeat/crm.dtd") == FALSE) {
+	if(validate_with_dtd(cib_object, FALSE, dtd_file) == FALSE) {
 		crm_config_err("CIB did not pass DTD validation");
 	}
 	set_working_set_defaults(&data_set);
@@ -260,18 +265,6 @@ main(int argc, char **argv)
 	
 	cleanup_alloc_calculations(&data_set);
 
-#if 0
-	if(USE_LIVE_CIB) {
-		/* Calling msg2ipcchan() seems to initialize something
-		 *   which isn't free'd when we disconnect and free the
-		 *   CIB connection.
-		 * Fake this extra free and move along.
-		 */
-		volatile cl_mem_stats_t *active_stats = cl_malloc_getstats();
-		active_stats->numfree++;
-	}
-#endif
-	
 	if(crm_config_error) {
 		fprintf(stderr, "Errors found during check: config not valid\n");
 		if(crm_log_level < LOG_WARNING) {
@@ -292,7 +285,6 @@ main(int argc, char **argv)
 		cib_delete(cib_conn);
 	}	
 
- 	CRM_CHECK(crm_mem_stats(NULL) == FALSE, ; );
 #ifdef HA_MALLOC_TRACK
 	cl_malloc_dump_allocated(LOG_ERR, TRUE);
 #endif
@@ -307,7 +299,7 @@ usage(const char *cmd, int exit_status)
 	FILE *stream;
 
 	stream = exit_status ? stderr : stdout;
-	fprintf(stream, "usage: %s [-V] -(?|L|X|x|p)\n", cmd);
+	fprintf(stream, "usage: %s [-V] [-D] -(?|L|X|x|p)\n", cmd);
 
 	fprintf(stream, "\t--%s (-%c)\t: this help message\n", "help", '?');
 	fprintf(stream, "\t--%s (-%c)\t: "
@@ -319,8 +311,10 @@ usage(const char *cmd, int exit_status)
 		F_CRM_DATA, 'X');
 	fprintf(stream, "\t--%s (-%c) <file>\t: Use the configuration in the named file\n",
 		"xml-file", 'x');
-	fprintf(stream, "\t--%s (-%c) \t\t: Use the configuration piped in via stdin\n",
+	fprintf(stream, "\t--%s (-%c) \t: Use the configuration piped in via stdin\n",
 		"xml-pipe", 'p');
+	fprintf(stream, "\t--%s (-%c) \t: Use the named dtd file instead of %s\n",
+		"dtd-file", 'D', dtd_file);
 	fflush(stream);
 
 	exit(exit_status);

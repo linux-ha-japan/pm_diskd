@@ -1,4 +1,3 @@
-/* $Id: unpack.c,v 1.7 2006/08/14 09:00:57 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 #include <crm/crm.h>
@@ -69,17 +68,17 @@ unpack_action(synapse_t *parent, crm_data_t *xml_action)
 
 	action->params = xml2list(action_copy);
 
-	value = g_hash_table_lookup(action->params, "timeout");
+	value = g_hash_table_lookup(action->params, "CRM_meta_timeout");
 	if(value != NULL) {
 		action->timeout = crm_parse_int(value, NULL);
 	}
 
-	value = g_hash_table_lookup(action->params, "interval");
+	value = g_hash_table_lookup(action->params, "CRM_meta_interval");
 	if(value != NULL) {
 		action->interval = crm_parse_int(value, NULL);
 	}
 
-	value = g_hash_table_lookup(action->params, "can_fail");
+	value = g_hash_table_lookup(action->params, "CRM_meta_can_fail");
 	if(value != NULL) {	
 		cl_str_to_boolean(value, &(action->can_fail));
 	}
@@ -107,7 +106,7 @@ unpack_synapse(crm_graph_t *new_graph, crm_data_t *xml_synapse)
 	}
 	
 	new_graph->num_synapses++;
-	CRM_CHECK(new_synapse->id >= 0, return NULL);
+	CRM_CHECK(new_synapse->id >= 0, crm_free(new_synapse); return NULL);
 	
 	crm_debug_3("look for actions in synapse %s",
 		    crm_element_value(xml_synapse, XML_ATTR_ID));
@@ -189,11 +188,11 @@ unpack_graph(crm_data_t *xml_graph)
 
 	if(xml_graph != NULL) {
 		t_id = crm_element_value(xml_graph, "transition_id");
-		CRM_CHECK(t_id != NULL, return NULL);
+		CRM_CHECK(t_id != NULL, crm_free(new_graph); return NULL);
 		new_graph->id = crm_parse_int(t_id, "-1");
 
 		time = crm_element_value(xml_graph, "cluster-delay");
-		CRM_CHECK(time != NULL, return NULL);
+		CRM_CHECK(time != NULL, crm_free(new_graph); return NULL);
 		new_graph->network_delay = crm_get_msec(time);
 		new_graph->transition_timeout = new_graph->network_delay;
 	}

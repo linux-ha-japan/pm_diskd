@@ -1,4 +1,3 @@
-/* $Id: group.c,v 1.69 2006/08/14 09:06:31 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <pengine.h>
 #include <lib/crm/pengine/utils.h>
@@ -67,10 +66,11 @@ group_color(resource_t *rsc, pe_working_set_t *data_set)
 	/* combine the child weights */
 	crm_debug("Processing %s", rsc->id);
 	if(rsc->is_allocating) {
-		crm_err("Dependancy loop detected involving %s", rsc->id);
+		crm_debug("Dependancy loop detected involving %s", rsc->id);
 		return NULL;
 	}
 	rsc->is_allocating = TRUE;
+	group_data->self->role = group_data->first_child->role;
 	
 	group_data->first_child->rsc_cons = g_list_concat(
 		group_data->first_child->rsc_cons, rsc->rsc_cons);
@@ -83,9 +83,10 @@ group_color(resource_t *rsc, pe_working_set_t *data_set)
 		child_iter = g_list_previous(child_iter);
 		group_node = child->cmds->color(child, data_set);
 	}
-	
-	rsc->provisional = FALSE;
+
+	group_data->self->next_role = group_data->first_child->next_role;	
 	rsc->is_allocating = FALSE;
+	rsc->provisional = FALSE;
 
 	if(group_data->colocated) {
 		return group_node;
@@ -110,20 +111,24 @@ void group_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 		);
 
 	op = start_action(group_data->self, NULL, !group_data->child_starting);
-	op->pseudo   = TRUE;
+	op->pseudo = TRUE;
+	op->runnable = TRUE;
 
 	op = custom_action(group_data->self, started_key(group_data->self),
 			   CRMD_ACTION_STARTED, NULL,
 			   !group_data->child_starting, TRUE, data_set);
-	op->pseudo   = TRUE;
+	op->pseudo = TRUE;
+	op->runnable = TRUE;
 
 	op = stop_action(group_data->self, NULL, !group_data->child_stopping);
-	op->pseudo   = TRUE;
+	op->pseudo = TRUE;
+	op->runnable = TRUE;
 	
 	op = custom_action(group_data->self, stopped_key(group_data->self),
 			   CRMD_ACTION_STOPPED, NULL,
 			   !group_data->child_stopping, TRUE, data_set);
-	op->pseudo   = TRUE;
+	op->pseudo = TRUE;
+	op->runnable = TRUE;
 
 	rsc->actions = group_data->self->actions;
 }
@@ -157,26 +162,30 @@ group_update_pseudo_status(resource_t *parent, resource_t *child)
 
 void group_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 {
+	resource_t *this_rsc = NULL;
 	resource_t *last_rsc = NULL;
+	int ordering = pe_order_optional|pe_order_implies_right;
+
 	group_variant_data_t *group_data = NULL;
 	get_group_variant_data(group_data, rsc);
 
+	this_rsc = group_data->self;
 	group_data->self->cmds->internal_constraints(group_data->self, data_set);
 	
 	custom_action_order(
 		group_data->self, stopped_key(group_data->self), NULL,
 		group_data->self, start_key(group_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_internal_restart, data_set);
 
 	custom_action_order(
 		group_data->self, stop_key(group_data->self), NULL,
 		group_data->self, stopped_key(group_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 
 	custom_action_order(
 		group_data->self, start_key(group_data->self), NULL,
 		group_data->self, started_key(group_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 	
 	slist_iter(
 		child_rsc, resource_t, group_data->child_list, lpc,
@@ -189,62 +198,37 @@ void group_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 				child_rsc, last_rsc, NULL, NULL);
 		}
 	
-		if(group_data->ordered == FALSE) {
-			order_start_start(
-				group_data->self, child_rsc, pe_ordering_optional);
+		custom_action_order(child_rsc, stop_key(child_rsc), NULL,
+				    this_rsc,  stopped_key(this_rsc), NULL,
+				    ordering, data_set);
 
-			custom_action_order(
-				child_rsc, start_key(child_rsc), NULL,
-				group_data->self, started_key(group_data->self), NULL,
-				pe_ordering_optional, data_set);
-
-			order_stop_stop(
-				group_data->self, child_rsc, pe_ordering_optional);
-
-			custom_action_order(
-				child_rsc, stop_key(child_rsc), NULL,
-				group_data->self, stopped_key(group_data->self), NULL,
-				pe_ordering_optional, data_set);
-
-			continue;
-		}
+		custom_action_order(child_rsc, start_key(child_rsc), NULL,
+				    this_rsc, started_key(this_rsc), NULL,
+				    ordering, data_set);
 		
-		if(last_rsc != NULL) {
+ 		if(group_data->ordered == FALSE) {
 			order_start_start(
-				last_rsc, child_rsc, pe_ordering_optional);
-			order_stop_stop(
-				child_rsc, last_rsc, pe_ordering_optional);
+				group_data->self, child_rsc, pe_order_optional);
 
-			/* recovery */
-			child_rsc->restart_type = pe_restart_restart;
-			order_start_start(
-				last_rsc, child_rsc, pe_ordering_recover);
 			order_stop_stop(
-				child_rsc, last_rsc, pe_ordering_recover);
+				group_data->self, child_rsc, pe_order_optional);
+
+		} else if(last_rsc != NULL) {
+			order_start_start(last_rsc, child_rsc, ordering);
+			order_stop_stop(child_rsc, last_rsc, ordering);
+
+			child_rsc->restart_type = pe_restart_restart;
 
 		} else {
-			custom_action_order(
-				child_rsc, stop_key(child_rsc), NULL,
-				group_data->self, stopped_key(group_data->self), NULL,
-				pe_ordering_optional, data_set);
-
-			order_start_start(group_data->self, child_rsc,
-					  pe_ordering_optional);
+			order_start_start(this_rsc, child_rsc, ordering);
 		}
 		
 		last_rsc = child_rsc;
 		);
 
 	if(group_data->ordered && last_rsc != NULL) {
-		custom_action_order(
-			last_rsc, start_key(last_rsc), NULL,
-			group_data->self, started_key(group_data->self), NULL,
-			pe_ordering_optional, data_set);
-
-		order_stop_stop(
-			group_data->self, last_rsc, pe_ordering_optional);
-	}
-		
+		order_stop_stop(this_rsc, last_rsc, ordering);
+	}		
 }
 
 
@@ -446,4 +430,15 @@ group_stonith_ordering(
 		);
 }
 
+void
+group_migrate_reload(resource_t *rsc, pe_working_set_t *data_set)
+{
+	group_variant_data_t *group_data = NULL;
+	get_group_variant_data(group_data, rsc);
+
+	slist_iter(
+		child_rsc, resource_t, group_data->child_list, lpc,
 		
+		child_rsc->cmds->migrate_reload(child_rsc, data_set);
+		);
+}

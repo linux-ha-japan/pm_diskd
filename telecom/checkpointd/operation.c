@@ -1,4 +1,3 @@
-/* $Id: operation.c,v 1.12 2005/03/16 17:11:15 lars Exp $ */
 /* 
  * operation.c: 
  *
@@ -19,9 +18,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include <portability.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -707,7 +704,7 @@ updateReplicaPendingOption(SaCkptReplicaT *replica, const char *hostName){
 		
 		if(!nodeExisted){
 			opStateList = ckptOp->stateList;
-			state = (SaCkptStateT*)ha_malloc(sizeof(SaCkptStateT));
+			state = (SaCkptStateT*)cl_malloc(sizeof(SaCkptStateT));
 			strncpy(state->nodeName,hostName,SA_MAX_NAME_LENGTH);
 			state->nodeName[SA_MAX_NAME_LENGTH-1]='\0';
 			state->state = OP_STATE_STARTED;

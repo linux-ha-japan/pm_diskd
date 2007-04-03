@@ -16,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 #include <stdio.h>
@@ -36,7 +36,6 @@
 #include <fsa_proto.h>
 #include <fsa_matrix.h>
 
-#include <crm/dmalloc_wrapper.h>
 
 longclock_t action_start = 0;
 longclock_t action_stop = 0;
@@ -50,7 +49,7 @@ char	*fsa_our_dc_version = NULL;
 ll_lrm_t	*fsa_lrm_conn;
 ll_cluster_t	*fsa_cluster_conn;
 oc_node_list_t	*fsa_membership_copy;
-const char	*fsa_our_uuid = NULL;
+char		*fsa_our_uuid = NULL;
 const char	*fsa_our_uname = NULL;
 
 fsa_timer_t *wait_timer = NULL;
@@ -638,6 +637,10 @@ do_state_transition(long long actions,
 	if(next_state != S_IDLE) {
 		crm_timer_stop(recheck_timer);
 	}
+
+#ifdef HA_MALLOC_TRACK
+	cl_malloc_dump_allocated(LOG_DEBUG, TRUE);
+#endif
 	
 	switch(next_state) {
 		case S_PENDING:			
@@ -711,7 +714,7 @@ do_state_transition(long long actions,
 			} else if(g_hash_table_size(confirmed_nodes)
 				  == fsa_membership_copy->members_size) {
 				crm_info("All %u cluster nodes are"
-					 " eligable to run resources.",
+					 " eligible to run resources.",
 					 fsa_membership_copy->members_size);
 				
 			} else if(g_hash_table_size(confirmed_nodes) > fsa_membership_copy->members_size) {
@@ -720,7 +723,7 @@ do_state_transition(long long actions,
 				
 			} else {
 				crm_warn("Only %u of %u cluster "
-					 "nodes are eligable to run resources",
+					 "nodes are eligible to run resources",
 					 g_hash_table_size(confirmed_nodes),
 					 fsa_membership_copy->members_size);
 			}

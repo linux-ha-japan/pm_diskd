@@ -1,4 +1,3 @@
-/* $Id: findif.c,v 1.60 2006/04/20 09:02:13 davidlee Exp $ */
 /*
  * findif.c:	Finds an interface which can route a given address
  *
@@ -27,23 +26,13 @@
  *
  ***********************************************************
  *
- *	Our single argument is of the form:
- *		address[/netmask[/interface][/broadcast]]
+ *	All our arguments come through the environment as OCF
+ *	environment variables as below:
  *
- *	So, the following forms are legal:
- *	         address
- *	         address/netmask
- *	         address/netmask/broadcast
- *	         address/netmask/interface
- *	         address/netmask/interface/broadcast
- *
- *     E.g.
- *		135.9.216.100
- *		135.9.216.100/24		Implies a 255.255.255.0 netmask
- *		135.9.216.100/24/255.255.255.0/135.9.216.255
- *		135.9.216.100/24/255.255.255.0/eth0
- *		135.9.216.100/24/255.255.255.0/eth0/135.9.216.255
- *
+ *	OCF_RESKEY_ip
+ *	OCF_RESKEY_broadcast
+ *	OCF_RESKEY_nic
+ *	OCF_RESKEY_cidr_netmask
  *
  *	If the CIDR netmask is omitted, we choose the netmask associated with
  *	the route we selected.
@@ -58,12 +47,10 @@
  *	See http://www.doom.net/docs/netmask.html for a table explaining
  *	CIDR address format and their relationship to life, the universe
  *	and everything.
+ *
  */
 
-#include <portability.h>
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <lha_internal.h>
 
 #include <stdio.h>
 #include <limits.h>
@@ -143,7 +130,7 @@ SearchRoute *search_mechs[] = {
 	NULL
 };
 
-void GetAddress (char *inputaddress, char **address, char **netmaskbits
+void GetAddress (char **address, char **netmaskbits
 ,	 char **bcast_arg, char **if_specified);
 
 void ValidateNetmaskBits (char *netmaskbits, unsigned long *netmask);
@@ -278,11 +265,13 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 
 	
 	/* Open route and get the information */
-	snprintf (routecmd, errmsglen, "%s %s %s", ROUTE, ROUTEPARM, address);
+	snprintf (routecmd, sizeof(routecmd), "%s %s %s"
+	,	ROUTE, ROUTEPARM, address);
 	routefd = popen (routecmd, "r");
 	if (routefd == NULL)
 		return (-1);
 	mask[0] = EOS;
+	interface[0] = EOS;
 
 
 	while ((done < 3) && fgets(buf, sizeof(buf), routefd)) {
@@ -358,6 +347,10 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 	}
 
 	if ((in->s_addr & maskbits) == (addr_out->s_addr & maskbits)) {
+		if (interface[0] == EOS) {
+			snprintf(errmsg, errmsglen, "No interface found.");
+			return(1);
+		}
 		best_metric = 0;
 		*best_netmask = maskbits;
 		strncpy(best_if, interface, best_iflen);
@@ -372,87 +365,29 @@ SearchUsingRouteCmd (char *address, struct in_addr *in
 }
 
 /*
- *	GetAddress can deal with the condition of inputaddress= "192.168.0.1///" , 
- *      which perhaps produced by empty parameters of OCF
- *      
- *      E.g. OCF parameter
- *
- *	    BASEIP=135.9.216.100
- *	    NETMASK=""
- *	    NIC=""
- *	    BRDCAST=""
- *      So , When we call findif function...
- *      findif -C "$BASEIP/$NETMASK/$NIC/$BRDCAST"
- *
- *      inputaddress=135.9.216.100///
- *
+ * Getaddress gets all its real parameters from the OCF environment
+ * variables that its callers already use.
  */
 void
-GetAddress (char *inputaddress, char **address, char **netmaskbits
+GetAddress (char **address, char **netmaskbits
 ,	 char **bcast_arg, char **if_specified)
 {
 	/*
-	 *	See comment at the top of this file for
-	 *	the format of the argument passed to this programme.
-	 *	The format is broken out into the strings
-	 *	passed to this function.
+	 *	Here are out input environment variables:
+	 *
+	 *	OCF_RESKEY_ip		ip address
+	 *	OCF_RESKEY_cidr_netmask netmask of interface
+	 *	OCF_RESKEY_broadcast	broadcast address for interface
+	 *	OCF_RESKEY_nic		interface to assign to
 	 *
 	 */
-	*address = inputaddress;
-
-	if ((*netmaskbits = strchr(*address, DELIM)) != NULL) {
-		**netmaskbits = EOS;
-		++(*netmaskbits);
-		
-		/*
-		 *	filter redundancy '/'  
-		 *      E.g.  'inputaddress=135.9.216.100///'
-		 */
-		while (**netmaskbits == DELIM) {
-			++(*netmaskbits);
-		}
-		if (**netmaskbits == EOS) {
-			*netmaskbits = NULL;
-			return ;
-		}
-		
-		if ((*bcast_arg=strchr(*netmaskbits, DELIM)) != NULL) {
-			**bcast_arg = EOS;
-			++*bcast_arg;
-			/*      filter redundancy '/'
-			 *      E.g.  'inputaddress=135.9.216.100/24//'
-			 */
-			while (**bcast_arg == DELIM) {
-				++*bcast_arg;
-			}
-			if ( **bcast_arg == EOS) {
-				*bcast_arg = NULL;
-				return ;
-			}
-			/* Did they specify the interface to use? */
-			if (!isdigit((int)**bcast_arg)) {
-				*if_specified = *bcast_arg;
-				if ((*bcast_arg=strchr(*bcast_arg,DELIM))
-				!=	NULL){
-					**bcast_arg = EOS;
-					++*bcast_arg;
-					/*      filter redundancy '/'
-					 *	E.g.  'inputaddress=135.9.216.100/24/eth0/'
-					 */
-					while (**bcast_arg == DELIM) {
-						++*bcast_arg;
-					}
-					if ( **bcast_arg == EOS) {
-						*bcast_arg = NULL;
-						return;
-					}
-				}else{
-					*bcast_arg = NULL;
-				}
-				/* OK... Now we know the interface */
-			}
-		}
+	*address = getenv("OCF_RESKEY_ip");
+	*netmaskbits = getenv("OCF_RESKEY_cidr_netmask");
+	if (*netmaskbits == NULL) {
+		*netmaskbits = getenv("OCF_RESKEY_netmask");
 	}
+	*bcast_arg = getenv("OCF_RESKEY_broadcast");
+	*if_specified = getenv("OCF_RESKEY_nic");
 }
 
 void
@@ -644,7 +579,6 @@ octals_to_bits(const char *octals)
 int
 main(int argc, char ** argv) {
 
-	char *	iparg = NULL;
 	char *	address = NULL;
 	char *	bcast_arg = NULL;
 	char *	netmaskbits = NULL;
@@ -665,18 +599,13 @@ main(int argc, char ** argv) {
 	memset(&ifr, 0, sizeof(ifr));
 
 	switch (argc) {
-	case 2:	/* No -C argument */
-		if (argv[1][0] == '-') {
-			argerrs=1;
-		}
-		iparg=argv[1];
+	case 1:	/* No -C argument */
 		break;
-	case 3: /* Hopefully a -C argument */
+	case 2: /* Hopefully a -C argument */
 		if (strncmp(argv[1], "-C", sizeof("-C")) != 0) {
 			argerrs=1;
 		}
 		OutputInCIDR=1;
-		iparg=argv[2];
 		break;
 	default:
 		argerrs=1;
@@ -687,7 +616,7 @@ main(int argc, char ** argv) {
 		return(1);
 	}
 
-	GetAddress (iparg, &address, &netmaskbits, &bcast_arg
+	GetAddress (&address, &netmaskbits, &bcast_arg
 	,	 &if_specified);
 
 	/* Is the IP address we're supposed to find valid? */
@@ -917,256 +846,3 @@ ff02::%vx0/32                     link#2                        UC          vx0
 ff02::%lo0/32                     fe80::1%lo0                   UC          lo0
 */
 
-/* 
- * $Log: findif.c,v $
- * Revision 1.60  2006/04/20 09:02:13  davidlee
- * A ':' in an interface name is probably an error (but for now treat as a mere warning).
- *
- * Revision 1.59  2006/04/10 09:55:02  andrew
- * Fix findif for any OS that doesnt use /proc/route
- *
- * Revision 1.58  2006/04/10 07:25:03  andrew
- * Compile warning: used unitialized
- *
- * Revision 1.57  2006/04/08 11:07:26  lars
- * CID 37: Forgot to initialize the variable.
- *
- * Revision 1.56  2006/04/07 13:03:47  lars
- * CID 19: RESOURCE_LEAK in error leg.
- *
- * Revision 1.55  2006/04/07 13:00:15  lars
- * CID: 18. RESOURCE_LEAK in error legs.
- *
- * Additionally, we ought to treat the mechanism as failed if we couldn't
- * parse the data we read.
- *
- * Revision 1.54  2006/03/09 04:52:29  xunsun
- * removed the extra blanks which would cause problems when parsed by OCF IPaddr RA
- *
- * Revision 1.53  2006/02/16 13:14:49  xunsun
- * check both interface name and broadcast address specified by user
- *
- * Revision 1.52  2006/01/26 16:46:59  davidlee
- * 'ConvertBitsToMask()' was buggy.  Remove, replacing with call to OS-native 'inet_pton()'.
- *
- * Revision 1.51  2006/01/26 12:59:14  davidlee
- * Handle: 'mask: default' from 'route get ...'
- *
- * Revision 1.50  2005/11/09 16:03:22  davidlee
- * For 'ctype' macros/functions, some platforms warn if argument is not of type (int)
- *
- * Revision 1.49  2005/07/29 06:55:37  sunjd
- * bug668: license update
- *
- * Revision 1.48  2005/07/13 14:55:41  lars
- * Compile warnings: Ignored return values from sscanf/fgets/system etc,
- * minor signedness issues.
- *
- * Revision 1.47  2005/06/22 11:50:32  davidlee
- * previous update didn't compile on Solaris (order #include)
- *
- * Revision 1.46  2005/06/20 11:05:11  sunjd
- * Bug 619: let loopback interface can be bound
- *
- * Revision 1.45  2005/03/11 10:03:19  zhaokai
- * polished function GetAddress to compatible OCF empty parameter
- *
- * Revision 1.44  2005/03/04 15:34:59  alan
- * Fixed various signed/unsigned errors...
- *
- * Revision 1.43  2005/02/17 17:21:55  alan
- * Put in missing {}s
- *
- * Revision 1.42  2004/10/24 14:47:31  lge
- * -pedantic-errors fixes 4:
- *  * Warning: static declaration for `verbose' follows non-static
- *    warning: overflow in implicit constant conversion
- *    Warning: unsigned int format, int arg (arg #)
- *   only casted, not "fixed":
- *    warning: long unsigned int format, long int arg (arg #)
- *    would include changing all deadtime_ms and similar to unsigned long.
- *    needs to be discussed first.
- *    offending idiom is:
- *    long l;
- *    sscanf(buf,"%lx",&l);
- *
- * Revision 1.41  2004/09/18 23:11:54  alan
- * Bringing forward trivial changes from 1.2 version.
- *
- * Revision 1.40  2004/09/10 21:22:50  alan
- * Put something back which I shouldn't have changed.
- * The code used to allow a /32 netmask, and I mistakenly made it an error.
- *
- * Revision 1.39  2004/09/10 01:12:23  alan
- * BEAM CHANGES: Fixed a couple of very minor bugs, and cleaned up some BEAM warnings.
- *
- * Revision 1.38  2004/04/29 14:18:20  kevin
- * Be nice to the non C99 compliant comilers. (Declarations come first)
- *
- * Revision 1.37  2004/04/29 07:12:19  lars
- * add missing return
- *
- * Revision 1.36  2004/04/27 11:33:19  horms
- * Honour -C flag when broadcast is supplied
- *
- * Revision 1.35  2004/04/27 11:25:59  horms
- * Document -C option to findif
- *
- * Revision 1.34  2004/03/25 07:55:39  alan
- * Moved heartbeat libraries to the lib directory.
- *
- * Revision 1.33  2004/02/17 22:11:57  lars
- * Pet peeve removal: _Id et al now gone, replaced with consistent Id header.
- *
- * Revision 1.32  2004/01/20 10:16:08  horms
- * Should be strncpy not strncmp
- *
- * Revision 1.31  2004/01/14 17:51:07  alan
- * Put in some minor code cleanups suggested by Emily Ratliff.
- *
- * Revision 1.30  2003/09/26 05:55:54  alan
- * Fixed an undefined variable warning...
- *
- * Revision 1.29  2003/07/02 22:27:00  alan
- * Fixed a bug in the broadcast output format for CIDR -C option for findif.
- *
- * Revision 1.28  2003/06/18 03:43:42  horms
- * spelling
- *
- * Revision 1.27  2003/04/19 03:59:15  alan
- * Put in an enhancement to findif to allow Tuomo Soini to get the output he
- * wants in CIDR format.
- *
- * Revision 1.26  2003/04/15 01:58:54  horms
- * turn debuging off
- *
- * Revision 1.25  2003/04/14 10:22:44  horms
- * should now work correclty with /32
- *
- * Revision 1.24  2003/04/14 09:53:17  horms
- * minor reformating
- *
- * Revision 1.23  2003/02/27 06:46:35  horms
- * Slightly better documentation of the options to findif and thus IPaddr.
- * In particular, how to explicitly define the base interface for a VIP.
- *
- * Revision 1.22  2003/02/07 08:37:16  horms
- * Removed inclusion of portability.h from .h files
- * so that it does not need to be installed.
- *
- * Revision 1.21  2003/02/05 09:06:33  horms
- * Lars put a lot of work into making sure that portability.h
- * is included first, everywhere. However this broke a few
- * things when building against heartbeat headers that
- * have been installed (usually somewhere under /usr/include or
- * /usr/local/include).
- *
- * This patch should resolve this problem without undoing all of
- * Lars's hard work.
- *
- * As an asside: I think that portability.h is a virus that has
- * infected all of heartbeat's code and now must also infect all
- * code that builds against heartbeat. I wish that it didn't need
- * to be included all over the place. Especially in headers to
- * be installed on the system. However, I respect Lars's opinion
- * that this is the best way to resolve some weird build problems
- * in the current tree.
- *
- * Revision 1.20  2003/01/31 10:02:09  lars
- * Various small code cleanups:
- * - Lots of "signed vs unsigned" comparison fixes
- * - time_t globally replaced with TIME_T
- * - All seqnos moved to "seqno_t", which defaults to unsigned long
- * - DIMOF() definition centralized to portability.h and typecast to int
- * - EOS define moved to portability.h
- * - dropped inclusion of signal.h from stonith.h, so that sigignore is
- *   properly defined
- *
- * Revision 1.19  2002/10/31 19:10:48  msoffen
- * Corrected the find route with "ROUTE" command handles the default route properly.
- *
- * Revision 1.18  2002/07/08 04:14:12  alan
- * Updated comments in the front of various files.
- * Removed Matt's Solaris fix (which seems to be illegal on Linux).
- *
- * Revision 1.17  2002/04/29 07:18:44  alan
- * Patch from Thomas Hepper for Solaris.
- *
- * Revision 1.16  2001/10/13 21:03:12  alan
- * Put in a fix to the findif command which makes it test which way to get
- * routing information at run time rather than at compile time.
- * This permits configure to be run as a normal user on environments where
- * /proc/route isn't available.
- *
- * Revision 1.15  2001/10/03 05:45:56  alan
- * Added a couple of patches from Matt Soffen:
- * Make a debug statement conditional ;-)
- * Fix configure so it does things correctly on FreeBSD and Solaris findif.c
- * configuration parameters.
- *
- * Revision 1.14  2001/09/27 17:02:34  alan
- * Shortened alarm time in write in serial.c
- * Put in a handful of Solaris warning-elimination patches.
- *
- * Revision 1.13  2001/08/10 17:35:37  alan
- * Removed some files for comm plugins
- * Moved the rest of the software over to use the new plugin system for comm
- * plugins.
- *
- * Revision 1.12  2001/07/17 15:00:04  alan
- * Put in Matt's changes for findif, and committed my changes for the new module loader.
- * You now have to have glib.
- *
- * Revision 1.11  2001/06/23 04:30:26  alan
- * Changed the code to use inet_pton() when it's available, and
- * emulate it when it's not...  Patch was from Chris Wright.
- *
- * Revision 1.10  2001/06/07 21:29:44  alan
- * Put in various portability changes to compile on Solaris w/o warnings.
- * The symptoms came courtesy of David Lee.
- *
- * Revision 1.9  2001/05/10 22:36:37  alan
- * Deleted Makefiles from CVS and made all the warnings go away.
- *
- * Revision 1.8  2001/02/05 04:55:27  alan
- * Sparc fix from Uzi.
- *
- * Revision 1.7  2000/08/30 20:32:39  alan
- * Fixed a byte ordering problem in findif.c.  There's probably another one in the code yet.
- *
- * Revision 1.6  2000/08/13 20:37:49  alan
- * Fixed a bug related to byte-ordering in findif.c.  Thanks to
- *         Lars Kellogg-Stedman for the fix.  There are probably some
- * 	related to byte ordering in input that still need fixing...
- *
- * Revision 1.5  2000/07/26 05:17:19  alan
- * Added GPL license statements to all the code.
- *
- * Revision 1.4  2000/06/21 04:34:48  alan
- * Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
- *
- * Revision 1.3  2000/01/26 15:16:48  alan
- * Added code from Michael Moerz <mike@cubit.at> to keep findif from
- * core dumping if /proc/route can't be read.
- *
- * Revision 1.2  1999/09/30 18:34:27  alanr
- * Matt Soffen's FreeBSD changes
- *
- * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
- * High-Availability Linux
- *
- * Revision 1.5  1999/09/22 16:49:03  alanr
- * Put in the ability to explicitly specify the interface on the command line argument.
- * This was requested by Lars Marowsky-Bree.
- *
- * Revision 1.4  1999/09/16 15:03:24  alanr
- * fixed a glaring bug in CIDR style addresses...
- *
- * Revision 1.3  1999/09/12 06:23:00  alanr
- * Fixed calculation of the broadcast address.
- * Disallowed using default route to locate interface, unless a netmask is specified.
- *
- * Revision 1.2  1999/08/17 03:45:32  alanr
- * added RCS log to end of file...
- *
- */

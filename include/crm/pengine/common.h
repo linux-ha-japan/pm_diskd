@@ -1,4 +1,3 @@
-/* $Id: common.h,v 1.4 2006/08/14 09:06:31 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -19,31 +18,6 @@
 #ifndef PE_COMMON__H
 #define PE_COMMON__H
 
-/*
- * The man pages for both curses and ncurses suggest inclusion of "curses.h".
- * We believe the following to be acceptable and portable.
- */
-
-#if defined(HAVE_LIBNCURSES) || defined(HAVE_LIBCURSES)
-#if defined(HAVE_NCURSES_H) && !defined(HAVE_INCOMPATIBLE_PRINTW)
-#  include <ncurses.h>
-#  define CURSES_ENABLED 1
-#elif defined(HAVE_NCURSES_NCURSES_H) && !defined(HAVE_INCOMPATIBLE_PRINTW)
-#  include <ncurses/ncurses.h>
-#  define CURSES_ENABLED 1
-#elif defined(HAVE_CURSES_H) && !defined(HAVE_INCOMPATIBLE_PRINTW)
-#  include <curses.h>
-#  define CURSES_ENABLED 1
-#elif defined(HAVE_CURSES_CURSES_H) && !defined(HAVE_INCOMPATIBLE_PRINTW)
-#  include <curses/curses.h>
-#  define CURSES_ENABLED 1
-#else
-#  define CURSES_ENABLED 0
-#endif
-#else
-#  define CURSES_ENABLED 0
-#endif
-
 extern gboolean was_processing_error;
 extern gboolean was_processing_warning;
 extern unsigned int pengine_input_loglevel;
@@ -55,9 +29,10 @@ extern unsigned int pengine_input_loglevel;
 enum action_fail_response {
 	action_fail_ignore,
 	action_fail_recover,
-	action_fail_migrate,
+	action_migrate_failure, /* recovery from a failed atomic migration */
+	action_fail_migrate,    /* recover by moving it somewhere else */
 	action_fail_block,
-/* 	action_fail_stop, */
+	action_fail_stop,
 	action_fail_fence
 };
 
@@ -89,14 +64,6 @@ enum rsc_start_requirement {
 	rsc_req_nothing,
 	rsc_req_quorum,
 	rsc_req_stonith
-};
-
-enum pe_ordering {
-	pe_ordering_manditory,
-	pe_ordering_restart,
-	pe_ordering_recover,
-	pe_ordering_postnotify,
-	pe_ordering_optional
 };
 
 enum rsc_role_e {

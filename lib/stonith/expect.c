@@ -1,4 +1,3 @@
-/* $Id: expect.c,v 1.24 2006/08/17 08:26:29 zhenh Exp $ */
 /*
  * Simple expect module for the STONITH library
  *
@@ -20,7 +19,7 @@
  *
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>

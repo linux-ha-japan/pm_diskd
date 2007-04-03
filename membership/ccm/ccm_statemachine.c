@@ -1,4 +1,3 @@
-/* $Id: ccm_statemachine.c,v 1.22 2006/08/16 09:59:34 zhenh Exp $ */
 /* 
  * ccm.c: Consensus Cluster Service Program 
  *
@@ -20,9 +19,9 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  */
+#include <lha_internal.h>
+
 #include <ccm.h>
-#include <config.h>
-#include <ha_config.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
@@ -2778,7 +2777,7 @@ switchstatement:
 				 */
 				if (UPDATE_GET_NODECOUNT(
 					CCM_GET_UPDATETABLE(info)) ==
-				    CCM_GET_LLM_NODECOUNT(info)) {
+				    llm_get_live_nodecount(&info->llm)) {
 
 					/* check if I am the leader */
 					if (update_am_i_leader(
@@ -2849,7 +2848,7 @@ switchstatement:
 					CCM_GET_LLM(info), orig, trans_majorval);
 
 
-			if (UPDATE_GET_NODECOUNT( CCM_GET_UPDATETABLE(info)) == CCM_GET_LLM_NODECOUNT(info)
+			if (UPDATE_GET_NODECOUNT( CCM_GET_UPDATETABLE(info)) == llm_get_live_nodecount(&info->llm)
 			    && !update_am_i_leader(CCM_GET_UPDATETABLE(info), CCM_GET_LLM(info))) {	
 				
 				if (ccm_send_cl_reply(hb,info) == TRUE) {

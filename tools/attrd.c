@@ -1,4 +1,3 @@
-/* $Id: attrd.c,v 1.7 2006/05/16 14:46:25 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 #include <stdio.h>
@@ -36,7 +35,7 @@
 #include <clplumbing/coredumps.h>
 #include <clplumbing/Gmain_timeout.h>
 
-/* #include <portability.h> */
+/* #include <lha_internal.h> */
 #include <ocf/oc_event.h>
 /* #include <ocf/oc_membership.h> */
 
@@ -53,7 +52,7 @@
 
 GMainLoop*  mainloop = NULL;
 const char *attrd_uname = NULL;
-const char *attrd_uuid = NULL;
+char *attrd_uuid = NULL;
 ll_cluster_t	*attrd_cluster_conn;
 gboolean need_shutdown = FALSE;
 
@@ -85,6 +84,7 @@ free_hash_entry(gpointer data)
 	}	
 	crm_free(entry->id);
 	crm_free(entry->set);
+	crm_free(entry->dampen);
 	crm_free(entry->section);
 	if(entry->value != entry->last_value) {
 		crm_free(entry->value);
@@ -296,12 +296,18 @@ attrd_ha_connection_destroy(gpointer user_data)
 	}
 
 	crm_crit("Lost connection to heartbeat service!");
+	if (mainloop != NULL && g_main_is_running(mainloop)) {
+		g_main_quit(mainloop);
+		return;
+	}
+	exit(LSB_EXIT_OK);	
 }
 
 
 static gboolean
 register_with_ha(void) 
 {
+	const char *const_attrd_uuid = NULL;
 	if(attrd_cluster_conn == NULL) {
 		attrd_cluster_conn = ll_cluster_new("heartbeat");
 	}
@@ -345,13 +351,13 @@ register_with_ha(void)
 	crm_info("Hostname: %s", attrd_uname);
 
 	crm_debug_3("Finding our node uuid");
-	attrd_uuid = get_uuid(attrd_cluster_conn, attrd_uname);
-	if(attrd_uuid == NULL) {
+	const_attrd_uuid = get_uuid(attrd_cluster_conn, attrd_uname);
+	if(const_attrd_uuid == NULL) {
 		crm_err("get_uuid_by_name() failed");
 		return FALSE;
 	}
 	/* copy it so that unget_uuid() doesn't trash the value on us */
-	attrd_uuid = crm_strdup(attrd_uuid);
+	attrd_uuid = crm_strdup(const_attrd_uuid);
 	crm_info("UUID: %s", attrd_uuid);
 
 	return TRUE;
@@ -363,6 +369,7 @@ main(int argc, char ** argv)
 	int flag;
 	int argerr = 0;
 	gboolean was_err = FALSE;
+	char *channel_name = crm_strdup(attrd_channel);
 	
 	crm_log_init(T_ATTRD);
 	G_main_add_SignalHandler(
@@ -416,7 +423,7 @@ main(int argc, char ** argv)
 	
 	if(was_err == FALSE) {
 		int rc = init_server_ipc_comms(
-			crm_strdup(attrd_channel), attrd_connect,
+			channel_name, attrd_connect,
 			default_ipc_connection_destroy);
 		
 		if(rc != 0) {
@@ -437,7 +444,21 @@ main(int argc, char ** argv)
 	mainloop = g_main_new(FALSE);
 	g_main_run(mainloop);
 	crm_info("Exiting...");
+
+	attrd_cluster_conn->llc_ops->signoff(attrd_cluster_conn, TRUE);
+	attrd_cluster_conn->llc_ops->delete(attrd_cluster_conn);
 	
+	cib_conn->cmds->signoff(cib_conn);
+	cib_delete(cib_conn);
+
+	g_hash_table_destroy(attr_hash);
+	crm_free(channel_name);
+	crm_free(attrd_uuid);
+	empty_uuid_cache();
+
+#ifdef HA_MALLOC_TRACK
+	cl_malloc_dump_allocated(LOG_ERR, FALSE);
+#endif
 	return 0;
 }
 
@@ -477,6 +498,7 @@ find_hash_entry(HA_Message * msg)
 
 	value = ha_msg_value(msg, F_ATTRD_SET);
 	if(value != NULL) {
+		crm_free(hash_entry->set);
 		hash_entry->set = crm_strdup(value);
 		crm_debug("\t%s->set: %s", attr, value);
 	}
@@ -485,12 +507,15 @@ find_hash_entry(HA_Message * msg)
 	if(value == NULL) {
 		value = XML_CIB_TAG_STATUS;
 	}
+	crm_free(hash_entry->section);
 	hash_entry->section = crm_strdup(value);
 	crm_debug("\t%s->section: %s", attr, value);
 	
 	value = ha_msg_value(msg, F_ATTRD_DAMPEN);
 	if(value != NULL) {
+		crm_free(hash_entry->dampen);
 		hash_entry->dampen = crm_strdup(value);
+
 		hash_entry->timeout = crm_get_msec(value);
 		crm_debug("\t%s->timeout: %s", attr, value);
 	}
@@ -505,12 +530,18 @@ attrd_ha_callback(HA_Message * msg, void* private_data)
 	attr_hash_entry_t *hash_entry = NULL;
 	const char *from = ha_msg_value(msg, F_ORIG);
 	const char *op   = ha_msg_value(msg, F_ATTRD_TASK);
+	const char *value= ha_msg_value(msg, F_ATTRD_VALUE);
 	const char *attr = ha_msg_value(msg, F_ATTRD_ATTRIBUTE);
 
 	crm_info("%s message from %s", op, from);
 	hash_entry = find_hash_entry(msg);
 	stop_attrd_timer(hash_entry);
-	if(hash_entry->value == NULL) {
+
+	if(safe_str_neq(from, attrd_uname)) {
+		value = hash_entry->value;
+	}
+
+	if(value == NULL) {
 		/* delete the attr */
 		rc = delete_attr(cib_conn, cib_none, hash_entry->section, attrd_uuid,
 				 hash_entry->set, NULL, attr, NULL);
@@ -521,8 +552,8 @@ attrd_ha_callback(HA_Message * msg, void* private_data)
 		/* send update */
 		rc = update_attr(cib_conn, cib_none, hash_entry->section,
  				 attrd_uuid, hash_entry->set, NULL,
- 				 hash_entry->id, hash_entry->value);
-		crm_info("Sent update %d: %s=%s", rc, hash_entry->id,hash_entry->value);
+ 				 hash_entry->id, value);
+		crm_info("Sent update %d: %s=%s", rc, hash_entry->id, value);
 	}
 
 	add_cib_op_callback(rc, FALSE, crm_strdup(attr), attrd_cib_callback);
@@ -600,7 +631,9 @@ attrd_timer_callback(void *user_data)
 	ha_msg_add(msg, F_ATTRD_SET, hash_entry->set);
 	ha_msg_add(msg, F_ATTRD_SECTION, hash_entry->section);
 	ha_msg_add(msg, F_ATTRD_DAMPEN, hash_entry->dampen);
+	ha_msg_add(msg, F_ATTRD_VALUE, hash_entry->value);
 	send_ha_message(attrd_cluster_conn, msg, NULL, FALSE);
+	crm_msg_del(msg);
 	
 	return TRUE;
 }

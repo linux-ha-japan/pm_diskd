@@ -20,10 +20,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <portability.h>
-#include <config.h>
+#include <lha_internal.h>
 #include <clplumbing/cl_uuid.h>
 #include <heartbeat.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -102,7 +102,7 @@ static void
 free_data_func(gpointer data)
 {
 	if (data){
-		ha_free(data);
+		cl_free(data);
 		data = NULL;
 	}
 }
@@ -224,7 +224,7 @@ schedule_rexmit_request(struct node_info* node, seqno_t seq, int delay)
 		delay = ((rand()*max_rexmit_delay)+RANDROUND)/RAND_MAX;
 	}
 	
-	ri = ha_malloc(sizeof(struct rexmit_info));
+	ri = cl_malloc(sizeof(struct rexmit_info));
 	if (ri == NULL){
 		cl_log(LOG_ERR, "%s: memory allocation failed", __FUNCTION__);
 		return;

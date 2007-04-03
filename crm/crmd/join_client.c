@@ -15,7 +15,7 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <heartbeat.h>
 
@@ -27,7 +27,6 @@
 #include <crmd_fsa.h>
 #include <crmd_messages.h>
 
-#include <crm/dmalloc_wrapper.h>
 
 int reannounce_count = 0;
 void join_query_callback(const HA_Message *msg, int call_id, int rc,

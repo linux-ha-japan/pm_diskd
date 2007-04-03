@@ -1,4 +1,3 @@
-/* $Id: callbacks.c,v 1.89 2006/08/14 09:14:45 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/stat.h>
 
@@ -249,15 +248,18 @@ process_te_message(HA_Message *msg, crm_data_t *xml_data, IPC_Channel *sender)
 				transition_graph = unpack_graph(xml_data);
 
 			} else {
+				crm_data_t *graph_data = NULL;
 				FILE *graph_fd = fopen(graph_file, "r");
-				crm_data_t *graph_data = file2xml(graph_fd, FALSE);
 				CRM_CHECK(graph_fd != NULL,
-					  crm_err("Could not open graph filename: %s", graph_file);
+					  cl_perror("Could not open graph file %s", graph_file);
 					  return TRUE);
+
+				graph_data = file2xml(graph_fd, FALSE);
 				transition_graph = unpack_graph(graph_data);
-				fclose(graph_fd);
+
 				free_xml(graph_data);
 				unlink(graph_file);
+				fclose(graph_fd);
 			}
 			
 			start_global_timer(transition_timer,
@@ -307,6 +309,7 @@ tengine_stonith_callback(stonith_ops_t * op)
 	CRM_CHECK(decode_transition_key(
 			  op->private_data, &uuid, &transition_id, &stonith_id),
 		  crm_err("Invalid event detected");
+		  goto bail;
 		);
 	
 	if(transition_graph->complete
@@ -321,7 +324,7 @@ tengine_stonith_callback(stonith_ops_t * op)
 	
 	if(stonith_action == NULL) {
 		crm_err("Stonith action not matched");
-		return;
+		goto bail;
 	}
 
 	switch(op->op_result) {
@@ -352,6 +355,9 @@ tengine_stonith_callback(stonith_ops_t * op)
 	
 	update_graph(transition_graph, stonith_action);
 	trigger_graph();
+
+  bail:
+	crm_free(uuid);
 	return;
 }
 
@@ -542,7 +548,7 @@ te_graph_trigger(gpointer user_data)
 
 	if(transition_graph->complete) {
 		notify_crmd(transition_graph);
-		return TRUE;	
+		return TRUE;
 	}
 
 	graph_rc = run_graph(transition_graph);
@@ -556,7 +562,6 @@ te_graph_trigger(gpointer user_data)
 		return TRUE;		
 
 	} else if(graph_rc == transition_pending) {
-		timeout = transition_timer->timeout;
 		crm_debug_3("Transition not yet complete - no actions fired");
 		return TRUE;		
 	}

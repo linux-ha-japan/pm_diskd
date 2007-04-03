@@ -1,4 +1,3 @@
-/* $Id: transition.h,v 1.7 2006/08/14 09:00:56 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -16,8 +15,6 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
-#include <portability.h>
 
 #include <crm/crm.h>
 #include <crm/msg_xml.h>

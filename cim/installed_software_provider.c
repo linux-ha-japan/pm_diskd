@@ -21,10 +21,7 @@
  *
  */
 
-#include <portability.h>
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <lha_internal.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

@@ -1,4 +1,3 @@
-/* $Id: native.c,v 1.161 2006/08/17 07:17:15 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <pengine.h>
 #include <crm/pengine/rules.h>
@@ -44,6 +43,8 @@ void native_rsc_colocation_rh_mustnot(resource_t *rsc_lh, gboolean update_lh,
 void create_notifications(resource_t *rsc, pe_working_set_t *data_set);
 void Recurring(resource_t *rsc, action_t *start, node_t *node,
 			      pe_working_set_t *data_set);
+void RecurringOp(resource_t *rsc, action_t *start, node_t *node,
+		 crm_data_t *operation, pe_working_set_t *data_set);
 void pe_pre_notify(
 	resource_t *rsc, node_t *node, action_t *op, 
 	notify_data_t *n_data, pe_working_set_t *data_set);
@@ -171,7 +172,7 @@ native_color(resource_t *rsc, pe_working_set_t *data_set)
 	}
 
 	if(rsc->is_allocating) {
-		crm_err("Dependancy loop detected involving %s", rsc->id);
+		crm_debug("Dependancy loop detected involving %s", rsc->id);
 		return NULL;
 	}
 
@@ -229,8 +230,8 @@ native_color(resource_t *rsc, pe_working_set_t *data_set)
 }
 
 void
-Recurring(resource_t *rsc, action_t *start, node_t *node,
-			 pe_working_set_t *data_set) 
+RecurringOp(resource_t *rsc, action_t *start, node_t *node,
+	    crm_data_t *operation, pe_working_set_t *data_set) 
 {
 	char *key = NULL;
 	const char *name = NULL;
@@ -247,113 +248,121 @@ Recurring(resource_t *rsc, action_t *start, node_t *node,
 	if(node != NULL) {
 		node_uname = node->details->uname;
 	}
+
+	interval = crm_element_value(operation, XML_LRM_ATTR_INTERVAL);
+	interval_ms = crm_get_msec(interval);
+	
+	if(interval_ms <= 0) {
+		return;
+	}
+	
+	value = crm_element_value(operation, "disabled");
+	if(crm_is_true(value)) {
+		return;
+	}
+	
+	name = crm_element_value(operation, "name");
+	key = generate_op_key(rsc->id, name, interval_ms);
+	if(start != NULL) {
+		crm_debug_3("Marking %s %s due to %s",
+			    key, start->optional?"optional":"manditory",
+			    start->uuid);
+		is_optional = start->optional;
+	} else {
+		crm_debug_2("Marking %s optional", key);
+		is_optional = TRUE;
+	}
+	
+	/* start a monitor for an already active resource */
+	possible_matches = find_actions_exact(rsc->actions, key, node);
+	if(possible_matches == NULL) {
+		is_optional = FALSE;
+		crm_debug_3("Marking %s manditory: not active", key);
+	}
+	
+	value = crm_element_value(operation, "role");
+	if((rsc->next_role == RSC_ROLE_MASTER && value == NULL)
+	   || (value != NULL && text2role(value) != rsc->next_role)) {
+		int log_level = LOG_DEBUG_2;
+		const char *result = "Ignoring";
+		if(is_optional) {
+			char *local_key = crm_strdup(key);
+			log_level = LOG_INFO;
+			result = "Cancelling";
+			/* its running : cancel it */
+			
+			mon = custom_action(
+				rsc, local_key, CRMD_ACTION_CANCEL, node,
+				FALSE, TRUE, data_set);
+			
+			mon->task = CRMD_ACTION_CANCEL;
+			add_hash_param(mon->meta, XML_LRM_ATTR_INTERVAL, interval);
+			add_hash_param(mon->meta, XML_LRM_ATTR_TASK, name);
+			
+			custom_action_order(
+				rsc, NULL, mon,
+				rsc, promote_key(rsc), NULL,
+				pe_order_optional, data_set);
+			
+			mon = NULL;
+		}
+		
+		do_crm_log(log_level, "%s action %s (%s vs. %s)",
+			   result , key, value?value:role2text(RSC_ROLE_SLAVE),
+			   role2text(rsc->next_role));
+
+		crm_free(key);
+		key = NULL;
+		return;
+	}		
+		
+	mon = custom_action(rsc, key, name, node,
+			    is_optional, TRUE, data_set);
+	key = mon->uuid;
+	if(is_optional) {
+		crm_debug("%s\t   %s (optional)",
+			  crm_str(node_uname), mon->uuid);
+	}
+	
+	if(start == NULL || start->runnable == FALSE) {
+		crm_debug("%s\t   %s (cancelled : start un-runnable)",
+			  crm_str(node_uname), mon->uuid);
+		mon->runnable = FALSE;
+		
+	} else if(node == NULL
+		  || node->details->online == FALSE
+		  || node->details->unclean) {
+		crm_debug("%s\t   %s (cancelled : no node available)",
+			  crm_str(node_uname), mon->uuid);
+		mon->runnable = FALSE;
+		
+	} else if(mon->optional == FALSE) {
+		crm_notice("%s\t   %s", crm_str(node_uname),mon->uuid);
+	}
+	
+	custom_action_order(rsc, start_key(rsc), NULL,
+			    NULL, crm_strdup(key), mon,
+			    pe_order_internal_restart, data_set);
+	
+	if(rsc->next_role == RSC_ROLE_MASTER) {
+		char *running_master = crm_itoa(EXECRA_RUNNING_MASTER);
+		add_hash_param(mon->meta, XML_ATTR_TE_TARGET_RC, running_master);
+		custom_action_order(
+			rsc, promote_key(rsc), NULL,
+			rsc, NULL, mon,
+			pe_order_optional, data_set);
+		crm_free(running_master);
+	}		
+}
+
+void
+Recurring(resource_t *rsc, action_t *start, node_t *node,
+			 pe_working_set_t *data_set) 
+{
 	
 	xml_child_iter_filter(
 		rsc->ops_xml, operation, "op",
-		
-		is_optional = TRUE;
-		name = crm_element_value(operation, "name");
-		interval = crm_element_value(operation, XML_LRM_ATTR_INTERVAL);
-		interval_ms = crm_get_msec(interval);
-
-		if(interval_ms <= 0) {
-			continue;
-		}
-
-		value = crm_element_value(operation, "disabled");
-		if(crm_is_true(value)) {
-			continue;
-		}
-		
-		key = generate_op_key(rsc->id, name, interval_ms);
-		if(start != NULL) {
-			crm_debug_3("Marking %s %s due to %s",
-				    key, start->optional?"optional":"manditory",
-				    start->uuid);
-			is_optional = start->optional;
-		} else {
-			crm_debug_2("Marking %s optional", key);
-			is_optional = TRUE;
-		}
-		
-		/* start a monitor for an already active resource */
-		possible_matches = find_actions_exact(rsc->actions, key, node);
-		if(possible_matches == NULL) {
-			is_optional = FALSE;
-			crm_debug_3("Marking %s manditory: not active", key);
-		}
-
-		value = crm_element_value(operation, "role");
-		if((rsc->next_role == RSC_ROLE_MASTER && value == NULL)
-		   || (value != NULL && text2role(value) != rsc->next_role)) {
-			int log_level = LOG_DEBUG_2;
-			const char *foo = "Ignoring";
-			if(is_optional) {
-				log_level = LOG_INFO;
-				foo = "Cancelling";
-				/* its running : cancel it */
-
-				mon = custom_action(
-					rsc, crm_strdup(key), CRMD_ACTION_CANCEL, node,
-					FALSE, TRUE, data_set);
-
-				mon->task = CRMD_ACTION_CANCEL;
-				add_hash_param(mon->meta, XML_LRM_ATTR_INTERVAL, interval);
-				add_hash_param(mon->meta, XML_LRM_ATTR_TASK, name);
-				
-				custom_action_order(
-					rsc, NULL, mon,
-					rsc, promote_key(rsc), NULL,
-					pe_ordering_optional, data_set);
-
-				mon = NULL;
-			}
-			
-			do_crm_log(log_level, "%s action %s (%s vs. %s)",
-				      foo , key, value?value:role2text(RSC_ROLE_SLAVE),
-				      role2text(rsc->next_role));
-			crm_free(key);
-			key = NULL;
-			continue;
-		}		
-		
-		mon = custom_action(rsc, key, name, node,
-				    is_optional, TRUE, data_set);
-
-		if(is_optional) {
-			crm_debug("%s\t   %s (optional)",
-				  crm_str(node_uname), mon->uuid);
-		}
-		
-		if(start == NULL || start->runnable == FALSE) {
-			crm_debug("%s\t   %s (cancelled : start un-runnable)",
-				  crm_str(node_uname), mon->uuid);
-			mon->runnable = FALSE;
-
-		} else if(node == NULL
-			  || node->details->online == FALSE
-			  || node->details->unclean) {
-			crm_debug("%s\t   %s (cancelled : no node available)",
-				  crm_str(node_uname), mon->uuid);
-			mon->runnable = FALSE;
-		
-		} else if(mon->optional == FALSE) {
-			crm_notice("%s\t   %s", crm_str(node_uname),mon->uuid);
-		}
-
-		custom_action_order(rsc, start_key(rsc), NULL,
-				    NULL, crm_strdup(key), mon,
-				    pe_ordering_restart, data_set);
-
-		if(rsc->next_role == RSC_ROLE_MASTER) {
-			char *running_master = crm_itoa(EXECRA_RUNNING_MASTER);
-			add_hash_param(mon->meta, XML_ATTR_TE_TARGET_RC, running_master);
-			custom_action_order(
-				rsc, promote_key(rsc), NULL,
-				rsc, NULL, mon,
-				pe_ordering_optional, data_set);
-			crm_free(running_master);
-		}		
+		RecurringOp(rsc, start, node, operation, data_set);		
 		);	
 }
 
@@ -428,19 +437,19 @@ void native_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 
 	custom_action_order(rsc, demote_key(rsc), NULL,
 			    rsc, stop_key(rsc), NULL,
-			    pe_ordering_manditory, data_set);
+			    pe_order_implies_left, data_set);
 
 	custom_action_order(rsc, start_key(rsc), NULL,
 			    rsc, promote_key(rsc), NULL,
-			    pe_ordering_optional, data_set);
+			    pe_order_optional, data_set);
 
 	custom_action_order(
 		rsc, stop_key(rsc), NULL, rsc, delete_key(rsc), NULL, 
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 
 	custom_action_order(
 		rsc, delete_key(rsc), NULL, rsc, start_key(rsc), NULL, 
-		pe_ordering_manditory, data_set);	
+		pe_order_implies_left, data_set);	
 
 	if(rsc->notify) {
 		char *key1 = NULL;
@@ -450,13 +459,13 @@ void native_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 		key2 = generate_op_key(rsc->id, "pre_notify_promote", 0);
 		custom_action_order(
 			rsc, key1, NULL, rsc, key2, NULL, 
-			pe_ordering_optional, data_set);	
+			pe_order_optional, data_set);	
 
 		key1 = generate_op_key(rsc->id, "confirmed-post_notify_demote", 0);
 		key2 = generate_op_key(rsc->id, "pre_notify_stop", 0);
 		custom_action_order(
 			rsc, key1, NULL, rsc, key2, NULL, 
-			pe_ordering_optional, data_set);	
+			pe_order_optional, data_set);	
 	}
 }
 
@@ -516,8 +525,15 @@ colocation_match(
 	}
 
 	if(rsc_rh->allocated_to) {
-		value = g_hash_table_lookup(rsc_rh->allocated_to->details->attrs, attribute);
+		value = g_hash_table_lookup(
+			rsc_rh->allocated_to->details->attrs, attribute);
 		do_check = TRUE;
+
+	} else if(constraint->score < 0) {
+		/* nothing to do:
+		 *   anti-colocation with something thats not running
+		 */
+		return;
 	}
 	
 	slist_iter(
@@ -629,7 +645,8 @@ void native_rsc_order_lh(resource_t *lh_rsc, order_constraint_t *order)
 
 			if(lh_rsc->next_role == RSC_ROLE_STOPPED) {
 				resource_t *rh_rsc = order->rh_rsc;
-				if(order->rh_action && order->type == pe_ordering_restart) {
+				if(order->rh_action
+				   && (order->type & pe_order_internal_restart)) {
 					crm_debug_3("No LH(%s/%s) found for RH(%s)...",
 						    lh_rsc->id, order->lh_action_task,
 						    order->rh_action->uuid);
@@ -697,43 +714,38 @@ void native_rsc_order_rh(
 	action_t *lh_action, resource_t *rsc, order_constraint_t *order)
 {
 	GListPtr rh_actions = NULL;
-	action_t *rh_action = order->rh_action;
+	action_t *rh_action = NULL;
 
+	CRM_CHECK(rsc != NULL, return);
+	CRM_CHECK(order != NULL, return);
+
+	rh_action = order->rh_action;
 	crm_debug_3("Processing RH of ordering constraint %d", order->id);
 
 	if(rh_action != NULL) {
 		rh_actions = g_list_append(NULL, rh_action);
 
-	} else if(rh_action == NULL && rsc != NULL) {
+	} else if(rsc != NULL) {
 		rh_actions = find_actions(
 			rsc->actions, order->rh_action_task, NULL);
-		
-		if(rh_actions == NULL) {
-			crm_debug_4("No RH-Side (%s/%s) found for constraint..."
-				  " ignoring",
-				  rsc->id, order->rh_action_task);
-			crm_debug_4("LH-Side was: (%s/%s)",
-				  order->lh_rsc?order->lh_rsc->id:order->lh_action?order->lh_action->rsc->id:"<NULL>",
-				  order->lh_action_task);
-			return;
-		}
-			
-	}  else if(rh_action == NULL) {
-		crm_debug_4("No RH-Side (%s) specified for constraint..."
-			  " ignoring", order->rh_action_task);
-		crm_debug_4("LH-Side was: (%s/%s)",
-			  order->lh_rsc?order->lh_rsc->id:order->lh_action?order->lh_action->rsc->id:"<NULL>",
-			  order->lh_action_task);
-		return;
-	} 
+	}
 
+	if(rh_actions == NULL) {
+		crm_debug_4("No RH-Side (%s/%s) found for constraint..."
+			    " ignoring", rsc->id,order->rh_action_task);
+		if(lh_action) {
+			crm_debug_4("LH-Side was: %s", lh_action->uuid);
+		}
+		return;
+	}
+	
 	slist_iter(
 		rh_action_iter, action_t, rh_actions, lpc,
 
 		if(lh_action) {
-		order_actions(lh_action, rh_action_iter, order->type); 
+			order_actions(lh_action, rh_action_iter, order->type); 
 
-		} else if(order->type == pe_ordering_restart) {
+		} else if(order->type & pe_order_internal_restart) {
 			rh_action_iter->runnable = FALSE;
 		}
 		
@@ -836,6 +848,7 @@ register_activity(resource_t *rsc, enum action_tasks task, node_t *node, notify_
 			break;
 		default:
 			crm_err("Unsupported notify action: %s", task2text(task));
+			crm_free(entry);
 			break;
 	}
 	
@@ -868,6 +881,7 @@ register_state(resource_t *rsc, node_t *on_node, notify_data_t *n_data)
 			break;
 		default:
 			crm_err("Unsupported notify role");
+			crm_free(entry);
 			break;
 	}
 }
@@ -984,7 +998,7 @@ pe_notify(resource_t *rsc, node_t *node, action_t *op, action_t *confirm,
 	crm_debug_3("Ordering %s before %s (%d->%d)",
 		op->uuid, trigger->uuid, trigger->id, op->id);
 
-	order_actions(op, trigger, pe_ordering_manditory);
+	order_actions(op, trigger, pe_order_implies_left);
 	
 	value = g_hash_table_lookup(op->meta, "notify_confirm");
 	if(crm_is_true(value)) {
@@ -993,7 +1007,7 @@ pe_notify(resource_t *rsc, node_t *node, action_t *op, action_t *confirm,
 			    trigger->uuid, confirm->uuid,
 			    confirm->id, trigger->id);
 
-		order_actions(trigger, confirm, pe_ordering_manditory);
+		order_actions(trigger, confirm, pe_order_implies_left);
 	}	
 	return trigger;
 }
@@ -1021,12 +1035,12 @@ pe_post_notify(resource_t *rsc, node_t *node, action_t *op,
 			   n_data, data_set);
 
 	if(notify != NULL) {
+/* 		crm_err("Upgrading priority for %s to INFINITY", notify->uuid); */
 		notify->priority = INFINITY;
 	}
-	
+
 	notify = op->post_notified;
 	if(notify != NULL) {
-		notify->priority = INFINITY;
 		slist_iter(
 			mon, action_t, rsc->actions, lpc,
 
@@ -1039,7 +1053,7 @@ pe_post_notify(resource_t *rsc, node_t *node, action_t *op,
 				continue;
 			}
 
-			order_actions(notify, mon, pe_ordering_optional);
+			order_actions(notify, mon, pe_order_optional);
 			);
 	}
 }
@@ -1059,63 +1073,58 @@ NoRoleChange(resource_t *rsc, node_t *current, node_t *next,
 		return;
 	}
 
-	/* use StartRsc/StopRsc */
-	
-	if(safe_str_neq(current->details->id, next->details->id)) {
-		crm_notice("Move  resource %s\t(%s -> %s)", rsc->id,
-			   current->details->uname, next->details->uname);
+	if(rsc->failed || safe_str_neq(current->details->id, next->details->id)) {
+		if(rsc->failed) {
+			crm_notice("Recover resource %s\t(%s)",
+				   rsc->id, next->details->uname);
+		} else {
+			crm_notice("Move  resource %s\t(%s -> %s)", rsc->id,
+				   current->details->uname, next->details->uname);
+		}
 
-		stop = stop_action(rsc, current, FALSE);
-		start = start_action(rsc, next, FALSE);
+		if(rsc->role == RSC_ROLE_MASTER) {
+			DemoteRsc(rsc, current, data_set);
+		}
+		StopRsc(rsc, current, data_set);
+		StartRsc(rsc, next, data_set);
+		if(rsc->role == RSC_ROLE_MASTER) {
+			PromoteRsc(rsc, next, data_set);
+		}
 
 		possible_matches = find_recurring_actions(rsc->actions, next);
 		slist_iter(match, action_t, possible_matches, lpc,
 			   if(match->optional == FALSE) {
-				   crm_err("Found bad recurring action: %s",
-					   match->uuid);
+				   crm_debug("Fixing recurring action: %s",
+					     match->uuid);
 				   match->optional = TRUE;
 			   }
 			);
-			
-		if(data_set->remove_after_stop) {
-			DeleteRsc(rsc, current, data_set);
+		
+	} else if(rsc->start_pending) {
+		start = start_action(rsc, next, TRUE);
+		if(start->runnable) {
+			/* wait for StartRsc() to be called */
+			rsc->role = RSC_ROLE_STOPPED;
+		} else {
+			/* wait for StopRsc() to be called */
+			rsc->next_role = RSC_ROLE_STOPPED;
 		}
 		
 	} else {
-		if(rsc->failed) {
-			crm_notice("Recover resource %s\t(%s)",
-				   rsc->id, next->details->uname);
-			stop = stop_action(rsc, current, FALSE);
-			start = start_action(rsc, next, FALSE);
-/* 			/\* make the restart required *\/ */
-/* 			order_stop_start(rsc, rsc, pe_ordering_manditory); */
+		stop = stop_action(rsc, current, TRUE);
+		start = start_action(rsc, next, TRUE);
+		stop->optional = start->optional;
+		
+		if(start->runnable == FALSE) {
+			rsc->next_role = RSC_ROLE_STOPPED;
 			
-		} else if(rsc->start_pending) {
-			start = start_action(rsc, next, TRUE);
-			if(start->runnable) {
-				/* wait for StartRsc() to be called */
-				rsc->role = RSC_ROLE_STOPPED;
-			} else {
-				/* wait for StopRsc() to be called */
-				rsc->next_role = RSC_ROLE_STOPPED;
-			}
+		} else if(start->optional) {
+			crm_notice("Leave resource %s\t(%s)",
+				   rsc->id, next->details->uname);
 			
 		} else {
-			stop = stop_action(rsc, current, TRUE);
-			start = start_action(rsc, next, TRUE);
-			stop->optional = start->optional;
-			
-			if(start->runnable == FALSE) {
-				rsc->next_role = RSC_ROLE_STOPPED;
-
-			} else if(start->optional) {
-				crm_notice("Leave resource %s\t(%s)",
-					   rsc->id, next->details->uname);
-
-			} else {
-				crm_notice("Restart resource %s\t(%s)",
-					   rsc->id, next->details->uname);
-			}
+			crm_notice("Restart resource %s\t(%s)",
+				   rsc->id, next->details->uname);
 		}
 	}
 }
@@ -1203,7 +1212,7 @@ DemoteRsc(resource_t *rsc, node_t *next, pe_working_set_t *data_set)
 /* 	CRM_CHECK(rsc->next_role == RSC_ROLE_SLAVE, return FALSE); */
 	slist_iter(
 		current, node_t, rsc->running_on, lpc,
-		crm_notice("%s\tDeomote %s", current->details->uname, rsc->id);
+		crm_notice("%s\tDemote %s", current->details->uname, rsc->id);
 		demote_action(rsc, current, FALSE);
 		);
 	return TRUE;
@@ -1224,6 +1233,44 @@ NullOp(resource_t *rsc, node_t *next, pe_working_set_t *data_set)
 	return FALSE;
 }
 
+gboolean
+DeleteRsc(resource_t *rsc, node_t *node, pe_working_set_t *data_set)
+{
+	action_t *delete = NULL;
+ 	action_t *refresh = NULL;
+
+	if(rsc->failed) {
+		crm_debug_2("Resource %s not deleted from %s: failed",
+			    rsc->id, node->details->uname);
+		return FALSE;
+		
+	} else if(node == NULL) {
+		crm_debug_2("Resource %s not deleted: NULL node", rsc->id);
+		return FALSE;
+		
+	} else if(node->details->unclean || node->details->online == FALSE) {
+		crm_debug_2("Resource %s not deleted from %s: unrunnable",
+			    rsc->id, node->details->uname);
+		return FALSE;
+	}
+	
+	crm_notice("Removing %s from %s",
+		 rsc->id, node->details->uname);
+	
+	delete = delete_action(rsc, node);
+
+#if DELETE_THEN_REFRESH
+	refresh = custom_action(
+		NULL, crm_strdup(CRM_OP_LRM_REFRESH), CRM_OP_LRM_REFRESH,
+		node, FALSE, TRUE, data_set);
+
+	add_hash_param(refresh->meta, XML_ATTR_TE_NOWAIT, XML_BOOLEAN_TRUE);
+
+	order_actions(delete, refresh, pe_order_optional);
+#endif
+	
+	return TRUE;
+}
 
 gboolean
 native_create_probe(resource_t *rsc, node_t *node, action_t *complete,
@@ -1263,7 +1310,7 @@ native_create_probe(resource_t *rsc, node_t *node, action_t *complete,
 	crm_debug_2("%s: Created probe for %s", node->details->uname, rsc->id);
 	
 	custom_action_order(rsc, NULL, probe, rsc, NULL, complete,
-			    pe_ordering_manditory, data_set);
+			    pe_order_implies_left, data_set);
 
 	return TRUE;
 }
@@ -1282,7 +1329,7 @@ native_start_constraints(
 		custom_action_order(
 			rsc, key, NULL,
 			NULL, crm_strdup(CRM_OP_FENCE), stonith_op,
-			pe_ordering_optional, data_set);
+			pe_order_optional, data_set);
 
 	} else {
 		slist_iter(action, action_t, rsc->actions, lpc2,
@@ -1295,7 +1342,7 @@ native_start_constraints(
 				   custom_action_order(
 					   NULL, crm_strdup(CRM_OP_FENCE), stonith_op,
 					   rsc, NULL, action,
-					   pe_ordering_manditory, data_set);
+					   pe_order_implies_left, data_set);
 				   
 			   } else if(run_unprotected == FALSE) {
 				   /* mark the start unrunnable */
@@ -1336,8 +1383,8 @@ native_stop_constraints(
 		if(node->details->online == FALSE || rsc->failed) {
 			resource_t *parent = NULL;
 			crm_warn("Stop of failed resource %s is"
-				 " implict after %s is fenced",
-				 rsc->id, node->details->uname);
+				 " implicit after %s is fenced",
+				 action->uuid, node->details->uname);
 			/* the stop would never complete and is
 			 * now implied by the stonith operation
 			 */
@@ -1350,7 +1397,7 @@ native_stop_constraints(
 				custom_action_order(
 					NULL, crm_strdup(CRM_OP_FENCE),stonith_op,
 					rsc, start_key(rsc), NULL,
-					pe_ordering_manditory, data_set);
+					pe_order_implies_left, data_set);
 			}
 			
 			/* find the top-most resource */
@@ -1363,6 +1410,10 @@ native_stop_constraints(
 				crm_info("Re-creating actions for %s",
 					 parent->id);
 				parent->cmds->create_actions(parent, data_set);
+
+				/* make sure we dont mess anything up in create_actions */
+				CRM_CHECK(action->pseudo, action->pseudo = TRUE);
+				CRM_CHECK(action->runnable, action->runnable = TRUE);
 			}
 			
 		} else if(is_stonith == FALSE) {
@@ -1376,7 +1427,7 @@ native_stop_constraints(
 			custom_action_order(
 				rsc, stop_key(rsc), NULL,
 				NULL,crm_strdup(CRM_OP_FENCE),stonith_op,
-				pe_ordering_manditory, data_set);
+				pe_order_implies_left, data_set);
 		}
 		);
 	
@@ -1399,7 +1450,7 @@ native_stop_constraints(
 				custom_action_order(
 					NULL, crm_strdup(CRM_OP_FENCE), stonith_op,
 					rsc, demote_key(rsc), NULL,
-					pe_ordering_manditory, data_set);
+					pe_order_implies_left, data_set);
 			}
 		}
 		);	
@@ -1428,3 +1479,192 @@ native_stonith_ordering(
 	native_stop_constraints(rsc,  stonith_op, is_stonith, data_set);
 }
 
+void
+native_migrate_reload(resource_t *rsc, pe_working_set_t *data_set)
+{
+	char *key = NULL;
+	int level = LOG_DEBUG_2;
+	GListPtr action_list = NULL;
+	
+	action_t *stop = NULL;
+	action_t *start = NULL;
+	action_t *other = NULL;
+	action_t *action = NULL;
+	const char *value = NULL;
+
+	CRM_CHECK(rsc->variant == pe_native, return);
+	
+	if(rsc->is_managed == FALSE
+	   || rsc->failed
+	   || rsc->start_pending
+	   || rsc->next_role != RSC_ROLE_STARTED		   
+	   || g_list_length(rsc->running_on) != 1) {
+		do_crm_log(level, "%s: resource", rsc->id);
+		return;
+	}
+	
+	key = start_key(rsc);
+	action_list = find_actions(rsc->actions, key, NULL);
+	crm_free(key);
+	
+	if(action_list == NULL) {
+		do_crm_log(level, "%s: no start action", rsc->id);
+		return;
+	}
+	
+	start = action_list->data;
+	
+	value = g_hash_table_lookup(rsc->meta, "allow_migrate");
+	if(crm_is_true(value)) {
+		rsc->can_migrate = TRUE;	
+	}
+	
+	if(rsc->can_migrate == FALSE
+	   && start->allow_reload_conversion == FALSE) {
+		do_crm_log(level, "%s: no need to continue", rsc->id);
+		return;
+	}
+	
+	key = stop_key(rsc);
+	action_list = find_actions(rsc->actions, key, NULL);
+	crm_free(key);
+	
+	if(action_list == NULL) {
+		do_crm_log(level, "%s: no stop action", rsc->id);
+		return;
+	}
+	
+	stop = action_list->data;
+	
+	action = start;
+	if(action->pseudo
+	   || action->optional
+	   || action->node == NULL
+	   || action->runnable == FALSE) {
+		do_crm_log(level, "%s: %s", rsc->id, action->task);
+		return;
+	}
+	
+	action = stop;
+	if(action->pseudo
+	   || action->optional
+	   || action->node == NULL
+	   || action->runnable == FALSE) {
+		do_crm_log(level, "%s: %s", rsc->id, action->task);
+		return;
+	}
+	
+	slist_iter(
+		other_w, action_wrapper_t, start->actions_before, lpc,
+		gboolean can_migrate = TRUE;
+		resource_t *parent = NULL;
+		other = other_w->action;
+		parent = uber_parent(other->rsc);
+
+		if(other->optional == TRUE
+		   || other->rsc == rsc
+		   || parent == NULL) {
+			continue;
+		}
+
+		if(parent->variant == pe_native
+		   || parent->variant == pe_group) {
+			/* clones are the only ones that can be "moved"
+			 * and still allow resources sitting on top of
+			 * them (ie. us) to be migrated 
+			 */
+			can_migrate = FALSE;
+			
+		} else if(safe_str_eq(other->task, CRMD_ACTION_MIGRATE)
+			  || safe_str_eq(other->task, CRMD_ACTION_MIGRATED)) {
+			/* we depend on something that is already migrating...
+			 * we cant both migrate
+			 */
+			can_migrate = FALSE;
+			
+		} else {
+			/* is the clone also moving moved around?
+			 *
+			 * if so, then we can't yet be completely sure the
+			 *   resource can safely migrate since the node we're
+			 *   moving too may not have the clone instance started
+			 *   yet
+			 *
+			 * in theory we can figure out if the clone instance we
+			 *   will run on is already there, but there that would
+			 *   involve too much knowledge of internal clone code.
+			 *   maybe later...
+			 */
+			do_crm_log(level,
+				   "%s: start depends on clone %s",
+				   rsc->id, parent->id);
+			key = stop_key(parent);
+			action_list = find_actions(parent->actions, key, NULL);
+			crm_free(key);
+			
+			slist_iter(
+				other_stop, action_t, action_list,lpc,
+				if(other_stop && other_stop->optional == FALSE) {
+					do_crm_log(LOG_INFO,
+						   "%s: start depends on %s",
+						   rsc->id, other_stop->uuid);
+					can_migrate = FALSE;
+				}
+				);
+		}
+		
+		if(can_migrate == FALSE) {
+			do_crm_log(LOG_INFO, "%s: start depends on %s",
+				   rsc->id, other->uuid);
+			return;
+		}
+		);
+
+	if(rsc->can_migrate && stop->node->details != start->node->details) {
+		crm_info("Migrating %s from %s to %s", rsc->id,
+			 stop->node->details->uname,
+			 start->node->details->uname);
+		
+		crm_free(stop->uuid);
+		stop->task = CRMD_ACTION_MIGRATE;
+		stop->uuid = generate_op_key(rsc->id, stop->task, 0);
+		add_hash_param(stop->meta, "migrate_source",
+			       stop->node->details->uname);
+		add_hash_param(stop->meta, "migrate_target",
+			       start->node->details->uname);
+
+
+		slist_iter(
+			other_w, action_wrapper_t, start->actions_before, lpc,
+			other = other_w->action;
+			if(other->optional == FALSE
+			   && other->rsc != NULL
+			   && other->rsc != rsc) {
+				order_actions(other, stop, other_w->type);
+			}
+			);
+		
+		crm_free(start->uuid);
+		start->task = CRMD_ACTION_MIGRATED;
+		start->uuid = generate_op_key(rsc->id, start->task, 0);
+		add_hash_param(start->meta, "migrate_source_uuid",
+			       stop->node->details->id);
+		add_hash_param(start->meta, "migrate_source",
+			       stop->node->details->uname);
+		add_hash_param(start->meta, "migrate_target",
+			       start->node->details->uname);
+		
+	} else if(start->allow_reload_conversion
+		  && stop->node->details == start->node->details) {
+		crm_info("Rewriting restart of %s on %s as a reload",
+			 rsc->id, start->node->details->uname);
+		crm_free(start->uuid);
+		start->task = "reload";
+		start->uuid = generate_op_key(rsc->id, start->task, 0);
+		
+		stop->pseudo = TRUE; /* easier than trying to delete it from the graph */
+		
+	} else {
+		do_crm_log(level, "%s nothing to do", rsc->id);
+	}
+}

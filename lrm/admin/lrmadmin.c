@@ -1,4 +1,3 @@
-/* $Id: lrmadmin.c,v 1.41 2006/06/26 01:48:20 sunjd Exp $ */
 /* File: lrmadmin.c
  * Description: A adminstration tool for Local Resource Manager
  *
@@ -21,7 +20,7 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -338,7 +337,7 @@ int main(int argc, char **argv)
         lrmd = ll_lrm_new("lrm");
 
         if (NULL == lrmd) {
-               	cl_log(LOG_ERR,"ll_lrn_new return null.");
+               	cl_log(LOG_ERR,"ll_lrm_new return null.");
                	return -2;
         }
 
@@ -374,7 +373,7 @@ int main(int argc, char **argv)
 					ret_value = -3;
 				}
 				if ( call_id == -1 ) {
-					cl_log(LOG_WARNING, "Failed! no this "
+					cl_log(LOG_WARNING, "Failed! No such "
 					   "resource %s.", argv[optind]);
 					ret_value = -2;
 				}
@@ -389,7 +388,7 @@ int main(int argc, char **argv)
 				/* Return value: HA_OK = 1 Or  HA_FAIL = 0 */
 				if ( call_id == 0 ) {
 					cl_log(LOG_ERR, "Resource operation "
-					"Failed." );
+					"failed." );
 					ret_value = -3;
 					ASYN_OPS = FALSE;
 				} else { 
@@ -632,7 +631,7 @@ resource_operation(ll_lrm_t * lrmd, int argc, int optind, char * argv[])
 	op.op_type = argv[optind+1];
 	op.timeout = atoi(argv[optind+2]);
 
- 	/* When op.timeout!=0, plus addtional 1s. Or lrmadmin may time out before
+ 	/* When op.timeout!=0, plus additional 1s. Or lrmadmin may time out before
 	   the normal operation result returned from lrmd. This may be redudant, 
 	   but harmless. */
 	if (0 < op.timeout ) {
@@ -702,7 +701,7 @@ ra_provider(ll_lrm_t * lrmd, int argc, int optind, char * argv[])
 	GList* provider = NULL;
 	
 	if(argc < 4) {
-		cl_log(LOG_ERR,"No enough parameters.");
+		cl_log(LOG_ERR,"Not enough parameters.");
 		return -2;
 	}
 
@@ -710,8 +709,8 @@ ra_provider(ll_lrm_t * lrmd, int argc, int optind, char * argv[])
 	
 	while (NULL != (provider = g_list_first(providers))) {
 		printf("%s\n",(char*)provider->data);
-		providers = g_list_remove(providers, provider->data);
 		g_free(provider->data);
+		providers = g_list_remove(providers, provider->data);
 	}
 	g_list_free(providers);
 	return 0;
@@ -1018,103 +1017,3 @@ get_lrm_rsc(ll_lrm_t * lrmd, char * rscid)
 	return lrm_rsc;
 }
 
-/*
- * $Log: lrmadmin.c,v $
- * Revision 1.41  2006/06/26 01:48:20  sunjd
- * (bug#1301) Support fake login name; adjust memory freeing
- *
- * Revision 1.40  2006/06/22 21:00:57  davidlee
- * Beware null pointer in printf(%s)
- *
- * Revision 1.39  2006/06/22 10:33:22  sunjd
- * (bug1301): make a better output
- *
- * Revision 1.38  2006/06/22 05:56:31  sunjd
- * (bug1301): add the capacity of get_cur_state; polish on memory free
- *
- * Revision 1.37  2006/05/16 09:40:37  sunjd
- * fix a minor typo; remove the hint for metadata output
- *
- * Revision 1.36  2006/05/15 03:35:43  sunjd
- * minor changes: typoes and formats
- *
- * Revision 1.35  2005/06/22 06:53:41  sunjd
- * handling for no parameter
- *
- * Revision 1.34  2005/06/15 15:06:50  davidlee
- * Somes OSes don't have getopt_long()
- *
- * Revision 1.33  2005/05/09 03:20:55  alan
- * Finished changes for bug 544 :-(
- *
- * Revision 1.32  2005/04/27 07:33:40  sunjd
- * Donnot set a default timeout value when the user does not want timeout
- *
- * Revision 1.31  2005/04/25 05:47:54  zhenh
- * when user did not give timeout of op, use 60s as timeout of lrmadmin, if user gave one, add 1s as timeout of lrmadmin
- *
- * Revision 1.30  2005/04/22 06:08:50  alan
- * Put in a fix for an uninitialized variable -- added a new
- * const lrm_op_t object lrm_zero_op - which can be used as an initializer for
- * lrm_op_t objects so this doesn't happen.
- *
- * Revision 1.29  2005/04/18 15:47:41  alan
- * Fixed a compile error (warning) in lrmadmin.
- *
- * Revision 1.28  2005/04/18 09:42:20  sunjd
- * have its own timeout watching, now lrmadmin should not be blocked when no result from LRMd
- *
- * Revision 1.27  2005/02/28 10:34:36  zhenh
- * change the log from LOG_ERR TO LOG_WARNING
- *
- * Revision 1.26  2005/02/28 08:52:46  zhenh
- * no such resource should be a warning instead of error
- *
- * Revision 1.25  2004/12/09 07:16:58  sunjd
- * add the support to stonith RA; some minor polish
- *
- * Revision 1.24  2004/12/05 13:18:32  sunjd
- * add the support to stonith RAs
- *
- * Revision 1.23  2004/11/23 20:58:18  andrew
- * Commit zhenh's patch for preserving user data across connections
- * Only supports flat objects (ie. char* or structs without pointers in them)
- *
- * Revision 1.22  2004/10/24 12:38:33  lge
- * -pedantic-errors fixes take one:
- * * error: ISO C89 forbids mixed declarations and code
- *
- * Revision 1.21  2004/10/11 02:11:07  zhenh
- * remove comment line with //
- *
- * Revision 1.20  2004/10/10 09:27:53  zhenh
- * change some output information to make it more clear
- *
- * Revision 1.19  2004/10/08 04:47:54  zhenh
- * fix a bug: checking the return value of get_rsc_type_metadata
- *
- * Revision 1.18  2004/09/16 06:16:45  sunjd
- * BEAM bug fix: passing NULL to argument 1 of g_free
- *
- * Revision 1.17  2004/09/14 09:17:35  sunjd
- * fix two pointer bugs found by BEAM
- *
- * Revision 1.16  2004/09/10 10:25:50  sunjd
- * Minor polish to message format
- *
- * Revision 1.15  2004/09/10 00:28:17  zhenh
- * change the usage information
- *
- * Revision 1.14  2004/09/09 03:32:50  zhenh
- * fix a mis type
- *
- * Revision 1.13  2004/09/03 01:29:44  zhenh
- * add provider for resource
- *
- * Revision 1.12  2004/08/30 03:17:40  msoffen
- * Fixed more comments from // to standard C comments
- *
- * Revision 1.11  2004/08/29 04:42:03  msoffen
- * Added missing ID and Log
- *
- */

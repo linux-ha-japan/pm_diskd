@@ -24,8 +24,6 @@
 #
 # Copyright:	(C) 2005 International Business Machines
 
-VARRUN=@localstatedir@/run
-MAILTOFILE=$VARRUN/MailTo
 #######################################################################
 # Initialization:
 
@@ -39,7 +37,6 @@ us=`uname -n`
 
 usage() {
   echo "Usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
-  echo "$Id: MailTo.in,v 1.8 2006/03/10 04:14:20 xunsun Exp $"
 }
 
 meta_data() {
@@ -108,22 +105,21 @@ MailToStart() {
 	Subject="`SubjectLine $subject` Takeover in progress at `date` on $us"
 
 	MailProgram "$Subject" $1
-	touch $MAILTOFILE
-	return $?
+	ha_pseudo_resource MailTo_${OCF_RESOURCE_INSTANCE} start
 }
 
 MailToStop () {
 	Subject="`SubjectLine $subject` Migrating resource away at `date` from $us"
 
 	MailProgram "$Subject" $1
-	rm -f $MAILTOFILE
-	return $?
+	ha_pseudo_resource MailTo_${OCF_RESOURCE_INSTANCE} stop
 }
 
 MailToStatus () {
 	ocf_log warn "Don't stat/monitor me! MailTo is a pseudo resource agent, so the status reported may be incorrect"
 
-	if [ -f $MAILTOFILE ]; then
+	if ha_pseudo_resource MailTo_${OCF_RESOURCE_INSTANCE} monitor
+	then
 		echo "running"
 		return $OCF_SUCCESS
 	else
@@ -179,9 +175,6 @@ case $1 in
   meta-data)		meta_data
 			exit $OCF_SUCCESS
 			;;
-	#	Not quite sure what to do with this one...
-	#	We aren't a continuously running service - so it's not clear
-	#
   status|monitor)	MailToStatus
 			exit $?
 			;;

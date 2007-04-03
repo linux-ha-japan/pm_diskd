@@ -1,4 +1,3 @@
-/* $Id: HBauth.c,v 1.11 2004/10/06 10:55:17 lars Exp $ */
 /*
  *	Heartbeat authentication interface manager
  *
@@ -32,7 +31,7 @@
 /* We are a interface manager... */
 #define ENABLE_PLUGIN_MANAGER_PRIVATE
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <pils/interface.h>
 #include <stdio.h>
 

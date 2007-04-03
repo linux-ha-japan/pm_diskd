@@ -1,5 +1,4 @@
-/* $Id: cl_poll.c,v 1.22 2005/03/16 17:11:15 lars Exp $ */
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdlib.h>
 #include <unistd.h>
 /*

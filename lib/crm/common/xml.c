@@ -1,4 +1,3 @@
-/* $Id: xml.c,v 1.104 2006/08/17 07:17:16 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <sys/param.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -41,7 +40,6 @@
 #if HAVE_BZLIB_H
 #  include <bzlib.h>
 #endif
-#include <crm/dmalloc_wrapper.h>
 
 #define XML_BUFFER_SIZE	4096
 
@@ -503,7 +501,8 @@ file2xml(FILE *input, gboolean compressed)
 	size_t length = 0, read_len = 0;
 
 	if(input == NULL) {
-		crm_err("No file to read");
+		/* Use perror here as we likely just called fopen() which return NULL */
+		cl_perror("File open failed, cannot read contents");
 		return NULL;
 	}
 
@@ -536,6 +535,7 @@ file2xml(FILE *input, gboolean compressed)
 		if ( rc != BZ_STREAM_END ) {
 			crm_err("Couldnt read compressed xml from file");
 			crm_free(buffer);
+			buffer = NULL;
 		}
 
 		BZ2_bzReadClose (&rc, bz_file);
@@ -634,16 +634,21 @@ write_xml_file(crm_data_t *xml_node, const char *filename, gboolean compress)
 
 	/* establish the file with correct permissions */
 	file_output_strm = fopen(filename, "w");
+	if(file_output_strm == NULL) {
+		cl_perror("Cannot open %s for writing", filename);
+		crm_free(buffer);
+		return -1;
+	}
+	
 	fclose(file_output_strm);
 	chmod(filename, cib_mode);
 
 	/* now write it */
 	file_output_strm = fopen(filename, "w");
 	if(file_output_strm == NULL) {
+		cl_perror("Cannot open %s for writing", filename);
 		crm_free(buffer);
-		cl_perror("Cannot write to %s", filename);
-		return -1;
-		
+		return -1;		
 	} 
 
 	if(compress) {
@@ -679,12 +684,19 @@ write_xml_file(crm_data_t *xml_node, const char *filename, gboolean compress)
 			" bzlib was not available at compile time");		
 #endif
 	}
+	
 	if(is_done == FALSE) {
 		res = fprintf(file_output_strm, "%s", buffer);
 		if(res < 0) {
-			cl_perror("Cannot write output to %s",filename);
+			cl_perror("Cannot write output to %s", filename);
 		}
-		fflush(file_output_strm);
+		
+		if(fflush(file_output_strm) == EOF || fsync(fileno(file_output_strm)) < 0) {
+			cl_perror("fflush or fsync error on %s", filename);
+			fclose(file_output_strm);
+			crm_free(buffer);
+			return -1;
+		}
 	}
 	fclose(file_output_strm);
 	crm_free(buffer);
@@ -1081,7 +1093,7 @@ get_tag_name(const char *input, size_t offset, size_t max)
 		}
 	}
 	crm_err("Error parsing token near %.15s: %s", input, crm_str(error));
-	return 0;
+	return -1;
   out:
 	CRM_ASSERT(lpc > offset);
 	return lpc - offset;
@@ -1338,7 +1350,8 @@ crm_data_t*
 parse_xml(const char *input, size_t *offset)
 {
 	char ch = 0;
-	size_t lpc = 0, len = 0, max = 0;
+	int len = 0;
+	size_t lpc = 0, max = 0;
 	char *tag_name = NULL;
 	char *attr_name = NULL;
 	char *attr_value = NULL;
@@ -1456,7 +1469,7 @@ parse_xml(const char *input, size_t *offset)
 				}
 				break;
 			case '>':
-				while(our_input[lpc+1] != '<') {
+				while(lpc < max && our_input[lpc+1] != '<') {
 					lpc++;
 				}
 				break;
@@ -1488,7 +1501,6 @@ parse_xml(const char *input, size_t *offset)
 	}
 	
 	if(offset == NULL) {
-		lpc++;
 		drop_comments(our_input, &lpc, max);
 		drop_whitespace(our_input, &lpc, max);
 		if(lpc < max) {
@@ -2040,12 +2052,18 @@ gboolean
 replace_xml_child(crm_data_t *parent, crm_data_t *child, crm_data_t *update, gboolean delete_only)
 {
 	gboolean can_delete = FALSE;
+
+	const char *up_id = NULL;
+	const char *child_id = NULL;
 	const char *right_val = NULL;
 	
 	CRM_CHECK(child != NULL, return FALSE);
 	CRM_CHECK(update != NULL, return FALSE);
+
+	up_id = ID(update);
+	child_id = ID(child);
 	
-	if(safe_str_eq(ID(child), ID(update))) {
+	if(child_id == up_id || safe_str_eq(child_id, up_id)) {
 		can_delete = TRUE;
 	}
 	if(safe_str_neq(crm_element_name(update), crm_element_name(child))) {
@@ -2500,13 +2518,13 @@ validate_with_dtd(
 	CRM_CHECK(buffer != NULL, return FALSE);
 
  	doc = xmlParseMemory(buffer, strlen(buffer));
-	CRM_CHECK(doc != NULL, crm_free(buffer); return FALSE);
+	CRM_CHECK(doc != NULL, valid = FALSE; goto cleanup);
 	
 	dtd = xmlParseDTD(NULL, (const xmlChar *)dtd_file);
-	CRM_CHECK(dtd != NULL, crm_free(buffer); return TRUE);
+	CRM_CHECK(dtd != NULL, goto cleanup);
 
 	cvp = xmlNewValidCtxt();
-	CRM_CHECK(cvp != NULL, crm_free(buffer); return TRUE);
+	CRM_CHECK(cvp != NULL, goto cleanup);
 
 	if(to_logs) {
 		cvp->userData = (void *) LOG_ERR;
@@ -2520,15 +2538,24 @@ validate_with_dtd(
 	
 	if (!xmlValidateDtd(cvp, doc, dtd)) {
 		crm_err("CIB does not validate against %s", dtd_file);
-		valid = FALSE;
 		crm_log_xml_debug(xml_blob, "invalid");
+		valid = FALSE;
 	}
-
-	xmlFreeValidCtxt(cvp);
-	xmlFreeDtd(dtd);
-	xmlFreeDoc(doc);
 	
-	crm_free(buffer);
+  cleanup:
+	if(cvp) {
+		xmlFreeValidCtxt(cvp);
+	}
+	if(dtd) {
+		xmlFreeDtd(dtd);
+	}
+	if(doc) {
+		xmlFreeDoc(doc);
+	}
+	if(buffer) {
+		crm_free(buffer);
+	}
+	
 #endif	
 	return valid;
 }

@@ -1,4 +1,3 @@
-/* $Id: ppp-udp.c,v 1.17 2005/07/29 07:18:55 sunjd Exp $ */
 /*
  *	ppp-udp.c:	Implements UDP over PPP for bidirectional ring
  *			heartbeats.
@@ -101,7 +100,7 @@
 				/* This tells us how many writes should fail */
 				/* with connection refused before we restart */
 				/* PPPd on our end */
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -175,7 +174,7 @@ extern int	udpport;	/* Shared with udp.c */
 #define PPPUDPASSERT(mp) 
 static int hb_dev_mtype (char **buffer)
 {
-	*buffer = ha_strdup("ppp-udp");
+	*buffer = cl_strdup("ppp-udp");
 	if (!*buffer) {
 		return 0;
 	}
@@ -185,7 +184,7 @@ static int hb_dev_mtype (char **buffer)
 
 static int hb_dev_descr (char **buffer)
 {
-	*buffer = ha_strdup("Serial ring running PPP/UDP");
+	*buffer = cl_strdup("Serial ring running PPP/UDP");
 	if (!*buffer) {
 		return 0;
 	}
@@ -224,10 +223,10 @@ hb_dev_new(const char* tty, const char* ipaddr)
 	memset(ipi, 0, sizeof(*ipi));
 
 
-	ipi->ipaddr = ha_strdup(ipaddr);
+	ipi->ipaddr = cl_strdup(ipaddr);
 	if (!ipi->ipaddr) {
 		ha_log(LOG_ERR, "Out of memory");
-		ha_free(ipi);
+		cl_free(ipi);
 		return NULL;
 	}
 
@@ -237,11 +236,11 @@ hb_dev_new(const char* tty, const char* ipaddr)
 	if (ret != NULL) {
 		char *	name;
 		ret->pd = (void*)ipi;
-		name = ha_strdup(tty);
+		name = cl_strdup(tty);
 		if (name == NULL)  {
-			ha_free(ipi);
-			ha_free(ipi->addr);
-			ha_free(ret);
+			cl_free(ipi);
+			cl_free(ipi->addr);
+			cl_free(ret);
 			ret=NULL;
 			return(ret);
 		}
@@ -251,8 +250,8 @@ hb_dev_new(const char* tty, const char* ipaddr)
 		ipi->rsocket = ipi->wsocket = -1;
 	}else{
 		ha_log(LOG_ERR, "Out of memory");
-		ha_free(ipi);
-		ha_free(ipi->addr);
+		cl_free(ipi);
+		cl_free(ipi->addr);
 	}
 	return(ret);
 }
@@ -372,11 +371,11 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 		}
 		if (fgets(line, MAXLINE-1, fp) != NULL) {
 			if (ei->far_addr != NULL)  {
-				ha_free(ei->far_addr);
+				cl_free(ei->far_addr);
 				ei->far_addr = NULL;
 			}
 			line[strlen(line)-1] = EOS;
-			ei->far_addr = ha_strdup(line);
+			ei->far_addr = cl_strdup(line);
 			if (!ei->far_addr) {
 				return NULL;
 			}
@@ -386,14 +385,14 @@ ppp_udp_ppp_proc_info(struct hb_media * mp)
 		}
 		if (fgets(line, MAXLINE-1, fp) != NULL) {
 			if (ei->interface != NULL)  {
-				ha_free(ei->interface);
+				cl_free(ei->interface);
 				ei->interface = NULL;
 			}
 			line[strlen(line)-1] = EOS;
-			ei->interface = ha_strdup(line);
+			ei->interface = cl_strdup(line);
 			if (!ei->interface) {
 				if (ei->far_addr) {
-					ha_free(ei->far_addr);
+					cl_free(ei->far_addr);
 				}
 				return NULL;
 			}
@@ -800,7 +799,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 	/* Can't write to socket yet... */
 	if (ei->wsocket < 0) {
 		/* Pretend we wrote the packet without error */
-		ha_free(pkt);
+		cl_free(pkt);
 		return(HA_OK);
 	}
 
@@ -841,7 +840,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 			/* Hopefully far end heartbeats will start up soon... */
 			/* If not, we'll keep getting connection refused and */
 			/* eventually restart PPPd (in case it's us) */
-			ha_free(pkt);
+			cl_free(pkt);
 			return(HA_OK);
 		}
 		ha_log(LOG_WARNING
@@ -849,7 +848,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 		,	inet_ntoa(ei->addr.sin_addr));
 		/* This will cause PPPd to restart */
 		hb_dev_close(mp);
-		ha_free(pkt);
+		cl_free(pkt);
 		return(HA_FAIL);
 	}else{
 		/* Account for pppd weirdness */
@@ -863,7 +862,7 @@ hb_dev_write(struct hb_media* mp, struct ha_msg* hmsg)
 	if (DEBUGPKTCONT) {
 		ha_log(LOG_DEBUG, "%s", pkt);
    	}
-	ha_free(pkt);
+	cl_free(pkt);
 	return(HA_OK);
 }
 
@@ -1220,160 +1219,4 @@ ppp_localdie(void)
 		CL_KILL(pppref->ppp_pid, SIGTERM);
 	}
 }
-/*
- * $Log: ppp-udp.c,v $
- * Revision 1.17  2005/07/29 07:18:55  sunjd
- * bug668: license update
- *
- * Revision 1.16  2004/10/09 01:49:42  lge
- * 199Kb patch transforming all // I could find into /* */
- * have a lot of fun :-/
- *
- * Revision 1.15  2004/02/17 22:11:59  lars
- * Pet peeve removal: _Id et al now gone, replaced with consistent Id header.
- *
- * Revision 1.14  2004/01/21 11:34:15  horms
- * - Replaced numerous malloc + strcpy/strncpy invocations with strdup
- *   * This usually makes the code a bit cleaner
- *   * Also is easier not to make code with potential buffer over-runs
- * - Added STRDUP to pils modules
- * - Removed some spurious MALLOC and FREE redefinitions
- *   _that could never be used_
- * - Make sure the return value of strdup is honoured in error conditions
- *
- * Revision 1.13  2003/02/07 08:37:18  horms
- * Removed inclusion of portability.h from .h files
- * so that it does not need to be installed.
- *
- * Revision 1.12  2003/02/05 09:06:34  horms
- * Lars put a lot of work into making sure that portability.h
- * is included first, everywhere. However this broke a few
- * things when building against heartbeat headers that
- * have been installed (usually somewhere under /usr/include or
- * /usr/local/include).
- *
- * This patch should resolve this problem without undoing all of
- * Lars's hard work.
- *
- * As an asside: I think that portability.h is a virus that has
- * infected all of heartbeat's code and now must also infect all
- * code that builds against heartbeat. I wish that it didn't need
- * to be included all over the place. Especially in headers to
- * be installed on the system. However, I respect Lars's opinion
- * that this is the best way to resolve some weird build problems
- * in the current tree.
- *
- * Revision 1.11  2003/02/03 11:30:41  lars
- * Changed all files including system headers to include portability.h first, so
- * that global defines affecting the exported interfaces from the system headers
- * are indeed global and apply consistently to all headers.
- *
- * Revision 1.10  2003/01/31 10:02:09  lars
- * Various small code cleanups:
- * - Lots of "signed vs unsigned" comparison fixes
- * - time_t globally replaced with TIME_T
- * - All seqnos moved to "seqno_t", which defaults to unsigned long
- * - DIMOF() definition centralized to portability.h and typecast to int
- * - EOS define moved to portability.h
- * - dropped inclusion of signal.h from stonith.h, so that sigignore is
- *   properly defined
- *
- * Revision 1.9  2002/11/20 11:01:33  lars
- * Fixed a CVS merge artifact. (Bad horms! ;-)
- *
- * Revision 1.8  2002/10/23 08:42:22  horms
- * Added CL_PID_EXISTS conveince macro
- *
- * Revision 1.7  2002/10/21 10:17:19  horms
- * hb api clients may now be built outside of the heartbeat tree
- *
- * Revision 1.6  2002/10/21 02:00:35  horms
- * Use CL_KILL() instead of kill() throughout the code.
- * This makes the code nice and homogenous and removes
- * the need for spurious inclusion of signal.h
- *
- * Revision 1.5  2002/10/18 07:16:10  alan
- * Put in Horms big patch plus a patch for the apcmastersnmp code where
- * a macro named MIN returned the MAX instead.  The code actually wanted
- * the MAX, so when the #define for MIN was surrounded by a #ifndef, then
- * it no longer worked...  This fix courtesy of Martin Bene.
- * There was also a missing #include needed on older Linux systems.
- *
- * Revision 1.4  2002/10/02 13:40:26  alan
- * Fixed some potential holes pointed out by Nathan Wallwork.
- *
- * Revision 1.3  2002/08/23 12:52:29  alan
- * I just put a caution about known security-related-bugs in this obsolete code.
- *
- * Revision 1.2  2001/10/02 16:10:05  alan
- * Replaced the obsolescent bzero function with memset.
- *
- * Revision 1.1  2001/08/10 17:16:44  alan
- * New code for the new plugin loading system.
- *
- * Revision 1.15  2001/05/11 06:20:26  alan
- * Fixed CFLAGS so we load modules from the right diurectory.
- * Fixed minor static symbol problems.
- * Fixed a bug which kept early error messages from coming out.
- *
- * Revision 1.14  2001/03/08 14:37:03  alan
- * Removed the ppp code from the build process...
- *
- * Revision 1.13  2000/12/12 23:23:47  alan
- * Changed the type of times from time_t to TIME_T (unsigned long).
- * Added BuildPreReq: lynx
- * Made things a little more OpenBSD compatible.
- *
- * Revision 1.12  2000/09/01 21:10:46  marcelo
- * Added dynamic module support
- *
- * Revision 1.11  2000/08/13 04:36:16  alan
- * Added code to make ping heartbeats work...
- * It looks like they do, too ;-)
- *
- * Revision 1.10  2000/07/26 05:17:19  alan
- * Added GPL license statements to all the code.
- *
- * Revision 1.9  2000/06/21 04:34:48  alan
- * Changed henge.com => linux-ha.org and alanr@henge.com => alanr@suse.com
- *
- * Revision 1.8  2000/05/17 13:39:54  alan
- * Added the close-on-exec flag to sockets and tty fds that we open.
- * Thanks to Christoph Jäger for noticing the problem.
- *
- * Revision 1.7  2000/05/17 13:01:49  alan
- * Changed argv[0] and cmdname to be shorter.
- * Changed ha parsing function to close ha.cf.
- * Changed comments in ppp-udp so that it notes the current problems.
- *
- * Revision 1.6  1999/10/25 15:35:03  alan
- * Added code to move a little ways along the path to having error recovery
- * in the heartbeat protocol.
- * Changed the code for serial.c and ppp-udp.c so that they reauthenticate
- * packets they change the ttl on (before forwarding them).
- *
- * Revision 1.5  1999/10/10 20:12:47  alanr
- * New malloc/free (untested)
- *
- * Revision 1.4  1999/10/05 16:11:53  alanr
- * First attempt at restarting everything with -R/-r flags
- *
- * Revision 1.3  1999/10/01 14:34:51  alanr
- * patch from Matt Soffen for FreeBSD.
- *
- * Revision 1.2  1999/09/26 14:01:14  alanr
- * Added Mijta's code for authentication and Guenther Thomsen's code for serial locking and syslog reform
- *
- * Revision 1.1.1.1  1999/09/23 15:31:24  alanr
- * High-Availability Linux
- *
- * Revision 1.10  1999/09/18 02:56:36  alanr
- * Put in Matt Soffen's portability changes...
- *
- * Revision 1.9  1999/09/16 05:50:20  alanr
- * Getting ready for 0.4.3...
- *
- * Revision 1.8  1999/08/17 03:48:31  alanr
- * added log entry to bottom of file.
- *
- */
+

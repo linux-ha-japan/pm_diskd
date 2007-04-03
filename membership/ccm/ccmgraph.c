@@ -1,4 +1,3 @@
-/* $Id: ccmgraph.c,v 1.16 2006/02/17 05:48:24 zhenh Exp $ */
 /* 
  * ccmgraph.c: Keeps track of the connectivity within the cluster members
  *		to derive the largest totally connected subgraph.
@@ -21,6 +20,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  */
+#include <lha_internal.h>
 #include <ccm.h>
 
 /* ASSUMPTIONS IN THIS FILE. 

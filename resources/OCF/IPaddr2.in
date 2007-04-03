@@ -63,14 +63,14 @@
 
 . @hb_libdir@/ocf-shellfuncs
 
-HA_VARRUNDIR=@localstatedir@/run/@HB_PKG@
+HA_VARRUNHBRSCDIR=@HA_VARRUNHBRSCDIR@
 IP2UTIL="@IP2UTIL@"
 IPTABLES="@IPTABLES@"
 MODPROBE="@MODPROBE@"
 SENDARP=$HA_BIN/send_arp
 FINDIF=$HA_BIN/findif
-VLDIR=$HA_VARRUNDIR/rsctmp/IPaddr
-SENDARPPIDDIR=$HA_VARRUNDIR/rsctmp/send_arp
+VLDIR=$HA_VARRUNHBRSCDIR/IPaddr
+SENDARPPIDDIR=$HA_VARRUNHBRSCDIR/send_arp
 
 #######################################################################
 
@@ -82,10 +82,13 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-OCF Resource Agent compliant IPaddr2 script.
-Implements Cluster Alias IP functionality.
+This Linux-specific resource manages IP alias IP addresses.
+It can add an IP alias, or remove one.
+In addition, it can implement Cluster Alias IP functionality
+if invoked as a clone resource.
 </longdesc>
-<shortdesc lang="en">OCF Resource Agent compliant IPaddr2 script.</shortdesc>
+
+<shortdesc lang="en">Manages virtual IPv4 addresses</shortdesc>
 
 <parameters>
 <parameter name="ip" unique="1" required="1">
@@ -269,10 +272,13 @@ ip_init() {
 	BASEIP="$OCF_RESKEY_ip"
 	BRDCAST="$OCF_RESKEY_broadcast"
 	NIC="$OCF_RESKEY_nic"
+        # Note: We had a version out there for a while which used
+        # netmask instead of cidr_netmask. Don't remove this aliasing code!
         if
           [ ! -z "$OCF_RESKEY_netmask" -a -z "$OCF_RESKEY_cidr_netmask" ]
         then
-          OCF_RESKEY_cidr_netmask=$OCF_RESKEY_netmask
+	  OCF_RESKEY_cidr_netmask=$OCF_RESKEY_netmask
+	  export OCF_RESKEY_cidr_netmask
         fi
 	NETMASK="$OCF_RESKEY_cidr_netmask"
 	IFLABEL="$OCF_RESKEY_iflabel"
@@ -304,20 +310,19 @@ ip_init() {
 
 	  
 	# Validation is performed in ip_validate()...
-
 	#
-	# $FINDIF can deal with the condition of empty intermediate parameters.
+	# $FINDIF now takes its parameters from the environment
 	#
-	NICINFO=`$FINDIF -C "$BASEIP/$NETMASK/$NIC/$BRDCAST"`
-
-	if [ $? -eq 0 ]; then
+	if
+	  NICINFO=`$FINDIF -C`
+        then
 	    NICINFO=`echo $NICINFO | sed -e 's/netmask\ //;s/broadcast\ //'`
 	    NIC=`echo "$NICINFO" | cut -d" " -f1`
 	    NETMASK=`echo "$NICINFO" | cut -d" " -f2`
 	    BRDCAST=`echo "$NICINFO" | cut -d" " -f3`
 	else
-	    ocf_log err "Failed: $FINDIF $BASEIP/$NETMASK/$NIC/$BRDCAST . Parameter error."
-  	    exit $OCF_ERR_GENERIC
+	    ocf_log err "[$FINDIF -C] failed"
+  	    exit $OCF_ERR_ARGS
 	fi
 	
 	SENDARPPIDFILE="$SENDARPPIDDIR/send_arp-$BASEIP"
@@ -379,8 +384,9 @@ find_interface() {
 delete_interface () {
 	ipaddr="$1"
 	iface="$2"
+	netmask="$3"
 
-	CMD="$IP2UTIL -f inet addr delete $ipaddr dev $iface"
+	CMD="$IP2UTIL -f inet addr delete $ipaddr/$netmask dev $iface"
 
 	ocf_log info "$CMD"
 	$CMD
@@ -482,7 +488,7 @@ remove_conflicting_loopback() {
 		ocf_log err "Could not save conflicting loopback $ifname." \
 		       "it will not be restored."
 	fi
-	delete_interface "$ipaddr" "$ifname"
+	delete_interface "$ipaddr" "$ifname" "$netmask"
 	# Forcibly remove the route (if it exists) to the loopback.
 	delete_route "$ipaddr" "$ifname"
 }       
@@ -678,7 +684,7 @@ ip_stop() {
 	fi
 	
 	if [ "$ip_del_if" = "yes" ]; then
-		delete_interface $BASEIP $NIC
+		delete_interface $BASEIP $NIC $NETMASK
 		if [ $? -ne 0 ]; then
 			exit $OCF_ERR_GENERIC
 		fi

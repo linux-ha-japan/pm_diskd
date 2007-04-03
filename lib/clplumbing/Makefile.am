@@ -28,43 +28,42 @@ INCLUDES                = -I$(top_builddir)/include -I$(top_srcdir)/include \
 
 # if we want to do extreme stress test for messages, we need to disable IPC_TIME_DEBUG 
 # because there will be too many debug log about delayed messages 
-AM_CFLAGS			= @CFLAGS@  -DALIGNFUNC=@ALIGN@ -DMSGHDR_TYPE=@MSGHDR_TYPE@ \
-				-DHALIB='"$(halibdir)"'
-
+AM_CFLAGS		= @CFLAGS@  -DALIGNFUNC=@ALIGN@ -DMSGHDR_TYPE=@MSGHDR_TYPE@
 
 ## libraries
 
 lib_LTLIBRARIES		= libplumb.la libplumbgpl.la
 
 libplumb_la_SOURCES	= 		\
-			Gmain_timeout.c	\
-			GSource.c	\
 			base64.c	\
-			md5.c		\
-			ipcsocket.c	\
+			cl_compress.c	\
 			cl_log.c	\
 			cl_malloc.c	\
+			cl_misc.c 	\
 			cl_msg.c	\
 			cl_msg_types.c  \
 			cl_netstring.c	\
+			cl_pidfile.c	\
 			cl_poll.c	\
 			cl_random.c	\
 			cl_signal.c	\
 			cl_syslog.c	\
+			cl_uuid.c	\
+			cl_plugin.c	\
 			coredumps.c	\
 			cpulimits.c	\
+			Gmain_timeout.c	\
+			GSource.c	\
+			ipcsocket.c	\
 			longclock.c	\
+			md5.c		\
 			mkstemp_mode.c	\
 			ocf_ipc.c	\
 			proctrack.c	\
 			realtime.c	\
+			replytrack.c	\
 			timers.c	\
-			uids.c 		\
-			cl_uuid.c	\
-			cl_pidfile.c	\
-			cl_compress.c	\
-			cl_misc.c 	\
-			cl_plugin.c
+			uids.c 	
 
 libplumb_la_LIBADD      = $(top_builddir)/replace/libreplace.la \
 			$(top_builddir)/lib/pils/libpils.la
@@ -77,20 +76,22 @@ libplumbgpl_la_LDFLAGS	= -version-info 1:0:0
 
 testdir = $(libdir)/@HB_PKG@
 test_PROGRAMS = ipctest ipctransientclient ipctransientserver base64_md5_test
+test_SCRIPTS  = transient-test.sh
 
 ipctest_SOURCES = ipctest.c
 ipctest_LDADD = libplumb.la $(top_builddir)/replace/libreplace.la $(GLIBLIB) \
 		$(top_builddir)/lib/pils/libpils.la
 
+noinst_HEADERS = ipctransient.h
 
 #ipctransient_SOURCES = ipctransient.c
 #ipctransient_LDADD = libplumb.la $(top_builddir)/replace/libreplace.la $(top_builddir)/heartbeat/libhbclient.la $(GLIBLIB)
 
-ipctransientclient_SOURCES = ipctransientclient.c
+ipctransientclient_SOURCES = ipctransientclient.c ipctransientlib.c
 ipctransientclient_LDADD = libplumb.la $(top_builddir)/replace/libreplace.la $(GLIBLIB) \
 			$(top_builddir)/lib/pils/libpils.la
 
-ipctransientserver_SOURCES = ipctransientserver.c
+ipctransientserver_SOURCES = ipctransientserver.c ipctransientlib.c
 ipctransientserver_LDADD = libplumb.la $(top_builddir)/replace/libreplace.la $(GLIBLIB) \
 			$(top_builddir)/lib/pils/libpils.la
 
@@ -100,3 +101,4 @@ ipctransientserver_LDADD = libplumb.la $(top_builddir)/replace/libreplace.la $(G
 base64_md5_test_SOURCES	= base64_md5_test.c
 base64_md5_test_LDADD	= libplumb.la $(top_builddir)/replace/libreplace.la $(GLIBLIB)
 
+EXTRA_DIST = $(test_SCRIPTS)

@@ -19,7 +19,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/types.h>
 #ifdef HAVE_SYS_SOCKET_H
@@ -31,7 +31,11 @@
 #include <pwd.h>
 #include <grp.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <stdarg.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #if HAVE_SECURITY_PAM_APPL_H

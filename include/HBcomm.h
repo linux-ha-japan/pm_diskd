@@ -1,4 +1,3 @@
-/* $Id: HBcomm.h,v 1.8 2005/07/28 08:26:00 sunjd Exp $ */
 /*
  * HBcomm.h: Communication functions for Linux-HA
  *
@@ -23,7 +22,7 @@
 #	define HBCOMM_H 1
 
 #define HB_COMM_TYPE	HBcomm
-#define HB_COMM_TYPE_S	MKSTRING(HBcomm)
+#define HB_COMM_TYPE_S	"HBcomm"
 
 /*
  *	List of functions provided by implementations of the heartbeat media

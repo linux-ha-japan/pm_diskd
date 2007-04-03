@@ -46,7 +46,6 @@ import CTSaudits
 import time, os, re, types, string, tempfile, sys
 from CTSaudits import *
 from stat import *
-from xml.dom.minidom import *
 
 #        List of all class objects for tests which we ought to
 #        consider running.
@@ -924,6 +923,48 @@ class RestartOnebyOne(CTSTest):
 #     Register StopOnebyOne as a good test to run
 AllTestClasses.append(RestartOnebyOne)
 
+class PartialStart(CTSTest):
+###################################################################
+    '''Start a node - but tell it to stop before it finishes starting up'''
+    def __init__(self, cm):
+        CTSTest.__init__(self,cm)
+        self.name="PartialStart"
+        self.startall = SimulStartLite(cm)
+        self.stopall = SimulStopLite(cm)
+
+    def __call__(self, node):
+        '''Perform the 'PartialStart' test. '''
+        self.incr("calls")
+
+        ret = self.stopall(None)
+        if not ret:
+            return self.failure("Setup failed")
+
+        watchpats = []
+        watchpats.append("Starting crmd")
+        watch = CTS.LogWatcher(self.CM["LogFileName"], watchpats,
+                               timeout=self.CM["DeadTime"]+10)
+        watch.setwatch()
+
+        self.CM.StartaCMnoBlock(node)
+        ret = watch.lookforall()
+        if not ret:
+            self.CM.log("Patterns not found: " + repr(watch.unmatched))
+            return self.failure("Setup of %s failed" % node) 
+
+        ret = self.stopall(None)
+        if not ret:
+            return self.failure("%s did not stop in time" % node)
+
+        return self.success()
+
+    def is_applicable(self):
+        '''Partial is always applicable'''
+        return 1
+
+#     Register StopOnebyOne as a good test to run
+AllTestClasses.append(PartialStart)
+
 ###################################################################
 class StandbyTest(CTSTest):
 ###################################################################
@@ -1580,8 +1621,12 @@ class ResourceRecover(CTSTest):
         self.startall = SimulStartLite(cm)
         self.max=30
         self.rid=None
+        self.action = "fail"
 
-    def __call__(self, dummy):
+        # make sure the interval is greater than 0 so failcount is updated
+        self.interval = 1
+
+    def __call__(self, node):
         '''Perform the 'ResourceRecover' test. '''
         self.incr("calls")
         
@@ -1589,47 +1634,54 @@ class ResourceRecover(CTSTest):
         if not ret:
             return self.failure("Setup failed")
 
-        resourcelist = self.CM.Resources()
+        resourcelist = self.CM.active_resources(node)
         # if there are no resourcelist, return directly
         if len(resourcelist)==0:
-            self.CM.log("Can't find any resource on cluster,exit this test")
+            self.CM.log("No active resources on %s" % node)
             return self.skipped()
 
-        resource=self.CM.Env.RandomGen.choice(resourcelist)
-        resourcetype = str(resource.Type())
-        self.rid = str(resource.rid)
-        label = resourcetype+"::"+str(resource.rid)
-        nodes=resource.RunningNodes()
-        if len(nodes) == 0:
-            return self.skipped()
-        self.CM.log("...resource %s on %s" % (label, nodes[0]))
+        self.rid = self.CM.Env.RandomGen.choice(resourcelist)
+        self.CM.debug("Shooting %s..." % self.rid)
 
+        pats = []
+        pats.append("crmd.* Performing op=%s_stop_0" % self.rid)
+        pats.append("crmd.* Performing op=%s_start_0" % self.rid)
+        pats.append("crmd.* LRM operation %s_start_0.*complete" % self.rid)
+        pats.append("Updating failcount for %s on .* after .* %s"
+                    % (self.rid, self.action))
 
-        pat=("""crmd.* Performing op=%s_start_0""" % (resource.rid))
-        watch = CTS.LogWatcher(self.CM["LogFileName"], [pat], timeout=240)
+        watch = CTS.LogWatcher(self.CM["LogFileName"], pats, timeout=60)
         watch.setwatch()
         
-        # stop a resource
-        resource.Stop(nodes[0])
+        # fail a resource by calling an action it doesn't support
+        self.CM.ResourceOp(self.rid, self.action, node, self.interval, "crmd")
 
-        # wait for the resource to be started
-        if not watch.look():
-            self.CM.log("WARN: No match for pattern: %s" %repr(pat))
 
-        # should be ample time for the LRM + RA to complete
-        time.sleep(10)
+        # Temporary hacks until the lrmd does the right thing
+        time.sleep(5)
+        self.CM.rsh.remote_py(node, "os", "system",
+                              "@sbindir@/crm_resource -R -H %s" % node)
 
-        recovernode=resource.RunningNodes()
+        watch.lookforall()
+
+        self.CM.cluster_stable()
+        recovernode=self.CM.ResourceLocation(self.rid)
+
         if len(recovernode)==1:
             self.CM.debug("Recovered: %s is running on %s" 
-                          %(label, recovernode[0]))
-            self.CM.cluster_stable()
-            return self.success()
+                          %(self.rid, recovernode[0]))
+            if not watch.unmatched: 
+                return self.success()
+            else:
+                return self.failure("Patterns not found: %s" 
+                                    % repr(watch.unmatched))
+
         elif len(recovernode)==0:
-            return self.failure("%s was not recovered and is inactive" %(label))
+            return self.failure("%s was not recovered and is inactive" 
+                                % self.rid)
         else:
             return self.failure("%s is now active on more than one node: %s"
-                                %(label, str(recovernode)))
+                                %(self.rid, str(recovernode)))
 
     def is_applicable(self):
         '''ResourceRecover is applicable only when there are resources running
@@ -1643,13 +1695,12 @@ class ResourceRecover(CTSTest):
                 return 1
         return 0
     
-#
-#        FIXME!!  This test has hard-coded cluster-manager-specific things in it!!
-#        
     def errorstoignore(self):
         '''Return list of errors which should be ignored'''
-        return [ """ERROR: .* Action .*%s_monitor_.* on .* failed .*target: 0 vs. rc: 7.*: Error""" % self.rid,
-                 """Updating failcount for """
+        return [ """Updating failcount for %s""" % self.rid,
+                 """Unknown operation: fail""",
+                 """ERROR: sending stonithRA op to stonithd failed.""",
+                 """ERROR: process_graph_event: Action %s_%s_%d initiated outside of a transition""" % (self.rid, self.action, self.interval)
                  ]
 
 AllTestClasses.append(ResourceRecover)

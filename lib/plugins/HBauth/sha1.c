@@ -1,4 +1,3 @@
-/* $Id: sha1.c,v 1.17 2005/06/08 08:03:35 sunjd Exp $ */
 /*
 SHA-1 in C
 By Steve Reid <steve@edmweb.com>
@@ -19,7 +18,7 @@ A million repetitions of "a"
 /* #define SHA1HANDSOFF * Copies data before messing with it. */
 #define SHA1HANDSOFF 1
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdio.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>

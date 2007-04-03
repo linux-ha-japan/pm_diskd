@@ -66,7 +66,7 @@ config_defaults = [
 	"remove-after-stop=false",
 	"short-resource-names=true",
 	"transition-idle-timeout=5min",
-	"default-action-timeout=5s",
+	"default-action-timeout=15s",
 	"is-managed-default=true",
 ]
 
@@ -386,8 +386,8 @@ def get_directive_list(config, directive) :
 	return directive_list
 		
 if __name__=="__main__" :
-	resource_file = "@HB_HA_DIR@/haresources"
-	config_file = "@HB_HA_DIR@/ha.cf"
+	resource_file = "@HB_HBCONF_DIR@/haresources"
+	config_file = "@HB_HBCONF_DIR@/ha.cf"
 	target_file = "@HA_VARLIBHBDIR@/crm/cib.xml"
 	to_stdout = False
 	

@@ -1,4 +1,3 @@
-/* $Id: actions.c,v 1.37 2006/08/14 09:14:45 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 #include <crm/crm.h>
@@ -420,13 +419,13 @@ send_rsc_command(crm_action_t *action)
 		trigger_graph();
 
 	} else if(action->timeout > 0) {
-		int action_timeout = 2 * action->timeout + transition_graph->network_delay;
+		int action_timeout = (2 * action->timeout) + transition_graph->network_delay;
 		crm_debug_3("Setting timer for action %s", task_uuid);
 		if(transition_graph->transition_timeout < action_timeout) {
 			crm_debug("Action %d:"
-				  " Increasing transition %d timeout to %d",
-				  action->id, transition_graph->id,
-				  transition_graph->transition_timeout);
+				  " Increasing transition %d timeout to %d (2*%d + %d)",
+				  action->id, transition_graph->id, action_timeout,
+				  action->timeout, transition_graph->network_delay);
 			transition_graph->transition_timeout = action_timeout;
 		}
 		te_start_action_timer(action);
@@ -439,6 +438,8 @@ crm_graph_functions_t te_graph_fns = {
 	te_crm_command,
 	te_fence_node
 };
+
+extern GMainLoop*  mainloop;
 
 void
 notify_crmd(crm_graph_t *graph)
@@ -471,6 +472,10 @@ notify_crmd(crm_graph_t *graph)
 
 		case tg_shutdown:
 			crm_info("Exiting after transition");
+			if (mainloop != NULL && g_main_is_running(mainloop)) {
+				g_main_quit(mainloop);
+				return;
+			}
 			exit(LSB_EXIT_OK);
 	}
 

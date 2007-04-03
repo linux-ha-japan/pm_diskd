@@ -1,4 +1,3 @@
-/* $Id: events.c,v 1.23 2006/08/14 09:14:45 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 #include <crm/crm.h>
@@ -45,6 +44,23 @@ need_abort(crm_data_t *update)
 		return NULL;
 	}
 	
+        xml_prop_iter(update, name, value,
+                      if(safe_str_eq(name, XML_ATTR_HAVE_QUORUM)) {
+			      goto do_abort;
+                      } else if(safe_str_eq(name, XML_ATTR_NUMPEERS)) {
+			      goto do_abort;
+                      } else if(safe_str_eq(name, XML_ATTR_GENERATION)) {
+			      goto do_abort;
+                      } else if(safe_str_eq(name, XML_ATTR_GENERATION_ADMIN)) {
+			      goto do_abort;
+		      }
+		      continue;
+	  do_abort:
+		      crm_debug("Aborting on change to %s", name);
+		      crm_log_xml_debug(update, "Abort: CIB Attrs");
+		      return update;
+                );
+
 	section = XML_CIB_TAG_NODES;
 	section_xml = get_object_root(section, update);
 	xml_child_iter(section_xml, child, 
@@ -200,13 +216,12 @@ extract_event(crm_data_t *msg)
 static void
 update_failcount(crm_data_t *event, const char *event_node, int rc) 
 {
-	char *attr_name = NULL;
-	
-	char *task     = NULL;
-	char *rsc_id   = NULL;
-	const char *on_node  = event_node;
-	const char *on_uuid  = event_node;
 	int interval = 0;
+	char *task = NULL;
+	char *rsc_id = NULL;
+	char *attr_name = NULL;
+	const char *id  = ID(event);
+	const char *on_uuid  = event_node;
 
 	if(rc == 99) {
 		/* this is an internal code for "we're busy, try again" */
@@ -215,24 +230,24 @@ update_failcount(crm_data_t *event, const char *event_node, int rc)
 
 	CRM_CHECK(on_uuid != NULL, return);
 
-	CRM_CHECK(parse_op_key(ID(event), &rsc_id, &task, &interval),
+	CRM_CHECK(parse_op_key(id, &rsc_id, &task, &interval),
 		  crm_err("Couldn't parse: %s", ID(event));
-		  return);
-	CRM_CHECK(task != NULL, crm_free(rsc_id); return);
-	CRM_CHECK(rsc_id != NULL, crm_free(task); return);
-	/* CRM_CHECK(on_node != NULL, return); */
+		  goto bail);
+	CRM_CHECK(task != NULL, goto bail);
+	CRM_CHECK(rsc_id != NULL, goto bail);
 	
 	if(interval > 0) {
 		attr_name = crm_concat("fail-count", rsc_id, '-');
 		crm_warn("Updating failcount for %s on %s after failed %s: rc=%d",
-			 rsc_id, on_node, task, rc);
+			 rsc_id, on_uuid, task, rc);
 	
 		update_attr(te_cib_conn, cib_none, XML_CIB_TAG_STATUS,
 			    on_uuid, NULL,NULL, attr_name,
 			    XML_NVPAIR_ATTR_VALUE"++");
-		crm_free(attr_name);	
+		crm_free(attr_name);
 	}
 
+  bail:
 	crm_free(rsc_id);
 	crm_free(task);
 }
@@ -271,7 +286,7 @@ status_from_rc(crm_action_t *action, int orig_status, int rc)
 		task = crm_element_value(action->xml, XML_LRM_ATTR_TASK);
 		uname  = crm_element_value(action->xml, XML_LRM_ATTR_TARGET);
 		crm_warn("Action %s on %s failed (target: %s vs. rc: %d): %s",
-			 task, uname, target_rc_s, rc, op_status2text(status));
+			 task, uname, crm_str(target_rc_s), rc, op_status2text(status));
 	}
 
 	return status;
@@ -473,7 +488,7 @@ process_graph_event(crm_data_t *event, const char *event_node)
 		  crm_err("Invalid event %s detected", id);
 		  abort_transition(INFINITY, tg_restart,"Bad event", event);
 		);
-	
+
 	if(transition_num == -1) {
 		crm_err("Action %s initiated outside of a transition", id);
 		abort_transition(INFINITY, tg_restart,"Unexpected event",event);

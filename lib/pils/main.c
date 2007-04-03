@@ -1,4 +1,3 @@
-/* $Id: main.c,v 1.10 2004/09/01 17:50:19 gshi Exp $ */
 /*
  * Copyright (C) 2001 Alan Robertson <alanr@unix.sh>
  * This software licensed under the GNU LGPL.
@@ -19,7 +18,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdio.h>
 #include <pils/generic.h>
 

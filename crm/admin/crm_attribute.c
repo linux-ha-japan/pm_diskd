@@ -1,4 +1,3 @@
-/* $Id: crm_attribute.c,v 1.18 2006/06/01 16:05:59 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 
@@ -49,7 +48,6 @@
 #ifdef HAVE_GETOPT_H
 #  include <getopt.h>
 #endif
-#include <crm/dmalloc_wrapper.h>
 void usage(const char *cmd, int exit_status);
 
 gboolean BE_QUIET = FALSE;
@@ -209,14 +207,20 @@ main(int argc, char **argv)
 		return rc;
 	}
 	
-	if(safe_str_eq(crm_system_name, "crm_master")) {
+
+	if(safe_str_eq(crm_system_name, "crm_attribute")
+	   && type == NULL && dest_uname == NULL) {
+		/* we're updating cluster options - dont populate dest_node */
+		type = XML_CIB_TAG_CRMCONFIG;
+
+	} else if(dest_uname == NULL) {
 		struct utsname name;
 		if(uname(&name) != 0) {
 			cl_perror("uname(3) call failed");
 			return 1;
 		}
 		dest_uname = name.nodename;
-		crm_info("Detected: %s", dest_uname);
+		crm_info("Detected uname: %s", dest_uname);
 	}
 
 	if(dest_node == NULL && dest_uname != NULL) {
@@ -247,11 +251,11 @@ main(int argc, char **argv)
 			return 1;
 
 		} else if(dest_node == NULL) {
-			fprintf(stderr, "Could not determin node UUID.\n");
+			fprintf(stderr, "Could not determine node UUID.\n");
 			return 1;
 
 		} else if(rsc_id == NULL) {
-			fprintf(stderr, "Could not determin resource name.\n");
+			fprintf(stderr, "Could not determine resource name.\n");
 			return 1;
 		}
 		
@@ -259,9 +263,9 @@ main(int argc, char **argv)
 		crm_malloc0(attr_name, len);
 		sprintf(attr_name, "master-%s", rsc_id);
 
-		len = 2 + strlen(attr_name) + strlen(dest_node);
+		len = 3 + strlen(type) + strlen(attr_name) + strlen(dest_node);
 		crm_malloc0(attr_id, len);
-		sprintf(attr_id, "%s-%s", attr_name, dest_node);
+		sprintf(attr_id, "%s-%s-%s", type, attr_name, dest_node);
 
 		len = 8 + strlen(dest_node);
 		crm_malloc0(set_name, len);
@@ -323,14 +327,15 @@ main(int argc, char **argv)
 		}
 		is_done = TRUE;
 
-	} else if(type == NULL && dest_node == NULL) {
-		type = XML_CIB_TAG_CRMCONFIG;
-
 	} else if (type == NULL) {
-		fprintf(stderr, "Please specify a value for -t\n");
+		type = XML_CIB_TAG_NODES;
 		return 1;
 	}
 
+	if(safe_str_eq(type, XML_CIB_TAG_CRMCONFIG)) {
+		dest_node = NULL;
+	}
+	
 	if(is_done) {
 			
 	} else if(DO_DELETE) {
@@ -363,6 +368,13 @@ main(int argc, char **argv)
 		char *read_value = NULL;
 		rc = read_attr(the_cib, type, dest_node, set_name,
 				 attr_id, attr_name, &read_value);
+
+		if(rc == cib_NOTEXISTS 
+		   && safe_str_eq(crm_system_name, "crm_failcount")) {
+			rc = cib_ok;
+			read_value = crm_strdup("0");
+		}
+		
 		crm_info("Read %s=%s %s%s",
 			 attr_name, crm_str(read_value),
 			 set_name?"in ":"", set_name?set_name:"");
@@ -378,11 +390,7 @@ main(int argc, char **argv)
 		}
 	}
 	the_cib->cmds->signoff(the_cib);
-	if(DO_WRITE == FALSE && rc == cib_NOTEXISTS) {
-		fprintf(stderr, "Error performing operation: %s\n",
-			cib_error2string(rc));
-
-	} else if(rc != cib_ok) {
+	if(rc != cib_ok) {
 		fprintf(stderr, "Error performing operation: %s\n",
 			cib_error2string(rc));
 	}
@@ -443,7 +451,7 @@ usage(const char *cmd, int exit_status)
 	
 	fprintf(stream, "\t--%s (-%c) <node_uuid>\t: "
 		"UUID of the node to change\n", "node-uuid", 'u');
-	fprintf(stream, "\t--%s (-%c) <node_uuid>\t: "
+	fprintf(stream, "\t--%s (-%c) <node_uname>\t: "
 		"uname of the node to change\n", "node-uname", 'U');
 
 	if(safe_str_eq(cmd, "crm_failcount")) {

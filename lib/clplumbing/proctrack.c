@@ -1,4 +1,3 @@
-/* $Id: proctrack.c,v 1.22 2005/11/03 10:28:50 sunjd Exp $ */
 /*
  * Process tracking object.
  *
@@ -21,7 +20,7 @@
  *
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <errno.h>
 #include <sys/wait.h>
 #include <heartbeat.h>

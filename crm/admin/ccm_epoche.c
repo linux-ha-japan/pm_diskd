@@ -1,4 +1,3 @@
-/* $Id: ccm_epoche.c,v 1.8 2005/07/14 13:27:49 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 #include <stdio.h>
@@ -37,7 +36,6 @@
 
 #include <crm/crm.h>
 
-#include <crm/dmalloc_wrapper.h>
 
 const char* crm_system_name = "ccm_tool";
 oc_ev_t *ccm_token = NULL;

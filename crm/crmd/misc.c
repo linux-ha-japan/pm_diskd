@@ -15,7 +15,7 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <heartbeat.h>
 
 #include <crm/crm.h>
@@ -25,8 +25,6 @@
 
 #include <crmd_fsa.h>
 #include <crmd_messages.h>
-
-#include <crm/dmalloc_wrapper.h>
 
 /*	A_LOG, A_WARN, A_ERROR	*/
 enum crmd_fsa_input

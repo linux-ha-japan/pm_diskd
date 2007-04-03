@@ -1,4 +1,3 @@
-/* $Id: apphbtest.c,v 1.25 2005/07/29 06:21:10 sunjd Exp $ */
 /*
  * apphbtest:	application heartbeat test program
  *
@@ -23,7 +22,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

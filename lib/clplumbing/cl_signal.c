@@ -1,4 +1,3 @@
-/* $Id: cl_signal.c,v 1.6 2004/02/17 22:11:58 lars Exp $ */
 /*
  * cl_signal.c: signal handling routines to be used by Linux-HA programmes
  *
@@ -20,7 +19,7 @@
  *
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <string.h>
 #include <errno.h>
 

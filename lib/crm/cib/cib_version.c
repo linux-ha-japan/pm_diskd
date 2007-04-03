@@ -1,4 +1,3 @@
-/* $Id: cib_version.c,v 1.5 2006/03/29 06:14:57 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 
@@ -37,7 +36,6 @@
 #include <crm/common/xml.h>
 #include <crm/cib.h>
 
-#include <crm/dmalloc_wrapper.h>
 
 
 

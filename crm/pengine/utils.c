@@ -1,4 +1,3 @@
-/* $Id: utils.c,v 1.147 2006/07/05 14:20:02 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <lha_internal.h>
 #include <crm/msg_xml.h>
 #include <allocate.h>
 #include <utils.h>
@@ -134,8 +134,11 @@ rsc2node_new(const char *id, resource_t *rsc,
 	if(rsc == NULL || id == NULL) {
 		pe_err("Invalid constraint %s for rsc=%p", crm_str(id), rsc);
 		return NULL;
-	}
 
+	} else if(foo_node == NULL) {
+		CRM_CHECK(node_weight == 0, return NULL);
+	}
+	
 	crm_malloc0(new_con, sizeof(rsc_to_node_t));
 	if(new_con != NULL) {
 		new_con->id           = id;
@@ -147,14 +150,11 @@ rsc2node_new(const char *id, resource_t *rsc,
 			node_t *copy = node_copy(foo_node);
 			copy->weight = node_weight;
 			new_con->node_list_rh = g_list_append(NULL, copy);
-		} else {
-			CRM_CHECK(node_weight == 0, return NULL);
 		}
 		
 		data_set->placement_constraints = g_list_append(
 			data_set->placement_constraints, new_con);
-		rsc->rsc_location = g_list_append(
-			rsc->rsc_location, new_con);
+		rsc->rsc_location = g_list_append(rsc->rsc_location, new_con);
 	}
 	
 	return new_con;
@@ -165,24 +165,29 @@ const char *
 ordering_type2text(enum pe_ordering type)
 {
 	const char *result = "<unknown>";
-	switch(type)
-	{
-		case pe_ordering_manditory:
-			result = "manditory";
-			break;
-		case pe_ordering_restart:
-			result = "restart";
-			break;
-		case pe_ordering_recover:
-			result = "recover";
-			break;
-		case pe_ordering_optional:
-			result = "optional";
-			break;
-		case pe_ordering_postnotify:
-			result = "post_notify";
-			break;
+	if(type & pe_order_implies_left) {
+		/* was: mandatory */
+		result = "right_implies_left";
+
+	} else if(type & pe_order_internal_restart) {
+		/* upgrades to: right_implies_left */
+		result = "internal_restart";
+
+	} else if(type & pe_order_implies_right) {
+		/* was: recover  */
+		result = "left_implies_right";
+
+	} else if(type & pe_order_optional) {
+		/* pure ordering, nothing implied */
+		result = "optional";
+		
+	} else if(type & pe_order_postnotify) {
+		result = "post_notify";
+		
+	} else {
+		crm_err("Unknown ordering type: %.3x", type);
 	}
+	
 	return result;
 }
 
@@ -191,10 +196,10 @@ gboolean
 can_run_resources(const node_t *node)
 {
 	if(node == NULL) {
-		crm_err("No node supplied");
-		return FALSE;
-		
-	} else if(node->details->online == FALSE
+		return FALSE;	
+	}
+	
+	if(node->details->online == FALSE
 	   || node->details->shutdown
 	   || node->details->unclean
 	   || node->details->standby) {
@@ -277,28 +282,6 @@ native_assign_node(resource_t *rsc, GListPtr nodes, node_t *chosen)
 
 	rsc->provisional = FALSE;
 	
-	if(chosen == NULL) {
-		crm_debug("Could not allocate a node for %s", rsc->id);
-		rsc->next_role = RSC_ROLE_STOPPED;
-		return FALSE;
-
-	} else if(can_run_resources(chosen) == FALSE) {
-		crm_debug("All nodes for color %s are unavailable"
-			  ", unclean or shutting down", rsc->id);
-		rsc->next_role = RSC_ROLE_STOPPED;
-		return FALSE;
-		
-	} else if(chosen->weight < 0) {
-		crm_debug("Even highest ranked node for %s, had weight %d",
-			  rsc->id, chosen->weight);
-		rsc->next_role = RSC_ROLE_STOPPED;
-		return FALSE;
-	}
-
-	if(rsc->next_role == RSC_ROLE_UNKNOWN) {
-		rsc->next_role = RSC_ROLE_STARTED;
-	}
-	
 	slist_iter(candidate, node_t, nodes, lpc, 
 		   crm_debug("Color %s, Node[%d] %s: %d", rsc->id, lpc,
 			     candidate->details->uname, candidate->weight);
@@ -309,6 +292,22 @@ native_assign_node(resource_t *rsc, GListPtr nodes, node_t *chosen)
 		   }
 		);
 
+	if(chosen == NULL) {
+		crm_debug("Could not allocate a node for %s", rsc->id);
+		rsc->next_role = RSC_ROLE_STOPPED;
+		return FALSE;
+
+	} else if(can_run_resources(chosen) == FALSE || chosen->weight < 0) {
+		crm_debug("All nodes for resource %s are unavailable"
+			  ", unclean or shutting down", rsc->id);
+		rsc->next_role = RSC_ROLE_STOPPED;
+		return FALSE;
+	}
+
+	if(rsc->next_role == RSC_ROLE_UNKNOWN) {
+		rsc->next_role = RSC_ROLE_STARTED;
+	}
+	
 	if(multiple > 1) {
 		int log_level = LOG_INFO;
 		char *score = score2char(chosen->weight);
@@ -407,3 +406,136 @@ convert_non_atomic_task(resource_t *rsc, order_constraint_t *order)
 	crm_free(raw_task);
 	crm_free(rid);
 }
+
+
+void
+order_actions(
+	action_t *lh_action, action_t *rh_action, enum pe_ordering order) 
+{
+	action_wrapper_t *wrapper = NULL;
+	GListPtr list = NULL;
+	
+	crm_debug_2("Ordering Action %s before %s",
+		  lh_action->uuid, rh_action->uuid);
+
+	log_action(LOG_DEBUG_4, "LH (order_actions)", lh_action, FALSE);
+	log_action(LOG_DEBUG_4, "RH (order_actions)", rh_action, FALSE);
+
+	
+	crm_malloc0(wrapper, sizeof(action_wrapper_t));
+	if(wrapper != NULL) {
+		wrapper->action = rh_action;
+		wrapper->type = order;
+		
+		list = lh_action->actions_after;
+		list = g_list_append(list, wrapper);
+		lh_action->actions_after = list;
+		wrapper = NULL;
+	}
+
+	order |= pe_order_implies_right;
+	order ^= pe_order_implies_right;
+	
+	if(order) {
+		crm_malloc0(wrapper, sizeof(action_wrapper_t));
+		if(wrapper != NULL) {
+			wrapper->action = lh_action;
+			wrapper->type = order;
+			list = rh_action->actions_before;
+			list = g_list_append(list, wrapper);
+			rh_action->actions_before = list;
+		}
+	}
+}
+
+
+void
+log_action(unsigned int log_level, const char *pre_text, action_t *action, gboolean details)
+{
+	const char *node_uname = NULL;
+	const char *node_uuid = NULL;
+	
+	if(action == NULL) {
+
+		do_crm_log(log_level, "%s%s: <NULL>",
+			      pre_text==NULL?"":pre_text,
+			      pre_text==NULL?"":": ");
+		return;
+	}
+
+
+	if(action->pseudo) {
+		node_uname = NULL;
+		node_uuid = NULL;
+		
+	} else if(action->node != NULL) {
+		node_uname = action->node->details->uname;
+		node_uuid = action->node->details->id;
+	} else {
+		node_uname = "<none>";
+		node_uuid = NULL;
+	}
+	
+	switch(text2task(action->task)) {
+		case stonith_node:
+		case shutdown_crm:
+			do_crm_log(log_level,
+				      "%s%s%sAction %d: %s%s%s%s%s%s",
+				      pre_text==NULL?"":pre_text,
+				      pre_text==NULL?"":": ",
+				      action->pseudo?"Pseduo ":action->optional?"Optional ":action->runnable?action->processed?"":"(Provisional) ":"!!Non-Startable!! ",
+				      action->id, action->uuid,
+				      node_uname?"\ton ":"",
+				      node_uname?node_uname:"",
+				      node_uuid?"\t\t(":"",
+				      node_uuid?node_uuid:"",
+				      node_uuid?")":"");
+			break;
+		default:
+			do_crm_log(log_level,
+				      "%s%s%sAction %d: %s %s%s%s%s%s%s",
+				      pre_text==NULL?"":pre_text,
+				      pre_text==NULL?"":": ",
+				      action->optional?"Optional ":action->pseudo?"Pseduo ":action->runnable?action->processed?"":"(Provisional) ":"!!Non-Startable!! ",
+				      action->id, action->uuid,
+				      safe_val3("<none>", action, rsc, id),
+				      node_uname?"\ton ":"",
+				      node_uname?node_uname:"",
+				      node_uuid?"\t\t(":"",
+				      node_uuid?node_uuid:"",
+				      node_uuid?")":"");
+			
+			break;
+	}
+
+	if(details) {
+		do_crm_log(log_level+1, "\t\t====== Preceeding Actions");
+		slist_iter(
+			other, action_wrapper_t, action->actions_before, lpc,
+			log_action(log_level+1, "\t\t", other->action, FALSE);
+			);
+		do_crm_log(log_level+1, "\t\t====== Subsequent Actions");
+		slist_iter(
+			other, action_wrapper_t, action->actions_after, lpc,
+			log_action(log_level+1, "\t\t", other->action, FALSE);
+			);		
+		do_crm_log(log_level+1, "\t\t====== End");
+
+	} else {
+		do_crm_log(log_level, "\t\t(seen=%d, before=%d, after=%d)",
+			      action->seen_count,
+			      g_list_length(action->actions_before),
+			      g_list_length(action->actions_after));
+	}
+}
+
+resource_t *uber_parent(resource_t *rsc) 
+{
+	resource_t *parent = rsc;
+	while(parent != NULL && parent->parent != NULL) {
+		parent = parent->parent;
+	}
+	return parent;
+}
+
+

@@ -1,4 +1,3 @@
-/* $Id: apphb.c,v 1.23 2005/11/01 15:37:57 davidlee Exp $ */
 /*
  * apphb.c: application heartbeat library code.
  *
@@ -21,7 +20,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>

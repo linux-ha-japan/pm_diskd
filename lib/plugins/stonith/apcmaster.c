@@ -1,4 +1,3 @@
-/* $Id: apcmaster.c,v 1.27 2005/11/10 16:52:46 blaschke Exp $ */
 /*
 *
 *  Copyright 2001 Mission Critical Linux, Inc.
@@ -52,6 +51,7 @@
  * Version string that is filled in by CVS
  */
 static const char *version __attribute__ ((unused)) = "$Revision: 1.27 $"; 
+#include <lha_internal.h>
 
 #define	DEVICE	"APC MasterSwitch"
 

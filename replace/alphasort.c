@@ -1,4 +1,3 @@
-/* $Id: alphasort.c,v 1.7 2006/04/07 15:02:39 davidlee Exp $ */
 /*
  *
  * alphasort - replacement for alphasort functions.
@@ -29,7 +28,7 @@
  ***************************************************************************
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 

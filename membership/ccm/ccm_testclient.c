@@ -1,4 +1,3 @@
-/* $Id: ccm_testclient.c,v 1.18 2005/07/29 07:27:37 panjiam Exp $ */
 /* 
  * ccm.c: A consensus cluster membership sample client
  *
@@ -20,7 +19,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <ocf/oc_event.h>
 #include <stdio.h>
 #include <sys/time.h>

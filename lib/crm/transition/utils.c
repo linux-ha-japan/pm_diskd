@@ -1,4 +1,3 @@
-/* $Id: utils.c,v 1.10 2006/05/08 09:59:42 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <crm/crm.h>
 #include <crm/msg_xml.h>
@@ -233,7 +232,7 @@ update_abort_priority(
 		graph->abort_priority = priority;
 		crm_info("Abort priority upgraded to %d", priority);
 		if(graph->abort_reason != NULL) {
-			crm_info("'%s'-class abort superceeded",
+			crm_info("'%s' abort superceeded",
 				 graph->abort_reason);
 		}
 		graph->abort_reason = abort_reason;

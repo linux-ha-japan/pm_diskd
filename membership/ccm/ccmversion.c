@@ -1,4 +1,3 @@
-/* $Id: ccmversion.c,v 1.8 2006/02/17 05:48:24 zhenh Exp $ */
 /* 
  * ccmversion.c: routines that handle information while in the version 
  * request state
@@ -21,6 +20,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  */
+#include <lha_internal.h>
 #include <ccm.h>
 
 #define MAXTRIES 3

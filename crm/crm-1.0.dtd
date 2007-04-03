@@ -39,6 +39,7 @@ TODO
 
           cib_feature_revision  CDATA   #IMPLIED
           crm_feature_set       CDATA   #IMPLIED
+          remote_access_port    CDATA   #IMPLIED        
 
           dc_uuid        CDATA             #IMPLIED
           ccm_transition CDATA             #IMPLIED
@@ -451,13 +452,14 @@ This may change in the future.
 -->
 <!ELEMENT rsc_colocation (lifetime?)>
 <!ATTLIST rsc_colocation
-          id        CDATA #REQUIRED
-          from      CDATA #REQUIRED
-          from_role CDATA #IMPLIED
-          to        CDATA #REQUIRED
-          to_role   CDATA #IMPLIED
-          node_attribute   CDATA #IMPLIED
-          score     CDATA #REQUIRED>
+          id             CDATA #REQUIRED
+          from           CDATA #REQUIRED
+          from_role      CDATA #IMPLIED
+          to             CDATA #REQUIRED
+          to_role        CDATA #IMPLIED
+	  symmetrical    CDATA #IMPLIED
+          node_attribute CDATA #IMPLIED
+          score          CDATA #REQUIRED>
 
 <!--
 Specify which nodes are eligible for running a given resource.
@@ -558,7 +560,7 @@ Valid tests using this test would be of the form:
           attribute  CDATA                    #REQUIRED
           operation  (lt|gt|lte|gte|eq|ne|defined|not_defined) #REQUIRED
           value      CDATA                    #IMPLIED
-          type       (integer|string|version) 'string'>
+          type       (number|string|version) 'string'>
 
 <!--
  * start : A date-time conforming to the ISO8601 specification.
@@ -829,6 +831,7 @@ The parameters section allows us to detect when a resource's definition has chan
           call_id               CDATA #REQUIRED
           crm_feature_set       CDATA #REQUIRED
           crm-debug-origin      CDATA #IMPLIED
+          migrate_from          CDATA #IMPLIED
           transition_key        CDATA #IMPLIED
           op_digest             CDATA #IMPLIED
           op_restart_digest     CDATA #IMPLIED

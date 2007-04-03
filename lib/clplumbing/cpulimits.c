@@ -1,4 +1,3 @@
-/* $Id: cpulimits.c,v 1.7 2004/09/07 15:33:12 alan Exp $ */
 /*
  * Functions to put dynamic limits on CPU consumption.
  *
@@ -58,6 +57,7 @@
  * than four seconds, or greater than 60 seconds.
  *
  */
+#include <lha_internal.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <clplumbing/longclock.h>

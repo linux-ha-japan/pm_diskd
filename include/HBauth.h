@@ -1,4 +1,3 @@
-/* $Id: HBauth.h,v 1.4 2005/07/28 08:26:00 sunjd Exp $ */
 /*
  * auth.h: Authentication functions for Linux-HA
  *
@@ -38,6 +37,6 @@ struct HBAuthOps {
 };
 
 #define HB_AUTH_TYPE	HBauth
-#define HB_AUTH_TYPE_S	MKSTRING(HBauth)
+#define HB_AUTH_TYPE_S	"HBauth"
 
 #endif /*HBAUTH_H*/

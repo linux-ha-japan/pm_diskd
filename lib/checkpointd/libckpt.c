@@ -1,4 +1,3 @@
-/* $Id: libckpt.c,v 1.19 2005/03/16 17:11:15 lars Exp $ */
 /* 
  * ckptlib.c: data checkpoint API library
  *
@@ -273,7 +272,7 @@ SaCkptLibRequestSend(IPC_Channel* ch,
 	}
 	
 	/* build response message */
-	ipcMsg = (IPC_Message*)ha_malloc(sizeof(IPC_Message));
+	ipcMsg = (IPC_Message*)cl_malloc(sizeof(IPC_Message));
 	if (ipcMsg == NULL) {
 		cl_log(LOG_ERR, "No memory in checkpoint library");
 		return SA_ERR_NO_MEMORY;
@@ -287,10 +286,10 @@ SaCkptLibRequestSend(IPC_Channel* ch,
 		2* sizeof(void*) + 
 		ckptReq->dataLength +
 		ckptReq->reqParamLength ;
-	ipcMsg->msg_body = ha_malloc(ipcMsg->msg_len);
+	ipcMsg->msg_body = cl_malloc(ipcMsg->msg_len);
 	if (ipcMsg->msg_body == NULL) {
 		cl_log(LOG_ERR, "No memory in checkpoint library");
-		ha_free(ipcMsg);
+		cl_free(ipcMsg);
 		return SA_ERR_NO_MEMORY;
 	}
 
@@ -329,9 +328,9 @@ SaCkptLibRequestSend(IPC_Channel* ch,
 	/* free ipc message */
 	if (ipcMsg != NULL) {
 		if (ipcMsg->msg_body != NULL) {
-			ha_free(ipcMsg->msg_body);
+			cl_free(ipcMsg->msg_body);
 		}
-		ha_free(ipcMsg);
+		cl_free(ipcMsg);
 	}
 
 	if (rc == IPC_OK) {
@@ -397,7 +396,7 @@ SaCkptLibResponseReceive(IPC_Channel* ch,
 		}
 		p = ipcMsg->msg_body;
 
-		ckptResp = ha_malloc(sizeof(SaCkptClientResponseT));
+		ckptResp = cl_malloc(sizeof(SaCkptClientResponseT));
 		if (ckptResp == NULL) {
 			cl_log(LOG_ERR, 
 				"No memory in checkpoint library");
@@ -417,7 +416,7 @@ SaCkptLibResponseReceive(IPC_Channel* ch,
 		p += (sizeof(SaCkptClientResponseT) - sizeof(void*));
 
 		if (ckptResp->dataLength > 0) {
-			ckptResp->data = ha_malloc(ckptResp->dataLength);
+			ckptResp->data = cl_malloc(ckptResp->dataLength);
 			if (ckptResp->data == NULL) {
 				cl_log(LOG_ERR, 
 					"No memory in checkpoint library");
@@ -427,7 +426,7 @@ SaCkptLibResponseReceive(IPC_Channel* ch,
 					}
 					free(ipcMsg);
 				}
-				ha_free(ckptResp);
+				cl_free(ckptResp);
 				retval = SA_ERR_NO_MEMORY;
 				break;
 			} else {
@@ -497,7 +496,7 @@ SaCkptLibResponseReceiveAsync(IPC_Channel* ch)
 	}
 	p = ipcMsg->msg_body;
 
-	ckptResp = ha_malloc(sizeof(SaCkptClientResponseT));
+	ckptResp = cl_malloc(sizeof(SaCkptClientResponseT));
 	if (ckptResp == NULL) {
 		cl_log(LOG_ERR, 
 			"No memory in checkpoint library");
@@ -516,7 +515,7 @@ SaCkptLibResponseReceiveAsync(IPC_Channel* ch)
 	p += (sizeof(SaCkptClientResponseT) - sizeof(void*));
 
 	if (ckptResp->dataLength > 0) {
-		ckptResp->data = ha_malloc(ckptResp->dataLength);
+		ckptResp->data = cl_malloc(ckptResp->dataLength);
 		if (ckptResp->data == NULL) {
 			cl_log(LOG_ERR, 
 				"No memory in checkpoint library");
@@ -526,7 +525,7 @@ SaCkptLibResponseReceiveAsync(IPC_Channel* ch)
 				}
 				free(ipcMsg);
 			}
-			ha_free(ckptResp);
+			cl_free(ckptResp);
 			return SA_ERR_NO_MEMORY;
 		} else {
 			memcpy(ckptResp->data, p, 
@@ -587,13 +586,13 @@ saCkptInitialize(SaCkptHandleT *ckptHandle/*[out]*/,
 		return SA_ERR_INVALID_PARAM;
 	}
 
-	libClient = (SaCkptLibClientT*)ha_malloc(
+	libClient = (SaCkptLibClientT*)cl_malloc(
 					sizeof(SaCkptLibClientT));
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	initParam = (SaCkptReqInitParamT*)ha_malloc(
+	initParam = (SaCkptReqInitParamT*)cl_malloc(
 					sizeof(SaCkptReqInitParamT));
 	if ((libClient == NULL) || 
 		(libRequest == NULL) ||
@@ -714,27 +713,27 @@ initError:
 					ch->ops->destroy(ch);
 				}
 			}
-			ha_free(libClient);
+			cl_free(libClient);
 		}
 	}
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (initParam != NULL) {
-		ha_free(initParam);
+		cl_free(initParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError;
@@ -858,7 +857,7 @@ saCkptDispatch(const SaCkptHandleT *ckptHandle,
 			 * create libCheckpoint and add it to the 
 			 * opened checkpoint list
 			 */
-			libCheckpoint = ha_malloc(sizeof(SaCkptLibCheckpointT));
+			libCheckpoint = cl_malloc(sizeof(SaCkptLibCheckpointT));
 			if (libCheckpoint == NULL) {
 				libError = SA_ERR_NO_MEMORY;
 				libClient->callbacks.saCkptCheckpointOpenCallback(
@@ -902,12 +901,12 @@ saCkptDispatch(const SaCkptHandleT *ckptHandle,
 			clientResponse);
 		libAsyncRequestList = g_list_remove(libAsyncRequestList,
 			libRequest);
-		ha_free(clientResponse->data);
-		ha_free(clientResponse);
-		ha_free(libRequest->clientRequest->reqParam);
-		ha_free(libRequest->clientRequest->data);
-		ha_free(libRequest->clientRequest);
-		ha_free(libRequest);
+		cl_free(clientResponse->data);
+		cl_free(clientResponse);
+		cl_free(libRequest->clientRequest->reqParam);
+		cl_free(libRequest->clientRequest->data);
+		cl_free(libRequest->clientRequest);
+		cl_free(libRequest);
 		
 		if (dispatchFlags == SA_DISPATCH_ONE) {
 			break;
@@ -961,16 +960,16 @@ saCkptFinalize(const SaCkptHandleT *ckptHandle)
 		libCheckpoint = (SaCkptLibCheckpointT*)(list->data);
 		checkpointHandle = &(libCheckpoint->checkpointHandle);
 		saCkptCheckpointClose(checkpointHandle);
-/*		ha_free(libCheckpoint); */
+/*		cl_free(libCheckpoint); */
 
 		list = libClient->checkpointList;
 	}
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	finalParam = (SaCkptReqFinalParamT*)ha_malloc(
+	finalParam = (SaCkptReqFinalParamT*)cl_malloc(
 					sizeof(SaCkptReqFinalParamT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -1054,27 +1053,27 @@ finalError:
 					ch->ops->destroy(ch);
 				}
 			}
-			ha_free(libClient);
+			cl_free(libClient);
 		}
 	}
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (finalParam != NULL) {
-		ha_free(finalParam);
+		cl_free(finalParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -1143,13 +1142,13 @@ saCkptCheckpointOpen(
 		return SA_ERR_INVALID_PARAM;
 	}
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	openParam = (SaCkptReqOpenParamT*)ha_malloc(
+	openParam = (SaCkptReqOpenParamT*)cl_malloc(
 					sizeof(SaCkptReqOpenParamT));
-	libCheckpoint = (SaCkptLibCheckpointT*)ha_malloc(
+	libCheckpoint = (SaCkptLibCheckpointT*)cl_malloc(
 					sizeof(SaCkptLibCheckpointT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -1242,27 +1241,27 @@ saCkptCheckpointOpen(
 openError:
 	if (libError != SA_OK) {
 		if (libCheckpoint != NULL) {
-			ha_free(libCheckpoint);
+			cl_free(libCheckpoint);
 		}
 	}
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (openParam != NULL) {
-		ha_free(openParam);
+		cl_free(openParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -1313,13 +1312,13 @@ saCkptCheckpointOpenAsync(
 		return SA_ERR_INVALID_PARAM;
 	}
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	openAsyncParam = (SaCkptReqOpenAsyncParamT*)ha_malloc(
+	openAsyncParam = (SaCkptReqOpenAsyncParamT*)cl_malloc(
 					sizeof(SaCkptReqOpenAsyncParamT));
-	libCheckpoint = (SaCkptLibCheckpointT*)ha_malloc(
+	libCheckpoint = (SaCkptLibCheckpointT*)cl_malloc(
 					sizeof(SaCkptLibCheckpointT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -1372,20 +1371,20 @@ saCkptCheckpointOpenAsync(
 openError:
 	if (libError != SA_OK) {
 		if (libCheckpoint != NULL) {
-			ha_free(libCheckpoint);
+			cl_free(libCheckpoint);
 		}
 	}
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (openAsyncParam != NULL) {
-		ha_free(openAsyncParam);
+		cl_free(openAsyncParam);
 	}
 
 	return libError; 
@@ -1424,11 +1423,11 @@ saCkptCheckpointClose(
 	libClient = libCheckpoint->client;
 
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	closeParam = (SaCkptReqCloseParamT*)ha_malloc(
+	closeParam = (SaCkptReqCloseParamT*)cl_malloc(
 					sizeof(SaCkptReqCloseParamT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -1496,28 +1495,28 @@ saCkptCheckpointClose(
 closeError:
 	if (libError == SA_OK) {
 		if (libCheckpoint != NULL) {
-			ha_free(libCheckpoint);
+			cl_free(libCheckpoint);
 			libCheckpoint = NULL;
 		}
 	}
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (closeParam != NULL) {
-		ha_free(closeParam);
+		cl_free(closeParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -1560,11 +1559,11 @@ saCkptCheckpointUnlink(
 		return SA_ERR_INVALID_PARAM;
 	}
 
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	unlinkParam = (SaCkptReqUlnkParamT*)ha_malloc(
+	unlinkParam = (SaCkptReqUlnkParamT*)cl_malloc(
 					sizeof(SaCkptReqUlnkParamT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -1628,22 +1627,22 @@ saCkptCheckpointUnlink(
 unlinkError:
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (unlinkParam != NULL) {
-		ha_free(unlinkParam);
+		cl_free(unlinkParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -1682,11 +1681,11 @@ saCkptCheckpointRetentionDurationSet(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	rtnParam = (SaCkptReqRtnParamT*)ha_malloc(
+	rtnParam = (SaCkptReqRtnParamT*)cl_malloc(
 					sizeof(SaCkptReqRtnParamT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -1752,22 +1751,22 @@ saCkptCheckpointRetentionDurationSet(
 rtnError:
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (rtnParam != NULL) {
-		ha_free(rtnParam);
+		cl_free(rtnParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -1804,11 +1803,11 @@ saCkptActiveCheckpointSet(const SaCkptCheckpointHandleT *checkpointHandle)
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	activeParam = (SaCkptReqActSetParamT*)ha_malloc(
+	activeParam = (SaCkptReqActSetParamT*)cl_malloc(
 					sizeof(SaCkptReqActSetParamT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -1868,22 +1867,22 @@ saCkptActiveCheckpointSet(const SaCkptCheckpointHandleT *checkpointHandle)
 activeError:
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (activeParam != NULL) {
-		ha_free(activeParam);
+		cl_free(activeParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -1927,11 +1926,11 @@ saCkptCheckpointStatusGet(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	statParam = (SaCkptReqStatGetParamT*)ha_malloc(
+	statParam = (SaCkptReqStatGetParamT*)cl_malloc(
 					sizeof(SaCkptReqStatGetParamT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -2005,22 +2004,22 @@ saCkptCheckpointStatusGet(
 statError:
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (statParam != NULL) {
-		ha_free(statParam);
+		cl_free(statParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -2095,7 +2094,7 @@ saCkptSectionCreate(
 
 		sectionCreationAttributes->sectionId->idLen = sizeof(int);
 		sectionCreationAttributes->sectionId->id = 
-			(SaUint8T*)ha_malloc(sizeof(int));
+			(SaUint8T*)cl_malloc(sizeof(int));
 		if (sectionCreationAttributes->sectionId->id == NULL) {
 			cl_log(LOG_ERR, 
 				"No memory in saCkptSectionCreate");
@@ -2133,17 +2132,17 @@ saCkptSectionCreate(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
 					
-	secCrtParam = (SaCkptReqSecCrtParamT*)ha_malloc(
+	secCrtParam = (SaCkptReqSecCrtParamT*)cl_malloc(
 					sizeof(SaCkptReqSecCrtParamT)	\
 					+sectionCreationAttributes->sectionId->idLen);
 
 	if (initialDataSize > 0) {
-		data = (void*)ha_malloc(initialDataSize);
+		data = (void*)cl_malloc(initialDataSize);
 	}
 	
  	if ((libRequest == NULL) ||
@@ -2226,26 +2225,26 @@ saCkptSectionCreate(
 secCrtError:
 
 	if (data != NULL) {
-		ha_free(data);
+		cl_free(data);
 	}
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (secCrtParam != NULL) {
-		ha_free(secCrtParam);
+		cl_free(secCrtParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -2315,11 +2314,11 @@ saCkptSectionDelete(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	secDelParam = (SaCkptReqSecDelParamT*)ha_malloc(
+	secDelParam = (SaCkptReqSecDelParamT*)cl_malloc(
 					sizeof(SaCkptReqSecDelParamT)	\
 					+ sectionId->idLen);
 	
@@ -2388,22 +2387,22 @@ saCkptSectionDelete(
 secDelError:
 
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (secDelParam != NULL) {
-		ha_free(secDelParam);
+		cl_free(secDelParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -2475,11 +2474,11 @@ saCkptSectionExpirationTimeSet(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	secExpSetParam = (SaCkptReqSecExpSetParamT*)ha_malloc(
+	secExpSetParam = (SaCkptReqSecExpSetParamT*)cl_malloc(
 					sizeof(SaCkptReqSecExpSetParamT)	\
 					+ sectionId->idLen);
 	
@@ -2549,22 +2548,22 @@ saCkptSectionExpirationTimeSet(
 secExpSetError:
 
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (secExpSetParam != NULL) {
-		ha_free(secExpSetParam);
+		cl_free(secExpSetParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -2632,11 +2631,11 @@ saCkptSectionIteratorInitialize(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	secQueryParam = (SaCkptReqSecQueryParamT*)ha_malloc(
+	secQueryParam = (SaCkptReqSecQueryParamT*)cl_malloc(
 					sizeof(SaCkptReqSecQueryParamT));
 	
  	if ((libRequest == NULL) ||
@@ -2712,7 +2711,7 @@ saCkptSectionIteratorInitialize(
 	
 	/*	FIXME: Not thread safe 	*/
 	for(i=0; i<sectionNumber; i++) {
-		sectionDescriptor = ha_malloc(
+		sectionDescriptor = cl_malloc(
 			sizeof(SaCkptSectionDescriptorT));
 		if (sectionDescriptor == NULL) {
 			cl_log(LOG_ERR, 
@@ -2725,7 +2724,7 @@ saCkptSectionIteratorInitialize(
 		p += sizeof(SaCkptSectionDescriptorT);
 		if (sectionDescriptor->sectionId.idLen > 0) {
 			sectionDescriptor->sectionId.id = 
-				ha_malloc(sectionDescriptor->sectionId.idLen);
+				cl_malloc(sectionDescriptor->sectionId.idLen);
 			if(sectionDescriptor->sectionId.id == NULL){
 				cl_log(LOG_ERR, 
 				"No memory in saCkptSectionIteratorInitialize");
@@ -2747,22 +2746,22 @@ saCkptSectionIteratorInitialize(
 secQueryError:
 
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (secQueryParam != NULL) {
-		ha_free(secQueryParam);
+		cl_free(secQueryParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -2808,15 +2807,15 @@ saCkptSectionIteratorNext(
 	memcpy(sectionDescriptor, secDescriptor, 
 		sizeof(SaCkptSectionDescriptorT));
 	if (secDescriptor->sectionId.idLen > 0) {
-		sectionDescriptor->sectionId.id = ha_malloc(
+		sectionDescriptor->sectionId.id = cl_malloc(
 			secDescriptor->sectionId.idLen);
 		memcpy(sectionDescriptor->sectionId.id,
 			secDescriptor->sectionId.id,
 			secDescriptor->sectionId.idLen);
 		
-		ha_free(secDescriptor->sectionId.id);
+		cl_free(secDescriptor->sectionId.id);
 	}
-	ha_free(secDescriptor);
+	cl_free(secDescriptor);
 	
 	sectionList = g_list_remove(sectionList, secDescriptor);
 	
@@ -2856,9 +2855,9 @@ saCkptSectionIteratorFinalize(
 		secDescriptor = 
 			(SaCkptSectionDescriptorT*)sectionList->data;
 		if (secDescriptor->sectionId.idLen > 0) {
-			ha_free(secDescriptor->sectionId.id);
+			cl_free(secDescriptor->sectionId.id);
 		}
-		ha_free(secDescriptor);
+		cl_free(secDescriptor);
 		sectionList = g_list_remove(sectionList, secDescriptor);
 	}
 	
@@ -2893,9 +2892,9 @@ saCkptCheckpointSectionWrite(
 		*checkpointHandle);
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ) {
@@ -2954,18 +2953,18 @@ saCkptCheckpointSectionWrite(
 secWrtError:
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError;
@@ -2991,9 +2990,9 @@ saCkptCheckpointSectionRead(
 		*checkpointHandle);
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ) {
@@ -3056,18 +3055,18 @@ saCkptCheckpointSectionRead(
 secReadError:
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError;
@@ -3122,11 +3121,11 @@ saCkptCheckpointWrite(
 	for(i=0; i<numberOfElements; i++) {
 		if(wrtParam == NULL || maxSectionIdLen < ioVector[i].sectionId.idLen){
 			if(wrtParam != NULL) {
-				ha_free(wrtParam);
+				cl_free(wrtParam);
 				wrtParam = NULL;
 			}
 				
-			wrtParam = (SaCkptReqSecWrtParamT*)ha_malloc(
+			wrtParam = (SaCkptReqSecWrtParamT*)cl_malloc(
 				sizeof(SaCkptReqSecWrtParamT) 
 				+ ioVector[i].sectionId.idLen);
 			if (wrtParam == NULL) {
@@ -3156,12 +3155,12 @@ saCkptCheckpointWrite(
 		}
 		
 		if(wrtParam != NULL) {
-			ha_free(wrtParam);
+			cl_free(wrtParam);
 			wrtParam = NULL;
 		}
 	}
 
-	if(wrtParam != NULL) ha_free(wrtParam);
+	if(wrtParam != NULL) cl_free(wrtParam);
 
 	return libError;
 }
@@ -3225,11 +3224,11 @@ saCkptSectionOverwrite(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	secOwrtParam = (SaCkptReqSecOwrtParamT*)ha_malloc(
+	secOwrtParam = (SaCkptReqSecOwrtParamT*)cl_malloc(
 					sizeof(SaCkptReqSecOwrtParamT)
 					+ sectionId->idLen);
 	
@@ -3297,22 +3296,22 @@ saCkptSectionOverwrite(
 secOwrtError:
 
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (secOwrtParam != NULL) {
-		ha_free(secOwrtParam);
+		cl_free(secOwrtParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -3371,12 +3370,12 @@ saCkptCheckpointRead(
 		
 		if(ioVector[i].dataSize < 0 || ioVector[i].dataOffset < 0 ){
 			cl_log(LOG_ERR, " dataSize or dataOffset at ioverctor %d less than 0", i);
-			if( readParam!= NULL) ha_free(readParam);
+			if( readParam!= NULL) cl_free(readParam);
 			return SA_ERR_INVALID_PARAM;
 		}
 		if( readParam == NULL  || maxSectionIdLen < ioVector[i].sectionId.idLen) {
-			if( readParam!= NULL) ha_free(readParam);
-			readParam = (SaCkptReqSecReadParamT*)ha_malloc(
+			if( readParam!= NULL) cl_free(readParam);
+			readParam = (SaCkptReqSecReadParamT*)cl_malloc(
 				sizeof(SaCkptReqSecReadParamT)	\
 				+ ioVector[i].sectionId.idLen);
 			if (readParam == NULL) {
@@ -3406,7 +3405,7 @@ saCkptCheckpointRead(
 		}
 	}
 
-	if( readParam != NULL) ha_free(readParam);
+	if( readParam != NULL) cl_free(readParam);
 
 	return libError;
 }
@@ -3453,11 +3452,11 @@ saCkptCheckpointSynchronize(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	syncParam = (SaCkptReqSyncParamT*)ha_malloc(
+	syncParam = (SaCkptReqSyncParamT*)cl_malloc(
 					sizeof(SaCkptReqSyncParamT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -3518,22 +3517,22 @@ saCkptCheckpointSynchronize(
 syncError:
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (syncParam != NULL) {
-		ha_free(syncParam);
+		cl_free(syncParam);
 	}
 
 	if (clientResponse != NULL) {
 		if (clientResponse->dataLength > 0) {
-			ha_free(clientResponse->data);
+			cl_free(clientResponse->data);
 		}
-		ha_free(clientResponse);
+		cl_free(clientResponse);
 	}
 
 	return libError; 
@@ -3578,11 +3577,11 @@ saCkptCheckpointSynchronizeAsync(
 	}
 	libClient = libCheckpoint->client;
 	
-  	libRequest = (SaCkptLibRequestT*)ha_malloc(
+  	libRequest = (SaCkptLibRequestT*)cl_malloc(
 					sizeof(SaCkptLibRequestT));
-	clientRequest = (SaCkptClientRequestT*)ha_malloc(
+	clientRequest = (SaCkptClientRequestT*)cl_malloc(
 					sizeof(SaCkptClientRequestT));
-	asyncParam = (SaCkptReqAsyncParamT*)ha_malloc(
+	asyncParam = (SaCkptReqAsyncParamT*)cl_malloc(
 					sizeof(SaCkptReqAsyncParamT));
  	if ((libRequest == NULL) ||
 		(clientRequest == NULL) ||
@@ -3628,15 +3627,15 @@ saCkptCheckpointSynchronizeAsync(
 syncError:
 	
 	if (libRequest != NULL) {
-		ha_free(libRequest);
+		cl_free(libRequest);
 	}
 	
 	if (clientRequest != NULL) {
-		ha_free(clientRequest);
+		cl_free(clientRequest);
 	}
 	
 	if (asyncParam != NULL) {
-		ha_free(asyncParam);
+		cl_free(asyncParam);
 	}
 
 	return libError; 

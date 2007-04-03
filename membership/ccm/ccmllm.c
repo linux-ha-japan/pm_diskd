@@ -1,4 +1,3 @@
-/* $Id: ccmllm.c,v 1.31 2006/06/07 08:29:52 zhenh Exp $ */
 /* 
  * ccmllm.c: Low Level membership routines.
  *
@@ -21,6 +20,7 @@
  *
  */
 
+#include <lha_internal.h>
 #include "ccm.h"
 
 
@@ -250,7 +250,7 @@ llm_del(llm_info_t* llm,
 	if (llm->myindex > i){
 		llm->myindex --;
 	}else if (llm->myindex ==i){
-		ccm_log(LOG_ERR, "%s: deleing myself in ccm is not allowed",
+		ccm_log(LOG_ERR, "%s: deleting myself in ccm is not allowed",
 		       __FUNCTION__);
 		return HA_FAIL;
 	}

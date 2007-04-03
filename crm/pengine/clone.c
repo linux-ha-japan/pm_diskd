@@ -1,4 +1,3 @@
-/* $Id: clone.c,v 1.6 2006/07/18 06:19:33 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <crm/msg_xml.h>
 #include <allocate.h>
@@ -26,6 +25,8 @@
 
 #define VARIANT_CLONE 1
 #include <lib/crm/pengine/variant.h>
+
+gint sort_clone_instance(gconstpointer a, gconstpointer b);
 
 void clone_create_notifications(
 	resource_t *rsc, action_t *action, action_t *action_complete,
@@ -72,16 +73,17 @@ int clone_num_allowed_nodes(resource_t *rsc)
 static node_t *
 parent_node_instance(const resource_t *rsc, node_t *node)
 {
+	node_t *ret = NULL;
 	clone_variant_data_t *clone_data = NULL;
-	if(node == NULL) {
-		return NULL;
+	if(node != NULL) {
+		get_clone_variant_data(clone_data, rsc->parent);
+		ret = pe_find_node_id(
+			clone_data->self->allowed_nodes, node->details->id);
 	}
-	get_clone_variant_data(clone_data, rsc->parent);
-	return pe_find_node_id(
-		clone_data->self->allowed_nodes, node->details->id);
+	return ret;
 }
 
-static gint sort_clone_instance(gconstpointer a, gconstpointer b)
+gint sort_clone_instance(gconstpointer a, gconstpointer b)
 {
 	int level = LOG_DEBUG_3;
 	node_t *node1 = NULL;
@@ -168,6 +170,15 @@ static gint sort_clone_instance(gconstpointer a, gconstpointer b)
 		return 1;
 	}
 
+	if(node1->weight < node2->weight) {
+		do_crm_log(level, "%s < %s: score", resource1->id, resource2->id);
+		return 1;
+
+	} else if(node1->weight > node2->weight) {
+		do_crm_log(level, "%s > %s: score", resource1->id, resource2->id);
+		return -1;
+	}
+	
 	do_crm_log(level, "%s == %s: default", resource1->id, resource2->id);
 	return 0;
 }
@@ -217,7 +228,7 @@ color_instance(resource_t *rsc, pe_working_set_t *data_set)
 		return rsc->allocated_to;
 
 	} else if(rsc->is_allocating) {
-		crm_err("Dependancy loop detected involving %s", rsc->id);
+		crm_debug("Dependancy loop detected involving %s", rsc->id);
 		return NULL;
 	}
 
@@ -257,24 +268,30 @@ clone_color(resource_t *rsc, pe_working_set_t *data_set)
 		return NULL;
 
 	} else if(rsc->is_allocating) {
-		crm_err("Dependancy loop detected involving %s", rsc->id);
+		crm_debug("Dependancy loop detected involving %s", rsc->id);
 		return NULL;
 	}
 
 	rsc->is_allocating = TRUE;
 	crm_debug("Processing %s", rsc->id);
 	
-	if(rsc->stickiness) {
+	if(TRUE/* rsc->stickiness */) {
 		/* count now tracks the number of clones currently allocated */
 		slist_iter(node, node_t, clone_data->self->allowed_nodes, lpc,
 			   node->count = 0;
 			);
 		
 		slist_iter(child, resource_t, clone_data->child_list, lpc,
-			   if(child->running_on) {
+			   if(g_list_length(child->running_on) > 0) {
+				   node_t *child_node = child->running_on->data;
 				   node_t *local_node = parent_node_instance(
 					   child, child->running_on->data);
-				   local_node->count++;
+				   if(local_node) {
+					   local_node->count++;
+				   } else {
+					   crm_err("%s is running on %s which isn't allowed",
+						   child->id, child_node->details->uname);
+				   }
 			   }
 			);
 
@@ -296,6 +313,7 @@ clone_color(resource_t *rsc, pe_working_set_t *data_set)
 	clone_data->self->allowed_nodes = g_list_sort(
 		clone_data->self->allowed_nodes, sort_node_weight);
 
+	
 	slist_iter(child, resource_t, clone_data->child_list, lpc,
 		   if(allocated >= clone_data->clone_max) {
 			   crm_debug("Child %s not allocated - limit reached", child->id);
@@ -342,7 +360,7 @@ clone_update_pseudo_status(
 
 		} else if(safe_str_eq(CRMD_ACTION_START, action->task)) {
 			if(action->runnable == FALSE) {
-				crm_debug_3("Skipping pseduo-op: %s run=%d, pseudo=%d",
+				crm_debug_3("Skipping pseudo-op: %s run=%d, pseudo=%d",
 					    action->uuid, action->runnable, action->pseudo);
 			} else {
 				crm_debug_2("Starting due to: %s", action->uuid);
@@ -391,10 +409,13 @@ void clone_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 		CRMD_ACTION_STARTED, NULL, !child_starting, TRUE, data_set);
 
 	start->pseudo = TRUE;
+	start->runnable = TRUE;
 	action_complete->pseudo = TRUE;
+	action_complete->runnable = TRUE;
 	action_complete->priority = INFINITY;
+/* 	crm_err("Upgrading priority for %s to INFINITY", action_complete->uuid); */
 	
-	child_starting_constraints(clone_data, pe_ordering_optional, 
+	child_starting_constraints(clone_data, pe_order_optional, 
 				   NULL, last_start_rsc, data_set);
 
 	clone_create_notifications(
@@ -408,10 +429,13 @@ void clone_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 		CRMD_ACTION_STOPPED, NULL, !child_stopping, TRUE, data_set);
 
 	stop->pseudo = TRUE;
+	stop->runnable = TRUE;
 	action_complete->pseudo = TRUE;
+	action_complete->runnable = TRUE;
 	action_complete->priority = INFINITY;
+/* 	crm_err("Upgrading priority for %s to INFINITY", action_complete->uuid); */
 	
-	child_stopping_constraints(clone_data, pe_ordering_optional,
+	child_stopping_constraints(clone_data, pe_order_optional,
 				   NULL, last_stop_rsc, data_set);
 
 	
@@ -419,7 +443,7 @@ void clone_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 	rsc->actions = clone_data->self->actions;	
 
 	if(stop->post_notified != NULL && start->pre_notify != NULL) {
-		order_actions(stop->post_notified, start->pre_notify, pe_ordering_optional);	
+		order_actions(stop->post_notified, start->pre_notify, pe_order_optional);	
 	}
 }
 
@@ -464,7 +488,6 @@ clone_create_notifications(
 	} else {
 		add_hash_param(notify->meta, "notify_confirm", "no");
 	}
-	notify->pseudo = TRUE;
 
 	/* create pre_notify_complete */
 	notify_key = generate_notify_key(
@@ -480,19 +503,21 @@ clone_create_notifications(
 		add_hash_param(notify->meta, "notify_confirm", "no");
 	}
 	notify->pseudo = TRUE;
+	notify->runnable = TRUE;
 	notify_complete->pseudo = TRUE;
+	notify_complete->runnable = TRUE;
 
 	/* pre_notify before pre_notify_complete */
 	custom_action_order(
 		clone_data->self, NULL, notify,
 		clone_data->self, NULL, notify_complete,
-		pe_ordering_manditory, data_set);
+		pe_order_implies_left, data_set);
 	
 	/* pre_notify_complete before action */
 	custom_action_order(
 		clone_data->self, NULL, notify_complete,
 		clone_data->self, NULL, action,
-		pe_ordering_manditory, data_set);
+		pe_order_implies_left, data_set);
 
 	action->pre_notify = notify;
 	action->pre_notified = notify_complete;
@@ -510,13 +535,12 @@ clone_create_notifications(
 	} else {
 		add_hash_param(notify->meta, "notify_confirm", "no");
 	}
-	notify->pseudo = TRUE;
 
 	/* action_complete before post_notify */
 	custom_action_order(
 		clone_data->self, NULL, action_complete,
 		clone_data->self, NULL, notify, 
-		pe_ordering_postnotify, data_set);
+		pe_order_postnotify, data_set);
 	
 	/* create post_notify_complete */
 	notify_key = generate_notify_key(
@@ -531,13 +555,22 @@ clone_create_notifications(
 	} else {
 		add_hash_param(notify->meta, "notify_confirm", "no");
 	}
+
+	notify->pseudo = TRUE;
+	notify->runnable = TRUE;
+	notify->priority = INFINITY;
+/* 	crm_err("Upgrading priority for %s to INFINITY", notify->uuid); */
+
 	notify_complete->pseudo = TRUE;
+	notify_complete->runnable = TRUE;
+	notify_complete->priority = INFINITY;
+/* 	crm_err("Upgrading priority for %s to INFINITY", notify_complete->uuid); */
 
 	/* post_notify before post_notify_complete */
 	custom_action_order(
 		clone_data->self, NULL, notify,
 		clone_data->self, NULL, notify_complete,
-		pe_ordering_manditory, data_set);
+		pe_order_implies_left, data_set);
 
 	action->post_notify = notify;
 	action->post_notified = notify_complete;
@@ -548,21 +581,21 @@ clone_create_notifications(
 		custom_action_order(
 			clone_data->self, NULL, notify_complete,
 			clone_data->self, start_key(clone_data->self), NULL,
-			pe_ordering_optional, data_set);
+			pe_order_optional, data_set);
 
 	} else if(safe_str_eq(action->task, CRMD_ACTION_START)) {
 		/* post_notify_complete before promote */
 		custom_action_order(
 			clone_data->self, NULL, notify_complete,
 			clone_data->self, promote_key(clone_data->self), NULL,
-			pe_ordering_optional, data_set);
+			pe_order_optional, data_set);
 
 	} else if(safe_str_eq(action->task, CRMD_ACTION_DEMOTE)) {
 		/* post_notify_complete before promote */
 		custom_action_order(
 			clone_data->self, NULL, notify_complete,
 			clone_data->self, stop_key(clone_data->self), NULL,
-			pe_ordering_optional, data_set);
+			pe_order_optional, data_set);
 	}
 }
 
@@ -573,7 +606,7 @@ child_starting_constraints(
 {
 	if(clone_data->ordered
 	   || clone_data->self->restart_type == pe_restart_restart) {
-		type = pe_ordering_manditory;
+		type = pe_order_implies_left;
 	}
 	if(child == NULL) {
 		if(clone_data->ordered && last != NULL) {
@@ -607,7 +640,7 @@ child_starting_constraints(
 		/* global start before child start */
 /* 		order_start_start(clone_data->self, child, type); */
 		order_start_start(
-			clone_data->self, child, pe_ordering_manditory);
+			clone_data->self, child, pe_order_implies_left);
 	}
 }
 
@@ -618,7 +651,7 @@ child_stopping_constraints(
 {
 	if(clone_data->ordered
 	   || clone_data->self->restart_type == pe_restart_restart) {
-		type = pe_ordering_manditory;
+		type = pe_order_implies_left;
 	}
 	
 	if(child == NULL) {
@@ -626,7 +659,7 @@ child_stopping_constraints(
 			crm_debug_4("Ordered version (last node)");
 			/* global stop before first child stop */
 			order_stop_stop(clone_data->self, last,
-					pe_ordering_manditory);
+					pe_order_implies_left);
 		}
 		
 	} else if(clone_data->ordered && last != NULL) {
@@ -671,19 +704,19 @@ clone_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 	custom_action_order(
 		clone_data->self, stop_key(clone_data->self), NULL,
 		clone_data->self, stopped_key(clone_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 
 	/* global start before started */
 	custom_action_order(
 		clone_data->self, start_key(clone_data->self), NULL,
 		clone_data->self, started_key(clone_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 	
 	/* global stopped before start */
 	custom_action_order(
 		clone_data->self, stopped_key(clone_data->self), NULL,
 		clone_data->self, start_key(clone_data->self), NULL,
-		pe_ordering_optional, data_set);
+		pe_order_optional, data_set);
 	
 	slist_iter(
 		child_rsc, resource_t, clone_data->child_list, lpc,
@@ -691,11 +724,11 @@ clone_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 		child_rsc->cmds->internal_constraints(child_rsc, data_set);
 
 		child_starting_constraints(
-			clone_data, pe_ordering_optional,
+			clone_data, pe_order_optional,
 			child_rsc, last_rsc, data_set);
 
 		child_stopping_constraints(
-			clone_data, pe_ordering_optional,
+			clone_data, pe_order_optional,
 			child_rsc, last_rsc, data_set);
 
 		last_rsc = child_rsc;
@@ -703,11 +736,11 @@ clone_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 		);
 
 	child_starting_constraints(
-		clone_data, pe_ordering_optional,
+		clone_data, pe_order_optional,
 		NULL, last_rsc, data_set);
 	
 	child_stopping_constraints(
-		clone_data, pe_ordering_optional,
+		clone_data, pe_order_optional,
 		NULL, last_rsc, data_set);
 }
 
@@ -1267,5 +1300,18 @@ clone_stonith_ordering(
 
 		child_rsc->cmds->stonith_ordering(
 			child_rsc, stonith_op, data_set);
+		);
+}
+
+void
+clone_migrate_reload(resource_t *rsc, pe_working_set_t *data_set)
+{
+	clone_variant_data_t *clone_data = NULL;
+	get_clone_variant_data(clone_data, rsc);
+
+	slist_iter(
+		child_rsc, resource_t, clone_data->child_list, lpc,
+		
+		child_rsc->cmds->migrate_reload(child_rsc, data_set);
 		);
 }

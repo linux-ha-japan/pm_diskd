@@ -1,4 +1,3 @@
-/* $Id: meatware.c,v 1.22 2005/09/02 15:36:35 msoffen Exp $ */
 /*
  * Stonith module for Human Operator Stonith device
  *
@@ -26,6 +25,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+
+#include <lha_internal.h>
 
 #define	DEVICE	"Meatware STONITH device"
 #include "stonith_plugin_common.h"

@@ -1,4 +1,3 @@
-/* $Id: cib_attrs.c,v 1.24 2006/04/18 11:28:56 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 
@@ -37,7 +36,6 @@
 #include <crm/common/xml.h>
 #include <crm/cib.h>
 
-#include <crm/dmalloc_wrapper.h>
 
 #define attr_common_setup(section)					\
 	gboolean is_crm_config = FALSE;					\
@@ -47,8 +45,9 @@
 		return cib_missing;					\
 									\
 	} else if(safe_str_eq(section, XML_CIB_TAG_CRMCONFIG)) {	\
-		tag = NULL;						\
+		node_uuid = NULL;					\
 		is_crm_config = TRUE;					\
+		tag = XML_CIB_TAG_CRMCONFIG;				\
 		if(set_name == NULL) {					\
 			set_name = CIB_OPTIONS_FIRST;			\
 		}							\
@@ -101,19 +100,25 @@ find_attr_details(crm_data_t *xml_search, const char *node_uuid,
 			NULL, XML_ATTR_ID, node_uuid, FALSE);
 		crm_log_xml_debug_2(set_children, "search by node:");
 		if(matches == 0) {
-			crm_info("No node matching id=%s in %s", node_uuid, TYPE(xml_search));
+			CRM_CHECK(set_children == NULL, crm_err("Memory leak"));
+			crm_info("No node matching id=%s in %s",
+				 node_uuid, TYPE(xml_search));
 			return NULL;
 		}
 	}
 
 	/* filter by set name */
 	if(set_name != NULL) {
+		crm_data_t *tmp = NULL;
 		matches = find_xml_children(
-			&set_children, set_children?set_children:xml_search, 
+			&tmp, set_children?set_children:xml_search, 
 			XML_TAG_ATTR_SETS, XML_ATTR_ID, set_name, FALSE);
+		free_xml(set_children);
+		set_children = tmp;
 		crm_log_xml_debug_2(set_children, "search by set:");
 		if(matches == 0) {
 			crm_info("No set matching id=%s in %s", set_name, TYPE(xml_search));
+			CRM_CHECK(set_children == NULL, crm_err("Memory leak"));
 			return NULL;
 		}
 	}
@@ -140,6 +145,7 @@ find_attr_details(crm_data_t *xml_search, const char *node_uuid,
 			       break;
 			);
 		free_xml(nv_children);
+		free_xml(set_children);
 		return single_match;
 		
 	} else if(matches > 1) {
@@ -176,6 +182,7 @@ find_attr_details(crm_data_t *xml_search, const char *node_uuid,
 				);
 		}
 	}
+	free_xml(set_children);
 	return NULL;
 }
 
@@ -197,7 +204,10 @@ update_attr(cib_t *the_cib, int call_options,
 	CRM_CHECK(section != NULL, return cib_missing);
 	CRM_CHECK(attr_name != NULL || attr_id != NULL, return cib_missing);
 
-	if(safe_str_eq(section, XML_CIB_TAG_NODES)) {
+	if(safe_str_eq(section, XML_CIB_TAG_CRMCONFIG)) {
+		node_uuid = NULL;
+
+	} else if(safe_str_eq(section, XML_CIB_TAG_NODES)) {
 		CRM_CHECK(node_uuid != NULL, return cib_NOTEXISTS);
 		
 	} else if(safe_str_eq(section, XML_CIB_TAG_STATUS)) {
@@ -226,10 +236,18 @@ update_attr(cib_t *the_cib, int call_options,
 	if(attr_id == NULL || xml_obj == NULL) {
 		attr_common_setup(section);	
 		
-		CRM_CHECK(attr_id != NULL, return cib_missing);
-		CRM_CHECK(set_name != NULL, return cib_missing);
+		CRM_CHECK(attr_id != NULL,
+			  crm_free(local_attr_id);
+			  free_xml(xml_obj);
+			  return cib_missing);
+		CRM_CHECK(set_name != NULL,
+			  crm_free(local_attr_id);
+			  free_xml(xml_obj);
+			  return cib_missing);
 		
 		if(attr_value == NULL) {
+			crm_free(local_attr_id);
+			free_xml(xml_obj);
 			return cib_missing_data;
 		}
 		
@@ -264,6 +282,7 @@ update_attr(cib_t *the_cib, int call_options,
 		xml_obj = create_xml_node(xml_obj, XML_TAG_ATTRS);
 		crm_free(local_set_name);
 	} else {
+		free_xml(xml_obj);
 		xml_obj = NULL;
 	}
 
@@ -313,7 +332,10 @@ read_attr(cib_t *the_cib,
 	CRM_CHECK(section != NULL, return cib_missing);
 	CRM_CHECK(attr_name != NULL || attr_id != NULL, return cib_missing);
 
-	if(safe_str_eq(section, XML_CIB_TAG_NODES)) {
+	if(safe_str_eq(section, XML_CIB_TAG_CRMCONFIG)) {
+		node_uuid = NULL;
+
+	} else if(safe_str_eq(section, XML_CIB_TAG_NODES)) {
 		CRM_CHECK(node_uuid != NULL, return cib_NOTEXISTS);
 		
 	} else if(safe_str_eq(section, XML_CIB_TAG_STATUS)) {
@@ -378,7 +400,10 @@ delete_attr(cib_t *the_cib, int options,
 	CRM_CHECK(section != NULL, return cib_missing);
 	CRM_CHECK(attr_name != NULL || attr_id != NULL, return cib_missing);
 
-	if(safe_str_eq(section, XML_CIB_TAG_NODES)) {
+	if(safe_str_eq(section, XML_CIB_TAG_CRMCONFIG)) {
+		node_uuid = NULL;
+
+	} else if(safe_str_eq(section, XML_CIB_TAG_NODES)) {
 		CRM_CHECK(node_uuid != NULL, return cib_NOTEXISTS);
 		
 	} else if(safe_str_eq(section, XML_CIB_TAG_STATUS)) {

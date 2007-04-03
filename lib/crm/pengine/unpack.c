@@ -1,4 +1,3 @@
-/* $Id: unpack.c,v 1.18 2006/08/14 09:40:01 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -16,7 +15,7 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <crm/crm.h>
 #include <crm/cib.h>
 #include <crm/msg_xml.h>
@@ -678,6 +677,7 @@ process_orphan_resource(crm_data_t *rsc_entry, node_t *node, pe_working_set_t *d
 static void
 process_rsc_state(resource_t *rsc, node_t *node,
 		  enum action_fail_response on_fail,
+		  crm_data_t *migrate_op,
 		  pe_working_set_t *data_set) 
 {
 	int fail_count = 0;
@@ -685,6 +685,15 @@ process_rsc_state(resource_t *rsc, node_t *node,
 	const char *value = NULL;
 	GHashTable *meta_hash = NULL;
 
+	if(on_fail == action_migrate_failure) {
+		node_t *from = NULL;
+		const char *uuid = NULL;
+		uuid = crm_element_value(migrate_op, CRMD_ACTION_MIGRATED);
+		from = pe_find_node_id(data_set->nodes, uuid);
+		process_rsc_state(rsc, from, action_fail_recover,NULL,data_set);
+		on_fail = action_fail_recover;
+	}
+	
 	crm_debug_2("Resource %s is %s on %s",
 		    rsc->id, role2text(rsc->role),
 		    node->details->uname);
@@ -867,6 +876,8 @@ unpack_lrm_rsc_state(
 	GListPtr op_list = NULL;
 	GListPtr sorted_op_list = NULL;
 
+	crm_data_t *migrate_op = NULL;
+	
 	enum action_fail_response on_fail = FALSE;
 	enum rsc_role_e saved_role = RSC_ROLE_UNKNOWN;
 	
@@ -920,6 +931,8 @@ unpack_lrm_rsc_state(
 			   || safe_str_eq(rc, "8")) {
 				start_index = lpc;
 			}
+		} else if(safe_str_eq(task, CRMD_ACTION_MIGRATED)) {
+			migrate_op = rsc_op;
 		}
 		
 		unpack_rsc_op(rsc, node, rsc_op,
@@ -933,7 +946,7 @@ unpack_lrm_rsc_state(
 	/* no need to free the contents */
 	g_list_free(sorted_op_list);
 	
-	process_rsc_state(rsc, node, on_fail, data_set);
+	process_rsc_state(rsc, node, on_fail, migrate_op, data_set);
 
 	value = g_hash_table_lookup(rsc->meta, XML_RSC_ATTR_TARGET_ROLE);
 	if(value != NULL && safe_str_neq("default", value)) {
@@ -1027,10 +1040,6 @@ unpack_rsc_op(resource_t *rsc, node_t *node, crm_data_t *xml_op,
 	
 	if(interval == 0 && safe_str_eq(task, CRMD_ACTION_STATUS)) {
 		is_probe = TRUE;
-
-	} else if(interval > 0 && rsc->role < RSC_ROLE_STARTED) {
-		crm_debug_3("Skipping recurring action %s for stopped resource", id);
-		return FALSE;
 	}
 	
 	if(safe_str_eq(task, CRMD_ACTION_STOP)) {
@@ -1060,10 +1069,13 @@ unpack_rsc_op(resource_t *rsc, node_t *node, crm_data_t *xml_op,
 	actual_rc_i = crm_parse_int(actual_rc, NULL);
 
 	if(EXECRA_NOT_INSTALLED == actual_rc_i) {
+		resource_location(rsc, node, -INFINITY, "not-installed", data_set);
 		if(is_probe) {
 			/* treat these like stops */
 			is_stop_action = TRUE;
 			task_status_i = LRM_OP_DONE;
+			actual_rc_i = EXECRA_NOT_RUNNING;
+			
  		} else {
 			task_status_i = LRM_OP_ERROR;
 		}
@@ -1156,8 +1168,8 @@ unpack_rsc_op(resource_t *rsc, node_t *node, crm_data_t *xml_op,
 		case LRM_OP_ERROR:
 		case LRM_OP_TIMEOUT:
 		case LRM_OP_NOTSUPPORTED:
-			crm_warn("Processing failed op (%s) for %s on %s",
-				 id, rsc->id, node->details->uname);
+			crm_warn("Processing failed op (%s) on %s",
+				 id, node->details->uname);
 
 			if(*on_fail < action->on_fail) {
 				*on_fail = action->on_fail;

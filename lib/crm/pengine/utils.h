@@ -1,4 +1,3 @@
-/* $Id: utils.h,v 1.4 2006/06/21 11:06:13 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -21,8 +20,6 @@
 #include <crm/pengine/common.h>
 #include <crm/pengine/status.h>
 
-/* Node helper functions */
-extern node_t *pe_find_node_id(GListPtr node_list, const char *id);
 
 extern node_t *node_copy(node_t *this_node) ;
 
@@ -52,9 +49,6 @@ extern void print_node(
 
 extern void print_resource(
 	int log_level, const char *pre_text, resource_t *rsc, gboolean details);
-
-extern void log_action(
-	unsigned int log_level, const char *pre_text, action_t *action, gboolean details);
 
 /* Sorting functions */
 extern gint sort_rsc_priority(gconstpointer a, gconstpointer b);
@@ -122,7 +116,6 @@ extern void
 resource_location(resource_t *rsc, node_t *node, int score, const char *tag,
 		  pe_working_set_t *data_set);
 
-extern void order_actions(action_t *lh_action, action_t *rh_action, enum pe_ordering order);
 extern gint sort_op_by_callid(gconstpointer a, gconstpointer b);
 
 #endif

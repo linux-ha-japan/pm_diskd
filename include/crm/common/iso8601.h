@@ -1,4 +1,3 @@
-/* $Id: iso8601.h,v 1.3 2005/08/08 12:14:47 andrew Exp $ */
 /* 
  * Copyright (C) 2005 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -90,6 +89,7 @@ typedef struct ha_time_period_s
 
 extern int str_lookup(const char *str, enum date_fields);
 
+extern char *date_to_string(ha_time_t *dt, int flags);
 extern void log_date(int log_level, const char *prefix, ha_time_t *dt, int flags);
 extern void log_time_period(int log_level, ha_time_period_t *dtp, int flags);
 

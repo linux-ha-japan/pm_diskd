@@ -1,4 +1,3 @@
-/* $Id: ipfail.c,v 1.44 2005/10/17 19:13:47 gshi Exp $ */
 /* ipfail: IP Failover plugin for Linux-HA
  *
  * Copyright (C) 2002-2004 Kevin Dwyer <kevin@pheared.net>
@@ -39,7 +38,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -86,7 +85,7 @@ main(int argc, char **argv)
 	cl_log_enable_stderr(TRUE);
 	
 	/* Get the name of the binary for logging purposes */
-	bname = ha_strdup(argv[0]);
+	bname = cl_strdup(argv[0]);
 	cl_log_set_entity(basename(bname));
 
 	cl_log_set_facility(DEFAULT_FACILITY);

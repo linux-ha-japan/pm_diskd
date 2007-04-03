@@ -1,4 +1,3 @@
-/* $Id: cibio.h,v 1.18 2006/07/07 08:29:34 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -20,7 +19,6 @@
 #ifndef CIB_IO__H
 #define CIB_IO__H
 
-#include <portability.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -61,8 +59,5 @@ extern gboolean update_counters(
 	const char *file, const char *fn, crm_data_t *xml_obj);
 
 /* extern crm_data_t *server_get_cib_copy(void); */
-extern volatile cl_mem_stats_t *active_stats;
-#define START_stat_free_op() active_stats = cl_malloc_getstats(); cl_malloc_setstats(NULL); 
-#define END_stat_free_op() cl_malloc_setstats(active_stats);
 
 #endif

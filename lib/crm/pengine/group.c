@@ -1,4 +1,3 @@
-/* $Id: group.c,v 1.6 2006/08/14 09:06:32 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,9 +16,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <crm/pengine/status.h>
+#include <unpack.h>
 #include <utils.h>
 #include <crm/msg_xml.h>
 #include <clplumbing/cl_misc.h>

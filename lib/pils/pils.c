@@ -1,4 +1,3 @@
-/* $Id: pils.c,v 1.49 2006/04/07 13:24:05 lars Exp $ */
 /*
  * Copyright (C) 2001 Alan Robertson <alanr@unix.sh>
  * This software licensed under the GNU LGPL.
@@ -19,7 +18,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>

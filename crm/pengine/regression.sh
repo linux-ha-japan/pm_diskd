@@ -20,10 +20,9 @@
 . regression.core.sh
 create_mode="true"
 echo Generating test outputs for these tests...
-echo ""
-
 echo Done.
 echo ""
+
 echo Performing the following tests...
 create_mode="false"
 
@@ -45,6 +44,8 @@ echo ""
 do_test params-0 "Params: No change"
 do_test params-1 "Params: Changed"
 do_test params-2 "Params: Resource definition"
+do_test params-4 "Params: Reload"
+do_test novell-251689 "Resource definition change + target_role=stopped"
 
 echo ""
 do_test orphan-0 "Orphan ignore"
@@ -113,6 +114,7 @@ do_test rec-rsc-5 "Resource Recover - stop - fence "
 do_test rec-rsc-6 "Resource Recover - multiple - restart"
 do_test rec-rsc-7 "Resource Recover - multiple - stop   "
 do_test rec-rsc-8 "Resource Recover - multiple - block  "
+do_test rec-rsc-9 "Resource Recover - group/group"
 
 echo ""
 do_test quorum-1 "No quorum - ignore"
@@ -141,6 +143,15 @@ do_test rec-node-14 "Serialize all stonith's"
 echo ""
 do_test multi1 "Multiple Active (stop/start)"
 
+echo ""
+do_test migrate-1 "Migrate (migrate)"
+do_test migrate-2 "Migrate (stable)"
+do_test migrate-3 "Migrate (failed migrate_to)"
+do_test migrate-4 "Migrate (failed migrate_from)"
+do_test novell-252693 "Migration in a stopping stack"
+do_test novell-252693-2 "Migration in a starting stack"
+do_test novell-252693-3 "Non-Migration in a starting and stopping stack"
+
 #echo ""
 #do_test complex1 "Complex	"
 
@@ -157,6 +168,8 @@ do_test group8 "Group anti-colocation"
 do_test group9 "Group recovery"
 do_test group10 "Group partial recovery"
 do_test group11 "Group target_role"
+do_test group14 "Group stop (graph terminated)"
+do_test group15 "-ve group colocation"
 
 echo ""
 do_test inc0 "Incarnation start" 
@@ -186,7 +199,8 @@ do_test master-8 "Promoted -> Fenced -> Moved"
 do_test master-9 "Stopped + Promotable + No quorum"
 do_test master-10 "Stopped -> Promotable : notify with monitor"
 do_test master-11 "Stopped -> Promote : colocation"
-
+do_test novell-239082 "Demote/Promote ordering"
+do_test novell-239087 "Stable master placement"
 
 echo ""
 do_test managed-0 "Managed (reference)"
@@ -204,6 +218,7 @@ do_test notify-0 "Notify reference"
 do_test notify-1 "Notify simple"
 do_test notify-2 "Notify simple, confirm"
 do_test notify-3 "Notify move, confirm"
+do_test novell-239079 "Notification priority"
 #do_test notify-2 "Notify - 764"
 
 echo ""
@@ -217,6 +232,8 @@ do_test 797 "OSDL #797"
 do_test 829 "OSDL #829"
 do_test 994 "OSDL #994"
 do_test 1360 "OSDL #1360 - Clone stickiness"
+do_test 1484 "OSDL #1484 - on_fail=stop"
+do_test 1494 "OSDL #1494 - Clone stability"
 do_test unrunnable-1 "Unrunnable"
 do_test stonith-0 "Stonith loop"
 

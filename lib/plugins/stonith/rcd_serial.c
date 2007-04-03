@@ -1,4 +1,3 @@
-/* $Id: rcd_serial.c,v 1.30 2006/05/16 09:01:51 sunjd Exp $ */
 /*
  * Stonith module for RCD_SERIAL Stonith device
  *
@@ -32,6 +31,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+
+#include <lha_internal.h>
 
 #define	DEVICE	"RC Delayed Serial"
 #include "stonith_plugin_common.h"

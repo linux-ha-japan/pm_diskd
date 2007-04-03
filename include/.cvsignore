@@ -8,3 +8,6 @@ stamp-h2.in
 *.beam
 parser-messages
 MISC_ERRORS
+ha_version.h
+config.h
+hb_config.h

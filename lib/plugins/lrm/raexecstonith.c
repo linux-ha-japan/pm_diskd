@@ -21,7 +21,7 @@
  * It's a part of Local Resource Manager. Currently it's used by lrmd only.
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdio.h>		
 #include <string.h>
 #include <unistd.h>
@@ -37,7 +37,6 @@
 #include <pils/plugin.h>
 #include <dirent.h>
 #include <libgen.h>  /* Add it for compiling on OSX */
-#include <config.h>
 
 #include <lrm/raexec.h>
 #include <fencing/stonithd_api.h>
@@ -55,7 +54,7 @@ static PIL_rc close_stonithRA(PILInterface*, void* ud_interface);
 
 /* static const char * RA_PATH = STONITH_RA_DIR; */
 /* Temporarily use it */
-static const char * RA_PATH = HA_LIBDIR "/stonith/plugins/stonith/";
+static const char * RA_PATH = HA_LIBHBDIR "/stonith/plugins/stonith/";
 
 /* The begin of exported function list */
 static int execra(const char * rsc_id,

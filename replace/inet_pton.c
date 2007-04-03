@@ -1,4 +1,3 @@
-/* $Id: inet_pton.c,v 1.4 2004/02/17 22:12:01 lars Exp $ */
 /*
  * Copyright (c) 1996,1999 by Internet Software Consortium.
  *
@@ -23,7 +22,7 @@
  * newer.
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #if HAVE_SYS_TYPES_H
 #include <sys/types.h>

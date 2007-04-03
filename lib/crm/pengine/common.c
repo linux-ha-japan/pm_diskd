@@ -1,4 +1,3 @@
-/* $Id: common.c,v 1.4 2006/08/14 09:06:32 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -16,7 +15,7 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-#include <portability.h>
+#include <lha_internal.h>
 #include <crm/crm.h>
 #include <crm/cib.h>
 #include <crm/msg_xml.h>
@@ -118,6 +117,12 @@ fail2text(enum action_fail_response fail)
 		case action_fail_migrate:
 			result = "migrate";
 			break;
+		case action_fail_stop:
+			result = "stop";
+			break;
+		case action_migrate_failure:
+			result = "atomic migration recovery";
+			break;
 		case action_fail_fence:
 			result = "fence";
 			break;
@@ -142,7 +147,7 @@ text2task(const char *task)
 		return shutdown_crm;
 	} else if(safe_str_eq(task, CRM_OP_FENCE)) {
 		return stonith_node;
-	} else if(safe_str_eq(task, CRMD_ACTION_MON)) {
+	} else if(safe_str_eq(task, CRMD_ACTION_STATUS)) {
 		return monitor_rsc;
 	} else if(safe_str_eq(task, CRMD_ACTION_NOTIFY)) {
 		return action_notify;
@@ -165,6 +170,8 @@ text2task(const char *task)
 	} else if(safe_str_eq(task, CRM_OP_PROBED)) {
 		return no_action;
 	} else if(safe_str_eq(task, CRM_OP_LRM_REFRESH)) {
+		return no_action;	
+	} else if(safe_str_eq(task, CRMD_ACTION_MIGRATED)) {
 		return no_action;	
 	} 
 	crm_config_warn("Unsupported action: %s", task);
@@ -200,7 +207,7 @@ task2text(enum action_tasks task)
 			result = CRM_OP_FENCE;
 			break;
 		case monitor_rsc:
-			result = CRMD_ACTION_MON;
+			result = CRMD_ACTION_STATUS;
 			break;
 		case action_notify:
 			result = CRMD_ACTION_NOTIFY;

@@ -21,7 +21,7 @@
  * It's a part of Local Resource Manager. Currently it's used by lrmd only.
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 #include <stdio.h>		
 #include <string.h>
 #include <unistd.h>
@@ -36,7 +36,6 @@
 #include <pils/plugin.h>
 #include <dirent.h>
 #include <libgen.h>  /* Add it for compiling on OSX */
-#include <config.h>
 
 #include <lrm/raexec.h>
 
@@ -169,14 +168,14 @@ execra(const char * rsc_id, const char * rsc_type, const char * provider,
 	}
 
 	/* execute the RA */
-	execl(ra_pathname, ra_pathname, op_type, NULL);
+	execl(ra_pathname, ra_pathname, op_type, (const char *)NULL);
 	cl_perror("(%s:%s:%d) execl failed for %s" 
 		  , __FILE__, __FUNCTION__, __LINE__, ra_pathname);
 
 	switch (errno) {
 		case ENOENT:   /* No such file or directory */
 		case EISDIR:   /* Is a directory */
-			exit_value = EXECRA_NO_RA;
+			exit_value = EXECRA_NOT_INSTALLED;
 			break;
 
 		default:

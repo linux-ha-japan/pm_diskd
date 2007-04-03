@@ -1,4 +1,3 @@
-/* $Id: crm_uuid.c,v 1.3 2006/05/29 11:53:53 andrew Exp $ */
 
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
@@ -18,13 +17,16 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
 
 #include <stdlib.h>
 #include <errno.h>
@@ -33,13 +35,63 @@
 #include <hb_api.h>
 #include <clplumbing/cl_malloc.h>
 #include <clplumbing/uids.h>
-#include <clplumbing/Gmain_timeout.h>
+
+#ifdef HAVE_GETOPT_H
+#  include <getopt.h>
+#endif
 
 #define UUID_LEN 16
 #define UUID_FILE HA_VARLIBDIR"/"PACKAGE"/hb_uuid"
+
+#define OPTARGS	"rw:"
+
+int read_local_hb_uuid(void);
+int write_local_hb_uuid(const char *buffer);
+
+static void usage(void) 
+{
+	fprintf(stderr, "crm_uuid [-r|-w new_ascii_value]\n");
+	exit(1);
+}
+
 int
 main(int argc, char **argv)
 {
+	int flag;
+	int rc = 0;
+	
+	cl_log_enable_stderr(TRUE);
+
+	if(argc == 1) {
+		/* no arguments specified, default to read */
+		rc = read_local_hb_uuid();	
+		return rc;
+	}
+	
+	while (1) {
+		flag = getopt(argc, argv, OPTARGS);
+		if (flag == -1) {
+			break;
+		}
+		switch(flag) {
+			case 'r':
+				rc = read_local_hb_uuid();	
+				break;
+			case 'w':
+				rc = write_local_hb_uuid(optarg);
+				break;
+			default:
+				usage();
+				break;
+		}
+	}
+	return rc;
+}
+
+int
+read_local_hb_uuid(void) 
+{
+	int rc = 0;
 	cl_uuid_t uuid;
 	char *buffer = NULL;
 	long start = 0, read_len = 0;
@@ -47,7 +99,7 @@ main(int argc, char **argv)
 	FILE *input = fopen(UUID_FILE, "r");
 	
 	if(input == NULL) {
-		fprintf(stderr, "UUID File not found: %s\n", UUID_FILE);
+		cl_perror("Could not open UUID file %s\n", UUID_FILE);
 		return 1;
 	}
 	
@@ -65,7 +117,8 @@ main(int argc, char **argv)
 	if(start != ftell(input)) {
 		fprintf(stderr, "fseek not behaving: %ld vs. %ld\n",
 			start, ftell(input));
-		return 2;
+		rc = 2;
+		goto bail;
 	}
 
 /* 	fprintf(stderr, "Reading %d bytes from: %s\n", UUID_LEN, UUID_FILE); */
@@ -73,9 +126,10 @@ main(int argc, char **argv)
 	buffer = cl_malloc(50);
 	read_len = fread(uuid.uuid, 1, UUID_LEN, input);
 	if(read_len != UUID_LEN) {
-		fprintf(stderr, "Calculated and read bytes differ: %d vs. %ld\n",
+		fprintf(stderr, "Expected and read bytes differ: %d vs. %ld\n",
 			UUID_LEN, read_len);
-		return 3;
+		rc = 3;
+		goto bail;
 		
 	} else if(buffer != NULL) {
 		cl_uuid_unparse(&uuid, buffer);
@@ -83,9 +137,45 @@ main(int argc, char **argv)
 
 	} else {
 		fprintf(stderr, "No buffer to unparse\n");
+		rc = 4;
+	}
+
+  bail:	
+	cl_free(buffer);
+	fclose(input);
+
+	return rc;
+}
+
+int
+write_local_hb_uuid(const char *new_value) 
+{
+	int fd;
+	int rc = 0;
+	cl_uuid_t uuid;
+	char *buffer = strdup(new_value);
+	rc = cl_uuid_parse(buffer, &uuid);
+	if(rc != 0) {
+		fprintf(stderr, "Invalid ASCII UUID supplied: [%s]\n", new_value);
+		fprintf(stderr, "ASCII UUIDs must be of the form"
+		" XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+		" and contain only letters and digits\n");
+		return 5;
 	}
 	
-	cl_free(buffer);
-
-	return 0;
+	if ((fd = open(UUID_FILE, O_WRONLY|O_SYNC|O_CREAT, 0644)) < 0) {
+		cl_perror("Could not open %s", UUID_FILE);
+		return 6;
+	}
+	
+	if (write(fd, uuid.uuid, UUID_LEN) != UUID_LEN) {
+		cl_perror("Could not write UUID to %s", UUID_FILE);
+		rc=7;
+	}
+	
+	if (close(fd) < 0) {
+		cl_perror("Could not close %s", UUID_FILE);
+		rc=8;
+	}
+	return rc;
 }

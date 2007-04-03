@@ -1,4 +1,3 @@
-/* $Id: ipc.h,v 1.56 2006/06/23 21:39:09 alan Exp $ */
 /*
  * ipc.h IPC abstraction data structures.
  *
@@ -32,14 +31,6 @@
 #undef MAX
 #include <sys/types.h>
 #include <sys/poll.h>
-
-#ifdef HAVE_STRING_H
-#include <string.h>
-#endif
-
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
 
 #ifdef IPC_TIME_DEBUG
 #include <clplumbing/longclock.h>

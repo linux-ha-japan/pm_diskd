@@ -1,4 +1,3 @@
-/* $Id: status.c,v 1.8 2006/08/14 09:00:57 andrew Exp $ */
 /* 
  * Copyright (C) 2004 Andrew Beekhof <andrew@beekhof.net>
  * 
@@ -17,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <portability.h>
+#include <lha_internal.h>
 
 #include <sys/param.h>
 
@@ -274,5 +273,37 @@ pe_find_resource(GListPtr rsc_list, const char *id)
 		}
 	}
 	crm_debug_2("No match for %s", id);
+	return NULL;
+}
+
+node_t *
+pe_find_node_id(GListPtr nodes, const char *id)
+{
+	unsigned lpc = 0;
+	node_t *node = NULL;
+  
+	for(lpc = 0; lpc < g_list_length(nodes); lpc++) {
+		node = g_list_nth_data(nodes, lpc);
+		if(safe_str_eq(node->details->id, id)) {
+			return node;
+		}
+	}
+	/* error */
+	return NULL;
+}
+
+node_t *
+pe_find_node(GListPtr nodes, const char *uname)
+{
+	unsigned lpc = 0;
+	node_t *node = NULL;
+  
+	for(lpc = 0; lpc < g_list_length(nodes); lpc++) {
+		node = g_list_nth_data(nodes, lpc);
+		if(safe_str_eq(node->details->uname, uname)) {
+			return node;
+		}
+	}
+	/* error */
 	return NULL;
 }

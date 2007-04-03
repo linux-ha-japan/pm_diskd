@@ -83,10 +83,7 @@
  *	return 2(OCF_ERR_ARGS) for invalid or excess argument(s)
  */
 
-#include <portability.h>
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include <lha_internal.h>
 
 #include <stdlib.h>
 #include <sys/types.h>
