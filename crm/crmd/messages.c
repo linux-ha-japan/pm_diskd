@@ -91,9 +91,9 @@ register_fsa_input_adv(
 
 	last_data_id++;
 	
-	crm_debug_2("%s raised FSA input %d (%s) (cause=%s) %s data",
-		    raised_from, last_data_id, fsa_input2string(input),
-		    fsa_cause2string(cause), data?"with":"without");
+	crm_debug("%s %s FSA input %d (%s) (cause=%s) %s data",
+		  raised_from, prepend?"prepended":"appended",last_data_id, fsa_input2string(input),
+		  fsa_cause2string(cause), data?"with":"without");
 	
 	if(input == I_WAIT_FOR_EVENT) {
 		do_fsa_stall = TRUE;
@@ -414,6 +414,10 @@ route_message(enum crmd_fsa_cause cause, ha_msg_input_t *input)
 		case I_CIB_OP:
 			break;
 		case I_ROUTER:
+			break;
+		case I_NODE_JOIN:
+		case I_JOIN_REQUEST:
+		case I_JOIN_RESULT:
 			break;
 		default:
 			crm_debug_4("Defering local processing of message");

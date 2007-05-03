@@ -1,8 +1,13 @@
 #!/bin/sh
 #
 #
-#	Dummy OCF RA. Does nothing but wait a few seconds, can be
+#	lrmregtest OCF RA. Does nothing but wait a few seconds, can be
 #	configured to fail occassionally.
+#
+#	updated to support the LRM regression testing.
+#
+# Copyright (c) 2007 SUSE LINUX AG, Dejan Muhamedagic
+#                    All Rights Reserved.
 #
 # Copyright (c) 2004 SUSE LINUX AG, Lars Marowsky-Brée
 #                    All Rights Reserved.
@@ -38,23 +43,46 @@ meta_data() {
 	cat <<END
 <?xml version="1.0"?>
 <!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
-<resource-agent name="Dummy" version="0.9">
+<resource-agent name="lrmregtest" version="0.9">
 <version>1.0</version>
 
 <longdesc lang="en">
-This is a Dummy Resource Agent. It does absolutely nothing except 
-keep track of whether its running or not.
-Its purpose in life is for testing and to serve as a template for RA writers.
+This is a lrmregtest Resource Agent. Use for LRM regression
+testing.
 </longdesc>
-<shortdesc lang="en">Dummy resource agent</shortdesc>
+<shortdesc lang="en">lrmregtest resource agent</shortdesc>
 
 <parameters>
-<parameter name="state" unique="1">
+<parameter name="delay" unique="0">
 <longdesc lang="en">
-Location to store the resource state in.
+How long to delay before each action.
 </longdesc>
-<shortdesc lang="en">State file</shortdesc>
-<content type="string" default="@HA_VARRUNHBRSCDIR@/Dummy-{OCF_RESOURCE_INSTANCE}.state" />
+<shortdesc lang="en">Action delay</shortdesc>
+<content type="integer" default="5" />
+</parameter>
+
+<parameter name="check_parallel" unique="0">
+<longdesc lang="en">
+Complain loudly if they try to run us in parallel on the same resource.
+</longdesc>
+<shortdesc lang="en">Report error if run twice at the same time</shortdesc>
+<content type="boolean" default="true" />
+</parameter>
+
+<parameter name="ignore_TERM" unique="0">
+<longdesc lang="en">
+Process the TERM signal and don't exit.
+</longdesc>
+<shortdesc lang="en">No TERM ain't gonna kill us.</shortdesc>
+<content type="boolean" default="false" />
+</parameter>
+
+<parameter name="verbose" unique="0">
+<longdesc lang="en">
+Print more information.
+</longdesc>
+<shortdesc lang="en">Be verbose.</shortdesc>
+<content type="boolean" default="false" />
 </parameter>
 
 </parameters>
@@ -76,7 +104,6 @@ END
 #######################################################################
 
 # don't exit on TERM, to test that lrmd makes sure that we do exit
-trap sigterm_handler TERM
 sigterm_handler() {
 	ocf_log info "They use TERM to bring us down. No such luck."
 	return
@@ -90,43 +117,78 @@ Expects to have a fully populated OCF RA-compliant environment set.
 END
 }
 
+# signals interrupt slow calls (sleep)
+# this is an approximation (after all it's just a dummy)
+sleepsleep() {
+	delay=$1
+	now=`perl -e 'print time()'`
+	by=$((now+delay))
+	while [ $now -lt $by ]; do
+		ocf_log debug "Gonna sleep for $((by-now)) seconds..."
+		sleep $((by-now))
+		now=`perl -e 'print time()'`
+	done
+}
 dummy_start() {
-    dummy_monitor
-    if [ $? =  $OCF_SUCCESS ]; then
-	return $OCF_SUCCESS
-    fi
-    touch ${OCF_RESKEY_state}
+	sleepsleep $OCF_RESKEY_delay
+	ha_pseudo_resource lrmregtest_${OCF_RESOURCE_INSTANCE} start
 }
 
 dummy_stop() {
-    dummy_monitor
-    if [ $? =  $OCF_SUCCESS ]; then
-	rm ${OCF_RESKEY_state}
-    fi
-    return $OCF_SUCCESS
+	sleepsleep $OCF_RESKEY_delay
+	ha_pseudo_resource lrmregtest_${OCF_RESOURCE_INSTANCE} stop
 }
 
 dummy_monitor() {
-	if [ -f ${OCF_RESKEY_state} ]; then
-	    return $OCF_SUCCESS
-	fi
-	return $OCF_NOT_RUNNING
+	sleepsleep $OCF_RESKEY_delay
+	ha_pseudo_resource lrmregtest_${OCF_RESOURCE_INSTANCE} monitor
 }
 
 dummy_validate() {
-    
-    # Is the state directory writable? 
-    state_dir=`dirname "$OCF_RESKEY_state"`
-    touch "$state_dir/$$"
-    if [ $? != 0 ]; then
-	return $OCF_ERR_ARGS
-    fi
-    rm "$state_dir/$$"
-
-    return $OCF_SUCCESS
+	exit $OC_ERR_UNIMPLEMENTED
 }
 
-: ${OCF_RESKEY_state=@HA_VARRUNHBRSCDIR@/Dummy-${OCF_RESOURCE_INSTANCE}.state}
+verbose() {
+	[ "$OCF_RESKEY_verbose" != 0 ]
+}
+environment() {
+	echo "OCF environment variables:"
+	set | egrep 'OCF_RESKEY|OCF_RESOURCE_INSTANCE'
+}
+invocation() {
+	echo "invoked with args: $@"
+}
+
+: ${OCF_RESKEY_delay=1}
+: ${OCF_RESKEY_check_parallel=1}
+: ${OCF_RESKEY_verbose=0}
+: ${OCF_RESKEY_ignore_TERM=0}
+
+verbose && environment
+
+lockf=`
+	ha_pseudo_resource lrmregtest_${OCF_RESOURCE_INSTANCE} print |
+		sed 's/$/.lock/'
+`
+
+check4parallel() {
+	if [ -f "$lockf" ] && kill -0 `cat $lockf` 2>/dev/null
+	then
+		ocf_log err "There is another instance of ${OCF_RESOURCE_INSTANCE} running: pid `cat $lockf`."
+		exit $OCF_ERR_GENERIC
+	fi
+}
+
+[ "$OCF_RESKEY_check_parallel" = 1 ] &&
+	check4parallel
+
+[ "$OCF_RESKEY_ignore_TERM" = 1 ] &&
+	trap sigterm_handler TERM
+
+echo $$ > $lockf
+trap "rm -f $lockf" EXIT
+
+verbose && invocation $@
 
 case $__OCF_ACTION in
 meta-data)	meta_data

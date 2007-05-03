@@ -158,6 +158,8 @@ int write_pid_file(const char *pid_file);
 int create_pid_directory(const char *pid_file);
 static void byebye(int nsig);
 
+static char* scan_if(struct in6_addr* addr_target, int* plen_target,
+		     int use_mask);
 static char* find_if(struct in6_addr* addr_target, int* plen_target);
 static char* get_if(struct in6_addr* addr_target, int* plen_target);
 static int assign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name);
@@ -378,6 +380,7 @@ monitor_addr6(struct in6_addr* addr6, int prefix_len)
 int
 send_ua(struct in6_addr* src_ip, char* if_name)
 {
+	int status = -1;
 	libnet_t *l;
 	char errbuf[LIBNET_ERRBUF_SIZE];
 
@@ -388,13 +391,13 @@ send_ua(struct in6_addr* src_ip, char* if_name)
 
 	if ((l=libnet_init(LIBNET_RAW6, if_name, errbuf)) == NULL) {
 		cl_log(LOG_ERR, "libnet_init failure on %s", if_name);
-		return -1;
+		goto err;
 	}
 
 	mac_address = libnet_get_hwaddr(l);
 	if (!mac_address) {
 		cl_log(LOG_ERR, "libnet_get_hwaddr: %s", errbuf);
-		return -1;
+		goto err;
 	}
 
 	dst_ip = libnet_name2addr6(l, BCAST_ADDR, LIBNET_DONT_RESOLVE);
@@ -415,23 +418,25 @@ send_ua(struct in6_addr* src_ip, char* if_name)
         if (libnet_write(l) == -1)
         {
 		cl_log(LOG_ERR, "libnet_write: %s", libnet_geterror(l));
-		return -1;
+		goto err;
 	}
 
-	return 0;
+	status = 0;
+err:
+	libnet_destroy(l);
+	return status;
 }
 
-/* find a proper network interface to assign the address */
+/* find the network interface associated with an address */
 char*
-find_if(struct in6_addr* addr_target, int* plen_target)
+scan_if(struct in6_addr* addr_target, int* plen_target, int use_mask)
 {
 	FILE *f;
-	char addr6[40];
-	static char devname[20]="";
+	static char devname[21]="";
 	struct in6_addr addr;
 	struct in6_addr mask;
 	unsigned int plen, scope, dad_status, if_idx;
-	char addr6p[8][5];
+	unsigned int addr6p[4];
 
 	/* open /proc/net/if_inet6 file */
 	if ((f = fopen(IF_INET6, "r")) == NULL) {
@@ -439,20 +444,24 @@ find_if(struct in6_addr* addr_target, int* plen_target)
 	}
 
 	/* Loop for each entry */
-	while ( fscanf(f,"%4s%4s%4s%4s%4s%4s%4s%4s %02x %02x %02x %02x %20s\n",
-			addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-			addr6p[4], addr6p[5], addr6p[6], addr6p[7],
-			&if_idx, &plen, &scope, &dad_status, devname) != EOF){
-
+	while (1) {
 		int		i;
 		int		n;
 		int		s;
 		gboolean	same = TRUE;
 
-		sprintf(addr6, "%s:%s:%s:%s:%s:%s:%s:%s",
-			addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-			addr6p[4], addr6p[5], addr6p[6], addr6p[7]);
-	
+		i = fscanf(f, "%08x%08x%08x%08x %02x %02x %02x %02x %20s\n",
+		       	   &addr6p[0], &addr6p[1], &addr6p[2], &addr6p[3],
+			   &if_idx, &plen, &scope, &dad_status, devname);
+		if (i == EOF) {
+			break;
+		}
+		else if (i != 9) {
+			cl_log(LOG_INFO, "Error parsing %s, "
+			       "perhaps the format has changed\n", IF_INET6);
+			break;
+		}
+
 		/* Only Global address entry would be considered.
 		 * maybe change?
 		 */
@@ -467,26 +476,26 @@ find_if(struct in6_addr* addr_target, int* plen_target)
 			continue;
 		}
 		*plen_target = plen;
-		
-		/* Convert string to sockaddr_in6 */
-		inet_pton(AF_INET6, addr6, &addr);
+
+		for (i = 0; i< 4; i++) {
+			addr.s6_addr32[i] = htonl(addr6p[i]);
+		}
 
 		/* Make the mask based on prefix length */
-		for (i = 0; i < 16; i++) {
-			mask.s6_addr[i] = 0;
-		}	
-		n = plen / 8;
-		for (i = 0; i < n+1; i++) {
-			mask.s6_addr[i] = 0xFF;
+		memset(mask.s6_addr, 0xff, 16);
+		if (use_mask && plen < 128) {
+			n = plen / 32;
+			memset(mask.s6_addr32 + n + 1, 0, (3 - n) * 4);
+			s = 32 - plen % 32;
+			mask.s6_addr32[n] = 0xffffffff << s;
+			mask.s6_addr32[n] = htonl(mask.s6_addr32[n]);
 		}
-		s = 8 - plen % 8;
-		mask.s6_addr[n]<<=s;
 
 		/* compare addr and addr_target */
 		same = TRUE;
-		for (i = 0; i < 16; i++) {
-			if ((addr.s6_addr[i]&mask.s6_addr[i]) !=
-			    (addr_target->s6_addr[i]&mask.s6_addr[i])) {
+		for (i = 0; i < 4; i++) {
+			if ((addr.s6_addr32[i]&mask.s6_addr32[i]) !=
+			    (addr_target->s6_addr32[i]&mask.s6_addr32[i])) {
 				same = FALSE;
 				break;
 			}
@@ -501,57 +510,17 @@ find_if(struct in6_addr* addr_target, int* plen_target)
 	fclose(f);
 	return NULL;
 }
+/* find a proper network interface to assign the address */
+char*
+find_if(struct in6_addr* addr_target, int* plen_target)
+{
+	return scan_if(addr_target, plen_target, 1);
+}
 /* get the device name and the plen_target of a special address */
 char*
 get_if(struct in6_addr* addr_target, int* plen_target)
 {
-	FILE *f;
-	char addr6[40];
-	static char devname[20]="";
-	struct in6_addr addr;
-	unsigned int plen, scope, dad_status, if_idx;
-	char addr6p[8][5];
-
-	/* open /proc/net/if_inet6 file */
-	if ((f = fopen(IF_INET6, "r")) == NULL) {
-		return NULL;
-	}
-	/* loop for each entry */
-	while ( fscanf(f,"%4s%4s%4s%4s%4s%4s%4s%4s %02x %02x %02x %02x %20s\n",
-		addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-		addr6p[4], addr6p[5], addr6p[6], addr6p[7],
-		&if_idx, &plen, &scope, &dad_status, devname) != EOF) {
-
-		sprintf(addr6, "%s:%s:%s:%s:%s:%s:%s:%s",
-			addr6p[0], addr6p[1], addr6p[2], addr6p[3],
-			addr6p[4], addr6p[5], addr6p[6], addr6p[7]);
-
-		/* Only Global address entry would be considered.
-		 * maybe change
-		 */
-		if (0 != scope) {
-			continue;
-		}
-
-		/* "if" specified prefix, only same prefix entry
-		 * would be considered.
-		 */
-		if (*plen_target!=0 && plen != *plen_target) {
-			continue;
-		}
-		*plen_target = plen;
-
-		/* Convert to sockaddr_in6 */
-		inet_pton(AF_INET6, addr6, &addr);
-
-		/* We found it! */
-		if (0 == memcmp(&addr, addr_target,sizeof(addr))) {
-			fclose(f);
-			return devname;
-		}
-	}
-	fclose(f);
-	return NULL;
+	return scan_if(addr_target, plen_target, 0);
 }
 int
 assign_addr6(struct in6_addr* addr6, int prefix_len, char* if_name)
@@ -688,6 +657,7 @@ int
 create_pid_directory(const char *pid_file)
 {
 	int status;
+	int return_status = -1;
 	struct stat stat_buf;
 	char* dir;
 
@@ -705,28 +675,29 @@ create_pid_directory(const char *pid_file)
 	if (status < 0 && errno != ENOENT && errno != ENOTDIR) {
 		cl_log(LOG_INFO, "Could not stat pid-file directory "
 				"[%s]: %s", dir, strerror(errno));
-		free(dir);
-		return -1;
+		goto err;
 	}
 
 	if (!status) {
 		if (S_ISDIR(stat_buf.st_mode)) {
-			return 0;
+			goto out;
 		}
 		cl_log(LOG_INFO, "Pid-File directory exists but is "
 				"not a directory [%s]", dir);
-		free(dir);
-		return -1;
+		goto err;
         }
 
 	if (mkdir(dir, S_IRUSR|S_IWUSR|S_IXUSR | S_IRGRP|S_IXGRP) < 0) {
 		cl_log(LOG_INFO, "Could not create pid-file directory "
 				"[%s]: %s", dir, strerror(errno));
-		free(dir);
-		return -1;
+		goto err;
 	}
 
-	return 0;
+out:
+	return_status = 0;
+err:
+	free(dir);
+	return return_status;
 }
 
 int

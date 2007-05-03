@@ -2825,6 +2825,9 @@ HBDoMsg_T_REPNODES(const char * type, struct node_info * fromnode
 		}
 		
 		for (i=0; i < config->nodecount; i++){
+			if (config->nodes[i].nodetype != NORMALNODE_I){
+				continue;
+			}
 			for (j=0; j < num; j++){
 				if (strncmp(config->nodes[i].nodename
 				,	nodes[j], HOSTLENG) == 0){
@@ -2832,13 +2835,6 @@ HBDoMsg_T_REPNODES(const char * type, struct node_info * fromnode
 				}	
 			}
 			if (j == num) {
-				if (config->nodes[i].nodetype != NORMALNODE_I){
-					cl_log(LOG_ERR
-					,	"%s: Attempt to delete node %s"
-					,	__FUNCTION__
-					,	config->nodes[i].nodename);
-					continue;
-				}
 				/*
 				 * This node is not found in incoming nodelist,
 				 * therefore, we need to remove it from
@@ -4145,8 +4141,14 @@ check_comm_isup(void)
 
 	if (heardfromcount >= config->nodecount) {
 		heartbeat_comm_state = COMM_LINKSUP;
-		send_reqnodes_msg(0);
-		/*comm_now_up();*/
+		if (enable_flow_control){
+			send_reqnodes_msg(0);
+		}else{
+		/*we have a mixed version of heartbeats
+		 *Disable request/reply node list feature and mark comm up now
+		 */  
+			comm_now_up();
+		}
 	}
 }
 
