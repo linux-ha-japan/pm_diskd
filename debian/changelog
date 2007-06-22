@@ -1,3 +1,113 @@
+heartbeat (2.0.9-1) unstable; urgency=low
+
+  * New Upstream
+  * Remove merged patches
+    - README.config-heartbeat-2.patch
+    - README.config-heartbeat.patch
+    - ipaddr2-bashism.patch
+    - ipv6addr-21-char-devname.patch
+    - ipv6addr-find_if-overflow.patch
+    - ipv6addr-scanf-return.patch
+    - ldirectord-init.patch
+  * Add --enable-glib-malloc to configure's arguments
+    on advice from Andrew Beekhof
+
+ -- Simon Horman <horms@debian.org>  Thu, 31 May 2007 16:39:18 +0900
+
+heartbeat (2.0.8-7) unstable; urgency=low
+
+  * Add a (tempoary) build dependancy on linux-kernel-headers for ia64
+    to get around a curious autobuild problem.
+    See: http://lists.debian.org/debian-ia64/2007/05/msg00003.html
+
+ -- Simon Horman <horms@debian.org>  Fri, 25 May 2007 16:07:22 +0900
+
+heartbeat (2.0.8-5) unstable; urgency=low
+
+  * The heartbeat-2-dev.dirs and friends change in 2.0.8-4 closes
+    #424192, not #424053 (which is also fixed by a different change
+    in 2.0.8-4)
+  * Add missing dummy package for stonith
+
+ -- Simon Horman <horms@debian.org>  Thu, 17 May 2007 15:43:55 +0900
+
+heartbeat (2.0.8-4) unstable; urgency=low
+
+  * Create a Debian init script for ldirectord
+    Thanks to Ratiu Petru Iulius
+    Patch: ldirectord-init.patch
+    (closes: #391974)
+  * Documentation path of ldirectord should be /usr/share/doc/ldirectord,
+    not /usr/share/doc/ldirectord-2
+  * Change priority of ldirectord to extra to match the lowest priority
+    of any of its dependancies
+  * Add versioned conflicts on old pils and stonith packages to heartbeat and
+    heartbeat-dev, which include those old package's files.
+    (closes: #424053)
+  * Have the clean target of debian rules remove the following files that
+    are priovided by the orig.tar.gz - Debian packages can't delete files
+    - heartbeat-2-dev.dirs heartbeat-2-dev.files heartbeat-2.dirs
+      heartbeat-2.files heartbeat-2.postinst heartbeat-2.postrm
+      heartbeat-2.preinst ldirectord-2.files ldirectord-2.postinst
+      ldirectord-2.postrm
+    (closes: #424053)
+
+ -- Simon Horman <horms@debian.org>  Wed, 16 May 2007 13:58:24 +0900
+
+heartbeat (2.0.8-3) unstable; urgency=low
+
+  * Rename source package from heartbeat-2 to heartbeat.
+    Previously the heartbeat source package was used to package
+    up the 1.2.X series of releases, and heartebat-2 was used
+    for the newer 2.0.X series of releases. The idea being to offer
+    stable "heartbeat" packages when the 2.0.X stuff was all
+    new. It turns out that the 2.0.X tree has been at least as
+    stable as the 1.2.X tree for quite a while now, and the 1.2.X doesn't
+    get much attention any more, so  there seems little advantage in
+    having the separate source packages, except perhaps to create confusion
+    and extra work.
+  * Update curl build dependancy for libcurl4
+    Thanks to Christian Marillat
+    (closes: #423655)
+  * 2.0.8 (and probably earilier) includes the corrected scsi command syntax
+    Thanks to Christoph Martin
+    (closes: #350586)
+
+ -- Simon Horman <horms@debian.org>  Mon, 14 May 2007 12:13:03 +0900
+
+heartbeat-2 (2.0.8-2) unstable; urgency=low
+
+  * Update build debendancy and rebuild against libsnmp10.
+    Somehow libsnmp9 has been removed from the distribution,
+    rendering heartbeat uninstallable.
+    Thanks to Steinar H. Gunderson
+    (closes: #422320)
+  * IPaddr2: Remove bashisms
+    Patch: ipaddr2-bashism.patch
+    Upstream: http://hg.linux-ha.org/dev/rev/165a9a897e3b
+    Thanks to Erich Schuebert
+    (closes: #420206)
+  * Fix up documentation location in /etc/ha.d/README.config
+    Thanks to Russell Coker
+    (closes: #418206)
+  * IPv6addr: Fix potential stack overflow in use of devname in scan_if
+    Patch: ipv6addr-21-char-devname.patch
+    Upstream: http://hg.linux-ha.org/dev/rev/37271ae7f117
+  * IPv6addr: Fix potential buffer overflow when a 128bit prefix is used
+    Patch: ipv6addr-find_if-overflow.patch
+    Upstream: http://hg.linux-ha.org/dev/rev/b4bc188b4ebe
+  * IPv6addr: Handle scanf failures in scan_if()
+    Patch: ipv6addr-scanf-return.patch
+    Upstream: http://hg.linux-ha.org/dev/rev/31d19acfd1b9
+  * Run autoconf to incoporate the chown-check-2.patch workaround
+    to allow the configure script to work under fakeroot.
+    I have no idea how this was not applied for 2.0.8-1 and yet
+    the build still worked.
+  * Change priority of ldirecord from optional to extra to
+    match the priority of its dependancies ipvsadm and libauthen-radius-perl
+
+ -- Simon Horman <horms@debian.org>  Sat, 05 May 2007 13:36:36 +0900
+
 heartbeat-2 (2.0.8-1) unstable; urgency=low
 
   * New Upstream
