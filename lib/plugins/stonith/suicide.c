@@ -18,6 +18,8 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#include <config.h>
+#include <sys/utsname.h>
 
 #define	DEVICE	"Suicide STONITH device"
 #include "stonith_plugin_common.h"
@@ -81,8 +83,8 @@ PIL_PLUGIN_INIT(PILPlugin*us, const PILPluginImports* imports)
 	,	&interfprivate); 
 }
 
-#define REBOOT_COMMAND "echo 'sleep 2; /sbin/reboot -nf' | SHELL=/bin/sh at now >/dev/null 2>&1"
-#define POWEROFF_COMMAND "echo 'sleep 2; /sbin/poweroff -nf' | SHELL=/bin/sh at now >/dev/null 2>&1"
+#define REBOOT_COMMAND "echo 'sleep 2; "  REBOOT " " REBOOT_OPTIONS "' | SHELL=/bin/sh at now >/dev/null 2>&1"
+#define POWEROFF_COMMAND "echo 'sleep 2; "  POWEROFF_CMD " " POWEROFF_OPTIONS "' | SHELL=/bin/sh at now >/dev/null 2>&1"
 
 /*
  *    Suicide STONITH device
@@ -116,8 +118,24 @@ suicide_status(StonithPlugin  *s)
 static char **
 suicide_hostlist(StonithPlugin  *s)
 {
+	char** 		ret = NULL;
+	struct utsname	name;
+
 	ERRIFWRONGDEV(s, NULL);
-	return NULL;
+
+	if (uname(&name) == -1) {
+		LOG(PIL_CRIT, "uname error %d", errno);
+		return ret;
+	}
+
+	ret = OurImports->StringToHostList(name.nodename);
+	if (ret == NULL) {
+		LOG(PIL_CRIT, "out of memory");
+		return ret;
+	}
+	g_strdown(ret[0]);
+
+	return ret;
 }
 
 /*
@@ -126,23 +144,35 @@ suicide_hostlist(StonithPlugin  *s)
 static int
 suicide_reset_req(StonithPlugin * s, int request, const char * host)
 {
-	int rc = -1;
+	int		rc = -1;
+	struct utsname	name;
 
 	ERRIFWRONGDEV(s, S_OOPS);
-	LOG(PIL_INFO, "Initiating suicide on host %s", host);
 
-	
-	switch (request) {
-		case ST_GENERIC_RESET:
-			rc = system(REBOOT_COMMAND);
-			break;
-		case ST_POWEROFF:
-			rc = system(POWEROFF_COMMAND);
-			break;
-		default:
-			LOG(PIL_CRIT, "As for suicide virtual stonith device, "
-				"reset request=%d is not supported", request);
+	if (request == ST_POWERON) {
+		LOG(PIL_CRIT, "%s not capable of power-on operation", DEVICE);
+		return S_INVAL;
+	} else if (request != ST_POWEROFF && request != ST_GENERIC_RESET) {
+		LOG(PIL_CRIT, "As for suicide virtual stonith device, "
+			"reset request=%d is not supported", request);
+		return S_INVAL;
 	}
+
+	if (uname(&name) == -1) {
+		LOG(PIL_CRIT, "uname error %d", errno);
+		return S_RESETFAIL ;
+	}
+
+	if (strcmp(name.nodename, host)) {
+		LOG(PIL_CRIT, "%s doesn't control host [%s]"
+		,	name.nodename, host);
+		return S_RESETFAIL ;
+	}
+
+	LOG(PIL_INFO, "Initiating suicide on host %s", host);
+	
+	rc = system(
+	    request == ST_GENERIC_RESET ? REBOOT_COMMAND : POWEROFF_COMMAND);
 
 	if (rc == 0)  {
 		LOG(PIL_INFO, "Suicide stonith succeeded.");
@@ -183,6 +213,10 @@ suicide_get_info(StonithPlugin * s, int reqtype)
 	switch (reqtype) {
 	case ST_DEVICEID:
 		ret = sd->idinfo;
+		break;
+
+	case ST_DEVICENAME:
+		ret = "suicide STONITH device";
 		break;
 
 	case ST_DEVICEDESCR:	/* Description of device type */

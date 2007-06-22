@@ -599,9 +599,9 @@ do_state_transition(long long actions,
 		  state_from, state_to, input, fsa_cause2string(cause),
 		  msg_data->origin);
 	
-	crm_info("%s: State transition %s -> %s [ input=%s cause=%s origin=%s ]",
-		 fsa_our_uname, state_from, state_to, input,
-		 fsa_cause2string(cause), msg_data->origin);
+	crm_info("State transition %s -> %s [ input=%s cause=%s origin=%s ]",
+		 state_from, state_to, input, fsa_cause2string(cause),
+		 msg_data->origin);
 
 	/* the last two clauses might cause trouble later */
 	if(election_timeout != NULL
@@ -638,10 +638,6 @@ do_state_transition(long long actions,
 		crm_timer_stop(recheck_timer);
 	}
 
-#ifdef HA_MALLOC_TRACK
-	cl_malloc_dump_allocated(LOG_DEBUG, TRUE);
-#endif
-	
 	switch(next_state) {
 		case S_PENDING:			
 			fsa_cib_conn->cmds->set_slave(fsa_cib_conn, cib_scope_local);
@@ -721,11 +717,18 @@ do_state_transition(long long actions,
 				crm_err("We have more confirmed nodes than our membership does");
 				register_fsa_input(C_FSA_INTERNAL, I_ELECTION, NULL);
 				
+			} else if(saved_ccm_membership_id != current_ccm_membership_id) {
+				crm_info("Membership changed: %u -> %u - join restart",
+					 saved_ccm_membership_id,
+					 current_ccm_membership_id);
+				register_fsa_input_before(C_FSA_INTERNAL, I_NODE_JOIN, NULL);
+
 			} else {
 				crm_warn("Only %u of %u cluster "
-					 "nodes are eligible to run resources",
+					 "nodes are eligible to run resources - continue %d",
 					 g_hash_table_size(confirmed_nodes),
-					 fsa_membership_copy->members_size);
+					 fsa_membership_copy->members_size,
+					 g_hash_table_size(welcomed_nodes));
 			}
 /* 			initialize_join(FALSE); */
 			break;

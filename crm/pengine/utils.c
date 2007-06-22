@@ -169,10 +169,6 @@ ordering_type2text(enum pe_ordering type)
 		/* was: mandatory */
 		result = "right_implies_left";
 
-	} else if(type & pe_order_internal_restart) {
-		/* upgrades to: right_implies_left */
-		result = "internal_restart";
-
 	} else if(type & pe_order_implies_right) {
 		/* was: recover  */
 		result = "left_implies_right";
@@ -181,8 +177,8 @@ ordering_type2text(enum pe_ordering type)
 		/* pure ordering, nothing implied */
 		result = "optional";
 		
-	} else if(type & pe_order_postnotify) {
-		result = "post_notify";
+	} else if(type & pe_order_runnable_left) {
+		result = "runnable";
 		
 	} else {
 		crm_err("Unknown ordering type: %.3x", type);
@@ -216,6 +212,7 @@ can_run_resources(const node_t *node)
  */
 gint sort_node_weight(gconstpointer a, gconstpointer b)
 {
+	int level = LOG_DEBUG_3;
 	const node_t *node1 = (const node_t*)a;
 	const node_t *node2 = (const node_t*)b;
 
@@ -224,7 +221,7 @@ gint sort_node_weight(gconstpointer a, gconstpointer b)
 	
 	if(a == NULL) { return 1; }
 	if(b == NULL) { return -1; }
-
+	
 	node1_weight = node1->weight;
 	node2_weight = node2->weight;
 	
@@ -236,40 +233,40 @@ gint sort_node_weight(gconstpointer a, gconstpointer b)
 	}
 
 	if(node1_weight > node2_weight) {
-		crm_debug_3("%s (%d) > %s (%d) : weight",
-			    node1->details->uname, node1_weight,
-			    node2->details->uname, node2_weight);
+		do_crm_log(level, "%s (%d) > %s (%d) : weight",
+			   node1->details->uname, node1_weight,
+			   node2->details->uname, node2_weight);
 		return -1;
 	}
 	
 	if(node1_weight < node2_weight) {
-		crm_debug_3("%s (%d) < %s (%d) : weight",
+		do_crm_log(level, "%s (%d) < %s (%d) : weight",
 			    node1->details->uname, node1_weight,
 			    node2->details->uname, node2_weight);
 		return 1;
 	}
 
-	crm_debug_3("%s (%d) == %s (%d) : weight",
+	do_crm_log(level, "%s (%d) == %s (%d) : weight",
 		    node1->details->uname, node1_weight,
 		    node2->details->uname, node2_weight);
 	
 	/* now try to balance resources across the cluster */
 	if(node1->details->num_resources
 	   < node2->details->num_resources) {
-		crm_debug_3("%s (%d) < %s (%d) : resources",
+		do_crm_log(level, "%s (%d) < %s (%d) : resources",
 			    node1->details->uname, node1->details->num_resources,
 			    node2->details->uname, node2->details->num_resources);
 		return -1;
 		
 	} else if(node1->details->num_resources
 		  > node2->details->num_resources) {
-		crm_debug_3("%s (%d) > %s (%d) : resources",
+		do_crm_log(level, "%s (%d) > %s (%d) : resources",
 			    node1->details->uname, node1->details->num_resources,
 			    node2->details->uname, node2->details->num_resources);
 		return 1;
 	}
 	
-	crm_debug_4("%s = %s", node1->details->uname, node2->details->uname);
+	do_crm_log(level, "%s = %s", node1->details->uname, node2->details->uname);
 	return 0;
 }
 
@@ -416,36 +413,31 @@ order_actions(
 	GListPtr list = NULL;
 	
 	crm_debug_2("Ordering Action %s before %s",
-		  lh_action->uuid, rh_action->uuid);
+		    lh_action->uuid, rh_action->uuid);
 
 	log_action(LOG_DEBUG_4, "LH (order_actions)", lh_action, FALSE);
 	log_action(LOG_DEBUG_4, "RH (order_actions)", rh_action, FALSE);
 
 	
 	crm_malloc0(wrapper, sizeof(action_wrapper_t));
-	if(wrapper != NULL) {
-		wrapper->action = rh_action;
-		wrapper->type = order;
-		
-		list = lh_action->actions_after;
-		list = g_list_append(list, wrapper);
-		lh_action->actions_after = list;
-		wrapper = NULL;
-	}
-
-	order |= pe_order_implies_right;
-	order ^= pe_order_implies_right;
+	wrapper->action = rh_action;
+	wrapper->type = order;
 	
-	if(order) {
-		crm_malloc0(wrapper, sizeof(action_wrapper_t));
-		if(wrapper != NULL) {
-			wrapper->action = lh_action;
-			wrapper->type = order;
-			list = rh_action->actions_before;
-			list = g_list_append(list, wrapper);
-			rh_action->actions_before = list;
-		}
-	}
+	list = lh_action->actions_after;
+	list = g_list_append(list, wrapper);
+	lh_action->actions_after = list;
+
+	wrapper = NULL;
+
+/* 	order |= pe_order_implies_right; */
+/* 	order ^= pe_order_implies_right; */
+	
+	crm_malloc0(wrapper, sizeof(action_wrapper_t));
+	wrapper->action = lh_action;
+	wrapper->type = order;
+	list = rh_action->actions_before;
+	list = g_list_append(list, wrapper);
+	rh_action->actions_before = list;
 }
 
 

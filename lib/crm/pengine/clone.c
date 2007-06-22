@@ -161,6 +161,12 @@ gboolean clone_unpack(resource_t *rsc, pe_working_set_t *data_set)
 		add_node_copy(xml_self, xml_tmp);
 	}
 
+	/* Make clones ever so slightly sticky by default
+	 * This is the only way to ensure clone instances are not
+	 *  shuffled around the cluster for no benefit
+	 */
+  	add_hash_param(rsc->meta, "resource_stickiness", "1");
+	
 	if(common_unpack(xml_self, &self, rsc, data_set)) {
 		clone_data->self = self;
 
@@ -170,7 +176,7 @@ gboolean clone_unpack(resource_t *rsc, pe_working_set_t *data_set)
 		return FALSE;
 	}
 	
-	clone_data->notify_confirm = clone_data->self->notify;
+	clone_data->notify_confirm = rsc->notify;
 
 	for(lpc = 0; lpc < clone_data->clone_max; lpc++) {
 		create_child_clone(rsc, lpc, data_set);
@@ -231,11 +237,11 @@ void clone_print(
 
 	if(rsc->variant == pe_master) {
 		status_print("%sMaster/Slave Set: %s",
-			     pre_text?pre_text:"", clone_data->self->id);
+			     pre_text?pre_text:"", rsc->id);
 
 	} else {
 		status_print("%sClone Set: %s",
-			     pre_text?pre_text:"", clone_data->self->id);
+			     pre_text?pre_text:"", rsc->id);
 	}
 	
 	if(options & pe_print_html) {
@@ -289,7 +295,21 @@ void clone_free(resource_t *rsc)
 }
 
 enum rsc_role_e
-clone_resource_state(resource_t *rsc)
+clone_resource_state(resource_t *rsc, gboolean current)
 {
-	return RSC_ROLE_UNKNOWN;
+	enum rsc_role_e clone_role = RSC_ROLE_UNKNOWN;
+
+	clone_variant_data_t *clone_data = NULL;
+	get_clone_variant_data(clone_data, rsc);
+
+	slist_iter(
+		child_rsc, resource_t, clone_data->child_list, lpc,
+		enum rsc_role_e a_role = child_rsc->fns->state(child_rsc, current);
+		if(a_role > clone_role) {
+			clone_role = a_role;
+		}
+		);
+
+	crm_warn("%s role: %s", rsc->id, role2text(clone_role));
+	return clone_role;
 }

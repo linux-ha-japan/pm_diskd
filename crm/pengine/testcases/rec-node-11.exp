@@ -74,9 +74,12 @@
        <trigger>
          <pseudo_event id="7" operation="stop" operation_key="rsc2_stop_0"/>
        </trigger>
+       <trigger>
+         <pseudo_event id="11" operation="stop" operation_key="group1_stop_0"/>
+       </trigger>
      </inputs>
    </synapse>
-   <synapse id="5" priority="1000000">
+   <synapse id="5">
      <action_set>
        <rsc_op id="4" operation="monitor" operation_key="rsc1_monitor_0" on_node="node2" on_node_uuid="uuid2">
          <primitive id="rsc1" long-id="group1:rsc1" class="heartbeat" type="apache"/>
@@ -104,7 +107,7 @@
        </trigger>
      </inputs>
    </synapse>
-   <synapse id="7" priority="1000000">
+   <synapse id="7">
      <action_set>
        <rsc_op id="5" operation="monitor" operation_key="rsc2_monitor_0" on_node="node2" on_node_uuid="uuid2">
          <primitive id="rsc2" long-id="group1:rsc2" class="heartbeat" type="apache"/>
@@ -152,6 +155,9 @@
        </rsc_op>
      </action_set>
      <inputs>
+       <trigger>
+         <pseudo_event id="11" operation="stop" operation_key="group1_stop_0"/>
+       </trigger>
        <trigger>
          <pseudo_event id="12" operation="stopped" operation_key="group1_stopped_0"/>
        </trigger>

@@ -260,17 +260,19 @@ native_print(
 	if((options & pe_print_rsconly) || g_list_length(rsc->running_on) > 1) {
 		const char *desc = NULL;
 		desc = crm_element_value(rsc->xml, XML_ATTR_DESC);
-		status_print("%s%s\t(%s%s%s:%s)%s%s",
+		status_print("%s%s\t(%s%s%s:%s%s)%s%s",
 			     pre_text?pre_text:"", rsc->id,
 			     prov?prov:"", prov?"::":"",
 			     class, crm_element_value(rsc->xml, XML_ATTR_TYPE),
+			     rsc->orphan?" ORPHANED":"",
 			     desc?": ":"", desc?desc:"");
 
 	} else {
-		status_print("%s%s\t(%s%s%s:%s):\t%s %s%s%s",
+		status_print("%s%s\t(%s%s%s:%s%s):\t%s %s%s%s",
 			     pre_text?pre_text:"", rsc->id,
 			     prov?prov:"", prov?"::":"",
 			     class, crm_element_value(rsc->xml, XML_ATTR_TYPE),
+			     rsc->orphan?" ORPHANED":"",
 			     (rsc->variant!=pe_native)?"":role2text(rsc->role),
 			     (rsc->variant!=pe_native)?"":node!=NULL?node->details->uname:"",
 			     rsc->is_managed?"":" (unmanaged)", rsc->failed?" FAILED":"");
@@ -375,14 +377,12 @@ void native_free(resource_t *rsc)
 
 
 enum rsc_role_e
-native_resource_state(resource_t *rsc)
+native_resource_state(resource_t *rsc, gboolean current)
 {
-	if(rsc->next_role != RSC_ROLE_UNKNOWN) {
-		return rsc->next_role;
+	enum rsc_role_e role = rsc->next_role;
+	if(current) {
+		role = rsc->role;
 	}
-	if(rsc->role != RSC_ROLE_UNKNOWN) {
-		return rsc->role;
-	}
-
-	return RSC_ROLE_STOPPED;
+	crm_debug_2("%s state: %s", rsc->id, role2text(role));
+	return role;
 }

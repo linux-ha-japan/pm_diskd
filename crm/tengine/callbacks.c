@@ -108,7 +108,7 @@ te_update_diff(const char *event, HA_Message *msg)
 		&diff_add_admin_epoch, &diff_add_epoch, &diff_add_updates, 
 		&diff_del_admin_epoch, &diff_del_epoch, &diff_del_updates);
 	
-	crm_info("Processing diff (%s): %d.%d.%d -> %d.%d.%d", op,
+	crm_debug("Processing diff (%s): %d.%d.%d -> %d.%d.%d", op,
 		  diff_del_admin_epoch,diff_del_epoch,diff_del_updates,
 		  diff_add_admin_epoch,diff_add_epoch,diff_add_updates);
 	log_cib_diff(LOG_DEBUG_2, diff, op);
@@ -220,7 +220,8 @@ process_te_message(HA_Message *msg, crm_data_t *xml_data, IPC_Channel *sender)
 			  return FALSE);
 
 		crm_log_message_adv(LOG_DEBUG_2, "Processing (N)ACK", msg);
-		crm_debug("Processing (N)ACK from %s", from);
+		crm_info("Processing (N)ACK %s from %s",
+			  cl_get_string(msg, XML_ATTR_REFERENCE), from);
 		extract_event(xml_obj);
 		
 	} else if(safe_str_eq(type, XML_ATTR_RESPONSE)) {
@@ -463,6 +464,7 @@ static int
 unconfirmed_actions(gboolean send_updates)
 {
 	int unconfirmed = 0;
+	const char *key = NULL;
 	const char *task = NULL;
 	crm_debug_2("Unconfirmed actions...");
 	slist_iter(
@@ -480,6 +482,10 @@ unconfirmed_actions(gboolean send_updates)
 			
 			unconfirmed++;
 			task = crm_element_value(action->xml,XML_LRM_ATTR_TASK);
+			key = crm_element_value(
+				action->xml,XML_LRM_ATTR_TASK_KEY);
+			crm_info("Action %s %d unconfirmed from peer",
+				 key, action->id);
 			if(action->type != action_type_rsc) {
 				continue;
 			} else if(send_updates == FALSE) {
@@ -491,12 +497,11 @@ unconfirmed_actions(gboolean send_updates)
 				/* *never* update the CIB with these */
 				continue;
 			}
-			crm_err("Action %d unconfirmed from peer", action->id);
 			cib_action_update(action, LRM_OP_PENDING);
 			);
 		);
 	if(unconfirmed > 0) {
-		crm_info("Waiting on %d unconfirmed actions", unconfirmed);
+		crm_err("Waiting on %d unconfirmed actions", unconfirmed);
 	}
 	return unconfirmed;
 }

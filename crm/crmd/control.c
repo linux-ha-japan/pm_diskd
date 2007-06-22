@@ -185,8 +185,10 @@ log_connected_client(gpointer key, gpointer value, gpointer user_data)
 
 static void free_mem(fsa_data_t *msg_data) 
 {
-	fsa_cluster_conn->llc_ops->delete(fsa_cluster_conn);
-	fsa_cluster_conn = NULL;
+	if(fsa_cluster_conn) {
+		fsa_cluster_conn->llc_ops->delete(fsa_cluster_conn);
+		fsa_cluster_conn = NULL;
+	}
 	
 	slist_destroy(fsa_data_t, fsa_data, fsa_message_queue, 
 		      crm_info("Dropping %s: [ state=%s cause=%s origin=%s ]",
@@ -273,9 +275,6 @@ static void free_mem(fsa_data_t *msg_data)
 
  	crm_free(max_generation_from);
  	free_xml(max_generation_xml);
-#ifdef HA_MALLOC_TRACK
-	cl_malloc_dump_allocated(LOG_ERR, FALSE);
-#endif
 }
 
 /*	 A_EXIT_0, A_EXIT_1	*/

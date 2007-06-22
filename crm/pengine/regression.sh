@@ -175,6 +175,7 @@ do_test group10 "Group partial recovery"
 do_test group11 "Group target_role"
 do_test group14 "Group stop (graph terminated)"
 do_test group15 "-ve group colocation"
+do_test bug-1573 "Partial stop of a group with two children"
 
 echo ""
 do_test inc0 "Incarnation start" 
@@ -241,6 +242,8 @@ do_test 1484 "OSDL #1484 - on_fail=stop"
 do_test 1494 "OSDL #1494 - Clone stability"
 do_test unrunnable-1 "Unrunnable"
 do_test stonith-0 "Stonith loop"
+do_test bug-1572-1 "Recovery of groups depending on master/slave"
+do_test bug-1572-2 "Recovery of groups depending on master/slave when the master is never re-promoted"
 
 echo ""
 

@@ -214,6 +214,7 @@
 #include <sys/resource.h>
 #include <dirent.h>
 #include <netdb.h>
+#include <wordexp.h>
 #include <ltdl.h>
 #ifdef _POSIX_MEMLOCK
 #	include <sys/mman.h>
@@ -2825,6 +2826,9 @@ HBDoMsg_T_REPNODES(const char * type, struct node_info * fromnode
 		}
 		
 		for (i=0; i < config->nodecount; i++){
+			if (config->nodes[i].nodetype != NORMALNODE_I){
+				continue;
+			}
 			for (j=0; j < num; j++){
 				if (strncmp(config->nodes[i].nodename
 				,	nodes[j], HOSTLENG) == 0){
@@ -2832,13 +2836,6 @@ HBDoMsg_T_REPNODES(const char * type, struct node_info * fromnode
 				}	
 			}
 			if (j == num) {
-				if (config->nodes[i].nodetype != NORMALNODE_I){
-					cl_log(LOG_ERR
-					,	"%s: Attempt to delete node %s"
-					,	__FUNCTION__
-					,	config->nodes[i].nodename);
-					continue;
-				}
 				/*
 				 * This node is not found in incoming nodelist,
 				 * therefore, we need to remove it from
@@ -3811,6 +3808,9 @@ start_a_child_client(gpointer childentry, gpointer dummy)
 		const char *	devnull = "/dev/null";
 		unsigned int	j;
 		struct rlimit		oflimits;
+		wordexp_t we;
+		int rc;
+
 		CL_SIGNAL(SIGCHLD, SIG_DFL);
 		alarm(0);
 		CL_IGNORE_SIG(SIGALRM);
@@ -3823,11 +3823,19 @@ start_a_child_client(gpointer childentry, gpointer dummy)
 		(void)open(devnull, O_RDONLY);	/* Stdin:  fd 0 */
 		(void)open(devnull, O_WRONLY);	/* Stdout: fd 1 */
 		(void)open(devnull, O_WRONLY);	/* Stderr: fd 2 */
-		(void)execl("/bin/sh", "sh", "-c", centry->command
-		,	(const char *)NULL);
 
-		/* Should not happen */
-		cl_perror("Cannot exec %s", centry->command);
+		/* expand 'centry->command' string into 'exec()' arg list */
+		rc = wordexp(centry->command, &we, 0);
+		if (rc != 0) {
+			cl_perror("Bad command specification (error:%d): %s",
+			  rc, centry->command);
+		}
+		else {
+			(void)execv(we.we_wordv[0], we.we_wordv);
+
+			/* Should not happen */
+			cl_perror("Cannot exec %s", centry->command);
+		}
 	}
 	/* Suppress respawning */
 	exit(100);
@@ -4145,8 +4153,14 @@ check_comm_isup(void)
 
 	if (heardfromcount >= config->nodecount) {
 		heartbeat_comm_state = COMM_LINKSUP;
-		send_reqnodes_msg(0);
-		/*comm_now_up();*/
+		if (enable_flow_control){
+			send_reqnodes_msg(0);
+		}else{
+		/*we have a mixed version of heartbeats
+		 *Disable request/reply node list feature and mark comm up now
+		 */  
+			comm_now_up();
+		}
 	}
 }
 
@@ -4717,7 +4731,11 @@ main(int argc, char * argv[], char **envp)
 			cleanexit(-running_hb_pid);
 		}else{
 			struct utsname u;
-			uname(&u);
+
+			if (uname(&u) < 0) {
+				cl_perror("uname(2) call failed");
+				cleanexit(LSB_EXIT_EPERM);
+			}
 			g_strdown(u.nodename);
 			printf("%s OK [pid %ld et al] is running on %s [%s]...\n"
 			,	cmdname, running_hb_pid, u.nodename, localnodename);
@@ -6347,9 +6365,13 @@ get_localnodeinfo(void)
 	static struct utsname	u;
 	static char		localnode[256];
 	FILE *			fp;
-	uname(&u);
+
+	if (uname(&u) < 0) {
+		cl_perror("uname(2) call failed");
+		return;
+	}
+
 	localnodename = u.nodename;
-	
 
 	if ((fp = fopen(openpath, "r")) != NULL
 	&&	fgets(localnode, sizeof(localnode), fp) != NULL

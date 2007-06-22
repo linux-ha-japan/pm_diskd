@@ -1635,18 +1635,16 @@ apply_xml_diff(crm_data_t *old, crm_data_t *diff, crm_data_t **new)
 
 			value = crm_element_value(added, name);
 			crm_xml_add(calc_added, name, value);
-
+			
 			value = crm_element_value(removed, name);
 			crm_xml_add(calc_removed, name, value);	
 		}
 		
 		diff_of_diff = diff_xml_object(intermediate, diff, TRUE);
 		if(diff_of_diff != NULL) {
-			crm_notice("Diff application failed!");
-			crm_log_xml_debug(old, "diff:old");
-			crm_log_xml_debug(*new, "diff:new");
- 			log_xml_diff(LOG_DEBUG, diff_of_diff, "diff:diff_of_diff");
-			log_xml_diff(LOG_INFO, intermediate, "diff:actual_diff");
+			crm_err("Diff application failed!");
+			crm_log_xml_debug(old, "diff:original");
+			crm_log_xml_debug(diff, "diff:input");
 			result = FALSE;
 		}
 		
@@ -1656,13 +1654,7 @@ apply_xml_diff(crm_data_t *old, crm_data_t *diff, crm_data_t **new)
 		intermediate = NULL;
 	}
 	
-	if(result == FALSE) {
-		log_xml_diff(LOG_INFO, diff, "diff:input_diff");
-
-		log_data_element("diff:input", NULL, LOG_DEBUG_2, 0, old, TRUE);
-/* 		CRM_CHECK(diff_of_diff != NULL); */
-		result = FALSE;
-	} else {
+	if(result) {
 		purge_diff_markers(*new);
 	}
 
@@ -1914,8 +1906,8 @@ subtract_xml_object(crm_data_t *left, crm_data_t *right, const char *marker)
 			right, right_child,  
 			value = crm_element_value(right_child, XML_DIFF_MARKER);
 			if(value != NULL && safe_str_eq(value, "removed:top")) {
-				crm_debug("Found the root of the deletion: %s", name);
-				crm_log_xml_debug(right_child, "deletion");
+				crm_debug_3("Found the root of the deletion: %s", name);
+				crm_log_xml_debug_3(right_child, "deletion");
 				differences = TRUE;
 				break;
 			}

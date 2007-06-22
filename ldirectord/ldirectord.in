@@ -47,7 +47,7 @@ Daemon to monitor remote services and control Linux Virtual Server
 =head1 SYNOPSIS
 
 B<ldirectord> [B<-d|--debug>] [--] [I<configfile>] 
-B<start>|B<stop>|B<restart>|B<reload>|B<status>
+B<start>|B<stop>|B<restart>|B<try-restart>|B<reload>|B<force-reload>|B<status>
 
 B<ldirectord> [B<-h|-?|--help|-v|--version>]
 
@@ -1539,7 +1539,7 @@ sub add_real_server_range
 	if ($first_i>$last_i) {
 		&config_error($line, 
 			"Invalid Range: $first-$last: First value must be " .
-			"less than or equal to the second value");
+			"greater than or equal to the second value");
 	}
 
 	# A for loop didn't seem to want to work
@@ -2169,9 +2169,9 @@ sub check_smtp
 	require Net::SMTP;
 	my ($v, $r) = @_;
 	my $port=(defined $$v{checkport}?$$v{checkport}:$$r{port});
-	
-	&ld_debug(2, "Checking http: server=$$r{server} port=$port");
-	
+
+	&ld_debug(2, "Checking smtp: server=$$r{server} port=$port");
+
 	my $smtp = new Net::SMTP($$r{server}, Port => $port,
 			Timeout => $$v{negotiatetimeout});
 	if ($smtp) {

@@ -42,13 +42,9 @@ void group_set_cmds(resource_t *rsc)
 
 int group_num_allowed_nodes(resource_t *rsc)
 {
-	group_variant_data_t *group_data = NULL;
-	get_group_variant_data(group_data, rsc);
-	if(group_data->colocated == FALSE) {
-		crm_config_err("Cannot clone non-colocated group: %s", rsc->id);
-		return 0;
-	}
- 	return group_data->self->cmds->num_allowed_nodes(group_data->self);
+	gboolean unimplimented = FALSE;
+	CRM_ASSERT(unimplimented);
+	return 0;
 }
 
 node_t *
@@ -64,13 +60,13 @@ group_color(resource_t *rsc, pe_working_set_t *data_set)
 		return rsc->allocated_to;
 	}
 	/* combine the child weights */
-	crm_debug("Processing %s", rsc->id);
+	crm_debug_2("Processing %s", rsc->id);
 	if(rsc->is_allocating) {
 		crm_debug("Dependancy loop detected involving %s", rsc->id);
 		return NULL;
 	}
 	rsc->is_allocating = TRUE;
-	group_data->self->role = group_data->first_child->role;
+	rsc->role = group_data->first_child->role;
 	
 	group_data->first_child->rsc_cons = g_list_concat(
 		group_data->first_child->rsc_cons, rsc->rsc_cons);
@@ -84,7 +80,7 @@ group_color(resource_t *rsc, pe_working_set_t *data_set)
 		group_node = child->cmds->color(child, data_set);
 	}
 
-	group_data->self->next_role = group_data->first_child->next_role;	
+	rsc->next_role = group_data->first_child->next_role;	
 	rsc->is_allocating = FALSE;
 	rsc->provisional = FALSE;
 
@@ -110,28 +106,28 @@ void group_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 		group_update_pseudo_status(rsc, child_rsc);
 		);
 
-	op = start_action(group_data->self, NULL, !group_data->child_starting);
+	op = start_action(rsc, NULL, !group_data->child_starting);
 	op->pseudo = TRUE;
 	op->runnable = TRUE;
 
-	op = custom_action(group_data->self, started_key(group_data->self),
+	op = custom_action(rsc, started_key(rsc),
 			   CRMD_ACTION_STARTED, NULL,
 			   !group_data->child_starting, TRUE, data_set);
 	op->pseudo = TRUE;
 	op->runnable = TRUE;
 
-	op = stop_action(group_data->self, NULL, !group_data->child_stopping);
+	op = stop_action(rsc, NULL, !group_data->child_stopping);
 	op->pseudo = TRUE;
 	op->runnable = TRUE;
 	
-	op = custom_action(group_data->self, stopped_key(group_data->self),
+	op = custom_action(rsc, stopped_key(rsc),
 			   CRMD_ACTION_STOPPED, NULL,
 			   !group_data->child_stopping, TRUE, data_set);
 	op->pseudo = TRUE;
 	op->runnable = TRUE;
 
-	rsc->actions = group_data->self->actions;
-/* 	group_data->self->actions = NULL; */
+	rsc->actions = rsc->actions;
+/* 	rsc->actions = NULL; */
 }
 
 void
@@ -163,30 +159,27 @@ group_update_pseudo_status(resource_t *parent, resource_t *child)
 
 void group_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 {
-	resource_t *this_rsc = NULL;
 	resource_t *last_rsc = NULL;
-	int ordering = pe_order_optional|pe_order_implies_right;
 
 	group_variant_data_t *group_data = NULL;
 	get_group_variant_data(group_data, rsc);
 
-	this_rsc = group_data->self;
-	group_data->self->cmds->internal_constraints(group_data->self, data_set);
+	native_internal_constraints(rsc, data_set);
 	
 	custom_action_order(
-		group_data->self, stopped_key(group_data->self), NULL,
-		group_data->self, start_key(group_data->self), NULL,
-		pe_order_internal_restart, data_set);
-
-	custom_action_order(
-		group_data->self, stop_key(group_data->self), NULL,
-		group_data->self, stopped_key(group_data->self), NULL,
+		rsc, stopped_key(rsc), NULL,
+		rsc, start_key(rsc), NULL,
 		pe_order_optional, data_set);
 
 	custom_action_order(
-		group_data->self, start_key(group_data->self), NULL,
-		group_data->self, started_key(group_data->self), NULL,
-		pe_order_optional, data_set);
+		rsc, stop_key(rsc), NULL,
+		rsc, stopped_key(rsc), NULL,
+		pe_order_runnable_left, data_set);
+
+	custom_action_order(
+		rsc, start_key(rsc), NULL,
+		rsc, started_key(rsc), NULL,
+		pe_order_runnable_left, data_set);
 	
 	slist_iter(
 		child_rsc, resource_t, group_data->child_list, lpc,
@@ -198,37 +191,45 @@ void group_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 				"group:internal_colocation", NULL, INFINITY,
 				child_rsc, last_rsc, NULL, NULL);
 		}
-	
+
+		custom_action_order(rsc, stop_key(rsc), NULL,
+				    child_rsc,  stop_key(child_rsc), NULL,
+				    pe_order_optional, data_set);
+		
 		custom_action_order(child_rsc, stop_key(child_rsc), NULL,
-				    this_rsc,  stopped_key(this_rsc), NULL,
-				    ordering, data_set);
+				    rsc,  stopped_key(rsc), NULL,
+				    pe_order_optional, data_set);
 
 		custom_action_order(child_rsc, start_key(child_rsc), NULL,
-				    this_rsc, started_key(this_rsc), NULL,
-				    ordering, data_set);
+				    rsc, started_key(rsc), NULL,
+				    pe_order_optional, data_set);
 		
  		if(group_data->ordered == FALSE) {
-			order_start_start(
-				group_data->self, child_rsc, pe_order_optional);
-
-			order_stop_stop(
-				group_data->self, child_rsc, pe_order_optional);
+			order_start_start(rsc, child_rsc, pe_order_implies_right);
+			order_stop_stop(rsc, child_rsc, pe_order_implies_right);
 
 		} else if(last_rsc != NULL) {
-			order_start_start(last_rsc, child_rsc, ordering);
-			order_stop_stop(child_rsc, last_rsc, ordering);
+			order_start_start(last_rsc, child_rsc, pe_order_implies_right|pe_order_runnable_left);
+			order_stop_stop(child_rsc, last_rsc, pe_order_implies_left);
 
 			child_rsc->restart_type = pe_restart_restart;
 
 		} else {
-			order_start_start(this_rsc, child_rsc, ordering);
+			/* If anyone in the group is starting, then
+			 *  pe_order_implies_right will cause _everyone_ in the group
+			 *  to be sent a start action
+			 * But this is safe since starting something that is already
+			 *  started is required to be "safe"
+			 */
+			order_start_start(rsc, child_rsc,
+					  pe_order_implies_right|pe_order_implies_left|pe_order_runnable_right);
 		}
 		
 		last_rsc = child_rsc;
 		);
 
 	if(group_data->ordered && last_rsc != NULL) {
-		order_stop_stop(this_rsc, last_rsc, ordering);
+		order_stop_stop(rsc, last_rsc, pe_order_implies_right);
 	}		
 }
 
@@ -301,19 +302,28 @@ void group_rsc_colocation_rh(
 		);
 }
 
-void group_rsc_order_lh(resource_t *rsc, order_constraint_t *order)
+void group_rsc_order_lh(resource_t *rsc, order_constraint_t *order, pe_working_set_t *data_set)
 {
 	group_variant_data_t *group_data = NULL;
 	get_group_variant_data(group_data, rsc);
 
-	crm_debug("%s->%s", order->lh_action_task, order->rh_action_task);
+	crm_debug_2("%s->%s", order->lh_action_task, order->rh_action_task);
 
-	if(group_data->self == NULL) {
+	if(rsc == order->rh_rsc || rsc == order->rh_rsc->parent) {
+		native_rsc_order_lh(rsc, order, data_set);
 		return;
 	}
 
+	if(order->type != pe_order_optional) {
+		native_rsc_order_lh(rsc, order, data_set);
+	}
+
+	if(order->type & pe_order_implies_left) {
+ 		native_rsc_order_lh(group_data->first_child, order, data_set);
+	}
+
 	convert_non_atomic_task(rsc, order);
-	group_data->self->cmds->rsc_order_lh(group_data->self, order);
+	native_rsc_order_lh(rsc, order, data_set);
 }
 
 void group_rsc_order_rh(
@@ -324,11 +334,11 @@ void group_rsc_order_rh(
 
 	crm_debug_2("%s->%s", lh_action->uuid, order->rh_action_task);
 
-	if(group_data->self == NULL) {
+	if(rsc == NULL) {
 		return;
 	}
 
-	group_data->self->cmds->rsc_order_rh(lh_action, group_data->self, order);
+	native_rsc_order_rh(lh_action, rsc, order);
 }
 
 void group_rsc_location(resource_t *rsc, rsc_to_node_t *constraint)
@@ -338,7 +348,7 @@ void group_rsc_location(resource_t *rsc, rsc_to_node_t *constraint)
 	get_group_variant_data(group_data, rsc);
 
 	crm_debug("Processing rsc_location %s for %s",
-		  constraint->id, group_data->self->id);
+		  constraint->id, rsc->id);
 
 	slist_iter(
 		child_rsc, resource_t, group_data->child_list, lpc,
@@ -360,8 +370,8 @@ void group_expand(resource_t *rsc, pe_working_set_t *data_set)
 
 	crm_debug_3("Processing actions from %s", rsc->id);
 
-	CRM_CHECK(group_data->self != NULL, return);
-	group_data->self->cmds->expand(group_data->self, data_set);
+	CRM_CHECK(rsc != NULL, return);
+	native_expand(rsc, data_set);
 	
 	slist_iter(
 		child_rsc, resource_t, group_data->child_list, lpc,
@@ -443,3 +453,4 @@ group_migrate_reload(resource_t *rsc, pe_working_set_t *data_set)
 		child_rsc->cmds->migrate_reload(child_rsc, data_set);
 		);
 }
+

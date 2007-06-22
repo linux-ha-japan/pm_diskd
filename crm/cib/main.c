@@ -209,16 +209,14 @@ main(int argc, char ** argv)
 	/* read local config file */
 	rc = cib_init();
 
-	CRM_CHECK(g_hash_table_size(client_list) == 0, crm_err("Memory leak"));
+	CRM_CHECK(g_hash_table_size(client_list) == 0,
+		  crm_warn("Not all clients gone at exit"));
 	cib_cleanup();
 
 	if(hb_conn) {
 		hb_conn->llc_ops->delete(hb_conn);
 	}
 	
-#ifdef HA_MALLOC_TRACK
-	cl_malloc_dump_allocated(LOG_ERR, FALSE);
-#endif
 	crm_info("Done");
 	return rc;
 }
@@ -282,10 +280,6 @@ cib_stats(gpointer data)
 		      " %lu timeouts, %lu bad connects)",
 		      cib_num_ops, cib_calls_ms, cib_num_local, cib_num_updates,
 		      cib_num_fail, cib_bad_connects, cib_num_timeouts);
-
-#ifdef HA_MALLOC_TRACK
-	cl_malloc_dump_allocated(LOG_DEBUG, TRUE);
-#endif
 
 	last_stat = cib_num_ops;
 	cib_call_time = 0;
@@ -381,7 +375,6 @@ cib_init(void)
 			crm_debug_3("Registering with CCM");
 			ret = oc_ev_register(&cib_ev_token);
 			if (ret != 0) {
-				crm_warn("CCM registration failed");
 				did_fail = TRUE;
 			}
 			
@@ -542,7 +535,7 @@ disconnect_cib_client(gpointer key, gpointer value, gpointer user_data)
 {
 	cib_client_t *a_client = value;
 	crm_debug_2("Processing client %s/%s... send=%d, recv=%d",
-		  a_client->name, a_client->channel_name,
+		  crm_str(a_client->name), crm_str(a_client->channel_name),
 		  (int)a_client->channel->send_queue->current_qlen,
 		  (int)a_client->channel->recv_queue->current_qlen);
 
@@ -551,7 +544,8 @@ disconnect_cib_client(gpointer key, gpointer value, gpointer user_data)
 		if(a_client->channel->send_queue->current_qlen != 0
 		   || a_client->channel->recv_queue->current_qlen != 0) {
 			crm_info("Flushed messages to/from %s/%s... send=%d, recv=%d",
-				a_client->name, a_client->channel_name,
+				crm_str(a_client->name),
+				crm_str(a_client->channel_name),
 				(int)a_client->channel->send_queue->current_qlen,
 				(int)a_client->channel->recv_queue->current_qlen);
 		}
@@ -559,7 +553,8 @@ disconnect_cib_client(gpointer key, gpointer value, gpointer user_data)
 
 	if(a_client->channel->ch_status == IPC_CONNECT) {
 		crm_warn("Disconnecting %s/%s...",
-			 a_client->name, a_client->channel_name);
+			 crm_str(a_client->name),
+			 crm_str(a_client->channel_name));
 		a_client->channel->ops->disconnect(a_client->channel);
 	}
 }
@@ -596,7 +591,7 @@ startCib(const char *filename)
 
 	CRM_ASSERT(cib != NULL);
 	
-	if(activateCibXml(cib, filename) == 0) {
+	if(activateCibXml(cib, TRUE) == 0) {
 		int port = 0;
 		active = TRUE;
 		ha_msg_value_int(cib, "remote_access_port", &port);

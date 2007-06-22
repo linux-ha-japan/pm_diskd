@@ -131,7 +131,7 @@ validate_cib_digest(crm_data_t *local_cib)
 		crm_err("On-disk digest is empty");
 		
 	} else if(safe_str_eq(expected, digest)) {
-		crm_debug("Digest comparision passed: %s", digest);
+		crm_debug_2("Digest comparision passed: %s", digest);
 		passed = TRUE;
 
 	} else {
@@ -517,7 +517,7 @@ archive_file(const char *oldname, const char *newname, const char *ext)
  * on failure.
  */
 int
-activateCibXml(crm_data_t *new_cib, const char *ignored)
+activateCibXml(crm_data_t *new_cib, gboolean to_disk)
 {
 	int error_code = cib_ok;
 	crm_data_t *saved_cib = the_cib;
@@ -566,30 +566,10 @@ activateCibXml(crm_data_t *new_cib, const char *ignored)
 		crm_err("Per-action CIB");
 		write_cib_contents(the_cib);
 		
-	} else if(cib_writes_enabled && cib_status == cib_ok) {
+	} else if(cib_writes_enabled && cib_status == cib_ok && to_disk) {
 		crm_debug_2("Triggering CIB write");
 		G_main_set_trigger(cib_writer);
 	}
-#if CIB_MEM_STATS
-	/* this chews through a bunch of CPU */
-	if(the_cib == new_cib) {
-		long new_bytes, new_allocs, new_frees;
-		long old_bytes, old_allocs, old_frees;
-		crm_xml_nbytes(new_cib, &new_bytes, &new_allocs, &new_frees);
-		crm_xml_nbytes(saved_cib, &old_bytes, &old_allocs, &old_frees);
-
-		if(new_bytes != old_bytes) {
-			crm_info("CIB size is %ld bytes (was %ld)", new_bytes, old_bytes);
-			crm_adjust_mem_stats(NULL, new_bytes - old_bytes,
-					     new_allocs - old_allocs, new_frees - old_frees);
-			if(crm_running_stats != NULL) {
-				crm_adjust_mem_stats(
-					crm_running_stats, new_bytes - old_bytes,
-					new_allocs - old_allocs, new_frees - old_frees);
-			}
-		}
-	}
-#endif
 	
 	if(the_cib != saved_cib && the_cib != new_cib) {
 		CRM_DEV_ASSERT(error_code != cib_ok);
@@ -696,8 +676,6 @@ write_cib_contents(gpointer p)
 
 	if(p == NULL) {
 		/* fork-and-write mode */
-		uninitializeCib();
-		cib_cleanup();
 		exit(exit_rc);
 	}
 

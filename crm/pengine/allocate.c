@@ -212,7 +212,8 @@ check_action_definition(resource_t *rsc, node_t *active_node, crm_data_t *xml_op
 			custom_action_order(
 				rsc, NULL, cancel,
 				rsc, stop_key(rsc), NULL,
-				pe_order_optional, data_set);
+				pe_order_implies_left, data_set);
+
 		}
 		if(op_match == NULL) {
 			crm_debug("Orphan action detected: %s on %s",
@@ -283,7 +284,7 @@ check_action_definition(resource_t *rsc, node_t *active_node, crm_data_t *xml_op
 		} else if(interval > 0) {
 			custom_action_order(rsc, start_key(rsc), NULL,
 					    NULL, crm_strdup(op->task), op,
-					    pe_order_optional, data_set);
+					    pe_order_runnable_left, data_set);
 		}
 		
 	}
@@ -313,6 +314,7 @@ check_actions_for(crm_data_t *rsc_entry, node_t *node, pe_working_set_t *data_se
 	GListPtr sorted_op_list = NULL;
 	const char *rsc_id = ID(rsc_entry);
 	gboolean is_probe = FALSE;
+	int start_index = 0, stop_index = 0;
 	resource_t *rsc = pe_find_resource(data_set->resources, rsc_id);
 
 	CRM_CHECK(rsc != NULL, return);
@@ -340,9 +342,19 @@ check_actions_for(crm_data_t *rsc_entry, node_t *node, pe_working_set_t *data_se
 		);
 
 	sorted_op_list = g_list_sort(op_list, sort_op_by_callid);
+	calculate_active_ops(sorted_op_list, &start_index, &stop_index);
+
 	slist_iter(
 		rsc_op, crm_data_t, sorted_op_list, lpc,
 
+		if(start_index < stop_index) {
+			/* stopped */
+			continue;
+		} else if(lpc < start_index) {
+			/* action occurred prior to a start */
+			continue;
+		}
+		
 		id   = ID(rsc_op);
 		is_probe = FALSE;
 		task = crm_element_value(rsc_op, XML_LRM_ATTR_TASK);
@@ -500,7 +512,7 @@ stage1(pe_working_set_t *data_set)
 				custom_action_order(
 					NULL, NULL, probe_complete,
 					rsc, start_key(rsc), NULL,
-					pe_order_implies_left, data_set);
+					pe_order_optional, data_set);
 			}
 			);
 		);
@@ -708,11 +720,11 @@ stage7(pe_working_set_t *data_set)
 		order, order_constraint_t, data_set->ordering_constraints, lpc,
 
 		resource_t *rsc = order->lh_rsc;
-		crm_debug_3("Applying ordering constraint: %d", order->id);
+		crm_debug_2("Applying ordering constraint: %d", order->id);
 		
 		if(rsc != NULL) {
 			crm_debug_4("rsc_action-to-*");
-			rsc->cmds->rsc_order_lh(rsc, order);
+			rsc->cmds->rsc_order_lh(rsc, order, data_set);
 			continue;
 		}
 
@@ -885,6 +897,8 @@ invert_action(const char *action)
 gboolean
 unpack_rsc_order(crm_data_t * xml_obj, pe_working_set_t *data_set)
 {
+	int score_i = 0;
+	int order_id = 0;
 	resource_t *rsc_lh = NULL;
 	resource_t *rsc_rh = NULL;
 	gboolean symmetrical_bool = TRUE;
@@ -921,7 +935,7 @@ unpack_rsc_order(crm_data_t * xml_obj, pe_working_set_t *data_set)
 		action_rh = crm_element_value(xml_obj, XML_CONS_ATTR_TOACTION);
 		
 	} else {
-		type="after";
+		type="before";
 		id_rh  = crm_element_value(xml_obj, XML_CONS_ATTR_TO);
 		id_lh  = crm_element_value(xml_obj, XML_CONS_ATTR_FROM);
 		action = crm_element_value(xml_obj, XML_CONS_ATTR_TOACTION);
@@ -956,42 +970,37 @@ unpack_rsc_order(crm_data_t * xml_obj, pe_working_set_t *data_set)
 		return FALSE;
 	}
 
-	crm_debug("%s: %s.%s %s %s.%s%s",
-		  id, rsc_lh->id, action, type, rsc_rh->id, action_rh,
-		  symmetrical_bool?" (symmetrical)":"");
-	
-	if(char2score(score) > 0) {
-		/* the name seems weird but the effect is correct */
-		cons_weight = pe_order_internal_restart;
+	score_i = char2score(score);
+	cons_weight = pe_order_optional;
+	if(score == 0 && rsc_rh->restart_type == pe_restart_restart) {
+		crm_debug_2("Upgrade : recovery - implies right");
+ 		cons_weight |= pe_order_implies_right;
+	}
+
+	if(score_i < 0) {
+		crm_debug_2("Upgrade : implies left");
+ 		cons_weight |= pe_order_implies_left;
+
+	} else if(score_i > 0) {
+		crm_debug_2("Upgrade : implies right");
+ 		cons_weight |= pe_order_implies_right;
+		if(safe_str_eq(action, CRMD_ACTION_START)
+		   || safe_str_eq(action, CRMD_ACTION_PROMOTE)) {
+			crm_debug_2("Upgrade : runnable");
+			cons_weight |= pe_order_runnable_left;
+		}
 	}
 	
-	custom_action_order(
+	order_id = custom_action_order(
 		rsc_lh, generate_op_key(rsc_lh->id, action, 0), NULL,
 		rsc_rh, generate_op_key(rsc_rh->id, action_rh, 0), NULL,
 		cons_weight, data_set);
 
-	if(rsc_rh->restart_type == pe_restart_restart
-	   && safe_str_eq(action, action_rh)) {
-		if(safe_str_eq(action, CRMD_ACTION_START)) {
-			crm_debug_2("Recover %s.%s-%s.%s",
-				    rsc_lh->id, action, rsc_rh->id, action_rh);
-/* 			order_start_start(rsc_lh, rsc_rh, pe_order_implies_right); */
-			custom_action_order(
-				rsc_lh, generate_op_key(rsc_lh->id, action, 0), NULL,
-				rsc_rh, generate_op_key(rsc_rh->id, action_rh, 0), NULL,
-				pe_order_implies_right, data_set);
-
- 		} else if(safe_str_eq(action, CRMD_ACTION_STOP)) {
-			crm_debug_2("Recover %s.%s-%s.%s",
-				    rsc_rh->id, action_rh, rsc_lh->id, action);
-/*   			order_stop_stop(rsc_rh, rsc_lh, pe_order_implies_right);   */
-			custom_action_order(
-				rsc_rh, generate_op_key(rsc_rh->id, action_rh, 0), NULL,
-				rsc_lh, generate_op_key(rsc_lh->id, action, 0), NULL,
-				pe_order_implies_right, data_set);
-		}
-	}
-
+	crm_debug("order-%d (%s): %s_%s %s %s_%s flags=0x%.6x",
+		  order_id, id, rsc_lh->id, action, type, rsc_rh->id, action_rh,
+		  cons_weight);
+	
+	
 	if(symmetrical_bool == FALSE) {
 		return TRUE;
 	}
@@ -999,37 +1008,40 @@ unpack_rsc_order(crm_data_t * xml_obj, pe_working_set_t *data_set)
 	action = invert_action(action);
 	action_rh = invert_action(action_rh);
 
+	cons_weight = pe_order_optional;
+	if(score == 0 && rsc_rh->restart_type == pe_restart_restart) {
+		crm_debug_2("Upgrade : recovery - implies left");
+ 		cons_weight |= pe_order_implies_left;
+	}
+	
+	score_i *= -1;
+	if(score_i < 0) {
+		crm_debug_2("Upgrade : implies left");
+ 		cons_weight |= pe_order_implies_left;
+		
+	} else if(score_i > 0) {
+		crm_debug_2("Upgrade : implies right");
+ 		cons_weight |= pe_order_implies_right;
+		if(safe_str_eq(action, CRMD_ACTION_START)
+		   || safe_str_eq(action, CRMD_ACTION_PROMOTE)) {
+			crm_debug_2("Upgrade : runnable");
+			cons_weight |= pe_order_runnable_left;
+		}
+	}
+
 	if(action == NULL || action_rh == NULL) {
 		crm_config_err("Cannot invert rsc_order constraint %s."
 			       " Please specify the inverse manually.", id);
 		return TRUE;
 	}
 	
-	custom_action_order(
+	order_id = custom_action_order(
 		rsc_rh, generate_op_key(rsc_rh->id, action_rh, 0), NULL,
 		rsc_lh, generate_op_key(rsc_lh->id, action, 0), NULL,
 		cons_weight, data_set);
-
-	if(rsc_lh->restart_type == pe_restart_restart
-	   && safe_str_eq(action, action_rh)) {
-		if(safe_str_eq(action, CRMD_ACTION_START)) {
-			crm_debug_2("Recover start-start (2): %s-%s",
-				rsc_lh->id, rsc_rh->id);
-/*   			order_start_start(rsc_lh, rsc_rh, pe_order_implies_right); */
-			custom_action_order(
-				rsc_lh, generate_op_key(rsc_lh->id, action, 0), NULL,
-				rsc_rh, generate_op_key(rsc_rh->id, action_rh, 0), NULL,
-				pe_order_implies_right, data_set);
-		} else if(safe_str_eq(action, CRMD_ACTION_STOP)) { 
-			crm_debug_2("Recover stop-stop (2): %s-%s",
-				rsc_rh->id, rsc_lh->id);
-/*   			order_stop_stop(rsc_rh, rsc_lh, pe_order_implies_right);  */
-			custom_action_order(
-				rsc_rh, generate_op_key(rsc_rh->id, action_rh, 0), NULL,
-				rsc_lh, generate_op_key(rsc_lh->id, action, 0), NULL,
-				pe_order_implies_right, data_set);
-		}
-	}
+	crm_debug("order-%d (%s): %s_%s %s %s_%s flags=0x%.6x",
+		  order_id, id, rsc_rh->id, action_rh, type, rsc_lh->id, action,
+		  cons_weight);
 	
 	return TRUE;
 }
@@ -1283,7 +1295,7 @@ rsc_colocation_new(const char *id, const char *node_attr, int score,
 }
 
 /* LHS before RHS */
-gboolean
+int
 custom_action_order(
 	resource_t *lh_rsc, char *lh_action_task, action_t *lh_action,
 	resource_t *rh_rsc, char *rh_action_task, action_t *rh_action,
@@ -1303,7 +1315,7 @@ custom_action_order(
 			      lh_rsc, lh_action, rh_rsc, rh_action);
 		crm_free(lh_action_task);
 		crm_free(rh_action_task);
-		return FALSE;
+		return -1;
 	}
 	
 	crm_malloc0(order, sizeof(order_constraint_t));
@@ -1352,7 +1364,7 @@ custom_action_order(
 			 rh_action->id, rh_action_task);
 	}
 	
-	return TRUE;
+	return order->id;
 }
 
 gboolean

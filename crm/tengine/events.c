@@ -359,7 +359,7 @@ match_graph_event(int action_id, crm_data_t *event, const char *event_node,
 	}
 
 	te_log_action(LOG_INFO, "Action %s (%d) confirmed on %s",
-		      this_event, action->id, event_node);
+		      crm_str(this_event), action->id, crm_str(event_node));
 
 	return action->id;
 }
@@ -513,7 +513,7 @@ process_graph_event(crm_data_t *event, const char *event_node)
 
 	} else {
 		passed = TRUE;
-		crm_debug("Processed update to %s: %s", id, magic);
+		crm_debug_2("Processed update to %s: %s", id, magic);
 	}
 
 	if(passed == FALSE && rc != EXECRA_OK) {

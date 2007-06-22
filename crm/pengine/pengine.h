@@ -43,10 +43,14 @@ enum pe_stop_fail {
 
 enum pe_ordering {
 	pe_order_implies_left		= 0x01, /* was: _mandatory */
-	pe_order_internal_restart	= 0x02, /* upgrades to: right_implies_left */
-	pe_order_implies_right		= 0x04, /* was: _recover  */
-	pe_order_postnotify		= 0x08,
-	pe_order_optional		= 0x10  /* pure ordering, nothing implied */
+	pe_order_implies_right		= 0x02, /* was: _recover  */
+
+	pe_order_runnable_left		= 0x10,  /* needs the LHS side to be runnable */
+	pe_order_runnable_right		= 0x20,  /* needs the RHS side to be runnable */
+
+	pe_order_optional		= 0x100,  /* pure ordering, nothing implied */
+
+	pe_order_test		        = 0x1000  /* test marker */
 };
 
 struct rsc_colocation_s { 
@@ -125,7 +129,7 @@ extern gboolean shutdown_constraints(
 extern gboolean stonith_constraints(
 	node_t *node, action_t *stonith_op, pe_working_set_t *data_set);
 
-extern gboolean custom_action_order(
+extern int custom_action_order(
 	resource_t *lh_rsc, char *lh_task, action_t *lh_action,
 	resource_t *rh_rsc, char *rh_task, action_t *rh_action,
 	enum pe_ordering type, pe_working_set_t *data_set);
@@ -138,11 +142,6 @@ extern gboolean custom_action_order(
 	custom_action_order(rsc1, stop_key(rsc1), NULL,		\
 			    rsc2, stop_key(rsc2) ,NULL,		\
 			    type, data_set)
-
-#define order_restart(rsc1)						\
-	custom_action_order(rsc1, stop_key(rsc1), NULL,		\
-			    rsc1, start_key(rsc1), NULL,	\
-			    pe_order_internal_restart, data_set)
 
 #define order_stop_start(rsc1, rsc2, type)				\
 	custom_action_order(rsc1, stop_key(rsc1), NULL,		\
