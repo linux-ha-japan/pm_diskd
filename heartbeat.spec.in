@@ -2558,7 +2558,7 @@ fi
 List="BasicSanityCheck ResourceManager TestHeartbeatComm
 crm.dtd ha_config ha_propagate hb_addnode hb_delnode
 hb_setsite hb_setweight hb_standby hb_takeover
-mach_down req_resource"
+mach_down req_resource ResourceManager"
 cd @hb_libdir@
 for file in $List
 do
@@ -2568,8 +2568,6 @@ done
 ###########################################################
 %preun
 ###########################################################
-
-
 if
   [ $1 = 0 ]
 then
@@ -2581,10 +2579,10 @@ fi
 List="BasicSanityCheck ResourceManager TestHeartbeatComm
 crm.dtd ha_config ha_propagate hb_addnode hb_delnode
 hb_setsite hb_setweight hb_standby hb_takeover
-mach_down req_resource"
-cd @HA_NOARCHDATAHBDIR@
+mach_down req_resource ResourceManager"
+cd @hb_libdir@
 rm -f $List
-
+true
 ###########################################################
 %postun
 true
