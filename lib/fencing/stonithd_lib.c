@@ -80,7 +80,7 @@ static void free_stonith_ops_t(stonith_ops_t * st_op);
 static void free_stonithRA_ops_t(stonithRA_ops_t * ra_op);
 
 #define stdlib_log(priority, fmt...); \
-        if ( ( priority != LOG_DEBUG ) || ( DEBUG_MODE != FALSE ) ) { \
+        if ( ( priority != LOG_DEBUG ) || ( debug_level > 0 ) ) { \
                 cl_log(priority, fmt); \
         }
 
@@ -370,7 +370,6 @@ end:
 int 
 stonithd_signoff(void)
 {
-	int rc = ST_FAIL;
 	struct ha_msg * request;
 	
 	if (chan == NULL || chan->ch_status == IPC_DISCONNECT) {
@@ -402,7 +401,7 @@ stonithd_signoff(void)
 		cbchan = NULL;
 	}
 	
-	return rc;
+	return ST_OK;
 }
 
 IPC_Channel *
