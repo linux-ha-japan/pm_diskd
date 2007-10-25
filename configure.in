@@ -271,13 +271,18 @@ else
   AC_MSG_ERROR([Cannot Compile trivial C program])
 fi
 #
-#	The code above doesn't work right everywhere (like Fedora)
+#	The code above doesn't work right everywhere
+#		(like Fedora and OpenBSD) 
 #
 case ${LibDirSuffix} in
 	*lib*)	: Cool;;
 	*)	: Sigh...
 		case $OutFileType in
-		  *64-bit*)	LibDirSuffix=lib64;;
+		  *64-bit*)	
+		  	case $host_os in
+			  openbsd)	LibDirSuffix=lib;;
+		  	  *)		LibDirSuffix=lib64;;
+			esac;;
 		  *32-bit*)	LibDirSuffix=lib;;
 		  *)		LibDirSuffix=lib;;
 		esac;;
@@ -2632,6 +2637,13 @@ else
   RPM_ENABLE_MGMT_CONFIG=0
 fi
 AC_SUBST(RPM_ENABLE_MGMT_CONFIG)
+
+if test "x${enable_openhpi}" != "xno"; then
+  RPM_ENABLE_OPENHPI=1
+else
+  RPM_ENABLE_OPENHPI=0
+fi
+AC_SUBST(RPM_ENABLE_OPENHPI)
 
 AM_CONDITIONAL(MGMT_BUILD, test "x${enable_mgmt}" != "xno")
 if test "x${enable_mgmt}" != "xno"; then
