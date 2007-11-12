@@ -565,6 +565,7 @@ unpack_operation(
 	const char *field = NULL;
 	
 	CRM_CHECK(action->rsc != NULL, return);
+	class = g_hash_table_lookup(action->rsc->meta, "class");
 	
 	if(xml_obj != NULL) {
 		value = crm_element_value(xml_obj, "prereq");
@@ -587,7 +588,8 @@ unpack_operation(
 	} else if(safe_str_eq(value, "fencing")) {
 		action->needs = rsc_req_stonith;
 		
-	} else if(data_set->no_quorum_policy == no_quorum_ignore) {
+	} else if(data_set->no_quorum_policy == no_quorum_ignore
+	    || safe_str_neq(class, "stonith")) {
 		action->needs = rsc_req_nothing;
 		value = "nothing (default)";
 		
@@ -601,7 +603,6 @@ unpack_operation(
 		value = "quorum (default)";
 	}
 
-	class = g_hash_table_lookup(action->rsc->meta, "class");
 	if(safe_str_eq(class, "stonith")) {
 		if(action->needs == rsc_req_stonith) {
 			crm_config_err("Stonith resources (eg. %s) cannot require"

@@ -534,6 +534,8 @@ crmd_ccm_msg_callback(
 		case OC_EV_MS_NOT_PRIMARY:
 			break;
 		case OC_EV_MS_PRIMARY_RESTORED:
+			update_cache = TRUE;
+			current_ccm_membership_id = instance;
 			if(AM_I_DC && need_transition(fsa_state)) {
 			    trigger_transition = TRUE;
 			}
