@@ -26,7 +26,6 @@
 %define HA_APIGID @HA_APIGID@
 %define HB_VERSION @VERSION@
 %define SSH @SSH@
-%define	RPM_MGMT_RUNTIME_REQUIRES @RPM_MGMT_RUNTIME_REQUIRES@
 %define INITDIR @INITDIR@
 %define OCF_ROOT_DIR @OCF_ROOT_DIR@
 %define OCF_RA_DIR @OCF_RA_DIR@
@@ -221,7 +220,8 @@ BuildRequires: OpenIPMI-devel
 %endif
 
 %if ENABLE_MGMT
-BuildRequires:	libgcrypt-devel, gnutls-devel
+#BuildRequires:	libgcrypt-devel
+BuildRequires:	gnutls-devel
 %endif
 
 %if %{build_cmpi}
@@ -229,11 +229,19 @@ BuildRequires: %{CIMOM}
 %endif
 
 Requires: %{STONITH_NAME} = %{version}-%{release}, %{PILS_NAME} = %{version}-%{release}
-Requires: sysklogd, perl, iputils, %{SSH} %{PING} %{IPTABLES}
+Requires: perl, iputils, %{SSH} %{PING} %{IPTABLES}
 Requires(pre): /usr/sbin/groupadd /usr/bin/getent /usr/sbin/useradd
+%if 0
+#	We can use either one.  Most people have one or the other installed
+Requires: sysklogd
+Requires: syslog-ng
+%endif
 
 %if %{is_suse}
-Requires: python-xml python-gtk
+%if %{ENABLE_MGMT} && !%{GUI_PACKAGE}
+Requires: python-xml
+Requires: python-gtk >= 2.4
+%endif
 %if 0%{?sles_version} == 9
 BuildRequires: pkgconfig
 %endif
@@ -245,7 +253,6 @@ BuildRequires: lzo
 %if %{is_fedora}
 Requires:	PyXML
 BuildRequires: 		which OpenIPMI-devel
-Requires:               pygtk2 >= 2.4
 Requires(pre):          fedora-usermgmt
 Requires(postun):       fedora-usermgmt
 %endif
@@ -324,15 +331,20 @@ Group: %{pkg_group}
 
 %if %{ENABLE_MGMT} && %{GUI_PACKAGE}
 %package -n %{GUI_NAME}
-Requires: %{RPM_MGMT_RUNTIME_REQUIRES}
 Summary: Provides a gui interface to manage heartbeat clusters
 Group: %{pkg_group}
 
 %if %{is_suse}
+Requires: python-xml
+Requires: python-gtk >= 2.4
 %endif
 %if %{is_fedora}
+Requires:	PyXML
+Requires:	pygtk2 >= 2.4
 %endif
 %if %{is_rhel}
+Requires:	PyXML
+Requires:	pygtk2 >= 2.4
 %endif
 %if %{is_mandriva}
 %endif

@@ -60,19 +60,19 @@ llm_get_live_nodecount(llm_info_t *llm)
 }
 
 
-char *
+const char *
 llm_get_nodename(llm_info_t *llm, const int index)
 {
 	if (llm == NULL){
 		ccm_log(LOG_ERR, "%s: NULL pointer",
 		       __FUNCTION__);
-		return  NULL;
+		return "<INVALID LLM POINTER>";
 	}
 	
 	if (index < 0 || index > MAXNODE){
 		ccm_log(LOG_ERR, "%s: index(%d) out of range",
 		       __FUNCTION__, index);
-		return NULL;
+		return "<INVALID NODE INDEX>";
 	}
 	
 	return llm->nodes[index].nodename;
@@ -333,7 +333,7 @@ llm_add(llm_info_t *llm,
 }
 
 int
-llm_set_joinrequest(llm_info_t* llm, int index, gboolean value)
+llm_set_joinrequest(llm_info_t* llm, int index, gboolean value, int major_trans)
 {
 	if (llm == NULL){
 		ccm_log(LOG_ERR, "%s: NULL pointer",
@@ -348,7 +348,7 @@ llm_set_joinrequest(llm_info_t* llm, int index, gboolean value)
 	}	
 	
 	llm->nodes[index].join_request = value;
-	
+	llm->nodes[index].join_request_major_trans = major_trans;
 	return HA_OK;
 }
 
@@ -371,6 +371,25 @@ llm_get_joinrequest(llm_info_t* llm, int index)
 	
 }
 
+
+gboolean
+llm_get_joinrequest_majortrans(llm_info_t* llm, int index)
+{
+	if (llm == NULL){
+		ccm_log(LOG_ERR, "%s: NULL pointer",
+		       __FUNCTION__);
+		return  FALSE;
+	}
+	
+	if (index < 0 || index > MAXNODE){
+		ccm_log(LOG_ERR, "%s: index(%d) out of range",
+		       __FUNCTION__, index);
+		return FALSE;
+	}	
+	
+	return llm->nodes[index].join_request_major_trans;
+	
+}
 
 int
 llm_set_change(llm_info_t* llm, int index, gboolean value)
@@ -426,8 +445,8 @@ llm_set_uptime(llm_info_t* llm, int index, int uptime)
 	}
 	
 	if (uptime < 0){
-		ccm_log(LOG_ERR, "%s: Negative uptime %d",
-		       __FUNCTION__, uptime);
+		ccm_log(LOG_ERR, "%s: Negative uptime %d for node %d [%s]",
+		       __FUNCTION__, uptime, index, llm_get_nodename(llm,index));
 		return FALSE;
 		       
 	}

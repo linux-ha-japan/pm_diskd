@@ -299,7 +299,7 @@ static void trans_log(int priority, const char * fmt, ...)G_GNUC_PRINTF(2,3);
 static struct hostlist_shmseg *lookup_shm_hostlist(pid_t pid);
 static void add_shm_hostlist(int shmid, pid_t pid);
 static void remove_shm_hostlist(pid_t pid);
-static gboolean hostlist2shmem(int shmid,char **hostlist);
+static gboolean hostlist2shmem(int shmid,char **hostlist,int maxlist);
 static char ** shmem2hostlist(pid_t pid);
 static void record_new_srsc(stonithRA_ops_t *ra_op);
 
@@ -436,7 +436,7 @@ static int 		stonithd_child_count	= 0;
 		return; \
 	} \
 } while(0)
-#define return_on_msg_shoot_us(type) do { \
+#define return_on_msg_shoot_us() do { \
 	if ( !strncmp(target, local_nodename, MAXCMP) && !TEST ) { \
 		stonithd_log(LOG_DEBUG, "in normal mode, won't " \
 				     "stonith myself"); \
@@ -564,7 +564,7 @@ main(int argc, char ** argv)
 		goto signoff_quit;
 	}
 	}
-	
+
 	/*
 	 * Initialize the handler of IPC messages from my clients.
 	 */
@@ -2863,7 +2863,8 @@ stonithRA_start( stonithRA_ops_t * op, gpointer data)
 	StonithNVpair*	snv;
 	Stonith *	stonith_obj = NULL;
 	char 		buf_tmp[40];
-	int		shmid=0, shmsize;
+	int		shmid=0, shmsize=0;
+	char **		hostlist;
 
 	/* Check the parameter */
 	if ( op == NULL || op->rsc_id <= 0 || op->op_type == NULL
@@ -2963,13 +2964,15 @@ probe_status:
 	if( !shmid ) { /* Already started before this operation */
 		exit(EXECRA_OK);
 	}
-	return_to_orig_privs();
-	if( !hostlist2shmem(shmid,stonith_get_hostlist(stonith_obj))) {
+	hostlist = stonith_get_hostlist(stonith_obj);
+	if( !hostlist ) {
 		stonithd_log(LOG_ERR, "Could not list nodes for stonith RA %s."
 		,	op->ra_name);
 		exit(EXECRA_NOT_CONFIGURED);
 	}
-	return_to_dropped_privs();
+	if( !hostlist2shmem(shmid,hostlist,shmsize) ) {
+		exit(EXECRA_NOT_CONFIGURED);
+	}
 	exit(EXECRA_OK);
 }
 
@@ -3022,7 +3025,7 @@ remove_shm_hostlist(pid_t pid)
 
 /* store the hostlist to a shared memory segment */
 static gboolean
-hostlist2shmem(int shmid,char **hostlist)
+hostlist2shmem(int shmid,char **hostlist,int maxlist)
 {
 	char *s, *q, **h;
 
@@ -3035,7 +3038,14 @@ hostlist2shmem(int shmid,char **hostlist)
 		return FALSE;
 	}
 	for( q = s, h = hostlist; *h; q += strlen(q)+1, h++ ) {
-		strcpy(q,*h);
+		if( q-s+strlen(*h)+1 > maxlist-1 ) {
+			stonithd_log(LOG_ERR,"%s:%d: size of node "
+				"list exceeds storage: skipping %s",
+				__FUNCTION__, __LINE__, *h);
+		}
+		else {
+			strcpy(q,*h);
+		}
 	}
 	*q = '\0'; /* additional '\0' to end the list */
 	stonith_free_hostlist(hostlist);
@@ -3062,6 +3072,7 @@ shmem2hostlist(pid_t pid)
 		, __FUNCTION__, pid);
 		return NULL;
 	}
+	return_to_orig_privs();
 	if( (s = shmat(p->shmid,0,SHM_RDONLY)) == (void *)-1 ) {
 		stonithd_log(LOG_ERR,"%s:%d: shmat failed: %s",
 			__FUNCTION__, __LINE__, strerror(errno));
@@ -3086,6 +3097,7 @@ shmem2hostlist(pid_t pid)
 		return NULL;
 	}
 	remove_shm_hostlist(pid);
+	return_to_dropped_privs();
 	return hostlist;
 }
 
