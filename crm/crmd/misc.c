@@ -27,7 +27,7 @@
 #include <crmd_messages.h>
 
 /*	A_LOG, A_WARN, A_ERROR	*/
-enum crmd_fsa_input
+void
 do_log(long long action,
        enum crmd_fsa_cause cause,
        enum crmd_fsa_state cur_state,
@@ -71,8 +71,5 @@ do_log(long long action,
 			   input->rsc_id, input->call_id, input->rc,
 			   input->op_status, (char*)input->user_data);
 	}
-	
-	
-	return I_NULL;
 }
 

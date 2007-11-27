@@ -41,7 +41,7 @@
  *	A_FINALIZE_TIMER_STOP, A_FINALIZE_TIMER_START
  *	A_INTEGRATE_TIMER_STOP, A_INTEGRATE_TIMER_START
  */
-enum crmd_fsa_input
+void
 do_timer_control(long long action,
 		   enum crmd_fsa_cause cause,
 		   enum crmd_fsa_state cur_state,
@@ -49,7 +49,6 @@ do_timer_control(long long action,
 		   fsa_data_t *msg_data)
 {
 	gboolean timer_op_ok = TRUE;
-	enum crmd_fsa_input result = I_NULL;
 	
 	if(action & A_DC_TIMER_STOP) {
 		timer_op_ok = crm_timer_stop(election_trigger);
@@ -68,8 +67,8 @@ do_timer_control(long long action,
 	if(action & A_DC_TIMER_START && timer_op_ok) {
 		crm_timer_start(election_trigger);
 		if(AM_I_DC) {
-			/* there can be only one */
-			result = I_ELECTION;
+		    /* there can be only one */
+		    register_fsa_input(cause, I_ELECTION, NULL);
 		}
 		
 	} else if(action & A_FINALIZE_TIMER_START) {
@@ -81,8 +80,6 @@ do_timer_control(long long action,
 /* 	} else if(action & A_ELECTION_TIMEOUT_START) { */
 /* 		crm_timer_start(election_timeout); */
 	}
-	
-	return I_NULL;
 }
 
 static const char *
@@ -1165,6 +1162,7 @@ process_client_disconnect(crmd_client_t *curr_client)
 
 void update_dc(HA_Message *msg, gboolean assert_same)
 {
+	char *last_dc = fsa_our_dc;
 	const char *dc_version = NULL;
 	const char *welcome_from = NULL;
 
@@ -1174,21 +1172,22 @@ void update_dc(HA_Message *msg, gboolean assert_same)
 		
 		CRM_CHECK(dc_version != NULL, return);
 		CRM_CHECK(welcome_from != NULL, return);
-		if(AM_I_DC) {
-			CRM_CHECK(safe_str_eq(welcome_from, fsa_our_uname),
-				  return);
+
+		if(AM_I_DC && safe_str_neq(welcome_from, fsa_our_uname)) {
+		    crm_warn("Not updating DC to %s (%s): we are also a DC",
+			     welcome_from, dc_version);
+		    return;
 		}
+
 		if(assert_same) {
 			CRM_CHECK(fsa_our_dc != NULL, ;);
 			CRM_CHECK(safe_str_eq(fsa_our_dc, welcome_from), ;);
 		}
-		
 	}
-	
-	crm_free(fsa_our_dc);
+
 	crm_free(fsa_our_dc_version);
-	fsa_our_dc = NULL;
 	fsa_our_dc_version = NULL;
+	fsa_our_dc = NULL;
 
 	if(welcome_from != NULL) {
 		fsa_our_dc = crm_strdup(welcome_from);
@@ -1197,6 +1196,13 @@ void update_dc(HA_Message *msg, gboolean assert_same)
 		fsa_our_dc_version = crm_strdup(dc_version);
 	}
 
-	crm_info("Set DC to %s (%s)",
-		 crm_str(fsa_our_dc), crm_str(fsa_our_dc_version));
+	if(fsa_our_dc != NULL) {
+	    crm_info("Set DC to %s (%s)",
+		     crm_str(fsa_our_dc), crm_str(fsa_our_dc_version));
+
+	} else if(last_dc != NULL) {
+	    crm_info("Unset DC %s", crm_str(last_dc));
+	}
+	
+	crm_free(last_dc);
 }

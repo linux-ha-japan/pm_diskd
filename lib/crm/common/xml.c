@@ -311,7 +311,10 @@ add_node_nocopy(crm_data_t *parent, const char *name, crm_data_t *child)
 	if(name == NULL) {
 		name = crm_element_name(child);
 	}
-	CRM_ASSERT(name != NULL && name[0] != 0);
+	if(name == NULL || name[0] == 0) {
+	    crm_err("Cannot add object with no name");
+	    return HA_FAIL;
+	}
 	
 	if (parent->nfields >= parent->nalloc
 		&& ha_msg_expand(parent) != HA_OK ){
@@ -686,7 +689,6 @@ write_xml_file(crm_data_t *xml_node, const char *filename, gboolean compress)
 	
   bail:
 	
-	CRM_ASSERT(file_output_strm != NULL);
 	if(fflush(file_output_strm) != 0) {
 	    cl_perror("fflush for %s failed:", filename);
 	    res = -1;
@@ -722,22 +724,66 @@ print_xml_formatted(int log_level, const char *function,
 crm_data_t *
 get_message_xml(HA_Message *msg, const char *field) 
 {
+	int type = 0;
 	crm_data_t *xml_node = NULL;
-	crm_data_t *tmp_node = NULL;
-	crm_validate_data(msg);
-	tmp_node = cl_get_struct(msg, field);
-	if(tmp_node != NULL) {
-	    const char *name = crm_element_name(tmp_node);
-	    if(name == NULL || safe_str_neq(field, name)) {
-		xml_node = copy_xml(tmp_node);
+	
+	type = cl_get_type(msg, field);
+	if(type > FT_STRING) {
+	    HA_Message *tmp_node = NULL;
+	    crm_validate_data(msg);
+	    tmp_node = cl_get_struct(msg, field);
+	    if(tmp_node != NULL) {
+		const char *name = crm_element_name(tmp_node);
+		if(name == NULL || safe_str_neq(field, name)) {
+		    /* Deprecated */
+		    xml_node = copy_xml(tmp_node);
+		    
+		} else {
+		    /* Valid XML */
+		    xml_child_iter(tmp_node, child, return copy_xml(child));
+		}
+	    }
 
-	    } else {
-		xml_child_iter(tmp_node, child,
-			       CRM_ASSERT(xml_node == NULL);
-			       xml_node = copy_xml(child);
-		    );
+	} else if(type == FT_STRING) {
+	    /* Future proof */
+	    const char *xml_text = cl_get_string(msg, field);
+
+	    if(xml_text != NULL && xml_text[0] == '<') {
+		xml_node = string2xml(xml_text);
+
+	    } else if(xml_text != NULL) {
+		/* Maybe they compressed it */
+		int rc = BZ_OK;
+		unsigned int used = 0;
+		unsigned int size = 512;
+		unsigned int orig_len = strlen(xml_text);
+
+		char *uncompressed = NULL;
+		char *compressed = crm_strdup(xml_text);
+
+	      retry:
+		crm_realloc(uncompressed, size);
+		memset(uncompressed, 0, size);
+
+		rc = BZ2_bzBuffToBuffDecompress(
+		    uncompressed, &used, compressed, orig_len, 1, 0);
+
+		if(rc == BZ_OUTBUFF_FULL) {
+		    size = size * 4;
+		    goto retry;
+		    
+		} if(rc != BZ_OK) {
+		    crm_err("Decompression failed: %d", rc);
+
+		} else {
+		    xml_node = string2xml(uncompressed);
+		}
+		
+		crm_free(compressed);		
+		crm_free(uncompressed);		
 	    }
 	}
+	
 	return xml_node;
 }
 
@@ -873,10 +919,8 @@ log_data_element(
 	xml_prop_iter(
 		data, prop_name, prop_value,
 
-		if(prop_name == NULL) {
-			CRM_ASSERT(prop_name != NULL);
-			
-		} else if(safe_str_eq(F_XML_TAGNAME, prop_name)) {
+		if(prop_name == NULL
+		   || safe_str_eq(F_XML_TAGNAME, prop_name)) {
 			continue;
 
 		} else if(hidden != NULL
@@ -938,14 +982,20 @@ dump_data_element(
 	int has_children = 0;
 	const char *name = NULL;
 
-	CRM_ASSERT(data != NULL);
+	if(data == NULL) {
+	    return 0;
+	}
+	
 	CRM_ASSERT(buffer != NULL && *buffer != NULL);
 
 	name = crm_element_name(data);
 	if(name == NULL && depth == 0) {
 		name = "__fake__";
+
+	} else if(name == NULL) {
+	    return 0;
 	}
-	CRM_ASSERT(name != NULL);
+	
 	crm_debug_5("Dumping %s...", name);
 
 	if(formatted) {

@@ -90,7 +90,7 @@ crm_ais_destroy(gpointer user_data)
 }
 #endif
 
-enum crmd_fsa_input
+void
 do_ha_control(long long action,
 	       enum crmd_fsa_cause cause,
 	       enum crmd_fsa_state cur_state,
@@ -132,7 +132,7 @@ do_ha_control(long long action,
 		if(registered == FALSE) {
 			set_bit_inplace(fsa_input_register, R_HA_DISCONNECTED);
 			register_fsa_error(C_FSA_INTERNAL, I_ERROR, NULL);
-			return I_NULL;
+			return;
 		}
 		clear_bit_inplace(fsa_input_register, R_HA_DISCONNECTED);
 		crm_info("Connected to Heartbeat");
@@ -142,13 +142,10 @@ do_ha_control(long long action,
 		crm_err("Unexpected action %s in %s",
 		       fsa_action2string(action), __FUNCTION__);
 	}
-	
-	
-	return I_NULL;
 }
 
 /*	 A_SHUTDOWN	*/
-enum crmd_fsa_input
+void
 do_shutdown(long long action,
 	    enum crmd_fsa_cause cause,
 	    enum crmd_fsa_state cur_state,
@@ -185,11 +182,10 @@ do_shutdown(long long action,
 	}
 	
 	crm_info("All subsystems stopped, continuing");
-	return I_NULL;
 }
 
 /*	 A_SHUTDOWN_REQ	*/
-enum crmd_fsa_input
+void
 do_shutdown_req(long long action,
 	    enum crmd_fsa_cause cause,
 	    enum crmd_fsa_state cur_state,
@@ -211,8 +207,6 @@ do_shutdown_req(long long action,
 			register_fsa_error(C_FSA_INTERNAL, I_ERROR, NULL);
 		}
 	}
-
-	return I_NULL;
 }
 
 extern char *max_generation_from;
@@ -324,7 +318,7 @@ static void free_mem(fsa_data_t *msg_data)
 }
 
 /*	 A_EXIT_0, A_EXIT_1	*/
-enum crmd_fsa_input
+void
 do_exit(long long action,
 	enum crmd_fsa_cause cause,
 	enum crmd_fsa_state cur_state,
@@ -359,12 +353,10 @@ do_exit(long long action,
 	crm_info("[%s] stopped (%d)", crm_system_name, exit_code);
 	cl_flush_logs();
 	exit(exit_code);
-
-	return I_NULL;
 }
 
 /*	 A_STARTUP	*/
-enum crmd_fsa_input
+void
 do_startup(long long action,
 	   enum crmd_fsa_cause cause,
 	   enum crmd_fsa_state cur_state,
@@ -552,12 +544,10 @@ do_startup(long long action,
 		g_hash_destroy_str, g_hash_destroy_str);
 
 	set_sigchld_proctrack(G_PRIORITY_HIGH,DEFAULT_MAXDISPATCHTIME);
-	
-	return I_NULL;
 }
 
 /*	 A_STOP	*/
-enum crmd_fsa_input
+void
 do_stop(long long action,
 	enum crmd_fsa_cause cause,
 	enum crmd_fsa_state cur_state,
@@ -565,11 +555,10 @@ do_stop(long long action,
 	fsa_data_t *msg_data)
 {
     register_fsa_input(C_FSA_INTERNAL, I_TERMINATE, NULL);
-    return I_NULL;
 }
 
 /*	 A_STARTED	*/
-enum crmd_fsa_input
+void
 do_started(long long action,
 	   enum crmd_fsa_cause cause,
 	   enum crmd_fsa_state cur_state,
@@ -578,35 +567,35 @@ do_started(long long action,
 {
 	if(cur_state != S_STARTING) {
 	    crm_err("Start cancelled...");
-	    return I_NULL;
+	    return;
 	    
 	} else if(is_set(fsa_input_register, R_CCM_DATA) == FALSE) {
 		crm_info("Delaying start, CCM (%.16llx) not connected",
 			 R_CCM_DATA);
 
 		crmd_fsa_stall(NULL);
-		return I_NULL;
+		return;
 
 	} else if(is_set(fsa_input_register, R_LRM_CONNECTED) == FALSE) {
 		crm_info("Delaying start, LRM (%.16llx) not connected",
 			 R_LRM_CONNECTED);
 
 		crmd_fsa_stall(NULL);
-		return I_NULL;
+		return;
 
 	} else if(is_set(fsa_input_register, R_CIB_CONNECTED) == FALSE) {
 		crm_info("Delaying start, CIB (%.16llx) not connected",
 			 R_CIB_CONNECTED);
 
 		crmd_fsa_stall(NULL);
-		return I_NULL;
+		return;
 
 	} else if(is_set(fsa_input_register, R_READ_CONFIG) == FALSE) {
 		crm_info("Delaying start, Config not read (%.16llx)",
 			 R_READ_CONFIG);
 
 		crmd_fsa_stall(NULL);
-		return I_NULL;
+		return;
 
 	} else if(is_set(fsa_input_register, R_PEER_DATA) == FALSE) {
 		HA_Message *	msg = NULL;
@@ -626,18 +615,16 @@ do_started(long long action,
 		/* this should no longer be required */
 /* 		crm_timer_start(wait_timer); */
 		crmd_fsa_stall(NULL);
-		return I_NULL;
+		return;
 	}
 
 	crm_info("The local CRM is operational");
 	clear_bit_inplace(fsa_input_register, R_STARTING);
 	register_fsa_input(msg_data->fsa_cause, I_PENDING, NULL);
-	
-	return I_NULL;
 }
 
 /*	 A_RECOVER	*/
-enum crmd_fsa_input
+void
 do_recover(long long action,
 	   enum crmd_fsa_cause cause,
 	   enum crmd_fsa_state cur_state,
@@ -649,8 +636,6 @@ do_recover(long long action,
 	       fsa_action2string(action), action);
 
 	register_fsa_input(C_FSA_INTERNAL, I_TERMINATE, NULL);
-
-	return I_NULL;
 }
 
 pe_cluster_option crmd_opts[] = {
@@ -759,7 +744,7 @@ config_query_callback(const HA_Message *msg, int call_id, int rc,
 }
 
 /*	 A_READCONFIG	*/
-enum crmd_fsa_input
+void
 do_read_config(long long action,
 	       enum crmd_fsa_cause cause,
 	       enum crmd_fsa_state cur_state,
@@ -771,8 +756,6 @@ do_read_config(long long action,
 
 	add_cib_op_callback(call_id, FALSE, NULL, config_query_callback);
 	crm_debug_2("Querying the CIB... call %d", call_id);
-	
-	return I_NULL;
 }
 
 

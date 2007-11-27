@@ -589,7 +589,7 @@ unpack_operation(
 		action->needs = rsc_req_stonith;
 		
 	} else if(data_set->no_quorum_policy == no_quorum_ignore
-	    || safe_str_neq(class, "stonith")) {
+	    || safe_str_eq(class, "stonith")) {
 		action->needs = rsc_req_nothing;
 		value = "nothing (default)";
 		

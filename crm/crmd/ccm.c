@@ -96,7 +96,7 @@ check_dead_member(const char *uname, GHashTable *members)
 }
 
 /*	 A_CCM_CONNECT	*/
-enum crmd_fsa_input
+void
 do_ccm_control(long long action,
 		enum crmd_fsa_cause cause,
 		enum crmd_fsa_state cur_state,
@@ -154,13 +154,13 @@ do_ccm_control(long long action,
 				
 				crm_timer_start(wait_timer);
 				crmd_fsa_stall(NULL);
-				return I_NULL;
+				return;
 				
 			} else {
 				crm_err("CCM Activation failed %d (max) times",
 					num_ccm_register_fails);
 				register_fsa_error(C_FSA_INTERNAL, I_FAIL, NULL);
-				return I_NULL;
+				return;
 			}
 		}
 		
@@ -178,8 +178,6 @@ do_ccm_control(long long action,
 		crm_err("Unexpected action %s in %s",
 		       fsa_action2string(action), __FUNCTION__);
 	}
-	
-	return I_NULL;
 }
 
 #ifndef WITH_NATIVE_AIS
