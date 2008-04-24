@@ -157,6 +157,21 @@ random for the selected number of iterations.
                 self.CM.rsh.remote_py(node, "os", "system", "opcontrol --init")
                 self.CM.rsh.remote_py(node, "os", "system", "opcontrol --start")
 
+        if not self.CM.Env["DoBSC"]:
+            audit = LogAudit(self.CM)
+            if not audit():
+                self.CM.log("Audit " + audit.name() + " FAILED.")
+                return None
+            else:
+                self.CM.log("Audit " + audit.name() + " passed.")
+
+            audit = DiskAudit(self.CM)
+            if not audit():
+                self.CM.log("Audit " + audit.name() + " FAILED.")
+                return None
+            else:
+                self.CM.log("Audit " + audit.name() + " passed.")
+
         if not self.Scenario.SetUp(self.CM):
             return None
 
@@ -201,12 +216,6 @@ random for the selected number of iterations.
                 self.CM.log("Test %s (%s) \t[FAILED]" %(test.name,nodechoice))
                 # Better get the current info from the cluster...
                 self.CM.statall()
-                # Make sure logging is working and we have enough disk space...
-                if not self.CM.Env["DoBSC"]:
-                    if not self.CM.TestLogging():
-                        sys.exit(1)
-                    if not self.CM.CheckDf():
-                        sys.exit(1)
             stoptime=time.time()
             elapsed_time = stoptime - starttime
             test_time = stoptime - test.starttime
@@ -1122,10 +1131,7 @@ class StandbyTest2(CTSTest):
             return self.failure("standby status of %s is [%s] but we expect [off]" % (node, status))
 
         self.CM.debug("Getting resources running on node %s" % node)
-        rsc_on_node = []
-        for rsc in self.CM.Resources():
-            if rsc.IsRunningOn(node):
-                rsc_on_node.append(rsc)
+        rsc_on_node = self.CM.active_resources(node)
 
         self.CM.debug("Setting node %s to standby mode" % node) 
         if not self.CM.SetStandbyMode(node, "on"):
@@ -1139,9 +1145,9 @@ class StandbyTest2(CTSTest):
             return self.failure("standby status of %s is [%s] but we expect [on]" % (node, status))
 
         self.CM.debug("Checking resources")
-        for rsc in self.CM.Resources():
-            if rsc.IsRunningOn(node):
-                return self.failure("%s set to standby, %s is still running on it" % (node, rsc.rid))
+        bad_run = self.CM.active_resources(node)
+        if len(bad_run) > 0:
+            return self.failure("%s set to standby, %s is still running on it" % (node, repr(bad_run)))
 
         self.CM.debug("Setting node %s to active mode" % node) 
         if not self.CM.SetStandbyMode(node, "off"):
@@ -1153,12 +1159,6 @@ class StandbyTest2(CTSTest):
         status = self.CM.StandbyStatus(node)
         if status != "off":
             return self.failure("standby status of %s is [%s] but we expect [off]" % (node, status))
-
-        self.CM.debug("Checking resources")
-        for rsc in rsc_on_node:
-            if not rsc.IsRunningOn(node):
-                return self.failure("%s set to active but %s is NOT back" % (node, rsc.rid))
-
 
         return self.success()
 
@@ -1539,10 +1539,10 @@ class DRBDTest(CTSTest):
     def is_applicable(self):
         '''DRBD is applicable when there are drbd devices'''
 
-        for group in self.CM.ResourceGroups():
-            for resource in group:
-                if resource.Type() == "datadisk":
-                    return 1
+        #for group in self.CM.ResourceGroups():
+        #    for resource in group:
+        #        if resource.Type() == "datadisk":
+        #            return 1
         return None
 
 AllTestClasses.append(DRBDTest)
@@ -1718,12 +1718,7 @@ class ResourceRecover(CTSTest):
         '''ResourceRecover is applicable only when there are resources running
          on our cluster and environment is linux-ha-v2'''
         if self.CM["Name"] == "linux-ha-v2":
-            resourcelist=self.CM.Resources()
-            if len(resourcelist)==0:
-                self.CM.log("No resources on this cluster")
-                return 0
-            else:
-                return 1
+            return 1
         return 0
     
     def errorstoignore(self):
@@ -2490,31 +2485,3 @@ class SimulStartLite(CTSTest):
     def is_applicable(self):
         '''SimulStartLite is a setup test and never applicable'''
         return 0
-
-###################################################################
-class LoggingTest(CTSTest):
-###################################################################
-    def __init__(self, cm):
-        CTSTest.__init__(self,cm)
-        self.name="Logging"
-
-    def __call__(self, dummy):
-        '''Perform the 'Logging' test. '''
-        self.incr("calls")
-        
-        # Make sure logging is working and we have enough disk space...
-        if not self.CM.TestLogging():
-            sys.exit(1)
-        if not self.CM.CheckDf():
-            sys.exit(1)
-
-    def is_applicable(self):
-        '''ResourceRecover is applicable only when there are resources running
-         on our cluster and environment is linux-ha-v2'''
-        return self.CM.Env["DoBSC"]
-
-    def errorstoignore(self):
-        '''Return list of errors which should be ignored'''
-        return []
-
-#AllTestClasses.append(LoggingTest)

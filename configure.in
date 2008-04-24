@@ -41,7 +41,7 @@ AC_ARG_WITH(hapkgversion,
 )
 
 if test -z "$HAPKGVERSION" ; then
-   HAPKGVERSION="0.6.2"
+   HAPKGVERSION="0.6.3"
 fi
 
 HB_PKG=heartbeat
@@ -163,14 +163,6 @@ AC_ARG_ENABLE([thread-safe],
 [  --enable-thread-safe Enable some client libraries to be thread safe.
      [default=no]])
 
-AC_ARG_ENABLE([snmp],
-[  --enable-snmp Enable building of SNMP related functionality.
-     [default=yes]])
-
-AC_ARG_ENABLE([snmp-subagent],
-[  --enable-snmp-subagent Enable building of our SNMP subagent (lots of dependencies).
-     [default=try]])
-
 AC_ARG_ENABLE([bundled-ltdl],
 [  --enable-bundled-ltdl  Configure, build and install the standalone ltdl library bundled with ${PKG_NAME} [default=no]]) 
 LTDL_LIBS=""
@@ -204,18 +196,6 @@ INITDIR=""
 AC_ARG_WITH(initdir,
     [  --with-initdir=DIR      directory for init (rc) scripts [${INITDIR}]],
     [ INITDIR="$withval" ])
-
-AC_ARG_WITH(
-  ucd-snmp-devel,
-    [  --with-snmp-name=name   Name of ucd snmp developemnt RPM. 
-                          [default=ucd-snmp-devel]  ],
-    [ UCDSNMPDEVEL=$withval ],
-    [ UCDSNMPDEVEL=ucd-snmp-devel ],
-  )
-
-AC_ARG_WITH(mibsdir, 
-    [  --with-miBsdir=DIR      directory for mib files. ],
-    [ MIBS_DIR="$withval" ])
 
 dnl ===============================================
 dnl General Processing
@@ -994,13 +974,6 @@ then
 fi
 AC_SUBST(INITDIR)
 
-if test "$ac_cv_header_ucd_snmp_snmp_h" = no; then
-	UCDSNMPDEVEL=""
-fi
-AC_SUBST(UCDSNMPDEVEL)
-AC_DEFINE_UNQUOTED(UCDSNMPDEVEL, $UCDSNMPDEVEL, 
-	Name of UCD SNMP development package)
-
 
 CC_WARNINGS=""
 
@@ -1010,7 +983,6 @@ dnl - If requested, enable ALL subsystems.
 	  enable_ansi=yes;
 	  enable_crm=yes;
 	  enable_fatal_warnings=yes;
-	  enable_snmp_subagent=try;
 	fi
 
 
@@ -1132,10 +1104,11 @@ else
    dnl Find it in lib, lib64, or wherever it wants to live...
    alib=`ls ${AISPREFIX}/*/openais/libaisutil.so | head -n 1`
    AISLIB=`dirname $alib`
-   dnl alib=`ls ${AISPREFIX}/*/lcrso/objdb.lcrso | head -n 1`
-   dnl LCRSODIR=`dirname $alib`
+
    if test -z "$LCRSODIR"; then
       LCRSODIR="$libexecdir/lcrso"
+      alib=`ls ${AISPREFIX}/*/lcrso/objdb.lcrso | head -n 1`
+      LCRSODIR=`dirname $alib`
    fi
 
    AC_MSG_CHECKING(Testing AIS installation in $AISPREFIX)
@@ -1187,9 +1160,6 @@ AC_CHECK_FUNCS(msgfromIPC_timeout)
 CLUSTERLIBS=""
 if test $SUPPORT_HEARTBEAT = 1; then
    CLUSTERLIBS="$CLUSTERLIBS -lhbclient -lccmclient -lstonithd"
-else
-   ENABLE_SNMP="no"
-   enable_snmp_subagent="no"
 fi
 
 if test $SUPPORT_AIS = 1; then
@@ -1725,8 +1695,6 @@ build/Makefile							\
 		build/port/heartbeat/pkg-descr			\
 		build/port/heartbeat/pkg-install		\
 		build/port/heartbeat/pkg-plist			\
-snmp_subagent/Makefile						\
-	snmp_subagent/SNMPAgentSanityCheck			\
 tools/Makefile							\
 	tools/haresources2cib.py				\
 	tools/hb_report						\
@@ -1759,14 +1727,6 @@ AC_MSG_RESULT([  Use system LTDL          = ${ac_cv_lib_ltdl_lt_dlopen}])
 
 AC_MSG_RESULT([  HA group name            = ${HA_APIGROUP}])
 AC_MSG_RESULT([  HA user name             = ${HA_CCMUSER}])
-
-AC_MSG_RESULT([  Build snmp subagent      = ${enable_snmp_subagent}])
-if test "x${enable_snmp_subagent}" = "xyes"; then
-    AC_MSG_RESULT([  SNMP MIB directory       = ${MIBS_DIR}])
-    AC_MSG_RESULT([  SNMP agent libraries     = ${SNMPAGENTLIB}])
-fi
-AC_MSG_RESULT([  SNMP libraries           = ${SNMPLIB}])
-AC_MSG_RESULT([  ucd_snmp_devel name      = ${UCDSNMPDEVEL}])
 
 AC_MSG_RESULT([  With Heartbeat support   = ${SUPPORT_HEARTBEAT}])
 AC_MSG_RESULT([  With AIS support         = ${SUPPORT_AIS}])

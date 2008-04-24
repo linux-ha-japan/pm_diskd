@@ -188,7 +188,7 @@ update_action(action_t *action)
 				other_changed = TRUE;
 			}
 		}		
-		
+
 		if(local_type & pe_order_implies_left) {
 			if(other->action->optional == FALSE) {
 				/* nothing to do */
@@ -216,6 +216,20 @@ update_action(action_t *action)
 			}
 		}
 		
+		if(local_type & pe_order_implies_left_printed) {
+		    if(other->action->optional == TRUE
+		       && other->action->print_always == FALSE) {
+			if(action->optional == FALSE
+			   || (other->action->pseudo && action->print_always)) {
+			    other_changed = TRUE;
+			    other->action->print_always = TRUE;
+			    do_crm_log(log_level-1,
+				       "   * (implies left) Ensuring action %s is included because of %s",
+				       other->action->uuid, action->uuid);
+			}
+		    }
+		}
+
 		if(local_type & pe_order_implies_right) {
 			if(action->optional == FALSE) {
 				/* nothing to do */
@@ -231,6 +245,20 @@ update_action(action_t *action)
 			} else {
 				do_crm_log(log_level, "      Ignoring implies right");
 			}
+		}
+
+		if(local_type & pe_order_implies_right_printed) {
+		    if(action->optional == TRUE
+		       && action->print_always == FALSE) {
+			if(other->action->optional == FALSE
+			   || (action->pseudo && other->action->print_always)) {
+			    changed = TRUE;
+			    action->print_always = TRUE;
+			    do_crm_log(log_level-1,
+				       "   * (implies right) Ensuring action %s is included because of %s",
+				       action->uuid, other->action->uuid);
+			}
+		    }
 		}
 
 		if(other_changed) {
@@ -477,28 +505,29 @@ action2xml(action_t *action, gboolean as_input)
 static gboolean
 should_dump_action(action_t *action) 
 {
-	const char * interval = NULL;
+	int log_filter = LOG_DEBUG_5;
 
 	CRM_CHECK(action != NULL, return FALSE);
 
-	interval = g_hash_table_lookup(action->meta, XML_LRM_ATTR_INTERVAL);
-	if(action->optional) {
-		crm_debug_5("action %d (%s) was optional",
+	if(action->dumped) {
+		do_crm_log(log_filter, "action %d (%s) was already dumped",
 			    action->id, action->uuid);
 		return FALSE;
 
 	} else if(action->runnable == FALSE) {
-		crm_debug_5("action %d (%s) was not runnable",
+		do_crm_log(log_filter, "action %d (%s) was not runnable",
 			    action->id, action->uuid);
 		return FALSE;
 
-	} else if(action->dumped) {
-		crm_debug_5("action %d (%s) was already dumped",
+	} else if(action->optional && action->print_always == FALSE) {
+		do_crm_log(log_filter, "action %d (%s) was optional",
 			    action->id, action->uuid);
 		return FALSE;
 
 	} else if(action->rsc != NULL
 		  && is_not_set(action->rsc->flags, pe_rsc_managed)) {
+		const char * interval = NULL;
+		interval = g_hash_table_lookup(action->meta, XML_LRM_ATTR_INTERVAL);
 
 		/* make sure probes go through */
 		if(safe_str_neq(action->task, CRMD_ACTION_STATUS)) {
@@ -568,49 +597,77 @@ static gint sort_action_id(gconstpointer a, gconstpointer b)
 static gboolean
 should_dump_input(int last_action, action_t *action, action_wrapper_t *wrapper)
 {
+    int type = wrapper->type;
+    int log_dump = LOG_DEBUG_3;
+    int log_filter = LOG_DEBUG_3;
+    
+    type &= ~pe_order_implies_left_printed;
+    type &= ~pe_order_implies_right_printed;
+    type &= ~pe_order_optional;
+    
     wrapper->state = pe_link_not_dumped;	
     if(last_action == wrapper->action->id) {
-	crm_debug_2("Input (%d) %s duplicated",
-		    wrapper->action->id,
-		    wrapper->action->uuid);
+	do_crm_log(log_filter, "Input (%d) %s duplicated for %s",
+		   wrapper->action->id, wrapper->action->uuid, action->uuid);
 	wrapper->state = pe_link_dup;
 	return FALSE;
 	
     } else if(wrapper->type == pe_order_none) {
-	crm_debug_2("Input (%d) %s suppressed",
-		    wrapper->action->id,
-		    wrapper->action->uuid);
+	do_crm_log(log_filter, "Input (%d) %s suppressed for %s",
+		   wrapper->action->id, wrapper->action->uuid, action->uuid);
 	return FALSE;
-	
-    } else if(wrapper->action->optional == TRUE) {
-	crm_debug_2("Input (%d) %s optional",
-		    wrapper->action->id,
-		    wrapper->action->uuid);
-	return FALSE;
-	
+
     } else if(wrapper->action->runnable == FALSE
-	      && wrapper->action->pseudo == FALSE
-	      && wrapper->type == pe_order_optional) {
-	crm_debug("Input (%d) %s optional (ordering)",
-		  wrapper->action->id,
-		  wrapper->action->uuid);
+	      && type == pe_order_none) {
+	do_crm_log(log_filter, "Input (%d) %s optional (ordering) for %s",
+		   wrapper->action->id, wrapper->action->uuid, action->uuid);
 	return FALSE;
 
     } else if(action->pseudo
 	      && (wrapper->type & pe_order_stonith_stop)) {
-	crm_debug("Input (%d) %s suppressed",
-		  wrapper->action->id,
-		  wrapper->action->uuid);
+	do_crm_log(log_filter, "Input (%d) %s suppressed for %s",
+		   wrapper->action->id, wrapper->action->uuid, action->uuid);
 	return FALSE;
-    }
-    crm_debug_3("Input (%d) %s n=%p p=%d r=%d f=0x%.6x dumped for %s",
-		wrapper->action->id,
-		wrapper->action->uuid,
-		wrapper->action->node,
-		wrapper->action->pseudo,
-		wrapper->action->runnable,      
-		wrapper->type,      
-		action->uuid);
+
+    } else if(wrapper->action->dumped || should_dump_action(wrapper->action)) {
+	do_crm_log(log_dump, "Input (%d) %s should be dumped for %s",
+		   wrapper->action->id, wrapper->action->uuid, action->uuid);
+	goto dump;
+
+#if 0
+    } if(wrapper->action->runnable
+	 && wrapper->action->pseudo
+	 && wrapper->action->rsc->variant != pe_native) {
+	do_crm_log(LOG_CRIT, "Input (%d) %s should be dumped for %s",
+		   wrapper->action->id, wrapper->action->uuid, action->uuid);
+	goto dump;
+#endif
+    } else if(wrapper->action->optional == TRUE && wrapper->action->print_always == FALSE) {
+	do_crm_log(log_filter, "Input (%d) %s optional for %s",
+		   wrapper->action->id, wrapper->action->uuid, action->uuid);
+    do_crm_log(log_filter, "Input (%d) %s n=%p p=%d r=%d o=%d a=%d f=0x%.6x",
+	       wrapper->action->id,
+	       wrapper->action->uuid,
+	       wrapper->action->node,
+	       wrapper->action->pseudo,
+	       wrapper->action->runnable,
+	       wrapper->action->optional,
+	       wrapper->action->print_always,
+	       wrapper->type);
+	return FALSE;
+    } 
+	
+  dump:
+    do_crm_log(log_dump, "Input (%d) %s n=%p p=%d r=%d o=%d a=%d f=0x%.6x dumped for %s",
+	       wrapper->action->id,
+	       wrapper->action->uuid,
+	       wrapper->action->node,
+	       wrapper->action->pseudo,
+	       wrapper->action->runnable,      
+	       wrapper->action->optional,
+	       wrapper->action->print_always,
+	       wrapper->type,      
+	       action->uuid);
     return TRUE;
 }
 		   

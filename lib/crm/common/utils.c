@@ -183,8 +183,8 @@ cluster_option(GHashTable* options, gboolean(*validate)(const char*),
 	}
 
 	if(value == NULL) {
-		crm_debug("Using default value '%s' for cluster option '%s'",
-			  def_value, name);
+		crm_debug_2("Using default value '%s' for cluster option '%s'",
+			    def_value, name);
 
 		if(options == NULL) {
 			return def_value;
@@ -516,6 +516,11 @@ crm_version_helper(const char *text, char **end_text)
 }
 
 
+/*
+ * version1 < version2 : -1
+ * version1 = version2 :  0
+ * version1 > version2 :  1
+ */
 int
 compare_version(const char *version1, const char *version2)
 {

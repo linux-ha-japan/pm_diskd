@@ -24,7 +24,7 @@ RPM			= @RPM@
 RPMFLAGS		= -ba
 TARFILE			= pacemaker.tar.gz
 AM_TAR			= tar
-LAST_RELEASE		= Pacemaker-0.6.1
+LAST_RELEASE		= Pacemaker-0.6.2
 
 AUTOMAKE_OPTIONS	= foreign
 ##ACLOCAL                 = aclocal -I $(auxdir)
@@ -44,7 +44,7 @@ changes:
 	printf "  * Update source tarball to revision: `hg id`\n"
 	printf "  * Statistics:\n"
 	printf "      Changesets: `hg log -M --template "{desc|firstline|strip}\n" -r $(LAST_RELEASE):tip | wc -l`\n"
-	printf "      Diff:         "
+	printf "      Diff:           "
 	hg diff -r $(LAST_RELEASE):tip | diffstat | tail -n 1
 	printf "\n  * Testing Notes:\n"
 	printf "\n  + Test hardware:\n"
@@ -52,10 +52,15 @@ changes:
 	printf "\n  + Pending bugs encountered during testing:\n"
 	printf "\n  * Changes since $(LAST_RELEASE)\n"
 	hg log -M --template "  + {desc|firstline|strip}\n" -r $(LAST_RELEASE):tip | grep -v Low: | sort -uf 
-	printf "\n -- Andrew Beekhof <abeekhof@suse.de>  `date`\n"
+	printf "\n -- Andrew Beekhof <abeekhof@suse.de>  `date +"%a, %d %b %Y %T %z"`\n"
 
 obs:	tgz
-	scp $(TARFILE) vmhost.beekhof.net:Development/obs/server:ha-clustering/pacemaker/
+	make changes > .changes
+	scp .changes $(TARFILE) vmhost.beekhof.net:Development/obs/server:ha-clustering/pacemaker/
+
+home:	tgz
+	make changes > .changes
+	scp .changes $(TARFILE) vmhost.beekhof.net:Development/obs/home:beekhof/pacemaker-test/
 
 global: clean-generic
 	gtags

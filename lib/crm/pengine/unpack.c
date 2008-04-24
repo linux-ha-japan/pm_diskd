@@ -1160,8 +1160,8 @@ unpack_rsc_op(resource_t *rsc, node_t *node, xmlNode *xml_op,
 		
 	    default:
 		if(task_status_i == LRM_OP_DONE) {
-		    crm_err("Remapping %s (rc=%d) on %s to an ERROR",
-			    id, actual_rc_i, node->details->uname);
+		    crm_info("Remapping %s (rc=%d) on %s to an ERROR",
+			     id, actual_rc_i, node->details->uname);
 		    task_status_i = LRM_OP_ERROR;
 		}
 	}
@@ -1229,7 +1229,7 @@ unpack_rsc_op(resource_t *rsc, node_t *node, xmlNode *xml_op,
 				rsc, node, -INFINITY, "__stop_fail__", data_set);
 			    
 			} else if((data_set->start_failure_fatal
-				   || compare_version("2.0", op_version))
+				   || compare_version("2.0", op_version) > 0)
 				  && safe_str_eq(task, CRMD_ACTION_START)) {
 			    crm_warn("Compatability handling for failed op %s on %s",
 				     id, node->details->uname);
@@ -1241,7 +1241,14 @@ unpack_rsc_op(resource_t *rsc, node_t *node, xmlNode *xml_op,
 				rsc->role = RSC_ROLE_MASTER;
 
 			} else if(safe_str_eq(task, CRMD_ACTION_DEMOTE)) {
-				rsc->role = RSC_ROLE_MASTER;
+			    /*
+			     * staying in role=master ends up putting the PE/TE into a loop
+			     * setting role=slave is not dangerous because no master will be
+			     * promoted until the failed resource has been fully stopped
+			     */
+			    crm_warn("Forcing %s to stop after a failed demote action", rsc->id);
+			    rsc->next_role = RSC_ROLE_STOPPED;
+			    rsc->role = RSC_ROLE_SLAVE;
 				
 			} else if(rsc->role < RSC_ROLE_STARTED) {
 				rsc->role = RSC_ROLE_STARTED;

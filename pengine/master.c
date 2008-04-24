@@ -39,10 +39,6 @@ child_promoting_constraints(
 	clone_variant_data_t *clone_data, enum pe_ordering type,
 	resource_t *rsc, resource_t *child, resource_t *last, pe_working_set_t *data_set)
 {
-/* 	if(clone_data->ordered */
-/* 	   || clone_data->self->restart_type == pe_restart_restart) { */
-/* 		type = pe_order_implies_left; */
-/* 	} */
 	if(child == NULL) {
 		if(clone_data->ordered && last != NULL) {
 			crm_debug_4("Ordered version (last node)");
@@ -52,8 +48,22 @@ child_promoting_constraints(
 				rsc, promoted_key(rsc), NULL,
 				type, data_set);
 		}
-		
-	} else if(clone_data->ordered) {
+		return;
+	}
+
+	/* child promote before global promoted */
+	custom_action_order(
+	    child, promote_key(child), NULL,
+	    rsc, promoted_key(rsc), NULL,
+	    type, data_set);
+	
+	/* global promote before child promote */
+	custom_action_order(
+	    rsc, promote_key(rsc), NULL,
+	    child, promote_key(child), NULL,
+	    type, data_set);
+
+	if(clone_data->ordered) {
 		crm_debug_4("Ordered version");
 		if(last == NULL) {
 			/* global promote before first child promote */
@@ -69,19 +79,6 @@ child_promoting_constraints(
 
 	} else {
 		crm_debug_4("Un-ordered version");
-		
-		/* child promote before global promoted */
-		custom_action_order(
-			child, promote_key(child), NULL,
-			rsc, promoted_key(rsc), NULL,
-			type, data_set);
-                
-		/* global promote before child promote */
-		custom_action_order(
-			rsc, promote_key(rsc), NULL,
-			child, promote_key(child), NULL,
-			type, data_set);
-
 	}
 }
 
@@ -90,11 +87,6 @@ child_demoting_constraints(
 	clone_variant_data_t *clone_data, enum pe_ordering type,
 	resource_t *rsc, resource_t *child, resource_t *last, pe_working_set_t *data_set)
 {
-/* 	if(clone_data->ordered */
-/* 	   || clone_data->self->restart_type == pe_restart_restart) { */
-/* 		type = pe_order_implies_left; */
-/* 	} */
-	
 	if(child == NULL) {
 		if(clone_data->ordered && last != NULL) {
 			crm_debug_4("Ordered version (last node)");
@@ -104,8 +96,22 @@ child_demoting_constraints(
 				last, demote_key(last), NULL,
 				pe_order_implies_left, data_set);
 		}
-		
-	} else if(clone_data->ordered && last != NULL) {
+		return;
+	}
+	
+	/* child demote before global demoted */
+	custom_action_order(
+	    child, demote_key(child), NULL,
+	    rsc, demoted_key(rsc), NULL,
+	    pe_order_implies_right_printed, data_set);
+	
+	/* global demote before child demote */
+	custom_action_order(
+	    rsc, demote_key(rsc), NULL,
+	    child, demote_key(child), NULL,
+	    pe_order_implies_left_printed, data_set);
+	
+	if(clone_data->ordered && last != NULL) {
 		crm_debug_4("Ordered version");
 
 		/* child/child relative demote */
@@ -123,30 +129,25 @@ child_demoting_constraints(
 
 	} else {
 		crm_debug_4("Un-ordered version");
-
-		/* child demote before global demoted */
-		custom_action_order(
-			child, demote_key(child), NULL,
-			rsc, demoted_key(rsc), NULL,
-			type, data_set);
-                        
-		/* global demote before child demote */
-		custom_action_order(
-			rsc, demote_key(rsc), NULL,
-			child, demote_key(child), NULL,
-			type, data_set);
 	}
 }
 
 static void
 master_update_pseudo_status(
-	resource_t *child, gboolean *demoting, gboolean *promoting) 
-{
+	resource_t *rsc, gboolean *demoting, gboolean *promoting) 
+{	
+	if(rsc->children) {
+	    slist_iter(child, resource_t, rsc->children, lpc,
+		       master_update_pseudo_status(child, demoting, promoting)
+		);
+	    return;
+	}
+    
 	CRM_ASSERT(demoting != NULL);
 	CRM_ASSERT(promoting != NULL);
 
 	slist_iter(
-		action, action_t, child->actions, lpc,
+		action, action_t, rsc->actions, lpc,
 
 		if(*promoting && *demoting) {
 			return;
@@ -169,7 +170,7 @@ master_update_pseudo_status(
 		cons, rsc_to_node_t, list, lpc2,			\
 		cons_node = NULL;					\
 		if(cons->role_filter == RSC_ROLE_MASTER) {		\
-			crm_debug("Applying %s to %s",			\
+			crm_debug_2("Applying %s to %s",			\
 				  cons->id, child_rsc->id);		\
 			cons_node = pe_find_node_id(			\
 				cons->node_list_rh, chosen->details->id); \
@@ -177,7 +178,7 @@ master_update_pseudo_status(
 		if(cons_node != NULL) {					\
 			int new_priority = merge_weights(		\
 				child_rsc->priority, cons_node->weight); \
-			crm_debug("\t%s: %d->%d (%d)", child_rsc->id,	\
+			crm_debug_2("\t%s: %d->%d (%d)", child_rsc->id,	\
 				child_rsc->priority, new_priority, cons_node->weight);	\
 			child_rsc->priority = new_priority;		\
 		}							\
@@ -290,7 +291,6 @@ static void master_promotion_order(resource_t *rsc)
 	);
     dump_node_scores(LOG_DEBUG_3, rsc, "Before", rsc->allowed_nodes);
 
-#if 1
     slist_iter(
 	child, resource_t, rsc->children, lpc,
 
@@ -303,15 +303,17 @@ static void master_promotion_order(resource_t *rsc)
 	node = (node_t*)pe_find_node_id(
 	    rsc->allowed_nodes, chosen->details->id);
 	CRM_ASSERT(node != NULL);
+	/* adds in master preferences and rsc_location.role=Master */
 	node->weight = merge_weights(child->sort_index, node->weight);
 	);
     
     dump_node_scores(LOG_DEBUG_3, rsc, "Middle", rsc->allowed_nodes);
-#endif
     
     slist_iter(
 	constraint, rsc_colocation_t, rsc->rsc_cons_lhs, lpc,
-	
+	/* (re-)adds location preferences of resource that wish to be
+	 * colocated with the master instance
+	 */
 	if(constraint->role_rh == RSC_ROLE_MASTER) {
 	    rsc->allowed_nodes = constraint->rsc_lh->cmds->merge_weights(
 		constraint->rsc_lh, rsc->id, rsc->allowed_nodes,
@@ -563,7 +565,7 @@ master_color(resource_t *rsc, pe_working_set_t *data_set)
 
 	    );
 
-	master_promotion_order(rsc);	
+	master_promotion_order(rsc);
 
 	/* mark the first N as masters */
 	slist_iter(
@@ -571,6 +573,14 @@ master_color(resource_t *rsc, pe_working_set_t *data_set)
 
 		chosen = NULL;
 		crm_debug_2("Processing %s", child_rsc->id);
+
+		chosen = child_rsc->fns->location(child_rsc, NULL, FALSE);
+		do_crm_log(scores_log_level, "%s promotion score on %s: %d",
+			   child_rsc->id, chosen?chosen->details->uname:"none", child_rsc->sort_index);
+		chosen = NULL; /* nuke 'chosen' so that we don't promote more than the
+				* required number of instances
+				*/
+		
 		if(promoted < clone_data->master_max) {
 			chosen = can_be_master(child_rsc);
 		}
@@ -626,6 +636,7 @@ void master_create_actions(resource_t *rsc, pe_working_set_t *data_set)
 
 		any_demoting = any_demoting || child_demoting;
 		any_promoting = any_promoting || child_promoting;
+		crm_debug_2("Created actions for %s: %d %d", child_rsc->id, child_promoting, child_demoting);
 		);
 	
 	/* promote */
@@ -694,7 +705,7 @@ master_internal_constraints(resource_t *rsc, pe_working_set_t *data_set)
 	custom_action_order(
 		rsc, stopped_key(rsc), NULL,
 		rsc, promote_key(rsc), NULL,
-		pe_order_optional, data_set);
+		pe_order_optional|pe_order_test, data_set);
 
 	/* global demoted before start */
 	custom_action_order(

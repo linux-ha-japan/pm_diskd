@@ -389,13 +389,20 @@ clone_color(resource_t *rsc, pe_working_set_t *data_set)
 
 static void
 clone_update_pseudo_status(
-	resource_t *child, gboolean *stopping, gboolean *starting) 
+	resource_t *rsc, gboolean *stopping, gboolean *starting) 
 {
+	if(rsc->children) {
+	    slist_iter(child, resource_t, rsc->children, lpc,
+		       clone_update_pseudo_status(child, stopping, starting)
+		);
+	    return;
+	}
+    
 	CRM_ASSERT(stopping != NULL);
 	CRM_ASSERT(starting != NULL);
 
 	slist_iter(
-		action, action_t, child->actions, lpc,
+		action, action_t, rsc->actions, lpc,
 
 		if(*starting && *stopping) {
 			return;
@@ -663,12 +670,13 @@ child_starting_constraints(
 	}
     
 	if(child != NULL) {
-		order_start_start(rsc, child, pe_order_runnable_left);
+		order_start_start(
+		    rsc, child, pe_order_runnable_left|pe_order_implies_left_printed);
 		
 		custom_action_order(
 			child, start_key(child), NULL,
 			rsc, started_key(rsc), NULL,
-			pe_order_optional, data_set);
+			pe_order_implies_right_printed, data_set);
 	}
 	
 	if(clone_data->ordered) {
@@ -703,12 +711,12 @@ child_stopping_constraints(
 	}
 
 	if(child != NULL) {
-		order_stop_stop(rsc, child, pe_order_shutdown);
+		order_stop_stop(rsc, child, pe_order_shutdown|pe_order_implies_left_printed);
 		
 		custom_action_order(
 			child, stop_key(child), NULL,
 			rsc, stopped_key(rsc), NULL,
-			pe_order_optional, data_set);
+			pe_order_implies_right_printed, data_set);
 	}
 	
 	if(clone_data->ordered) {

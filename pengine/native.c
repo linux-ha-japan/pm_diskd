@@ -405,7 +405,13 @@ RecurringOp(resource_t *rsc, action_t *start, node_t *node,
 			rsc, NULL, mon,
 			pe_order_optional|pe_order_runnable_left, data_set);
 		crm_free(running_master);
-	}		
+
+	} else if(rsc->role == RSC_ROLE_MASTER) {
+		custom_action_order(
+			rsc, demote_key(rsc), NULL,
+			rsc, NULL, mon,
+			pe_order_optional|pe_order_runnable_left, data_set);
+	}
 }
 
 void
@@ -716,8 +722,7 @@ node_list_update(GListPtr list1, GListPtr list2, int factor)
 			continue;
 		}
 
-		other_node = (node_t*)pe_find_node_id(
-			list2, node->details->id);
+		other_node = (node_t*)pe_find_node_id(list2, node->details->id);
 
 		if(other_node != NULL) {
 			crm_debug_2("%s: %d + %d",
@@ -936,10 +941,10 @@ register_activity(resource_t *rsc, enum action_tasks task, node_t *node, notify_
 {
 	notify_entry_t *entry = NULL;
 
-	CRM_CHECK(node != NULL,
-		  crm_err("%s has no node for required action %s",
-			  rsc->id, task2text(task));
-		  return);
+	if(node == NULL) {
+	    pe_proc_warn("%s has no node for required action %s", rsc->id, task2text(task));
+	    return;
+	}
 
 	crm_malloc0(entry, sizeof(notify_entry_t));
 	entry->rsc = rsc;
@@ -1610,7 +1615,7 @@ native_stop_constraints(
 	    }
 	    
 	    if(parent) {
-		crm_info("Re-creating actions for %s", parent->id);
+		crm_debug_2("Re-creating actions for %s", parent->id);
 		parent->cmds->create_actions(parent, data_set);
 		
 		/* make sure we dont mess anything up in create_actions */

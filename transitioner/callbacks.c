@@ -34,6 +34,11 @@
 void te_update_confirm(const char *event, xmlNode *msg);
 void te_update_diff(const char *event, xmlNode *msg);
 xmlNode *need_abort(xmlNode *update);
+void te_update_confirm(const char *event, HA_Message *msg);
+void te_update_diff(const char *event, HA_Message *msg);
+crm_data_t *need_abort(crm_data_t *update);
+void cib_fencing_updated(const HA_Message *msg, int call_id, int rc,
+			 crm_data_t *output, void *user_data);
 
 extern char *te_uuid;
 gboolean shuttingdown = FALSE;
@@ -258,6 +263,16 @@ process_te_message(xmlNode *msg, xmlNode *xml_data, IPC_Channel *sender)
 			start_global_timer(transition_timer,
 					   transition_graph->transition_timeout);
 
+			value = crm_element_value(graph_data, "failed-stop-offset");
+			if(value) {
+			    failed_stop_offset = crm_strdup(value);
+			}
+			
+			value = crm_element_value(graph_data, "failed-start-offset");
+			if(value) {
+			    failed_start_offset = crm_strdup(value);
+			}
+			
 			trigger_graph();
 			print_graph(LOG_DEBUG_2, transition_graph);
 
@@ -561,14 +576,10 @@ global_timer_callback(gpointer data)
 gboolean
 te_graph_trigger(gpointer user_data) 
 {
-	int timeout = 0;
-	enum transition_status graph_rc = -1;
+    int timeout = 0;
+    enum transition_status graph_rc = -1;
 
-	if(transition_graph->complete) {
-		notify_crmd(transition_graph);
-		return TRUE;
-	}
-
+    if(transition_graph->complete == FALSE) {
 	graph_rc = run_graph(transition_graph);
 	timeout = transition_graph->transition_timeout;
 	print_graph(LOG_DEBUG_3, transition_graph);
@@ -588,11 +599,12 @@ te_graph_trigger(gpointer user_data)
 		crm_err("Transition failed: %s", transition_status(graph_rc));
 		print_graph(LOG_WARNING, transition_graph);
 	}
-	
-	transition_graph->complete = TRUE;
-	notify_crmd(transition_graph);
-
-	return TRUE;	
+    }
+    
+    transition_graph->complete = TRUE;
+    notify_crmd(transition_graph);
+    
+    return TRUE;	
 }
 
 

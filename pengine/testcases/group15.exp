@@ -1,4 +1,4 @@
- <transition_graph cluster-delay="60s" batch-limit="30" transition_id="0">
+ <transition_graph cluster-delay="60s" failed-stop-offset="INFINITY" failed-start-offset="INFINITY" batch-limit="30" transition_id="0">
    <synapse id="0">
      <action_set>
        <rsc_op id="4" operation="monitor" operation_key="rsc3_monitor_0" on_node="node1" on_node_uuid="node1">
@@ -152,6 +152,9 @@
        <trigger>
          <rsc_op id="21" operation="start" operation_key="rsc6_start_0" on_node="node1" on_node_uuid="node1"/>
        </trigger>
+       <trigger>
+         <pseudo_event id="24" operation="start" operation_key="bar_start_0"/>
+       </trigger>
      </inputs>
    </synapse>
    <synapse id="14">
@@ -185,6 +188,9 @@
        </trigger>
        <trigger>
          <rsc_op id="22" operation="start" operation_key="rsc7_start_0" on_node="node1" on_node_uuid="node1"/>
+       </trigger>
+       <trigger>
+         <pseudo_event id="24" operation="start" operation_key="bar_start_0"/>
        </trigger>
      </inputs>
    </synapse>

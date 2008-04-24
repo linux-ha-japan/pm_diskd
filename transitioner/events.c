@@ -29,6 +29,9 @@
 #include <clplumbing/Gmain_timeout.h>
 #include <lrm/lrm_api.h>
 
+char *failed_stop_offset = NULL;
+char *failed_start_offset = NULL;
+
 xmlNode *need_abort(xmlNode *update);
 void process_graph_event(xmlNode *event, const char *event_node);
 int match_graph_event(int action_id, xmlNode *event, const char *event_node,
@@ -225,13 +228,21 @@ update_failcount(xmlNode *event, const char *event_node, int rc)
 	char *attr_name = NULL;
 	const char *id  = ID(event);
 	const char *on_uuid  = event_node;
-	const char *value = XML_NVPAIR_ATTR_VALUE"++";
+	const char *value = NULL;
 
 	if(rc == 99) {
 		/* this is an internal code for "we're busy, try again" */
 		return;
 	}
 
+	if(failed_stop_offset == NULL) {
+	    failed_stop_offset = crm_strdup(INFINITY_S);
+	}
+
+	if(failed_start_offset == NULL) {
+	    failed_start_offset = crm_strdup(INFINITY_S);
+	}
+	
 	CRM_CHECK(on_uuid != NULL, return);
 
 	CRM_CHECK(parse_op_key(id, &rsc_id, &task, &interval),
@@ -240,19 +251,26 @@ update_failcount(xmlNode *event, const char *event_node, int rc)
 	CRM_CHECK(task != NULL, goto bail);
 	CRM_CHECK(rsc_id != NULL, goto bail);
 
-	if(safe_str_eq(task, CRMD_ACTION_START)
-	   || safe_str_eq(task, CRMD_ACTION_STOP)) {
+	if(safe_str_eq(task, CRMD_ACTION_START)) {
 	    interval = 1;
-	    value = "INFINITY";
+	    value = failed_start_offset;
+
+	} else if(safe_str_eq(task, CRMD_ACTION_STOP)) {
+	    interval = 1;
+	    value = failed_stop_offset;
 	}
-	
+
+	if(value == NULL || safe_str_neq(value, INFINITY_S)) {
+	    value = XML_NVPAIR_ATTR_VALUE"++";
+	}
+
 	if(interval > 0) {
 		int call_id = 0;
 		attr_name = crm_concat("fail-count", rsc_id, '-');
-		crm_warn("Updating failcount for %s on %s after failed %s: rc=%d",
-			 rsc_id, on_uuid, task, rc);
+		crm_warn("Updating failcount for %s on %s after failed %s: rc=%d (update=%s)",
+			 rsc_id, on_uuid, task, rc, value);
 
-		call_id = update_attr(te_cib_conn, cib_none, XML_CIB_TAG_STATUS,
+		call_id = update_attr(te_cib_conn, cib_inhibit_notify, XML_CIB_TAG_STATUS,
 			    on_uuid, NULL,NULL, attr_name, value, FALSE);
 
 		/* don't let notificatios of these updates cause new transitions */
@@ -300,8 +318,8 @@ status_from_rc(crm_action_t *action, int orig_status, int rc)
 		const char *task, *uname;
 		task = crm_element_value(action->xml, XML_LRM_ATTR_TASK);
 		uname  = crm_element_value(action->xml, XML_LRM_ATTR_TARGET);
-		crm_warn("Action %s on %s failed (target: %s vs. rc: %d): %s",
-			 task, uname, crm_str(target_rc_s), rc, op_status2text(status));
+		crm_warn("Action %d (%s) on %s failed (target: %s vs. rc: %d): %s",
+			 action->id, task, uname, crm_str(target_rc_s), rc, op_status2text(status));
 	}
 
 	return status;
