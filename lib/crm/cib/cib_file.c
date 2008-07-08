@@ -129,14 +129,12 @@ static int load_file_cib(const char *filename)
 	create_xml_node(root, XML_CIB_TAG_STATUS);		
     }
 
-    ignore_dtd = crm_element_value(root, "ignore_dtd");
+    ignore_dtd = crm_element_value(root, XML_ATTR_VALIDATION);
     dtd_ok = validate_xml(root, NULL, TRUE);
     if(dtd_ok == FALSE) {
-	crm_err("CIB does not validate against "DTD_DIRECTORY"/crm.dtd");
-	if(ignore_dtd != NULL && crm_is_true(ignore_dtd) == FALSE) {
-	    rc = cib_dtd_validation;
-	    goto bail;
-	}
+	crm_err("CIB does not validate against %s", ignore_dtd);
+	rc = cib_dtd_validation;
+	goto bail;
     }	
     
     if(do_id_check(root, NULL, TRUE, FALSE)) {
