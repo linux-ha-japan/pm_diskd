@@ -18,18 +18,17 @@
 #ifndef CRM__H
 #define CRM__H
 
-#include <config.h>
+#include <heartbeat/hb_config.h>
+#include <crm_config.h>
 #include <stdlib.h>
 #include <glib.h>
+
 #undef MIN
 #undef MAX
-
 #include <string.h>
+
 #include <clplumbing/cl_log.h>
 #include <clplumbing/cl_malloc.h>
-#ifdef MCHECK
-#include <mcheck.h>
-#endif
 
 #include <libxml/tree.h> 
 
@@ -284,9 +283,6 @@ typedef GList* GListPtr;
 #define crm_debug_6(fmt, args...) do_crm_log(LOG_DEBUG_6, fmt , ##args)
 
 #include <crm/common/util.h>
-
-extern void crm_log_message_adv(
-	int level, const char *alt_debugfile, const HA_Message *msg);
 
 #define crm_log_xml(level, text, xml)   if(crm_log_level >= (level)) {	\
 		print_xml_formatted(level,  __PRETTY_FUNCTION__, xml, text); \

@@ -90,10 +90,11 @@
 #include <clplumbing/realtime.h>
 #if SUPPORT_HEARTBEAT
 	#include <apphb.h>
+	#include <hb_api.h>
 #endif
 #include <heartbeat.h>
 #include <ha_msg.h>
-#include <hb_api.h>
+
 #include <lrm/raexec.h>
 #include <fencing/stonithd_msg.h>
 #include <fencing/stonithd_api.h>
@@ -107,7 +108,7 @@
 #define ST_ASSERT(cond) assert(cond)
 
 #define MAX_NODE_STORAGE 8192 /* space for all nodenames incl delimiters */
-#define REBOOT_BLOCK_TIMEOUT 90*1000
+#define REBOOT_BLOCK_TIMEOUT 10*1000
 
 /* For integration with heartbeat */
 #define MAXCMP 80
@@ -265,9 +266,6 @@ static void handle_msg_ticanst(struct ha_msg* msg, void* private_data);
 static void handle_msg_tstit(struct ha_msg* msg, void* private_data);
 static void handle_msg_trstit(struct ha_msg* msg, void* private_data);
 static void handle_msg_resetted(struct ha_msg* msg, void* private_data);
-#if SUPPORT_HEARTBEAT
-static int init_hb_msg_handler(void);
-#endif
 #if SUPPORT_AIS
 static gboolean stonithd_ais_dispatch(AIS_Message *wrapper, char *data, int sender);
 static void stonithd_ais_destroy(gpointer user_data);
@@ -275,7 +273,6 @@ static struct ha_msg* ais_msg2ha_msg(char *input);
 static int attr2fld(char *input, struct ha_msg *msg);
 #endif
 static void stonithd_hb_callback(struct ha_msg* msg, void* private_data);
-static void stonithd_hb_connection_destroy(void* private_data);
 static gboolean stonithd_sendmsg(const char *node_name,
 						struct ha_msg *msg, const char *st_op_type);
 static gboolean reboot_block_timeout(gpointer data);
@@ -509,6 +506,52 @@ static int 		stonithd_child_count	= 0;
 		return; \
 	} \
 } while(0)
+
+#if SUPPORT_HEARTBEAT
+
+#define set_msg_handler(type, handler) do { \
+	if (hb->llc_ops->set_msg_callback(hb, type, \
+				  handler, hb) != HA_OK) { \
+		stonithd_log(LOG_ERR, "Cannot set msg " #type " callback"); \
+		stonithd_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb)); \
+		return LSB_EXIT_GENERIC; \
+	} \
+	} while(0)
+
+static void
+stonithd_hb_connection_destroy(void* private_data)
+{
+	return;
+}
+
+static int
+init_hb_msg_handler(void)
+{
+	unsigned int msg_mask;
+	
+	if (hb == NULL) {
+		stonithd_log(LOG_ERR, "%s:%d: not connected to heartbeat"
+			, __FUNCTION__, __LINE__);
+		return LSB_EXIT_GENERIC;	
+	}
+
+	set_msg_handler(T_WHOCANST, handle_msg_twhocan);
+	set_msg_handler(T_ICANST, handle_msg_ticanst);
+	set_msg_handler(T_STIT, handle_msg_tstit);
+	set_msg_handler(T_RSTIT, handle_msg_trstit);
+	set_msg_handler(T_RESETTED, handle_msg_resetted);
+
+	msg_mask = LLC_FILTER_DEFAULT;
+	stonithd_log(LOG_DEBUG, "Setting message filter mode");
+	if (hb->llc_ops->setfmode(hb, msg_mask) != HA_OK) {
+		stonithd_log(LOG_ERR, "Cannot set filter mode");
+		stonithd_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
+		return LSB_EXIT_GENERIC;
+	}
+
+	return 0;
+}
+#endif
 
 int
 main(int argc, char ** argv)
@@ -990,46 +1033,6 @@ stonithdProcessName(ProcTrack* p)
 	return  process_name;
 }
 
-#if SUPPORT_HEARTBEAT
-
-#define set_msg_handler(type, handler) do { \
-	if (hb->llc_ops->set_msg_callback(hb, type, \
-				  handler, hb) != HA_OK) { \
-		stonithd_log(LOG_ERR, "Cannot set msg " #type " callback"); \
-		stonithd_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb)); \
-		return LSB_EXIT_GENERIC; \
-	} \
-	} while(0)
-
-static int
-init_hb_msg_handler(void)
-{
-	unsigned int msg_mask;
-	
-	if (hb == NULL) {
-		stonithd_log(LOG_ERR, "%s:%d: not connected to heartbeat"
-			, __FUNCTION__, __LINE__);
-		return LSB_EXIT_GENERIC;	
-	}
-
-	set_msg_handler(T_WHOCANST, handle_msg_twhocan);
-	set_msg_handler(T_ICANST, handle_msg_ticanst);
-	set_msg_handler(T_STIT, handle_msg_tstit);
-	set_msg_handler(T_RSTIT, handle_msg_trstit);
-	set_msg_handler(T_RESETTED, handle_msg_resetted);
-
-	msg_mask = LLC_FILTER_DEFAULT;
-	stonithd_log(LOG_DEBUG, "Setting message filter mode");
-	if (hb->llc_ops->setfmode(hb, msg_mask) != HA_OK) {
-		stonithd_log(LOG_ERR, "Cannot set filter mode");
-		stonithd_log(LOG_ERR, "REASON: %s", hb->llc_ops->errmsg(hb));
-		return LSB_EXIT_GENERIC;
-	}
-
-	return 0;
-}
-#endif
-
 static void
 stonithd_hb_callback(struct ha_msg* msg, void* private_data)
 {
@@ -1053,11 +1056,6 @@ stonithd_hb_callback(struct ha_msg* msg, void* private_data)
 			"stonith operation: %s"
 			, __FUNCTION__, __LINE__, st_op_type);
 	}
-}
-static void
-stonithd_hb_connection_destroy(void* private_data)
-{
-	return;
 }
 
 #if SUPPORT_AIS	
