@@ -1241,6 +1241,11 @@ else
 	  fi
 	done
 
+dnl In lib/ais/Makefile.am there's a gcc option available as of v4.x
+
+	GCC_MAJOR=`gcc -v 2>&1 | awk 'END{print $3}' | sed 's/[.].*//'`
+	AM_CONDITIONAL(GCC_4, test "${GCC_MAJOR}" = 4)
+
 dnl System specific options
 
 	case "$host_os" in
@@ -1360,6 +1365,10 @@ tools/Makefile							\
 	tools/crm						\
 	tools/shell/Makefile						\
 	tools/shell/templates/Makefile						\
+	tools/shell/regression/Makefile						\
+	tools/shell/regression/regression.sh						\
+	tools/shell/regression/lrmregtest-lsb						\
+	tools/shell/regression/testcases/Makefile						\
 xml/Makefile							\
 	xml/pacemaker.rng					\
 	xml/resources.rng					\
@@ -1378,7 +1387,7 @@ dnl *****************
 
 AC_MSG_RESULT([])
 AC_MSG_RESULT([$PACKAGE configuration:])
-AC_MSG_RESULT([  Version                  = ${VERSION}])
+AC_MSG_RESULT([  Version                  = ${VERSION} (Build: $BUILD_VERSION)])
 
 AC_MSG_RESULT([  Prefix                   = ${prefix}])
 AC_MSG_RESULT([  Executables              = ${sbindir}])
