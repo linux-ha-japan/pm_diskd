@@ -900,6 +900,13 @@ cib_process_command(xmlNode *request, xmlNode **reply,
 	    send_r_notify = TRUE;
 	}
 
+    } else if(rc == cib_dtd_validation) {
+	if(output != NULL) {
+	    crm_log_xml_info(output, "cib:output");
+	    free_xml(output);
+	} 
+	output = result_cib;
+
     } else {
 	free_xml(result_cib);    
     }
@@ -1253,12 +1260,16 @@ initiate_exit(void)
 }
 
 extern int remote_fd;
+extern int remote_tls_fd;
 
 void
 terminate_cib(const char *caller) 
 {
     if(remote_fd > 0) {
 	close(remote_fd);
+    }
+    if(remote_tls_fd > 0) {
+	close(remote_tls_fd);
     }
     
 #if SUPPORT_AIS
