@@ -453,6 +453,14 @@ class RaLrmd(object):
     def types(self, ra_class = "ocf", ra_provider = ""):
         'List of types for a class.'
         return self.lrmadmin("-T %s" % ra_class)
+
+def os_types_list(path):
+    l = []
+    for f in glob.glob(path):
+        if os.access(f,os.X_OK) and os.path.isfile(f):
+            a = f.split("/")
+            l.append(a[-1])
+    return l
 class RaOS(object):
     '''
     Getting information from the resource agents (direct).
@@ -464,6 +472,8 @@ class RaOS(object):
         if ra_class == "ocf":
             l = stdout2list("%s/resource.d/%s/%s meta-data" % \
                 (ocf_root,ra_provider,ra_type))
+        elif ra_class == "stonith":
+            l = stdout2list("stonith -m -t %s" % ra_type)
         return l
     def providers(self, ra_type,ra_class = "ocf"):
         'List of providers for a class:type.'
@@ -482,11 +492,13 @@ class RaOS(object):
         l = []
         prov = ra_provider and ra_provider or "*"
         if ra_class == "ocf":
-            for f in glob.glob("%s/resource.d/%s/*" % (ocf_root,prov)):
-                if os.access(f,os.X_OK):
-                    a = f.split("/")
-                    if len(a) == 7:
-                        l.append(a[5])
+            l = os_types_list("%s/resource.d/%s/*" % (ocf_root,prov))
+        elif ra_class == "lsb":
+            l = os_types_list("/etc/init.d/*")
+        elif ra_class == "stonith":
+            l = stdout2list("stonith -L")
+        l = list(set(l))
+        l.sort()
         return l
 
 def ra_classes():
