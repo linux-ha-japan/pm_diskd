@@ -147,6 +147,18 @@ It will run scripts at initialization, when machines go up or down,
 when related resources fail and can be configured to periodically check
 resource health.
 
+%package -n pm-diskd
+Version: 1.00
+Release: 1.el5
+Group: Applications
+License: GPL/LGPL
+Vendor: NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+Summary: Pacemaker Diskcheck Module
+Requires: pacemaker >= 1.0.9
+
+%description -n pm-diskd
+Pacemaker Diskcheck Module
+
 %prep
 %setup -q -n %{upstream_prefix}%{?upstream_version}
 
@@ -272,6 +284,11 @@ rm -rf %{buildroot}
 %{_datadir}/pacemaker/tests
 %doc COPYING.LIB
 %doc AUTHORS
+
+%files -n pm-diskd
+%defattr(755,root,root)
+%{_libdir}/heartbeat/diskd
+/usr/lib/ocf/resource.d/pacemaker/diskd
 
 %changelog
 * Wed Jun 23 2010 Andrew Beekhof <andrew@beekhof.net> 1.0.9.1-1
