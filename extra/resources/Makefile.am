@@ -30,6 +30,7 @@ ocf_SCRIPTS	     =  ClusterMon 	\
 			o2cb		\
 			ping		\
 			pingd		\
+			diskd		\
 			Stateful	\
 			SysInfo		\
 			SystemHealth
