@@ -100,9 +100,9 @@ A catch all for any other options that need to be passed to diskd.
 </parameters>
 
 <actions>
-<action name="start"   timeout="90" />
-<action name="stop"    timeout="100" />
-<action name="monitor" depth="0"  timeout="20" interval="10" start-delay="1m" />
+<action name="start"   timeout="60" />
+<action name="stop"    timeout="60" />
+<action name="monitor" depth="0"  timeout="60" interval="10" start-delay="1m" />
 <action name="meta-data"  timeout="5" />
 <action name="validate-all"  timeout="30" />
 </actions>
