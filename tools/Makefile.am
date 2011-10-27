@@ -113,7 +113,7 @@ pingd_SOURCES		= pingd.c
 pingd_LDADD		= $(COMMONLIBS)
 
 diskd_SOURCES		= diskd.c
-diskd_LDADD		= $(COMMONLIBS)
+diskd_LDADD		= $(COMMONLIBS) -lgthread-2.0
 
 attrd_updater_SOURCES	= attrd_updater.c
 attrd_updater_LDADD	= $(COMMONLIBS)

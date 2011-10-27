@@ -25,11 +25,7 @@
   *  Ver.2.0  for Pacemaker 1.0.x
   */
 
-#include <crm_internal.h>
-
 #include <sys/param.h>
-
-#include <crm/crm.h>
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -47,11 +43,15 @@
 #include <clplumbing/Gmain_timeout.h>
 #include <clplumbing/lsb_exitcodes.h>
 
+#include <crm/crm.h>
+#include <crm/common/util.h>
 #include <crm/common/ipc.h>
 
 #ifdef HAVE_GETOPT_H
 #  include <getopt.h>
 #endif
+
+#include <glib.h>
 
 #define MIN_INTERVAL 1
 #define MAX_INTERVAL 3600
@@ -76,7 +76,7 @@
 /* GMainLoop *mainloop = NULL; */
 const char *crm_system_name = "diskd";
 
-#define OPTARGS	"N:wd:a:i:p:DV?t:r:I:o"
+#define OPTARGS	"N:wd:a:i:p:DV?t:r:I:oe"
 
 GMainLoop*  mainloop = NULL;
 const char *diskd_attr = "diskd";
@@ -92,19 +92,32 @@ int optflag = 0;  /* flag for duplicate */
 int retry = 1;			/* disk check retry. default 1 times */
 int retry_interval = 5; /* disk check retry intarval time. default 5sec. */
 int interval = 30;  	/* disk check interval. default 30sec.*/
-int timeout = 30; 		/* disk check read func timeout. default 30sec. */
+int timeout = 60; 		/* disk check read func timeout. default 60sec. */
 int oneshot_flag = 0;  /* */
+int exec_thread_flag = 0;  /* */
 const char *diskcheck_value = NULL;
 int pagesize = 0;
 void *ptr = NULL;
 void *buf;
 
+static GMutex *diskd_mutex = NULL; 	/* Thread Mutex */
+static GCond *diskd_cond = NULL;	/* Thread Cond */
+static gboolean diskd_thread_use = FALSE;	/* Tthred Timer Flag */
+static GThread *th_timer = NULL; 	/* Thread Timer */
+
+static void diskd_thread_timer_init(void);
+static void diskd_thread_create(void);
+static void diskd_thread_timer_variable_free(gboolean);
+static void diskd_thread_condsend(void);
+static void diskd_thread_timer_end(void);
 void send_update(void);
 
 static gboolean
 diskd_shutdown(int nsig, gpointer unused)
 {
 	crm_info("Exiting");
+
+	diskd_thread_condsend();
 
 	if (mainloop != NULL && g_main_is_running(mainloop)) {
 		g_main_quit(mainloop);
@@ -121,7 +134,7 @@ usage(const char *cmd, int exit_status)
 
 	stream = exit_status ? stderr : stdout;
 
-	fprintf(stream, "usage: %s (-N|-w) [-daipDV?trIo]\n", cmd);
+	fprintf(stream, "usage: %s (-N|-w) [-daipDV?trIoe]\n", cmd);
 	fprintf(stream, "    Basic options\n");
 	fprintf(stream, "\t--%s (-%c) <devicename>\tDevice name to read\n"
 		"\t\t\t\t\t* Required option\n", "read-device-name", 'N');
@@ -138,11 +151,14 @@ usage(const char *cmd, int exit_status)
 	fprintf(stream, "\t--%s (-%c) \t\tRun in daemon mode\n", "daemonize", 'D');
 	fprintf(stream, "\t--%s (-%c) \t\t\tRun in verbose mode\n", "verbose", 'V');
 	fprintf(stream, "\t--%s (-%c) \t\t\tDisk check one time\n", "oneshot", 'o');
+	fprintf(stream, "\t--%s (-%c) \t\tCheck of the disk status check timeout by the thread\n"
+		"\t\t\t\t\t* Default=60 sec.(Same value as check-timeout parameter)\n"
+		"\t\t\t\t\t* Invalid at the time of the oneshot parameter designation\n", "exec-thread", 'e');
 	fprintf(stream, "\t--%s (-%c) \t\t\tThis text\n", "help", '?');
 	fprintf(stream, "    Note: -N, -w options cannot be specified at the same time.\n\n");
 	fprintf(stream, "    Advanced options\n");
 	fprintf(stream, "\t--%s (-%c) <time[s]>\tDisk status check timeout for select function\n"
-		"\t\t\t\t\t* Default=30 sec.\n", "check-timeout", 't');
+		"\t\t\t\t\t* Default=60 sec.\n", "check-timeout", 't');
 	fprintf(stream, "\t--%s (-%c) <times>\t\tDisk status check retry\n"
 		"\t\t\t\t\t* Default=1 times\n", "retry", 'r');
 	fprintf(stream, "\t--%s (-%c) <time[s]>\tDisk status check retry interval time\n"
@@ -165,6 +181,10 @@ check_status(int new_status)
 		return FALSE;
 	}
 
+	if (diskd_thread_use == TRUE) {
+		g_mutex_lock(diskd_mutex);
+	}
+
 	if (new_status == ERROR) {
 		diskcheck_value = "ERROR";
 		crm_warn("disk status is changed, attr_name=%s, target=%s, new_status=%s",
@@ -173,7 +193,133 @@ check_status(int new_status)
 		diskcheck_value = "normal";
 	}
 	send_update();
+
+	if (diskd_thread_use == TRUE) {
+		g_mutex_unlock(diskd_mutex);
+	}
+
 	return TRUE;
+}
+
+static void diskd_thread_timer_init()
+{
+	if (exec_thread_flag) {
+		if( ! g_thread_supported()) { 
+
+			g_thread_init (NULL);
+
+			diskd_mutex = g_mutex_new();
+			diskd_cond = g_cond_new();
+			if (diskd_mutex && diskd_cond) {
+				diskd_thread_use = TRUE;
+			} else {
+				diskd_thread_timer_variable_free(FALSE);
+				crm_warn("Failed in the generation of the thread variable. The thread timer is not available.");
+			}
+		} else {
+			crm_warn("The thread timer of diskd is not supported. By this system, I/O blocking may occur by a check of diskd in read/write.");
+		}
+	}
+}
+
+static void diskd_thread_timer_variable_free(gboolean bwait)
+{
+	int icnt = 0;
+	int try_max = ((timeout / 2) == 0) ? 1 : (timeout / 2);	
+
+	if (diskd_mutex != NULL) {
+		if (bwait) {
+			/* TODO:
+				An next error of glib sometimes occurs.
+				 -- ERROR: crm_glib_handler: GThread: file gthread-posix.c: .. error 'Device or resource busy' during... -- 
+				We turn on processing to wait for LOCK liberation.
+			*/
+			while(icnt < try_max){
+				if (g_mutex_trylock(diskd_mutex) == FALSE) {
+					crm_warn("Wait for the liberation of the lock of Mutex.(%d < %d)", icnt, try_max);
+					sleep(1);
+				} else {
+					break;
+				}
+				icnt++;
+			}
+		}
+		g_mutex_unlock(diskd_mutex);
+		g_mutex_free(diskd_mutex);
+		diskd_mutex = NULL;
+	}
+
+	if (diskd_cond != NULL) {
+		g_cond_free(diskd_cond);
+		diskd_cond = NULL;
+	}
+}
+
+static void diskd_thread_timer_end()
+{
+	if (diskd_thread_use == FALSE) return;
+
+
+	diskd_thread_timer_variable_free(TRUE);
+}
+
+static void diskd_thread_condsend()
+{
+	if (diskd_thread_use == FALSE) return;
+
+	if (diskd_mutex && diskd_cond) {
+		g_mutex_lock(diskd_mutex);
+		g_cond_broadcast(diskd_cond);
+		g_mutex_unlock(diskd_mutex);
+	} else {
+		crm_warn("Cannot transmit cond to a thread");
+	}
+
+}
+
+static void diskd_thread_timer_func(gpointer data)
+{
+	GTimeVal gtime;
+	glong add_time = (timeout) * 1000 * 1000;
+	gboolean bret;
+	
+	/* Awaiting a start */
+	g_mutex_lock(diskd_mutex);	
+
+	/* A calculation of the waiting time and practice of the timer.(mergin 1s) */
+	g_get_current_time(&gtime);
+	g_time_val_add(&gtime, add_time); 
+
+	bret = g_cond_timed_wait(diskd_cond, diskd_mutex, &gtime);
+	g_mutex_unlock(diskd_mutex);	
+
+	if (bret == FALSE){
+		crm_warn("Timeout Error(s) occurred in diskd timer thread.");
+		check_status(ERROR);
+		g_thread_exit(GINT_TO_POINTER(ERROR));
+	}
+
+	crm_debug_2("Received Cond from Main().");
+	g_thread_exit(GINT_TO_POINTER(normal));
+}
+
+static void diskd_thread_create()
+{
+	GError *gerr = NULL;
+
+	if (diskd_thread_use) {
+
+		g_mutex_lock(diskd_mutex);
+
+		th_timer = g_thread_create ((GThreadFunc)diskd_thread_timer_func, NULL, FALSE, &gerr);
+		if (th_timer == NULL) {
+			crm_err("Cannot create diskd timer_thread. %s", gerr->message);
+			g_error_free(gerr);
+			diskd_thread_use = FALSE;
+		}
+
+		g_mutex_unlock(diskd_mutex);	
+	}
 }
 
 static int diskcheck_wt(gpointer data)
@@ -185,6 +331,9 @@ static int diskcheck_wt(gpointer data)
 	fd_set write_fd_set;
 
 	crm_debug_2("diskcheck_wt start");
+
+	diskd_thread_create();
+
 	for (i = 0; i <= retry; i++) {
 		if ( i !=0 ) {
 			sleep(retry_interval);
@@ -207,6 +356,7 @@ static int diskcheck_wt(gpointer data)
 				if (-1 == remove((const char *)wfile)) {
 					crm_warn("failed to remove file %s", wfile);
 				}
+				diskd_thread_condsend();
 				check_status(normal);
 				return normal;  /* OK */
 			} else if (err != WRITE_DATA && errno == EAGAIN) {
@@ -248,6 +398,8 @@ static int diskcheck_wt(gpointer data)
 	}
 	/* after for loop */
 
+	diskd_thread_condsend();
+
 	crm_warn("Error(s) occurred in diskcheck_wt function.");
 	check_status(ERROR);
 
@@ -266,6 +418,8 @@ static int diskcheck(gpointer data)
 	fd_set read_fd_set;
 
 	crm_debug_2("diskcheck start");
+
+	diskd_thread_create();
 
 	for (i = 0; i <= retry; i++) {
 		if ( i !=0 ) {
@@ -290,6 +444,7 @@ static int diskcheck(gpointer data)
 			if (err == pagesize) {
 				crm_debug_2("reading form data is OK");
 				close(fd);
+				diskd_thread_condsend();
 				check_status(normal);
 				return normal;
 			} else if (err != pagesize && errno == EAGAIN) {
@@ -314,6 +469,8 @@ static int diskcheck(gpointer data)
 			}
 		}
 	}
+
+	diskd_thread_condsend();
 
 	crm_warn("Error(s) occurred in diskcheck function.");
 	check_status(ERROR);
@@ -384,6 +541,7 @@ main(int argc, char **argv)
 		{"write-check", 0, 0, 'w'},   	    /* add option 2008.10.24 */
 		{"write-directory-name", 1, 0, 'd'},   	    /* add option 2009.4.17 */
 		{"oneshot", 0, 0, 'o'},   	/* add option 2009.10.01 */
+		{"exec-thread", 0, 0, 'e'},   	/* add option 2011.09.30 */
 
 		{0, 0, 0, 0}
 	};
@@ -468,6 +626,9 @@ main(int argc, char **argv)
 			case 'o':   /* add option 2009.10.01 */
 				oneshot_flag =1;
 				break;
+			case 'e':   /* add option 2011.09.30 */
+				exec_thread_flag =1;
+				break;
 			case '?':
 				usage(crm_system_name, LSB_EXIT_GENERIC);
 				break;
@@ -509,6 +670,7 @@ main(int argc, char **argv)
 	}
 
 	crm_make_daemon(crm_system_name, daemonize, pid_file);
+	diskd_thread_timer_init();
 
 	if ( wflag ) {	/* writer */
 		if (wfile == NULL) {
@@ -546,6 +708,9 @@ main(int argc, char **argv)
 	if (wfile != NULL) {
 		crm_free(wfile);
 	}
+
+	diskd_thread_timer_end();
+
 	crm_info("Exiting %s", crm_system_name);
 	return 0;
 }
