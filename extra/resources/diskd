@@ -145,6 +145,10 @@ diskd_start() {
     $diskd_cmd
     rc=$?
     if [ $rc = 0 ]; then
+        while ! diskd_monitor; do
+            ocf_log info "diskd still hasn't started yet. Waiting..."
+            sleep 1
+        done
 	exit $OCF_SUCCESS
     fi
     
@@ -208,7 +212,7 @@ diskd_monitor() {
     if [ ! -z $pid ]; then
 	kill -0 $pid
 	if [ $? = 0 ]; then
-	    exit $OCF_SUCCESS
+	    return $OCF_SUCCESS
 	fi
     fi
     return $OCF_NOT_RUNNING
