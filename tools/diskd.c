@@ -104,7 +104,8 @@ static GMutex *diskd_mutex = NULL; 	/* Thread Mutex */
 static GCond *diskd_cond = NULL;	/* Thread Cond */
 static gboolean diskd_thread_use = FALSE;	/* Tthred Timer Flag */
 static GThread *th_timer = NULL; 	/* Thread Timer */
-
+static int timer_id = -1;
+ 
 static void diskd_thread_timer_init(void);
 static void diskd_thread_create(void);
 static void diskd_thread_timer_variable_free(gboolean);
@@ -116,6 +117,11 @@ static gboolean
 diskd_shutdown(int nsig, gpointer unused)
 {
 	crm_info("Exiting");
+	
+	if (timer_id != -1) {
+		Gmain_timeout_remove(timer_id);
+		timer_id = -1;
+	}
 
 	diskd_thread_condsend();
 
@@ -265,12 +271,19 @@ static void diskd_thread_timer_end()
 
 static void diskd_thread_condsend()
 {
+	gpointer ret_thread;
 	if (diskd_thread_use == FALSE) return;
 
 	if (diskd_mutex && diskd_cond) {
 		g_mutex_lock(diskd_mutex);
 		g_cond_broadcast(diskd_cond);
 		g_mutex_unlock(diskd_mutex);
+
+		if (th_timer != NULL) {
+			ret_thread = g_thread_join(th_timer);
+			crm_debug_2("thread_join -> %d", GPOINTER_TO_INT (ret_thread));
+			th_timer = NULL;
+		}	
 	} else {
 		crm_warn("Cannot transmit cond to a thread");
 	}
@@ -310,14 +323,16 @@ static void diskd_thread_create()
 	if (diskd_thread_use) {
 
 		g_mutex_lock(diskd_mutex);
-
-		th_timer = g_thread_create ((GThreadFunc)diskd_thread_timer_func, NULL, FALSE, &gerr);
+		
 		if (th_timer == NULL) {
-			crm_err("Cannot create diskd timer_thread. %s", gerr->message);
-			g_error_free(gerr);
-			diskd_thread_use = FALSE;
+			th_timer = g_thread_create ((GThreadFunc)diskd_thread_timer_func, NULL, TRUE, &gerr);
+			if (th_timer == NULL) {
+				crm_err("Cannot create diskd timer_thread. %s", gerr->message);
+				g_error_free(gerr);
+				diskd_thread_use = FALSE;
+			}
 		}
-
+		sleep(1);	
 		g_mutex_unlock(diskd_mutex);	
 	}
 }
@@ -685,7 +700,7 @@ main(int argc, char **argv)
 			exit(LSB_EXIT_GENERIC);
 		}
 		diskcheck_wt(NULL);
-		Gmain_timeout_add(interval*1000, diskcheck_wt, NULL);
+		timer_id = Gmain_timeout_add(interval*1000, diskcheck_wt, NULL);
 	} else {		/* reader */
 		pagesize = getpagesize();
 		ptr = (void *)malloc(2 * pagesize);
@@ -696,7 +711,7 @@ main(int argc, char **argv)
 		}
 		buf = (void *)(((u_long)ptr + pagesize) & ~(pagesize-1));
 		diskcheck(NULL);
-		Gmain_timeout_add(interval*1000, diskcheck, NULL);
+		timer_id = Gmain_timeout_add(interval*1000, diskcheck, NULL);
 	}
 
 	crm_info("Starting %s", crm_system_name);
