@@ -102,13 +102,15 @@ void *buf;
 
 static GMutex *diskd_mutex = NULL; 	/* Thread Mutex */
 static GCond *diskd_cond = NULL;	/* Thread Cond */
+static GMutex *thread_start_mutex = NULL; 	/* Thread Start Mutex */
+static GCond *thread_start_cond = NULL;	/* Thread Start Cond */
 static gboolean diskd_thread_use = FALSE;	/* Tthred Timer Flag */
 static GThread *th_timer = NULL; 	/* Thread Timer */
 static int timer_id = -1;
  
 static void diskd_thread_timer_init(void);
 static void diskd_thread_create(void);
-static void diskd_thread_timer_variable_free(gboolean);
+static void diskd_thread_timer_variable_free(void);
 static void diskd_thread_condsend(void);
 static void diskd_thread_timer_end(void);
 void send_update(void);
@@ -214,12 +216,15 @@ static void diskd_thread_timer_init()
 
 			g_thread_init (NULL);
 
+			
+			thread_start_mutex = g_mutex_new();
+			thread_start_cond = g_cond_new();
 			diskd_mutex = g_mutex_new();
 			diskd_cond = g_cond_new();
-			if (diskd_mutex && diskd_cond) {
+			if (diskd_mutex && diskd_cond && thread_start_mutex && thread_start_cond) {
 				diskd_thread_use = TRUE;
 			} else {
-				diskd_thread_timer_variable_free(FALSE);
+				diskd_thread_timer_variable_free();
 				crm_warn("Failed in the generation of the thread variable. The thread timer is not available.");
 			}
 		} else {
@@ -228,36 +233,25 @@ static void diskd_thread_timer_init()
 	}
 }
 
-static void diskd_thread_timer_variable_free(gboolean bwait)
+static void diskd_thread_timer_variable_free()
 {
-	int icnt = 0;
-	int try_max = ((timeout / 2) == 0) ? 1 : (timeout / 2);	
-
 	if (diskd_mutex != NULL) {
-		if (bwait) {
-			/* TODO:
-				An next error of glib sometimes occurs.
-				 -- ERROR: crm_glib_handler: GThread: file gthread-posix.c: .. error 'Device or resource busy' during... -- 
-				We turn on processing to wait for LOCK liberation.
-			*/
-			while(icnt < try_max){
-				if (g_mutex_trylock(diskd_mutex) == FALSE) {
-					crm_warn("Wait for the liberation of the lock of Mutex.(%d < %d)", icnt, try_max);
-					sleep(1);
-				} else {
-					break;
-				}
-				icnt++;
-			}
-		}
-		g_mutex_unlock(diskd_mutex);
 		g_mutex_free(diskd_mutex);
 		diskd_mutex = NULL;
+	}
+	if (thread_start_mutex != NULL) {
+		g_mutex_free(thread_start_mutex);
+		thread_start_mutex = NULL;
 	}
 
 	if (diskd_cond != NULL) {
 		g_cond_free(diskd_cond);
 		diskd_cond = NULL;
+	}
+
+	if (thread_start_cond != NULL) {
+		g_cond_free(thread_start_cond);
+		thread_start_cond = NULL;
 	}
 }
 
@@ -266,7 +260,7 @@ static void diskd_thread_timer_end()
 	if (diskd_thread_use == FALSE) return;
 
 
-	diskd_thread_timer_variable_free(TRUE);
+	diskd_thread_timer_variable_free();
 }
 
 static void diskd_thread_condsend()
@@ -296,12 +290,18 @@ static void diskd_thread_timer_func(gpointer data)
 	glong add_time = (timeout) * 1000 * 1000;
 	gboolean bret;
 	
+	g_mutex_lock(thread_start_mutex);	
+
 	/* Awaiting a start */
 	g_mutex_lock(diskd_mutex);	
 
 	/* A calculation of the waiting time and practice of the timer.(mergin 1s) */
 	g_get_current_time(&gtime);
 	g_time_val_add(&gtime, add_time); 
+
+	g_cond_signal(thread_start_cond);
+
+	g_mutex_unlock(thread_start_mutex);	
 
 	bret = g_cond_timed_wait(diskd_cond, diskd_mutex, &gtime);
 	g_mutex_unlock(diskd_mutex);	
@@ -322,7 +322,7 @@ static void diskd_thread_create()
 
 	if (diskd_thread_use) {
 
-		g_mutex_lock(diskd_mutex);
+		g_mutex_lock(thread_start_mutex);
 		
 		if (th_timer == NULL) {
 			th_timer = g_thread_create ((GThreadFunc)diskd_thread_timer_func, NULL, TRUE, &gerr);
@@ -330,10 +330,14 @@ static void diskd_thread_create()
 				crm_err("Cannot create diskd timer_thread. %s", gerr->message);
 				g_error_free(gerr);
 				diskd_thread_use = FALSE;
+				g_mutex_unlock(thread_start_mutex);	
 			}
 		}
-		sleep(1);	
-		g_mutex_unlock(diskd_mutex);	
+			
+		if (th_timer != NULL) {	
+			g_cond_wait(thread_start_cond, thread_start_mutex);
+			g_mutex_unlock(thread_start_mutex);	
+		}
 	}
 }
 
@@ -735,3 +739,5 @@ send_update(void)
 {
 	attrd_lazy_update('U', NULL, diskd_attr, diskcheck_value, attr_section, attr_set, "0");
 }
+
+
