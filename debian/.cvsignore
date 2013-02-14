@@ -1,6 +1,0 @@
-Makefile
-Makefile.in
-*.substvars
-*.beam
-parser-messages
-MISC_ERRORS

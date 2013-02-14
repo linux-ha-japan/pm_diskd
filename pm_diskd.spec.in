@@ -1,0 +1,107 @@
+########################################
+# Derived definitions
+########################################
+%define __check_files %{nil}
+%define name pm_diskd
+%define version 1.2
+%define release 1.el@RHEL_VER@
+%define prefix /usr
+%define libdir	%{_libdir}
+%define orgarch pm_diskd-%{version}
+%define ocfdir /usr/lib/ocf/resource.d/pacemaker
+#
+#
+#
+Summary: diskcheck service for Pacemaker 
+Name: %{name}
+Version: %{version}
+Release: %{release}
+Group: Applications
+Source: %{orgarch}.tar.gz
+License: GPL/LGPL
+Vendor: NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+BuildRoot: %{_tmppath}/%{name}-%{version}
+BuildRequires: autoconf, automake, pacemaker-libs-devel >= 1.0.9, heartbeat-devel >= 3.0.3, cluster-glue-libs-devel >= 1.0.6
+Requires: pacemaker >= 1.0.9, resource-agents >= 1.0.3, cluster-glue >= 1.0.6, heartbeat >= 3.0.3
+
+########################################
+%description
+pacemaker diskcheck service
+ for pacemaker 1.0.9 
+           and 
+     resoucr-agent 1.0.3 
+           and 
+     cluster-glue 1.0.6
+
+########################################
+%prep
+########################################
+rm -rf $RPM_BUILD_ROOT
+%setup -q -n %{orgarch}
+pushd $RPM_BUILD_DIR/%{orgarch}
+./autogen.sh
+./configure
+popd
+
+########################################
+%build
+########################################
+pushd $RPM_BUILD_DIR/%{orgarch}
+make DESTDIR=$RPM_BUILD_ROOT
+popd
+
+########################################
+%install
+########################################
+pushd $RPM_BUILD_DIR/%{orgarch}
+make DESTDIR=$RPM_BUILD_ROOT install
+popd
+
+########################################
+%clean
+########################################
+if
+	[ -n "${RPM_BUILD_ROOT}" -a "${RPM_BUILD_ROOT}" != "/" ]
+then
+	rm -rf $RPM_BUILD_ROOT
+fi
+rm -rf $RPM_BUILD_DIR/%{orgarch}
+
+########################################
+%pre
+########################################
+true
+
+########################################
+%post
+########################################
+true
+
+########################################
+%preun
+########################################
+true
+
+########################################
+%postun
+########################################
+true
+
+########################################
+
+########################################
+%files
+########################################
+%defattr(-,root,root)
+
+%dir %{ocfdir}
+%attr (755, root, root) %{ocfdir}/diskd
+%attr (755, root, root) %{_libdir}/heartbeat/diskd
+
+########################################
+%changelog
+########################################
+* Thu Feb 14 2013 Hideo Yamauchi<yamauchi@intellilink.co.jp>
+- 1.2 release
+* Wed Oct 6 2010 Yuusuke IIDA <iidayuus@intellilink.co.jp>
+- initial release
