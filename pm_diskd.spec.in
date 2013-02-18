@@ -29,8 +29,6 @@ Requires: pacemaker-libs >= 1.1.8
 %description
 pacemaker diskcheck service
  for pacemaker 1.1.8 
-           and 
-     cluster-glue 1.0.11
 
 ########################################
 %prep

@@ -22,7 +22,7 @@
  */
 
 /**
-  *  Ver.2.0  for Pacemaker 1.0.x
+  *  Ver.2.0  for Pacemaker 1.1.x
   */
 
 #include <sys/param.h>

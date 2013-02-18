@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.53])
-AC_INIT([pm_diskd], [2.0], BUG-REPORT-ADDRESS)
+AC_INIT([pm_diskd], [2.0], [iidayuus@intellilink.co.jp])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
@@ -83,20 +83,14 @@ else
 fi
 CPPFLAGS="$CPPFLAGS $XML2HEAD"
 
-
-#CFLAGS="$CFLAGS -I${prefix}/include/glib-2.0"
-#CFLAGS="$CFLAGS -I${prefix}/lib64/glib-2.0/include"
-
 if test "$ac_cv_header_pacemaker_crm_config_h" = "yes"; then
 	CFLAGS="$CFLAGS -I${prefix}/include/pacemaker"
 fi
 
 OCF_ROOT_DIR=`extract_header_define crm/services.h OCF_ROOT_DIR`
-#AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", ocf resource directory)
 AC_SUBST(OCF_ROOT_DIR)
 
 CRM_DAEMON_DIR=`extract_header_define crm_config.h CRM_DAEMON_DIR`
-#AC_DEFINE_UNQUOTED(CRM_DAEMON_DIR,"$CRM_DAEMON_DIR", crm daemon directory)
 AC_SUBST(CRM_DAEMON_DIR)
 
 
