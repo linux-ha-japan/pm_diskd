@@ -5,7 +5,7 @@
 MAINTAINERCLEANFILES = Makefile.in aclocal.m4 configure
 
 SUBDIRS		= tools resources
-doc_DATA	= README 
+doc_DATA	= README
 
 SPEC                    = $(PACKAGE_NAME).spec
 TARFILE                 = $(PACKAGE_NAME)-$(VERSION).tar.gz

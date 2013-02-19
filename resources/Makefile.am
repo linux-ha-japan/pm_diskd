@@ -2,5 +2,5 @@ MAINTAINERCLEANFILES	= Makefile.in
 
 EXTRA_DIST		= $(ocf_SCRIPTS)
 
-ocfdir			= $(OCF_RA_DIR)/pacemaker
+ocfdir			= $(OCF_ROOT_DIR)/resource.d/pacemaker
 ocf_SCRIPTS		= diskd

@@ -40,18 +40,12 @@
 #include <time.h>
 #include <string.h>
 
-#include <clplumbing/Gmain_timeout.h>
-#include <clplumbing/lsb_exitcodes.h>
-
-#include <crm/crm.h>
-#include <crm/common/util.h>
-#include <crm/common/ipc.h>
+#include <crm/attrd.h>
+#include <crm/common/mainloop.h>
 
 #ifdef HAVE_GETOPT_H
 #  include <getopt.h>
 #endif
-
-#include <glib.h>
 
 #define MIN_INTERVAL 1
 #define MAX_INTERVAL 3600
@@ -114,14 +108,15 @@ static void diskd_thread_timer_variable_free(void);
 static void diskd_thread_condsend(void);
 static void diskd_thread_timer_end(void);
 void send_update(void);
+void crm_make_daemon(const char *name, gboolean daemonize, const char *pidfile);
 
-static gboolean
-diskd_shutdown(int nsig, gpointer unused)
+static void
+diskd_shutdown(int nsig)
 {
 	crm_info("Exiting");
 	
 	if (timer_id != -1) {
-		Gmain_timeout_remove(timer_id);
+		g_source_remove(timer_id);
 		timer_id = -1;
 	}
 
@@ -130,17 +125,16 @@ diskd_shutdown(int nsig, gpointer unused)
 	if (mainloop != NULL && g_main_is_running(mainloop)) {
 		g_main_quit(mainloop);
 	} else {
-		exit(0);
+		crm_exit(EX_OK);
 	}
-	return FALSE;
 }
 
 static void
-usage(const char *cmd, int exit_status)
+usage(const char *cmd, int crm_exit_status)
 {
 	FILE *stream;
 
-	stream = exit_status ? stderr : stdout;
+	stream = crm_exit_status ? stderr : stdout;
 
 	fprintf(stream, "usage: %s (-N|-w) [-daipDV?trIoe]\n", cmd);
 	fprintf(stream, "    Basic options\n");
@@ -174,7 +168,7 @@ usage(const char *cmd, int exit_status)
 
 	fflush(stream);
 
-	exit(exit_status);
+	crm_exit(crm_exit_status);
 }
 
 static gboolean
@@ -275,7 +269,7 @@ static void diskd_thread_condsend()
 
 		if (th_timer != NULL) {
 			ret_thread = g_thread_join(th_timer);
-			crm_debug_2("thread_join -> %d", GPOINTER_TO_INT (ret_thread));
+			crm_trace("thread_join -> %d", GPOINTER_TO_INT (ret_thread));
 			th_timer = NULL;
 		}	
 	} else {
@@ -312,7 +306,7 @@ static void diskd_thread_timer_func(gpointer data)
 		g_thread_exit(GINT_TO_POINTER(ERROR));
 	}
 
-	crm_debug_2("Received Cond from Main().");
+	crm_trace("Received Cond from Main().");
 	g_thread_exit(GINT_TO_POINTER(normal));
 }
 
@@ -349,7 +343,7 @@ static int diskcheck_wt(gpointer data)
 	struct timeval timeout_tv;
 	fd_set write_fd_set;
 
-	crm_debug_2("diskcheck_wt start");
+	crm_trace("diskcheck_wt start");
 
 	diskd_thread_create();
 
@@ -363,14 +357,14 @@ static int diskcheck_wt(gpointer data)
 
 		if (fd == -1) {
 			crm_err("Could not open %s", wfile);
-			cl_perror("%s", wfile);
+			crm_perror(LOG_ERR, "%s", wfile);
 			continue;  /* failed to open file. try re-open */
 		}
 
 		while( 1 ) {
 			err = write(fd, buf, WRITE_DATA);  /* data write */
 			if (err == WRITE_DATA) {
-				crm_debug_2("data writing is OK");
+				crm_trace("data writing is OK");
 				close(fd);
 				if (-1 == remove((const char *)wfile)) {
 					crm_warn("failed to remove file %s", wfile);
@@ -406,7 +400,7 @@ static int diskcheck_wt(gpointer data)
 				}
 			} else {
 				crm_err("Could not write to file %s", wfile);
-				cl_perror("%s", wfile);
+				crm_perror(LOG_ERR, "%s", wfile);
 				close(fd);
 				if (-1 == remove((const char *)wfile)) {
 					crm_warn("failed to remove file %s", wfile);
@@ -436,7 +430,7 @@ static int diskcheck(gpointer data)
 	struct timeval timeout_tv;
 	fd_set read_fd_set;
 
-	crm_debug_2("diskcheck start");
+	crm_trace("diskcheck start");
 
 	diskd_thread_create();
 
@@ -461,7 +455,7 @@ static int diskcheck(gpointer data)
 		while( 1 ) {
 			err = read(fd, buf, pagesize);
 			if (err == pagesize) {
-				crm_debug_2("reading form data is OK");
+				crm_trace("reading form data is OK");
 				close(fd);
 				diskd_thread_condsend();
 				check_status(normal);
@@ -504,23 +498,23 @@ static int oneshot(void)
 
         if ( wflag ) {  /* writer */
                 if (wfile == NULL) {
-			wdir = crm_strdup(WRITE_DIR);
-                        crm_malloc0(wfile, PATH_MAX);
+			wdir = strdup(WRITE_DIR);
+                        wfile = calloc(1, PATH_MAX);
                         g_snprintf(wfile, PATH_MAX, "%s/%s", WRITE_DIR, WRITE_FILE);
                 }
                 buf = (void *)malloc(WRITE_DATA);
                 if (buf == NULL) {
                         crm_err("Could not allocate memory");
-                        exit(LSB_EXIT_GENERIC);
+                        crm_exit(1);
                 }
                 rc = diskcheck_wt(NULL);
-		crm_free(wfile);
+		free(wfile);
         } else {                /* reader */
                 pagesize = getpagesize();
                 ptr = (void *)malloc(2 * pagesize);
                 if (ptr == NULL) {
                         crm_err("Could not allocate memory");
-                        exit(LSB_EXIT_GENERIC);
+                        crm_exit(1);
                 }
                 buf = (void *)(((u_long)ptr + pagesize) & ~(pagesize-1));
                 rc = diskcheck(NULL);
@@ -565,19 +559,18 @@ main(int argc, char **argv)
 		{0, 0, 0, 0}
 	};
 #endif
-	pid_file = crm_strdup(PID_FILE);
+	pid_file = strdup(PID_FILE);
 	crm_system_name = basename(argv[0]);
 
-	G_main_add_SignalHandler(
-		G_PRIORITY_HIGH, SIGTERM, diskd_shutdown, NULL, NULL);
+	mainloop_add_signal(SIGTERM, diskd_shutdown);
 
-	crm_log_init(basename(argv[0]), LOG_INFO, TRUE, FALSE, argc, argv);
+	crm_log_init(basename(argv[0]), LOG_INFO, TRUE, FALSE, argc, argv, FALSE);
 
 	/* check user. user shuld be root.*/
 	if (strcmp("root", (const gchar *)g_get_user_name()) != 0) {
 		crm_err("permission denied. diskd should be executed by root.\n");
 		printf ("permission denied. diskd should be executed by root.\n");
-		exit(LSB_EXIT_GENERIC);
+		crm_exit(1);
 	}
 
 	while (1) {
@@ -592,15 +585,14 @@ main(int argc, char **argv)
 
 		switch(flag) {
 			case 'V':
-				cl_log_enable_stderr(TRUE);
-				alter_debug(DEBUG_INC);
+				crm_bump_log_level(argc, argv);
 				break;
 			case 'p':
-				crm_free(pid_file);
-				pid_file = crm_strdup(optarg);
+				free(pid_file);
+				pid_file = strdup(optarg);
 				break;
 			case 'a':
-				diskd_attr = crm_strdup(optarg);
+				diskd_attr = strdup(optarg);
 				break;
 			case 'r':
 				retry = crm_parse_int(optarg, "1");
@@ -627,7 +619,7 @@ main(int argc, char **argv)
 					++argerr;
 				break;
 			case 'N':
-				device = crm_strdup(optarg);
+				device = strdup(optarg);
 				optflag++; /* add 2008.20.24 */
 				break;
 			case 'D':
@@ -638,8 +630,8 @@ main(int argc, char **argv)
 				optflag++;
 				break;
 			case 'd':   /* add option 2009.4.17 */
-				wdir = crm_strdup(optarg);
-				crm_malloc0(wfile, PATH_MAX);
+				wdir = strdup(optarg);
+				wfile = calloc(1, PATH_MAX);
 				g_snprintf(wfile, PATH_MAX, "%s/%s", optarg, WRITE_FILE);
 				break;
 			case 'o':   /* add option 2009.10.01 */
@@ -649,7 +641,7 @@ main(int argc, char **argv)
 				exec_thread_flag =1;
 				break;
 			case '?':
-				usage(crm_system_name, LSB_EXIT_GENERIC);
+				usage(crm_system_name, 1);
 				break;
 			default:
 				printf ("Argument code 0%o (%c) is not (?yet?) supported\n", flag, flag);
@@ -673,7 +665,7 @@ main(int argc, char **argv)
 	}
 	if ((argerr) || (optflag >= 2) || (device == NULL && wflag == FALSE)) {  /* add optflag 2008.10.24 */
 		/* "-N" + "-w" pattern and not "-N" + not "-w"*/
-		usage(crm_system_name, LSB_EXIT_GENERIC);
+		usage(crm_system_name, 1);
 	}
 	if ((device != NULL) && (wfile != NULL)) {
 		/* "-N" + "-d" pattern */
@@ -683,9 +675,9 @@ main(int argc, char **argv)
 	if (oneshot_flag) {
 		int rc = 0;
 
-		crm_free(pid_file);
+		free(pid_file);
 		rc = oneshot();
-		exit (rc);
+		crm_exit (rc);
 	}
 
 	crm_make_daemon(crm_system_name, daemonize, pid_file);
@@ -693,29 +685,29 @@ main(int argc, char **argv)
 
 	if ( wflag ) {	/* writer */
 		if (wfile == NULL) {
-			wdir = crm_strdup(WRITE_DIR);
-			crm_malloc0(wfile, PATH_MAX);
+			wdir = strdup(WRITE_DIR);
+			wfile = calloc(1, PATH_MAX);
 			g_snprintf(wfile, PATH_MAX, "%s/%s", WRITE_DIR, WRITE_FILE);
 		}
 		buf = (void *)malloc(WRITE_DATA);
 		if (buf == NULL) {
 			crm_err("Could not allocate memory");
 			check_status(ERROR);
-			exit(LSB_EXIT_GENERIC);
+			crm_exit(1);
 		}
 		diskcheck_wt(NULL);
-		timer_id = Gmain_timeout_add(interval*1000, diskcheck_wt, NULL);
+		timer_id = g_timeout_add(interval*1000, diskcheck_wt, NULL);
 	} else {		/* reader */
 		pagesize = getpagesize();
 		ptr = (void *)malloc(2 * pagesize);
 		if (ptr == NULL) {
 			crm_err("Could not allocate memory");
 			check_status(ERROR);
-			exit(LSB_EXIT_GENERIC);
+			crm_exit(1);
 		}
 		buf = (void *)(((u_long)ptr + pagesize) & ~(pagesize-1));
 		diskcheck(NULL);
-		timer_id = Gmain_timeout_add(interval*1000, diskcheck, NULL);
+		timer_id = g_timeout_add(interval*1000, diskcheck, NULL);
 	}
 
 	crm_info("Starting %s", crm_system_name);
@@ -723,9 +715,9 @@ main(int argc, char **argv)
 	g_main_run(mainloop);
 
 	free(ptr);
-	crm_free(pid_file);
+	free(pid_file);
 	if (wfile != NULL) {
-		crm_free(wfile);
+		free(wfile);
 	}
 
 	diskd_thread_timer_end();
@@ -737,7 +729,10 @@ main(int argc, char **argv)
 void
 send_update(void)
 {
-	attrd_lazy_update('U', NULL, diskd_attr, diskcheck_value, attr_section, attr_set, "0");
+	if(FALSE == attrd_update_delegate(
+		NULL, 'U', NULL, diskd_attr, diskcheck_value, attr_section, attr_set, "0", NULL)) {
+		crm_err("Could not update %s=%s", diskd_attr, diskcheck_value);
+	}
 }
 
 

@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.53])
-AC_INIT([pm_diskd], [1.2], BUG-REPORT-ADDRESS)
+AC_INIT([pm_diskd], [2.0], BUG-REPORT-ADDRESS)
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
@@ -28,8 +28,6 @@ extract_header_define() {
         }
 
 
-# Checks for libraries.
-
 # Checks for typedefs, structures, and compiler characteristics.
 dnl Fix default variables - "prefix" variable if not specified
 if test "$prefix" = "NONE"; then
@@ -53,51 +51,56 @@ if test "$prefix" = "NONE"; then
 	fi
 fi
 
-# Checks for header files.
-CFLAGS="$CFLAGS -I${prefix}/include/heartbeat"
-CFLAGS="$CFLAGS -I${prefix}/include/pacemaker"
+dnl ===============================================
+dnl Libraries
+dnl ===============================================
 
-AC_CHECK_HEADERS([hb_config.h])
-AC_CHECK_HEADERS([glue_config.h])
-AC_CHECK_HEADERS([agent_config.h])
+dnl check for pacemaker
+PKG_CHECK_MODULES(CRM,    pacemaker-cluster)
+LIBS="$LIBS $CRM_LIBS"
 
-GLUE_HEADER=none
-if test "$ac_cv_header_glue_config_h" = "yes"; then
-   GLUE_HEADER=glue_config.h
-elif test "$ac_cv_header_hb_config_h" = "yes"; then
-   GLUE_HEADER=hb_config.h
-else
-   AC_MSG_FAILURE(Core development headers were not found)
+dnl check for gthread
+PKG_CHECK_MODULES(GTHREAD, gthread-2.0 >= 2.0, have_gthread=yes, have_gthread=no)
+AM_CONDITIONAL(HAVE_GTHREAD, test x$have_gthread = xyes)
+if test x"$have_gthread" = xyes; then
+	CFLAGS="$CFLAGS $GTHREAD_CFLAGS"
+	LIBS="$LIBS $GTHREAD_LIBS"
 fi
 
-OCF_RA_DIR=`extract_header_define $GLUE_HEADER OCF_RA_DIR`
-AC_DEFINE_UNQUOTED(OCF_RA_DIR,"$OCF_RA_DIR", ocf resource directory)
-AC_SUBST(OCF_RA_DIR)
+dnl ========================================================================
+dnl Headers
+dnl ========================================================================
+
+AC_CHECK_HEADER([pacemaker/crm_config.h])
+
+AC_PATH_PROGS(XML2CONFIG, xml2-config)
+AC_MSG_CHECKING(for special libxml2 includes)
+if test "x$XML2CONFIG" = "x"; then
+	AC_MSG_ERROR(libxml2 config not found)
+else
+	XML2HEAD="`$XML2CONFIG --cflags`"
+	AC_MSG_RESULT($XML2HEAD)
+fi
+CPPFLAGS="$CPPFLAGS $XML2HEAD"
+
+
+#CFLAGS="$CFLAGS -I${prefix}/include/glib-2.0"
+#CFLAGS="$CFLAGS -I${prefix}/lib64/glib-2.0/include"
+
+if test "$ac_cv_header_pacemaker_crm_config_h" = "yes"; then
+	CFLAGS="$CFLAGS -I${prefix}/include/pacemaker"
+fi
+
+OCF_ROOT_DIR=`extract_header_define crm/services.h OCF_ROOT_DIR`
+#AC_DEFINE_UNQUOTED(OCF_ROOT_DIR,"$OCF_ROOT_DIR", ocf resource directory)
+AC_SUBST(OCF_ROOT_DIR)
 
 CRM_DAEMON_DIR=`extract_header_define crm_config.h CRM_DAEMON_DIR`
-AC_DEFINE_UNQUOTED(CRM_DAEMON_DIR,"$CRM_DAEMON_DIR", crm daemon directory)
+#AC_DEFINE_UNQUOTED(CRM_DAEMON_DIR,"$CRM_DAEMON_DIR", crm daemon directory)
 AC_SUBST(CRM_DAEMON_DIR)
 
-CRM_DAEMON_GROUP=`extract_header_define $GLUE_HEADER HA_APIGROUP`
-AC_DEFINE_UNQUOTED(CRM_DAEMON_GROUP,"$CRM_DAEMON_GROUP", Group to run Pacemaker daemons as)
-AC_SUBST(CRM_DAEMON_GROUP)
 
-CRM_DAEMON_USER=`extract_header_define $GLUE_HEADER HA_CCMUSER`
-AC_DEFINE_UNQUOTED(CRM_DAEMON_USER,"$CRM_DAEMON_USER", User to run Pacemaker daemons as)
-AC_SUBST(CRM_DAEMON_USER)
-
-#
-grep "release 6" /etc/redhat-release -q
-if test $? = 0; then
-	rhelver=6
-else
-	rhelver=5
-fi
-RHEL_VER="$rhelver"
-AC_SUBST(RHEL_VER)
-
-# Checks for library functions.
-
+dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile	\
 		resources/Makefile \
 		tools/Makefile \
@@ -136,10 +139,11 @@ AC_MSG_RESULT([  Header files             = ${includedir}])
 AC_MSG_RESULT([  State information        = ${localstatedir}])
 AC_MSG_RESULT([  System configuration     = ${sysconfdir}])
 AC_MSG_RESULT([  Document directory       = ${docdir}])
-AC_MSG_RESULT([  Ocf RA dir               = ${OCF_RA_DIR}])
+AC_MSG_RESULT([  Ocf RA dir               = ${OCF_ROOT_DIR}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  HA group name            = ${CRM_DAEMON_GROUP}])
 AC_MSG_RESULT([  HA user name             = ${CRM_DAEMON_USER}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([  CFLAGS                   = ${CFLAGS}])
+AC_MSG_RESULT([  Libraries                = ${LIBS}])
 

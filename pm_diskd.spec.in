@@ -3,8 +3,8 @@
 ########################################
 %define __check_files %{nil}
 %define name pm_diskd
-%define version 1.2
-%define release 1.el@RHEL_VER@
+%define version 2.0
+%define release 1%{?dist}
 %define prefix /usr
 %define libdir	%{_libdir}
 %define orgarch pm_diskd-%{version}
@@ -21,17 +21,16 @@ Source: %{orgarch}.tar.gz
 License: GPL/LGPL
 Vendor: NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 BuildRoot: %{_tmppath}/%{name}-%{version}
-BuildRequires: autoconf, automake, pacemaker-libs-devel >= 1.0.9, heartbeat-devel >= 3.0.3, cluster-glue-libs-devel >= 1.0.6
-Requires: pacemaker >= 1.0.9, resource-agents >= 1.0.3, cluster-glue >= 1.0.6, heartbeat >= 3.0.3
+BuildRequires: autoconf, automake
+BuildRequires: pacemaker-libs-devel >= 1.1.8
+Requires: pacemaker-libs >= 1.1.8
 
 ########################################
 %description
 pacemaker diskcheck service
- for pacemaker 1.0.9 
+ for pacemaker 1.1.8 
            and 
-     resoucr-agent 1.0.3 
-           and 
-     cluster-glue 1.0.6
+     cluster-glue 1.0.11
 
 ########################################
 %prep
@@ -93,10 +92,10 @@ true
 %files
 ########################################
 %defattr(-,root,root)
-
+%doc README
 %dir %{ocfdir}
 %attr (755, root, root) %{ocfdir}/diskd
-%attr (755, root, root) %{_libdir}/heartbeat/diskd
+%attr (755, root, root) %{_libexecdir}/pacemaker/diskd
 
 ########################################
 %changelog
