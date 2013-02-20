@@ -97,6 +97,7 @@ AC_SUBST(CRM_DAEMON_DIR)
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES(Makefile	\
 		resources/Makefile \
+		resources/diskd \
 		tools/Makefile \
 		pm_diskd.spec
 		)

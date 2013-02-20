@@ -26,6 +26,7 @@
 # Initialization:
 
 . ${OCF_ROOT}/resource.d/heartbeat/.ocf-shellfuncs
+: ${DISKD_DAEMON_DIR:=@CRM_DAEMON_DIR@}
 
 #######################################################################
 
@@ -140,7 +141,7 @@ diskd_start() {
 	extras="$extras -w -d $OCF_RESKEY_write_dir"
     fi
 
-    diskd_cmd="${HA_BIN}/diskd -D -p $OCF_RESKEY_pidfile -a $OCF_RESKEY_name -i $OCF_RESKEY_interval $extras $OCF_RESKEY_options"
+    diskd_cmd="${DISKD_DAEMON_DIR}/diskd -D -p $OCF_RESKEY_pidfile -a $OCF_RESKEY_name -i $OCF_RESKEY_interval $extras $OCF_RESKEY_options"
   
     $diskd_cmd
     rc=$?
@@ -194,7 +195,7 @@ diskd_monitor() {
     	if [ ! -z "$OCF_RESKEY_write_dir" ]; then   # write-dir
 		extras="$extras -w -d $OCF_RESKEY_write_dir"
     	fi
-    	diskd_cmd="${HA_BIN}/diskd -o $extras $OCF_RESKEY_options"
+    	diskd_cmd="${DISKD_DAEMON_DIR}/diskd -o $extras $OCF_RESKEY_options"
 	echo $diskd_cmd
     	$diskd_cmd
     	rc=$?
