@@ -14,6 +14,19 @@ AC_PROG_MAKE_SET
 AC_PROG_RANLIB
 
 #
+extract_header_define_int() {
+          AC_MSG_CHECKING(for $2 in $1)
+          Cfile=/tmp/extract_define.$2.${$}
+          printf "#include <stdio.h>\n" > ${Cfile}.c
+          printf "#include <%s>\n" $1 >> ${Cfile}.c
+          printf "int main(int argc, char **argv) { printf(\"%%d\", %s); return 0; }\n" $2 >> ${Cfile}.c
+          $CC $CFLAGS ${Cfile}.c -o ${Cfile}
+          value=`${Cfile}`
+          AC_MSG_RESULT($value)
+          printf $value
+          rm -f ${Cfile}.c ${Cfile}
+        }
+
 extract_header_define() {
           AC_MSG_CHECKING(for $2 in $1)
           Cfile=/tmp/extract_define.$2.${$}
@@ -85,6 +98,11 @@ CPPFLAGS="$CPPFLAGS $XML2HEAD"
 
 if test "$ac_cv_header_pacemaker_crm_config_h" = "yes"; then
 	CFLAGS="$CFLAGS -I${prefix}/include/pacemaker"
+fi
+
+SUPPORT_HEARTBEAT=`extract_header_define_int crm_config.h SUPPORT_HEARTBEAT`
+if test "x$SUPPORT_HEARTBEAT" = x"1"; then
+	CFLAGS="$CFLAGS -I${prefix}/include/heartbeat"
 fi
 
 OCF_ROOT_DIR=`extract_header_define crm/services.h OCF_ROOT_DIR`
