@@ -68,7 +68,6 @@
 #define PID_FILE "/tmp/diskd.pid"
 
 /* GMainLoop *mainloop = NULL; */
-const char *crm_system_name = "diskd";
 
 #define OPTARGS	"N:wd:a:i:p:DV?t:r:I:oe"
 
@@ -560,7 +559,7 @@ main(int argc, char **argv)
 	};
 #endif
 	pid_file = strdup(PID_FILE);
-	crm_system_name = basename(argv[0]);
+	crm_system_name = strdup(basename(argv[0]));
 
 	mainloop_add_signal(SIGTERM, diskd_shutdown);
 
@@ -729,7 +728,7 @@ main(int argc, char **argv)
 void
 send_update(void)
 {
-	if(FALSE == attrd_update_delegate(
+	if(pcmk_ok != attrd_update_delegate(
 		NULL, 'U', NULL, diskd_attr, diskcheck_value, attr_section, attr_set, "0", NULL)) {
 		crm_err("Could not update %s=%s", diskd_attr, diskcheck_value);
 	}
