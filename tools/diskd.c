@@ -67,8 +67,6 @@
 #define WRITE_FILE "diskcheck"
 #define PID_FILE "/tmp/diskd.pid"
 
-/* GMainLoop *mainloop = NULL; */
-
 #define OPTARGS	"N:wd:a:i:p:DV?t:r:I:oe"
 
 GMainLoop*  mainloop = NULL;
