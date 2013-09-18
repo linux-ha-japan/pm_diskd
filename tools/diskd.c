@@ -50,7 +50,7 @@
 #define MIN_INTERVAL 1
 #define MAX_INTERVAL 3600
 #define MIN_TIMEOUT 1
-#define MAX_TIMEOUT 3600
+#define MAX_TIMEOUT 600
 #define MIN_RETRY 	0
 #define MAX_RETRY	10
 #define MIN_RETRY_INTERVAL	1
