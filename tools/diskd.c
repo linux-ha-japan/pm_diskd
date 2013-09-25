@@ -726,8 +726,8 @@ main(int argc, char **argv)
 void
 send_update(void)
 {
-	if(pcmk_ok != attrd_update_delegate(
-		NULL, 'U', NULL, diskd_attr, diskcheck_value, attr_section, attr_set, "0", NULL)) {
+	if (pcmk_ok != attrd_update_delegate(NULL, 'U', NULL, diskd_attr,
+		diskcheck_value, attr_section, attr_set, "0", NULL, FALSE)) {
 		crm_err("Could not update %s=%s", diskd_attr, diskcheck_value);
 	}
 }
