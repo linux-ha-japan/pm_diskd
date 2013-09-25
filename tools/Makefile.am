@@ -7,5 +7,5 @@ halib_PROGRAMS		= diskd
 
 diskd_SOURCES		= diskd.c
 
-AM_CFLAGS 		= -Wall -Werror
+AM_CFLAGS		= -Wall -Werror
 

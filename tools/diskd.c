@@ -47,58 +47,58 @@
 #  include <getopt.h>
 #endif
 
-#define MIN_INTERVAL 1
-#define MAX_INTERVAL 3600
-#define MIN_TIMEOUT 1
-#define MAX_TIMEOUT 600
-#define MIN_RETRY 	0
-#define MAX_RETRY	10
+#define MIN_INTERVAL		1
+#define MAX_INTERVAL		3600
+#define MIN_TIMEOUT		1
+#define MAX_TIMEOUT		600
+#define MIN_RETRY		0
+#define MAX_RETRY		10
 #define MIN_RETRY_INTERVAL	1
 #define MAX_RETRY_INTERVAL	3600
 /* status */
-#define ERROR 	1
-#define normal 	-1
-#define NONE  	2
+#define ERROR			1
+#define normal			-1
+#define NONE			2
 
-#define BLKFLSBUF  _IO(0x12,97) /* flush buffer. refer linux/hs.h */
-#define WRITE_DATA 64
+#define BLKFLSBUF		_IO(0x12,97) /* flush buffer. refer linux/hs.h */
+#define WRITE_DATA		64
 
-#define WRITE_DIR "/tmp"
-#define WRITE_FILE "diskcheck"
-#define PID_FILE "/tmp/diskd.pid"
+#define WRITE_DIR		"/tmp"
+#define WRITE_FILE		"diskcheck"
+#define PID_FILE		"/tmp/diskd.pid"
 
-#define OPTARGS	"N:wd:a:i:p:DV?t:r:I:oe"
+#define OPTARGS			"N:wd:a:i:p:DV?t:r:I:oe"
 
-GMainLoop*  mainloop = NULL;
+GMainLoop* mainloop = NULL;
 const char *diskd_attr = "diskd";
-const char *attr_section = NULL;  /* for PM */
-const char *attr_set = NULL;      /* for PM */
+const char *attr_section = NULL;
+const char *attr_set = NULL;
 
-const char *device = NULL;  /* device name for disk check */
+const char *device = NULL;	/* device name for disk check */
 const char *wdir = NULL;
-char *wfile = NULL;   /* directory name for disk check (write) 2008.10.24 */
+char *wfile = NULL;		/* directory name for disk check (write) 2008.10.24 */
 gboolean wflag = FALSE;
-int optflag = 0;  /* flag for duplicate */
+int optflag = 0;		/* flag for duplicate */
 
 int retry = 1;			/* disk check retry. default 1 times */
-int retry_interval = 5; /* disk check retry intarval time. default 5sec. */
-int interval = 30;  	/* disk check interval. default 30sec.*/
-int timeout = 60; 		/* disk check read func timeout. default 60sec. */
-int oneshot_flag = 0;  /* */
-int exec_thread_flag = 0;  /* */
+int retry_interval = 5;		/* disk check retry intarval time. default 5sec. */
+int interval = 30;		/* disk check interval. default 30sec.*/
+int timeout = 60;		/* disk check read func timeout. default 60sec. */
+int oneshot_flag = 0;
+int exec_thread_flag = 0;
 const char *diskcheck_value = NULL;
 int pagesize = 0;
 void *ptr = NULL;
 void *buf;
 
-static GMutex *diskd_mutex = NULL; 	/* Thread Mutex */
-static GCond *diskd_cond = NULL;	/* Thread Cond */
-static GMutex *thread_start_mutex = NULL; 	/* Thread Start Mutex */
-static GCond *thread_start_cond = NULL;	/* Thread Start Cond */
+static GMutex *diskd_mutex = NULL;		/* Thread Mutex */
+static GCond *diskd_cond = NULL;		/* Thread Cond */
+static GMutex *thread_start_mutex = NULL;	/* Thread Start Mutex */
+static GCond *thread_start_cond = NULL;		/* Thread Start Cond */
 static gboolean diskd_thread_use = FALSE;	/* Tthred Timer Flag */
-static GThread *th_timer = NULL; 	/* Thread Timer */
+static GThread *th_timer = NULL;		/* Thread Timer */
 static int timer_id = -1;
- 
+
 static void diskd_thread_timer_init(void);
 static void diskd_thread_create(void);
 static void diskd_thread_timer_variable_free(void);
@@ -111,7 +111,7 @@ static void
 diskd_shutdown(int nsig)
 {
 	crm_info("Exiting");
-	
+
 	if (timer_id != -1) {
 		g_source_remove(timer_id);
 		timer_id = -1;
@@ -196,18 +196,15 @@ check_status(int new_status)
 	if (diskd_thread_use == TRUE) {
 		g_mutex_unlock(diskd_mutex);
 	}
-
 	return TRUE;
 }
 
 static void diskd_thread_timer_init()
 {
 	if (exec_thread_flag) {
-		if( ! g_thread_supported()) { 
+		if( ! g_thread_supported()) {
+			g_thread_init(NULL);
 
-			g_thread_init (NULL);
-
-			
 			thread_start_mutex = g_mutex_new();
 			thread_start_cond = g_cond_new();
 			diskd_mutex = g_mutex_new();
@@ -234,12 +231,10 @@ static void diskd_thread_timer_variable_free()
 		g_mutex_free(thread_start_mutex);
 		thread_start_mutex = NULL;
 	}
-
 	if (diskd_cond != NULL) {
 		g_cond_free(diskd_cond);
 		diskd_cond = NULL;
 	}
-
 	if (thread_start_cond != NULL) {
 		g_cond_free(thread_start_cond);
 		thread_start_cond = NULL;
@@ -250,13 +245,13 @@ static void diskd_thread_timer_end()
 {
 	if (diskd_thread_use == FALSE) return;
 
-
 	diskd_thread_timer_variable_free();
 }
 
 static void diskd_thread_condsend()
 {
 	gpointer ret_thread;
+
 	if (diskd_thread_use == FALSE) return;
 
 	if (diskd_mutex && diskd_cond) {
@@ -266,13 +261,12 @@ static void diskd_thread_condsend()
 
 		if (th_timer != NULL) {
 			ret_thread = g_thread_join(th_timer);
-			crm_trace("thread_join -> %d", GPOINTER_TO_INT (ret_thread));
+			crm_trace("thread_join -> %d", GPOINTER_TO_INT(ret_thread));
 			th_timer = NULL;
-		}	
+		}
 	} else {
 		crm_warn("Cannot transmit cond to a thread");
 	}
-
 }
 
 static void diskd_thread_timer_func(gpointer data)
@@ -280,29 +274,28 @@ static void diskd_thread_timer_func(gpointer data)
 	GTimeVal gtime;
 	glong add_time = (timeout) * 1000 * 1000;
 	gboolean bret;
-	
-	g_mutex_lock(thread_start_mutex);	
+
+	g_mutex_lock(thread_start_mutex);
 
 	/* Awaiting a start */
-	g_mutex_lock(diskd_mutex);	
+	g_mutex_lock(diskd_mutex);
 
 	/* A calculation of the waiting time and practice of the timer.(mergin 1s) */
 	g_get_current_time(&gtime);
-	g_time_val_add(&gtime, add_time); 
+	g_time_val_add(&gtime, add_time);
 
 	g_cond_signal(thread_start_cond);
 
-	g_mutex_unlock(thread_start_mutex);	
+	g_mutex_unlock(thread_start_mutex);
 
 	bret = g_cond_timed_wait(diskd_cond, diskd_mutex, &gtime);
-	g_mutex_unlock(diskd_mutex);	
+	g_mutex_unlock(diskd_mutex);
 
 	if (bret == FALSE){
 		crm_warn("Timeout Error(s) occurred in diskd timer thread.");
 		check_status(ERROR);
 		g_thread_exit(GINT_TO_POINTER(ERROR));
 	}
-
 	crm_trace("Received Cond from Main().");
 	g_thread_exit(GINT_TO_POINTER(normal));
 }
@@ -312,22 +305,21 @@ static void diskd_thread_create()
 	GError *gerr = NULL;
 
 	if (diskd_thread_use) {
-
 		g_mutex_lock(thread_start_mutex);
-		
+
 		if (th_timer == NULL) {
-			th_timer = g_thread_create ((GThreadFunc)diskd_thread_timer_func, NULL, TRUE, &gerr);
+			th_timer = g_thread_create((GThreadFunc)diskd_thread_timer_func, NULL, TRUE, &gerr);
 			if (th_timer == NULL) {
 				crm_err("Cannot create diskd timer_thread. %s", gerr->message);
 				g_error_free(gerr);
 				diskd_thread_use = FALSE;
-				g_mutex_unlock(thread_start_mutex);	
+				g_mutex_unlock(thread_start_mutex);
 			}
 		}
-			
-		if (th_timer != NULL) {	
+
+		if (th_timer != NULL) {
 			g_cond_wait(thread_start_cond, thread_start_mutex);
-			g_mutex_unlock(thread_start_mutex);	
+			g_mutex_unlock(thread_start_mutex);
 		}
 	}
 }
@@ -345,13 +337,12 @@ static int diskcheck_wt(gpointer data)
 	diskd_thread_create();
 
 	for (i = 0; i <= retry; i++) {
-		if ( i !=0 ) {
+		if ( i != 0 ) {
 			sleep(retry_interval);
 		}
 
 		/* file open */
 		fd = open(wfile, O_WRONLY | O_CREAT | O_DSYNC | O_NONBLOCK, 0);
-
 		if (fd == -1) {
 			crm_err("Could not open %s", wfile);
 			crm_perror(LOG_ERR, "%s", wfile);
@@ -375,8 +366,7 @@ static int diskcheck_wt(gpointer data)
 				FD_SET(fd, &write_fd_set);
 				timeout_tv.tv_sec = timeout;
 				timeout_tv.tv_usec = 0;
-				select_err = select(fd+1, NULL, &write_fd_set, NULL,
-					&timeout_tv);
+				select_err = select(fd+1, NULL, &write_fd_set, NULL, &timeout_tv);
 				if (select_err == 1) {
 					crm_warn("select ok, write again");
 					continue;  /* retly write */
@@ -414,8 +404,6 @@ static int diskcheck_wt(gpointer data)
 	check_status(ERROR);
 
 	return ERROR;
-
-    /* file close */
 }
 
 static int diskcheck(gpointer data)
@@ -432,7 +420,7 @@ static int diskcheck(gpointer data)
 	diskd_thread_create();
 
 	for (i = 0; i <= retry; i++) {
-		if ( i !=0 ) {
+		if ( i != 0 ) {
 			sleep(retry_interval);
 		}
 
@@ -479,7 +467,6 @@ static int diskcheck(gpointer data)
 			}
 		}
 	}
-
 	diskd_thread_condsend();
 
 	crm_warn("Error(s) occurred in diskcheck function.");
@@ -488,43 +475,40 @@ static int diskcheck(gpointer data)
 	return ERROR;
 }
 
-
 static int oneshot(void)
 {
 	int rc = 0;
 
-        if ( wflag ) {  /* writer */
-                if (wfile == NULL) {
+	if ( wflag ) {	/* writer */
+		if (wfile == NULL) {
 			wdir = strdup(WRITE_DIR);
-                        wfile = calloc(1, PATH_MAX);
-                        g_snprintf(wfile, PATH_MAX, "%s/%s", WRITE_DIR, WRITE_FILE);
-                }
-                buf = (void *)malloc(WRITE_DATA);
-                if (buf == NULL) {
-                        crm_err("Could not allocate memory");
-                        crm_exit(1);
-                }
-                rc = diskcheck_wt(NULL);
+			wfile = calloc(1, PATH_MAX);
+			g_snprintf(wfile, PATH_MAX, "%s/%s", WRITE_DIR, WRITE_FILE);
+		}
+		buf = (void *)malloc(WRITE_DATA);
+		if (buf == NULL) {
+			crm_err("Could not allocate memory");
+			crm_exit(1);
+		}
+		rc = diskcheck_wt(NULL);
 		free(wfile);
-        } else {                /* reader */
-                pagesize = getpagesize();
-                ptr = (void *)malloc(2 * pagesize);
-                if (ptr == NULL) {
-                        crm_err("Could not allocate memory");
-                        crm_exit(1);
-                }
-                buf = (void *)(((u_long)ptr + pagesize) & ~(pagesize-1));
-                rc = diskcheck(NULL);
+	} else {	/* reader */
+		pagesize = getpagesize();
+		ptr = (void *)malloc(2 * pagesize);
+		if (ptr == NULL) {
+			crm_err("Could not allocate memory");
+			crm_exit(1);
+		}
+		buf = (void *)(((u_long)ptr + pagesize) & ~(pagesize-1));
+		rc = diskcheck(NULL);
 		free(ptr);
-        }
+	}
 
 	if (rc == ERROR) {
 		return ERROR;
 	}
-
 	return 0;
 }
-
 
 int
 main(int argc, char **argv)
@@ -540,18 +524,18 @@ main(int argc, char **argv)
 		/* Top-level Options */
 		{"verbose", 0, 0, 'V'},
 		{"help", 0, 0, '?'},
-		{"pid-file",  1, 0, 'p'},
+		{"pid-file", 1, 0, 'p'},
 		{"attr-name", 1, 0, 'a'},
-		{"read-device-name",  1, 0, 'N'},
+		{"read-device-name", 1, 0, 'N'},
 		{"daemonize", 0, 0, 'D'},
-		{"interval",  1, 0, 'i'},
+		{"interval", 1, 0, 'i'},
 		{"retry", 1, 0, 'r'},
 		{"retry-interval", 1, 0, 'I'},
 		{"check-timeout", 1, 0, 't'},
-		{"write-check", 0, 0, 'w'},   	    /* add option 2008.10.24 */
-		{"write-directory-name", 1, 0, 'd'},   	    /* add option 2009.4.17 */
-		{"oneshot", 0, 0, 'o'},   	/* add option 2009.10.01 */
-		{"exec-thread", 0, 0, 'e'},   	/* add option 2011.09.30 */
+		{"write-check", 0, 0, 'w'},		/* add option 2008.10.24 */
+		{"write-directory-name", 1, 0, 'd'},	/* add option 2009.4.17 */
+		{"oneshot", 0, 0, 'o'},			/* add option 2009.10.01 */
+		{"exec-thread", 0, 0, 'e'},		/* add option 2011.09.30 */
 
 		{0, 0, 0, 0}
 	};
@@ -648,7 +632,6 @@ main(int argc, char **argv)
 		}
 	}
 
-
 	if (optind < argc) {
 		crm_err("non-option ARGV-elements: ");
 		printf ("non-option ARGV-elements: ");
@@ -674,7 +657,7 @@ main(int argc, char **argv)
 
 		free(pid_file);
 		rc = oneshot();
-		crm_exit (rc);
+		crm_exit(rc);
 	}
 
 	crm_make_daemon(crm_system_name, daemonize, pid_file);
@@ -694,7 +677,7 @@ main(int argc, char **argv)
 		}
 		diskcheck_wt(NULL);
 		timer_id = g_timeout_add(interval*1000, diskcheck_wt, NULL);
-	} else {		/* reader */
+	} else {	/* reader */
 		pagesize = getpagesize();
 		ptr = (void *)malloc(2 * pagesize);
 		if (ptr == NULL) {
@@ -731,5 +714,3 @@ send_update(void)
 		crm_err("Could not update %s=%s", diskd_attr, diskcheck_value);
 	}
 }
-
-
