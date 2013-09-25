@@ -130,41 +130,39 @@ static void
 usage(const char *cmd, int crm_exit_status)
 {
 	FILE *stream;
-
 	stream = crm_exit_status ? stderr : stdout;
 
 	fprintf(stream, "usage: %s (-N|-w) [-daipDV?trIoe]\n", cmd);
-	fprintf(stream, "    Basic options\n");
-	fprintf(stream, "\t--%s (-%c) <devicename>\tDevice name to read\n"
-		"\t\t\t\t\t* Required option\n", "read-device-name", 'N');
-	fprintf(stream, "\t--%s (-%c) \t\t\tWrite check for disk, in %s/%s\n"
-		"\t\t\t\t\t* Required option\n", "write-check", 'w', WRITE_DIR, WRITE_FILE);
-	fprintf(stream, "\t--%s (-%c) <directoryname>\tDirectory Name to write\n"
-		, "write-directory-name", 'd');
-	fprintf(stream, "\t--%s (-%c) <string>\tName of the node attribute to set\n"
-		"\t\t\t\t\t* Default=diskd\n", "attr-name", 'a');
-	fprintf(stream, "\t--%s (-%c) <time[s]>\tDisk status check interval time\n"
-		"\t\t\t\t\t* Default=30 sec.\n", "interval", 'i');
-	fprintf(stream, "\t--%s (-%c) <filename>\tFile in which to store the process' PID\n"
-		"\t\t\t\t\t* Default=%s\n", "pid-file", 'p', PID_FILE);
-	fprintf(stream, "\t--%s (-%c) \t\tRun in daemon mode\n", "daemonize", 'D');
-	fprintf(stream, "\t--%s (-%c) \t\t\tRun in verbose mode\n", "verbose", 'V');
-	fprintf(stream, "\t--%s (-%c) \t\t\tDisk check one time\n", "oneshot", 'o');
-	fprintf(stream, "\t--%s (-%c) \t\tCheck of the disk status check timeout by the thread\n"
-		"\t\t\t\t\t* Default=60 sec.(Same value as check-timeout parameter)\n"
-		"\t\t\t\t\t* Invalid at the time of the oneshot parameter designation\n", "exec-thread", 'e');
-	fprintf(stream, "\t--%s (-%c) \t\t\tThis text\n", "help", '?');
-	fprintf(stream, "    Note: -N, -w options cannot be specified at the same time.\n\n");
-	fprintf(stream, "    Advanced options\n");
-	fprintf(stream, "\t--%s (-%c) <time[s]>\tDisk status check timeout for select function\n"
-		"\t\t\t\t\t* Default=60 sec.\n", "check-timeout", 't');
-	fprintf(stream, "\t--%s (-%c) <times>\t\tDisk status check retry\n"
-		"\t\t\t\t\t* Default=1 times\n", "retry", 'r');
-	fprintf(stream, "\t--%s (-%c) <time[s]>\tDisk status check retry interval time\n"
-		"\t\t\t\t\t* Default=5 sec.\n", "retry-interval", 'I');
+	fprintf(stream, "\nBasic options\n");
+	fprintf(stream, "    --%s (-%c) <device>\tDevice name to read\n"
+		"\t\t\t\t\t * Required option\n", "read-device-name", 'N');
+	fprintf(stream, "    --%s (-%c)\t\t\tWrite check for disk, in %s/%s\n"
+		"\t\t\t\t\t * Required option\n", "write-check", 'w', WRITE_DIR, WRITE_FILE);
+	fprintf(stream, "    --%s (-%c) <directory>\n"
+		"\t\t\t\t\tDirectory Name to write\n", "write-directory-name", 'd');
+	fprintf(stream, "    --%s (-%c) <string>\t\tName of the node attribute to set\n"
+		"\t\t\t\t\t * Default=diskd\n", "attr-name", 'a');
+	fprintf(stream, "    --%s (-%c) <time[s]>\t\tDisk status check interval time\n"
+		"\t\t\t\t\t * Default=30 sec.\n", "interval", 'i');
+	fprintf(stream, "    --%s (-%c) <file>\t\tFile in which to store the process' PID\n"
+		"\t\t\t\t\t * Default=%s\n", "pid-file", 'p', PID_FILE);
+	fprintf(stream, "    --%s (-%c)\t\t\tRun in daemon mode\n", "daemonize", 'D');
+	fprintf(stream, "    --%s (-%c)\t\t\tRun in verbose mode\n", "verbose", 'V');
+	fprintf(stream, "    --%s (-%c)\t\t\tDisk check one time\n", "oneshot", 'o');
+	fprintf(stream, "    --%s (-%c)\t\t\tCheck of the disk status check timeout by the thread\n"
+		"\t\t\t\t\t * Default=60 sec.(Same value as check-timeout parameter)\n"
+		"\t\t\t\t\t * Invalid at the time of the oneshot parameter designation\n", "exec-thread", 'e');
+	fprintf(stream, "    --%s (-%c)\t\t\t\tThis text\n", "help", '?');
+	fprintf(stream, "\nNote: -N, -w options cannot be specified at the same time.\n\n");
+	fprintf(stream, "Advanced options\n");
+	fprintf(stream, "    --%s (-%c) <time[s]>\tDisk status check timeout for select function\n"
+		"\t\t\t\t\t * Default=60 sec.\n", "check-timeout", 't');
+	fprintf(stream, "    --%s (-%c) <times>\t\tDisk status check retry\n"
+		"\t\t\t\t\t * Default=1 times\n", "retry", 'r');
+	fprintf(stream, "    --%s (-%c) <time[s]>\tDisk status check retry interval time\n"
+		"\t\t\t\t\t * Default=5 sec.\n", "retry-interval", 'I');
 
 	fflush(stream);
-
 	crm_exit(crm_exit_status);
 }
 
