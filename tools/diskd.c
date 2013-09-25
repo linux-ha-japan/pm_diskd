@@ -92,10 +92,17 @@ int pagesize = 0;
 void *ptr = NULL;
 void *buf;
 
+#if GLIB_CHECK_VERSION(2, 32, 0)
+GMutex diskd_mutex;
+GCond diskd_cond;
+GMutex thread_start_mutex;
+GCond thread_start_cond;
+#else
 static GMutex *diskd_mutex = NULL;		/* Thread Mutex */
 static GCond *diskd_cond = NULL;		/* Thread Cond */
 static GMutex *thread_start_mutex = NULL;	/* Thread Start Mutex */
 static GCond *thread_start_cond = NULL;		/* Thread Start Cond */
+#endif
 static gboolean diskd_thread_use = FALSE;	/* Tthred Timer Flag */
 static GThread *th_timer = NULL;		/* Thread Timer */
 static int timer_id = -1;
@@ -182,7 +189,11 @@ check_status(int new_status)
 	}
 
 	if (diskd_thread_use == TRUE) {
+#if GLIB_CHECK_VERSION(2, 32, 0)
+		g_mutex_lock(&diskd_mutex);
+#else
 		g_mutex_lock(diskd_mutex);
+#endif
 	}
 
 	if (new_status == ERROR) {
@@ -195,35 +206,60 @@ check_status(int new_status)
 	send_update();
 
 	if (diskd_thread_use == TRUE) {
+#if GLIB_CHECK_VERSION(2, 32, 0)
+		g_mutex_unlock(&diskd_mutex);
+#else
 		g_mutex_unlock(diskd_mutex);
+#endif
 	}
 	return TRUE;
 }
 
 static void diskd_thread_timer_init()
 {
-	if (exec_thread_flag) {
-		if( ! g_thread_supported()) {
-			g_thread_init(NULL);
+	if (exec_thread_flag == 0) return;
 
-			thread_start_mutex = g_mutex_new();
-			thread_start_cond = g_cond_new();
-			diskd_mutex = g_mutex_new();
-			diskd_cond = g_cond_new();
-			if (diskd_mutex && diskd_cond && thread_start_mutex && thread_start_cond) {
-				diskd_thread_use = TRUE;
-			} else {
-				diskd_thread_timer_variable_free();
-				crm_warn("Failed in the generation of the thread variable. The thread timer is not available.");
-			}
-		} else {
-			crm_warn("The thread timer of diskd is not supported. By this system, I/O blocking may occur by a check of diskd in read/write.");
-		}
+#if GLIB_CHECK_VERSION(2, 32, 0)
+	/*
+	 * When g_mutex_init() and g_cond_init() fails, it will call abort().
+	 * https://git.gnome.org/browse/glib/tree/glib/gthread-posix.c?h=glib-2-32
+	 */
+	g_mutex_init(&thread_start_mutex);
+	g_cond_init(&thread_start_cond);
+	g_mutex_init(&diskd_mutex);
+	g_cond_init(&diskd_cond);
+
+	diskd_thread_use = TRUE;
+#else
+	if (g_thread_supported()) {
+		crm_warn("The thread timer of diskd is not supported. By this system,"
+			" I/O blocking may occur by a check of diskd in read/write.");
+		return;
 	}
+	g_thread_init(NULL);
+	thread_start_mutex = g_mutex_new();
+	thread_start_cond = g_cond_new();
+	diskd_mutex = g_mutex_new();
+	diskd_cond = g_cond_new();
+
+	if (diskd_mutex && diskd_cond && thread_start_mutex && thread_start_cond) {
+		diskd_thread_use = TRUE;
+	} else {
+		diskd_thread_timer_variable_free();
+		crm_warn("Failed in the generation of the thread variable."
+			" The thread timer is not available.");
+	}
+#endif
 }
 
 static void diskd_thread_timer_variable_free()
 {
+#if GLIB_CHECK_VERSION(2, 32, 0)
+	g_mutex_clear(&diskd_mutex);
+	g_mutex_clear(&thread_start_mutex);
+	g_cond_clear(&diskd_cond);
+	g_cond_clear(&thread_start_cond);
+#else
 	if (diskd_mutex != NULL) {
 		g_mutex_free(diskd_mutex);
 		diskd_mutex = NULL;
@@ -240,6 +276,7 @@ static void diskd_thread_timer_variable_free()
 		g_cond_free(thread_start_cond);
 		thread_start_cond = NULL;
 	}
+#endif
 }
 
 static void diskd_thread_timer_end()
@@ -255,26 +292,51 @@ static void diskd_thread_condsend()
 
 	if (diskd_thread_use == FALSE) return;
 
-	if (diskd_mutex && diskd_cond) {
-		g_mutex_lock(diskd_mutex);
-		g_cond_broadcast(diskd_cond);
-		g_mutex_unlock(diskd_mutex);
-
-		if (th_timer != NULL) {
-			ret_thread = g_thread_join(th_timer);
-			crm_trace("thread_join -> %d", GPOINTER_TO_INT(ret_thread));
-			th_timer = NULL;
-		}
-	} else {
+#if GLIB_CHECK_VERSION(2, 32, 0)
+	g_mutex_lock(&diskd_mutex);
+	g_cond_broadcast(&diskd_cond);
+	g_mutex_unlock(&diskd_mutex);
+#else
+	if (diskd_mutex == NULL || diskd_cond == NULL) {
 		crm_warn("Cannot transmit cond to a thread");
+		return;
+	}
+	g_mutex_lock(diskd_mutex);
+	g_cond_broadcast(diskd_cond);
+	g_mutex_unlock(diskd_mutex);
+#endif
+
+	if (th_timer != NULL) {
+		ret_thread = g_thread_join(th_timer);
+		crm_trace("thread_join -> %d", GPOINTER_TO_INT(ret_thread));
+		th_timer = NULL;
 	}
 }
 
 static void diskd_thread_timer_func(gpointer data)
 {
+	gboolean bret;
+
+#if GLIB_CHECK_VERSION(2, 32, 0)
+	gint64 end_time;
+
+	g_mutex_lock(&thread_start_mutex);
+
+	/* Awaiting a start */
+	g_mutex_lock(&diskd_mutex);
+
+	/* A calculation of the waiting time */
+	end_time = g_get_monotonic_time() + timeout * G_TIME_SPAN_SECOND;
+
+	g_cond_signal(&thread_start_cond);
+
+	g_mutex_unlock(&thread_start_mutex);
+
+	bret = g_cond_wait_until(&diskd_cond, &diskd_mutex, end_time);
+	g_mutex_unlock(&diskd_mutex);
+#else
 	GTimeVal gtime;
 	glong add_time = (timeout) * 1000 * 1000;
-	gboolean bret;
 
 	g_mutex_lock(thread_start_mutex);
 
@@ -291,6 +353,7 @@ static void diskd_thread_timer_func(gpointer data)
 
 	bret = g_cond_timed_wait(diskd_cond, diskd_mutex, &gtime);
 	g_mutex_unlock(diskd_mutex);
+#endif
 
 	if (bret == FALSE){
 		crm_warn("Timeout Error(s) occurred in diskd timer thread.");
@@ -305,24 +368,43 @@ static void diskd_thread_create()
 {
 	GError *gerr = NULL;
 
-	if (diskd_thread_use) {
-		g_mutex_lock(thread_start_mutex);
+	if (diskd_thread_use == FALSE) return;
 
+#if GLIB_CHECK_VERSION(2, 32, 0)
+	g_mutex_lock(&thread_start_mutex);
+
+	if (th_timer == NULL) {
+		th_timer = g_thread_try_new(NULL, (GThreadFunc)diskd_thread_timer_func, NULL, &gerr);
 		if (th_timer == NULL) {
-			th_timer = g_thread_create((GThreadFunc)diskd_thread_timer_func, NULL, TRUE, &gerr);
-			if (th_timer == NULL) {
-				crm_err("Cannot create diskd timer_thread. %s", gerr->message);
-				g_error_free(gerr);
-				diskd_thread_use = FALSE;
-				g_mutex_unlock(thread_start_mutex);
-			}
+			crm_err("Cannot create diskd timer_thread. %s", gerr->message);
+			g_error_free(gerr);
+			diskd_thread_use = FALSE;
+			g_mutex_unlock(&thread_start_mutex);
 		}
+	}
 
-		if (th_timer != NULL) {
-			g_cond_wait(thread_start_cond, thread_start_mutex);
+	if (th_timer != NULL) {
+		g_cond_wait(&thread_start_cond, &thread_start_mutex);
+		g_mutex_unlock(&thread_start_mutex);
+	}
+#else
+	g_mutex_lock(thread_start_mutex);
+
+	if (th_timer == NULL) {
+		th_timer = g_thread_create((GThreadFunc)diskd_thread_timer_func, NULL, TRUE, &gerr);
+		if (th_timer == NULL) {
+			crm_err("Cannot create diskd timer_thread. %s", gerr->message);
+			g_error_free(gerr);
+			diskd_thread_use = FALSE;
 			g_mutex_unlock(thread_start_mutex);
 		}
 	}
+
+	if (th_timer != NULL) {
+		g_cond_wait(thread_start_cond, thread_start_mutex);
+		g_mutex_unlock(thread_start_mutex);
+	}
+#endif
 }
 
 static int diskcheck_wt(gpointer data)
