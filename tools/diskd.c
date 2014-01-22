@@ -67,12 +67,13 @@
 #define WRITE_FILE		"diskcheck"
 #define PID_FILE		"/tmp/diskd.pid"
 
-#define OPTARGS			"N:wd:a:i:p:DV?t:r:I:oe"
+#define OPTARGS			"N:wd:a:i:p:DV?t:r:I:oem:"
 
 GMainLoop* mainloop = NULL;
 const char *diskd_attr = "diskd";
 const char *attr_section = NULL;
 const char *attr_set = NULL;
+const char *attr_dampen = NULL;
 
 const char *device = NULL;	/* device name for disk check */
 const char *wdir = NULL;
@@ -132,7 +133,7 @@ usage(const char *cmd, int crm_exit_status)
 	FILE *stream;
 	stream = crm_exit_status ? stderr : stdout;
 
-	fprintf(stream, "usage: %s (-N|-w) [-daipDV?trIoe]\n", cmd);
+	fprintf(stream, "usage: %s (-N|-w) [-daipDV?trIoem]\n", cmd);
 	fprintf(stream, "\nBasic options\n");
 	fprintf(stream, "    --%s (-%c) <device>\tDevice name to read\n"
 		"\t\t\t\t\t * Required option\n", "read-device-name", 'N');
@@ -152,6 +153,8 @@ usage(const char *cmd, int crm_exit_status)
 	fprintf(stream, "    --%s (-%c)\t\t\tCheck of the disk status check timeout by the thread\n"
 		"\t\t\t\t\t * Default=60 sec.(Same value as check-timeout parameter)\n"
 		"\t\t\t\t\t * Invalid at the time of the oneshot parameter designation\n", "exec-thread", 'e');
+	fprintf(stream, "    --%s (-%c) <time[s]>\t\tDampening interval\n"
+		"\t\t\t\t\t * Default=0 sec.\n", "dampen", 'm');
 	fprintf(stream, "    --%s (-%c)\t\t\t\tThis text\n", "help", '?');
 	fprintf(stream, "\nNote: -N, -w options cannot be specified at the same time.\n\n");
 	fprintf(stream, "Advanced options\n");
@@ -534,6 +537,7 @@ main(int argc, char **argv)
 		{"write-directory-name", 1, 0, 'd'},	/* add option 2009.4.17 */
 		{"oneshot", 0, 0, 'o'},			/* add option 2009.10.01 */
 		{"exec-thread", 0, 0, 'e'},		/* add option 2011.09.30 */
+		{"dampen", 1, 0, 'm'},
 
 		{0, 0, 0, 0}
 	};
@@ -618,6 +622,12 @@ main(int argc, char **argv)
 				break;
 			case 'e':   /* add option 2011.09.30 */
 				exec_thread_flag =1;
+				break;
+			case 'm':
+				if (0 > crm_parse_int(optarg, "-1"))
+					++argerr;
+				else
+					attr_dampen = strdup(optarg);
 				break;
 			case '?':
 				usage(crm_system_name, 1);
@@ -708,7 +718,7 @@ void
 send_update(void)
 {
 	if (pcmk_ok != attrd_update_delegate(NULL, 'U', NULL, diskd_attr,
-		diskcheck_value, attr_section, attr_set, "0", NULL, FALSE)) {
+		diskcheck_value, attr_section, attr_set, attr_dampen, NULL, FALSE)) {
 		crm_err("Could not update %s=%s", diskd_attr, diskcheck_value);
 	}
 }

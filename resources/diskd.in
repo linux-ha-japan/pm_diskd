@@ -95,6 +95,14 @@ A catch all for any other options that need to be passed to diskd.
 <content type="string" default=""/>
 </parameter>
 
+<parameter name="dampen" unique="0">
+<longdesc lang="en">
+The time to wait (dampening) further changes occur
+</longdesc>
+<shortdesc lang="en">Dampening interval</shortdesc>
+<content type="integer" default="0"/>
+</parameter>
+
 </parameters>
 
 <actions>
@@ -112,7 +120,7 @@ END
 
 del_attr_exit() {
 	typeset status=$1
-	attrd_updater -D -n $OCF_RESKEY_name -q
+	attrd_updater -D -n $OCF_RESKEY_name -d $OCF_RESKEY_dampen -q
 	exit $status
 }
 
@@ -138,7 +146,7 @@ diskd_start() {
 	extras="$extras -w -d $OCF_RESKEY_write_dir"
     fi
 
-    diskd_cmd="${DISKD_DAEMON_DIR}/diskd -D -p $OCF_RESKEY_pidfile -a $OCF_RESKEY_name -i $OCF_RESKEY_interval $extras $OCF_RESKEY_options"
+    diskd_cmd="${DISKD_DAEMON_DIR}/diskd -D -p $OCF_RESKEY_pidfile -a $OCF_RESKEY_name -i $OCF_RESKEY_interval $extras -m $OCF_RESKEY_dampen $OCF_RESKEY_options"
   
     $diskd_cmd
     rc=$?
@@ -192,7 +200,7 @@ diskd_monitor() {
     	if [ ! -z "$OCF_RESKEY_write_dir" ]; then   # write-dir
 		extras="$extras -w -d $OCF_RESKEY_write_dir"
     	fi
-    	diskd_cmd="${DISKD_DAEMON_DIR}/diskd -o $extras $OCF_RESKEY_options"
+    	diskd_cmd="${DISKD_DAEMON_DIR}/diskd -o $extras -m $OCF_RESKEY_dampen $OCF_RESKEY_options"
 	echo $diskd_cmd
     	$diskd_cmd
     	rc=$?
@@ -243,6 +251,7 @@ fi
 : ${OCF_RESKEY_options:=""}
 : ${OCF_RESKEY_interval:="30"}
 : ${OCF_RESKEY_name:="diskd"}
+: ${OCF_RESKEY_dampen:="0"}
 : ${OCF_RESKEY_CRM_meta_interval:=0}
 : ${OCF_RESKEY_CRM_meta_globally_unique:="true"}
 
