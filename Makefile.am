@@ -14,7 +14,7 @@ EXTRA_DIST              = $(SPEC) autogen.sh
 $(TARFILE):
 	$(MAKE) dist
 
-RPM_ROOT		= $(shell pwd)
+RPM_ROOT		= $(CURDIR)
 RPMBUILDOPTS		= --define "_sourcedir $(RPM_ROOT)" \
 			  --define "_specdir $(RPM_ROOT)"
 
