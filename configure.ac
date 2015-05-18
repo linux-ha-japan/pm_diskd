@@ -80,6 +80,10 @@ if test x"$have_gthread" = xyes; then
 	LIBS="$LIBS $GTHREAD_LIBS"
 fi
 
+PKG_CHECK_MODULES([PACEMAKER], [pacemaker >= 1.1.13],
+	AC_DEFINE_UNQUOTED([PACEMAKER_GE_1113], 1),
+	AC_DEFINE_UNQUOTED([PACEMAKER_GE_1113], 0))
+
 dnl ========================================================================
 dnl Headers
 dnl ========================================================================
