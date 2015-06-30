@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.53])
-AC_INIT([pm_diskd], [2.0], [iidayuus@intellilink.co.jp])
+AC_INIT([pm_diskd], [2.1], [iidayuus@intellilink.co.jp])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
