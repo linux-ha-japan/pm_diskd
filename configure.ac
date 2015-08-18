@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.53])
-AC_INIT([pm_diskd], [2.0], [iidayuus@intellilink.co.jp])
+AC_INIT([pm_diskd], [2.1], [iidayuus@intellilink.co.jp])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
@@ -79,6 +79,10 @@ if test x"$have_gthread" = xyes; then
 	CFLAGS="$CFLAGS $GTHREAD_CFLAGS"
 	LIBS="$LIBS $GTHREAD_LIBS"
 fi
+
+PKG_CHECK_MODULES([PACEMAKER], [pacemaker >= 1.1.13],
+	AC_DEFINE_UNQUOTED([PACEMAKER_GE_1113], 1),
+	AC_DEFINE_UNQUOTED([PACEMAKER_GE_1113], 0))
 
 dnl ========================================================================
 dnl Headers

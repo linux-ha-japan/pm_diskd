@@ -92,6 +92,12 @@ int pagesize = 0;
 void *ptr = NULL;
 void *buf;
 
+#if PACEMAKER_GE_1113
+int attr_options = attrd_opt_none;
+#else
+gboolean attr_options = FALSE;
+#endif
+
 #if GLIB_CHECK_VERSION(2, 32, 0)
 GMutex diskd_mutex;
 GCond diskd_cond;
@@ -800,7 +806,7 @@ void
 send_update(void)
 {
 	if (pcmk_ok != attrd_update_delegate(NULL, 'U', NULL, diskd_attr,
-		diskcheck_value, attr_section, attr_set, attr_dampen, NULL, FALSE)) {
+		diskcheck_value, attr_section, attr_set, attr_dampen, NULL, attr_options)) {
 		crm_err("Could not update %s=%s", diskd_attr, diskcheck_value);
 	}
 }
