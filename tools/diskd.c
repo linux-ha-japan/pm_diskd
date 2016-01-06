@@ -25,7 +25,7 @@
   *  Ver.2.0  for Pacemaker 1.1.x
   */
 
-#define _GNU_SOURCE
+#define _GNU_SOURCE		/* when using O_DIRECT flag, define it before including fnctl.h */
 
 #include <sys/param.h>
 
