@@ -25,12 +25,13 @@
   *  Ver.2.0  for Pacemaker 1.1.x
   */
 
+#define _GNU_SOURCE		/* when using O_DIRECT flag, define it before including fnctl.h */
+
 #include <sys/param.h>
 
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <stdlib.h>
@@ -60,7 +61,6 @@
 #define normal			-1
 #define NONE			2
 
-#define BLKFLSBUF		_IO(0x12,97) /* flush buffer. refer linux/hs.h */
 #define WRITE_DATA		64
 
 #define WRITE_DIR		"/tmp"
@@ -513,16 +513,9 @@ static int diskcheck(gpointer data)
 			sleep(retry_interval);
 		}
 
-		fd = open((const char *)device, O_RDONLY | O_NONBLOCK, 0);
+		fd = open((const char *)device, O_RDONLY | O_NONBLOCK | O_DIRECT, 0);
 		if (fd == -1) {
 			crm_err("Could not open device %s", device);
-			continue;
-		}
-
-		err = ioctl(fd, BLKFLSBUF, 0);
-		if (err != 0) {
-			crm_err("ioctl error, Could not flush buffer");
-			close(fd);
 			continue;
 		}
 
