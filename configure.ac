@@ -84,6 +84,10 @@ PKG_CHECK_MODULES([PACEMAKER], [pacemaker >= 1.1.13],
 	AC_DEFINE_UNQUOTED([PACEMAKER_GE_1113], 1),
 	AC_DEFINE_UNQUOTED([PACEMAKER_GE_1113], 0))
 
+PKG_CHECK_MODULES([CHECK_ATTRD_UPDATE_BOTH], [pacemaker >= 1.1.15],
+	AC_DEFINE_UNQUOTED([ATTRD_UPDATE_BOTH], 1),
+	AC_DEFINE_UNQUOTED([ATTRD_UPDATE_BOTH], 0))
+
 dnl ========================================================================
 dnl Headers
 dnl ========================================================================

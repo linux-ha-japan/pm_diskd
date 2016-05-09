@@ -798,8 +798,26 @@ main(int argc, char **argv)
 void
 send_update(void)
 {
-	if (pcmk_ok != attrd_update_delegate(NULL, 'U', NULL, diskd_attr,
-		diskcheck_value, attr_section, attr_set, attr_dampen, NULL, attr_options)) {
+	int rc;
+
+#if ATTRD_UPDATE_BOTH
+	static gboolean boFirst = TRUE;
+#else
+	static gboolean boFirst = FALSE;
+#endif
+
+	if (boFirst) {
+	    rc = attrd_update_delegate(NULL, 'B', NULL, diskd_attr,
+		diskcheck_value, attr_section, attr_set, attr_dampen, NULL, attr_options);
+	    if (rc == pcmk_ok) {
+			boFirst = FALSE;
+	    }
+	} else {
+	    rc = attrd_update_delegate(NULL, 'U', NULL, diskd_attr,
+		diskcheck_value, attr_section, attr_set, attr_dampen, NULL, attr_options);
+	}
+
+	if (pcmk_ok != rc ) {
 		crm_err("Could not update %s=%s", diskd_attr, diskcheck_value);
 	}
 }
