@@ -73,7 +73,7 @@ GMainLoop* mainloop = NULL;
 const char *diskd_attr = "diskd";
 const char *attr_section = NULL;
 const char *attr_set = NULL;
-const char *attr_dampen = NULL;
+const char *attr_dampen = "0";
 
 const char *device = NULL;	/* device name for disk check */
 const char *wdir = NULL;
