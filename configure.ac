@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.53])
-AC_INIT([pm_diskd], [2.2], [iidayuus@intellilink.co.jp])
+AC_INIT([pm_diskd], [2.3], [iidayuus@intellilink.co.jp])
 AM_INIT_AUTOMAKE
 
 # Checks for programs.
@@ -83,6 +83,10 @@ fi
 PKG_CHECK_MODULES([PACEMAKER], [pacemaker >= 1.1.13],
 	AC_DEFINE_UNQUOTED([PACEMAKER_GE_1113], 1),
 	AC_DEFINE_UNQUOTED([PACEMAKER_GE_1113], 0))
+
+PKG_CHECK_MODULES([CHECK_ATTRD_UPDATE_BOTH], [pacemaker >= 1.1.15],
+	AC_DEFINE_UNQUOTED([ATTRD_UPDATE_BOTH], 1),
+	AC_DEFINE_UNQUOTED([ATTRD_UPDATE_BOTH], 0))
 
 dnl ========================================================================
 dnl Headers
